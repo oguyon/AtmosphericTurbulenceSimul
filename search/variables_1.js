@@ -1,0 +1,22 @@
+var searchData=
+[
+  ['bfoffbits',['bfOffBits',['../structBITMAPFILEHEADER.html#a7426a16a6cb6a65bd22b3696376d18dc',1,'BITMAPFILEHEADER']]],
+  ['bfreserved1',['bfReserved1',['../structBITMAPFILEHEADER.html#ac01d6a25f6fde8d2427bbee61e03b9ab',1,'BITMAPFILEHEADER']]],
+  ['bfreserved2',['bfReserved2',['../structBITMAPFILEHEADER.html#a5e2a8f1c1a537c5570dfdb8d875edc90',1,'BITMAPFILEHEADER']]],
+  ['bfsize',['bfSize',['../structBITMAPFILEHEADER.html#a5b7969496b8a8a477ce2f9f6a602c556',1,'BITMAPFILEHEADER']]],
+  ['bftype',['bfType',['../structBITMAPFILEHEADER.html#a37ad25a2c6577794f1e5376b45d5a7de',1,'BITMAPFILEHEADER']]],
+  ['bibitcount',['biBitCount',['../structBITMAPINFOHEADER.html#a9538a3f40f9f57cd5b82b698e1855015',1,'BITMAPINFOHEADER']]],
+  ['biclrimportant',['biClrImportant',['../structBITMAPINFOHEADER.html#a5ef05c009e392db1cc9c3d41292928c8',1,'BITMAPINFOHEADER']]],
+  ['biclrused',['biClrUsed',['../structBITMAPINFOHEADER.html#a4d48257999bea13ade311dda1448f2d0',1,'BITMAPINFOHEADER']]],
+  ['bicompression',['biCompression',['../structBITMAPINFOHEADER.html#a43ec6e8e10f0c7fdf9bc9c892a22a028',1,'BITMAPINFOHEADER']]],
+  ['biheight',['biHeight',['../structBITMAPINFOHEADER.html#a9dddc8e5104f49e7feec78835bf7afbb',1,'BITMAPINFOHEADER']]],
+  ['biplanes',['biPlanes',['../structBITMAPINFOHEADER.html#a77085881f424179a3c4ceaa728e1a81f',1,'BITMAPINFOHEADER']]],
+  ['bisize',['biSize',['../structBITMAPINFOHEADER.html#a7e3eb39ca20f49ccb7d7d5d1d3cfa6e7',1,'BITMAPINFOHEADER']]],
+  ['bisizeimage',['biSizeImage',['../structBITMAPINFOHEADER.html#afcbafaf232b04775a6c4762d6c79ba00',1,'BITMAPINFOHEADER']]],
+  ['biwidth',['biWidth',['../structBITMAPINFOHEADER.html#ac490e64690c13c3b425d21eb25043cca',1,'BITMAPINFOHEADER']]],
+  ['bixpelspermeter',['biXPelsPerMeter',['../structBITMAPINFOHEADER.html#a2b93177924fd3803a050bf3daaf23ee4',1,'BITMAPINFOHEADER']]],
+  ['biypelspermeter',['biYPelsPerMeter',['../structBITMAPINFOHEADER.html#ad43bb286a1a2067b45d1c9b701c384a7',1,'BITMAPINFOHEADER']]],
+  ['builddate',['BuildDate',['../CLIcore_8h.html#ac3e78a1257c6b5e478a52bf5b478014b',1,'CLIcore.h']]],
+  ['buildfile',['BuildFile',['../CLIcore_8h.html#a9ebc4d9af3d9a26f49cccce824a976eb',1,'CLIcore.h']]],
+  ['buildtime',['BuildTime',['../CLIcore_8h.html#afeae30b051ddde8c1e7490fa91bc2fc6',1,'CLIcore.h']]]
+];
