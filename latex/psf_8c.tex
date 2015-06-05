@@ -1,0 +1,265 @@
+\hypertarget{psf_8c}{\section{src/psf/psf.c File Reference}
+\label{psf_8c}\index{src/psf/psf.\+c@{src/psf/psf.\+c}}
+}
+{\ttfamily \#include $<$string.\+h$>$}\\*
+{\ttfamily \#include $<$malloc.\+h$>$}\\*
+{\ttfamily \#include $<$math.\+h$>$}\\*
+{\ttfamily \#include $<$stdlib.\+h$>$}\\*
+{\ttfamily \#include \char`\"{}C\+L\+Icore.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}C\+O\+R\+E\+M\+O\+D\+\_\+memory/\+C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}info/info.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}C\+O\+R\+E\+M\+O\+D\+\_\+tools/\+C\+O\+R\+E\+M\+O\+D\+\_\+tools.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}image\+\_\+gen/image\+\_\+gen.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}image\+\_\+basic/image\+\_\+basic.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}image\+\_\+filter/image\+\_\+filter.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}C\+O\+R\+E\+M\+O\+D\+\_\+iofits/\+C\+O\+R\+E\+M\+O\+D\+\_\+iofits.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}C\+O\+R\+E\+M\+O\+D\+\_\+arith/\+C\+O\+R\+E\+M\+O\+D\+\_\+arith.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}fft/fft.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}psf/psf.\+h\char`\"{}}\\*
+\subsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \hyperlink{psf_8c_ad098da2627dc8a7e50f4d28cc21f207e}{init\+\_\+psf} ()
+\item 
+long \hyperlink{psf_8c_a7ebfd70d0dbbc1f8eddff61192dd1329}{P\+S\+F\+\_\+make\+Chromat\+P\+S\+F} (char $\ast$amp\+\_\+name, char $\ast$pha\+\_\+name, float coeff1, float coeff2, long N\+Bstep, float Apo\+Coeff, char $\ast$out\+\_\+name)
+\item 
+int \hyperlink{psf_8c_a49eb8cd6c9cb295c641c7f9caad91740}{P\+S\+F\+\_\+finddiskcent} (char $\ast$I\+D\+\_\+name, float rad, float $\ast$result)
+\item 
+int \hyperlink{psf_8c_af2df062b5f29a653d5ac12cdcea74f4c}{P\+S\+F\+\_\+finddiskcent\+\_\+alone} (char $\ast$I\+D\+\_\+name, float rad)
+\item 
+int \hyperlink{psf_8c_a749c5dea33b1814011082b60aab2e234}{P\+S\+F\+\_\+measure\+Photocenter} (char $\ast$I\+D\+\_\+name)
+\item 
+float \hyperlink{psf_8c_a333ca4e7da003b7a764d2dffdf5f88a5}{measure\+\_\+enc\+\_\+\+N\+R\+J} (char $\ast$I\+D\+\_\+name, float xcenter, float ycenter, float fraction)
+\item 
+int \hyperlink{psf_8c_aaca4c2d408eb3489b630371723f57dd4}{measure\+\_\+enc\+\_\+\+N\+R\+J1} (char $\ast$I\+D\+\_\+name, float xcenter, float ycenter, char $\ast$filename)
+\item 
+float \hyperlink{psf_8c_a0f4c6ab65bafc31f48148840966fd5c4}{measure\+\_\+\+F\+W\+H\+M} (char $\ast$I\+D\+\_\+name, float xcenter, float ycenter, float step, long nb\+\_\+step)
+\item 
+int \hyperlink{psf_8c_ae5fb0bbb2ff345eaae0226a55d041fc9}{center\+\_\+\+P\+S\+F} (char $\ast$I\+D\+\_\+name, double $\ast$xcenter, double $\ast$ycenter, long box\+\_\+size)
+\item 
+int \hyperlink{psf_8c_a7dd909f53ab571d565aee68676db6314}{fast\+\_\+center\+\_\+\+P\+S\+F} (char $\ast$I\+D\+\_\+name, double $\ast$xcenter, double $\ast$ycenter, long box\+\_\+size)
+\item 
+int \hyperlink{psf_8c_a02ebb3dbb3aef87fc0340a48f517a16b}{center\+\_\+\+P\+S\+F\+\_\+alone} (char $\ast$I\+D\+\_\+name)
+\item 
+int \hyperlink{psf_8c_a88601e6ec1f20e16022b3c9ee202a9e3}{center\+\_\+star} (char $\ast$I\+D\+\_\+in\+\_\+name, double $\ast$x\+\_\+star, double $\ast$y\+\_\+star)
+\item 
+float \hyperlink{psf_8c_a849d8bd203387433c16ca493dbc9cd8b}{get\+\_\+sigma} (char $\ast$I\+D\+\_\+name, float x, float y, char $\ast$options)
+\item 
+float \hyperlink{psf_8c_abcb04d3f0d4a45e95f60d527267e3c01}{get\+\_\+sigma\+\_\+alone} (char $\ast$I\+D\+\_\+name)
+\item 
+int \hyperlink{psf_8c_af9b62f480ba2302654ff582813b788a7}{extract\+\_\+psf} (char $\ast$I\+D\+\_\+name, char $\ast$out\+\_\+name, long size)
+\item 
+long \hyperlink{psf_8c_a01ed764330e6c6b04fbe7510ce8b19fe}{extract\+\_\+psf\+\_\+photcent} (char $\ast$I\+D\+\_\+name, char $\ast$out\+\_\+name, long size)
+\item 
+int \hyperlink{psf_8c_a22f3beba5bcab43b856f9ed93d7c128d}{psf\+\_\+variance} (char $\ast$I\+D\+\_\+out\+\_\+m, char $\ast$I\+D\+\_\+out\+\_\+v, char $\ast$options)
+\item 
+int \hyperlink{psf_8c_a16c949081907aea323c335d2b3001e2b}{combine\+\_\+2psf} (char $\ast$I\+D\+\_\+name, char $\ast$I\+D\+\_\+name1, char $\ast$I\+D\+\_\+name2, float radius, float index)
+\item 
+float \hyperlink{psf_8c_a9ab047b44065d6cdfc09096ae53bc465}{psf\+\_\+measure\+\_\+\+S\+R} (char $\ast$I\+D\+\_\+name, float factor, float r1, float r2)
+\item 
+long \hyperlink{psf_8c_ad8c6a4fede41630967d22194fc6c13a7}{P\+S\+F\+\_\+coaddbest} (char $\ast$I\+Dcin\+\_\+name, char $\ast$I\+Dout\+\_\+name, float r\+\_\+pix)
+\end{DoxyCompactItemize}
+\subsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+\hyperlink{structDATA}{D\+A\+T\+A} \hyperlink{psf_8c_a9842752e03b4de9b4593f1a3b34364ab}{data}
+\item 
+double \hyperlink{psf_8c_a45c45f9affb7a1208d03534b2c5b0afd}{F\+W\+H\+M\+\_\+\+M\+E\+A\+S\+U\+R\+E\+D}
+\end{DoxyCompactItemize}
+
+
+\subsection{Function Documentation}
+\hypertarget{psf_8c_ae5fb0bbb2ff345eaae0226a55d041fc9}{\index{psf.\+c@{psf.\+c}!center\+\_\+\+P\+S\+F@{center\+\_\+\+P\+S\+F}}
+\index{center\+\_\+\+P\+S\+F@{center\+\_\+\+P\+S\+F}!psf.\+c@{psf.\+c}}
+\subsubsection[{center\+\_\+\+P\+S\+F}]{\setlength{\rightskip}{0pt plus 5cm}int center\+\_\+\+P\+S\+F (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{double $\ast$}]{xcenter, }
+\item[{double $\ast$}]{ycenter, }
+\item[{long}]{box\+\_\+size}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_ae5fb0bbb2ff345eaae0226a55d041fc9}
+\hypertarget{psf_8c_a02ebb3dbb3aef87fc0340a48f517a16b}{\index{psf.\+c@{psf.\+c}!center\+\_\+\+P\+S\+F\+\_\+alone@{center\+\_\+\+P\+S\+F\+\_\+alone}}
+\index{center\+\_\+\+P\+S\+F\+\_\+alone@{center\+\_\+\+P\+S\+F\+\_\+alone}!psf.\+c@{psf.\+c}}
+\subsubsection[{center\+\_\+\+P\+S\+F\+\_\+alone}]{\setlength{\rightskip}{0pt plus 5cm}int center\+\_\+\+P\+S\+F\+\_\+alone (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a02ebb3dbb3aef87fc0340a48f517a16b}
+\hypertarget{psf_8c_a88601e6ec1f20e16022b3c9ee202a9e3}{\index{psf.\+c@{psf.\+c}!center\+\_\+star@{center\+\_\+star}}
+\index{center\+\_\+star@{center\+\_\+star}!psf.\+c@{psf.\+c}}
+\subsubsection[{center\+\_\+star}]{\setlength{\rightskip}{0pt plus 5cm}int center\+\_\+star (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+in\+\_\+name, }
+\item[{double $\ast$}]{x\+\_\+star, }
+\item[{double $\ast$}]{y\+\_\+star}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a88601e6ec1f20e16022b3c9ee202a9e3}
+\hypertarget{psf_8c_a16c949081907aea323c335d2b3001e2b}{\index{psf.\+c@{psf.\+c}!combine\+\_\+2psf@{combine\+\_\+2psf}}
+\index{combine\+\_\+2psf@{combine\+\_\+2psf}!psf.\+c@{psf.\+c}}
+\subsubsection[{combine\+\_\+2psf}]{\setlength{\rightskip}{0pt plus 5cm}int combine\+\_\+2psf (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{char $\ast$}]{I\+D\+\_\+name1, }
+\item[{char $\ast$}]{I\+D\+\_\+name2, }
+\item[{float}]{radius, }
+\item[{float}]{index}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a16c949081907aea323c335d2b3001e2b}
+\hypertarget{psf_8c_af9b62f480ba2302654ff582813b788a7}{\index{psf.\+c@{psf.\+c}!extract\+\_\+psf@{extract\+\_\+psf}}
+\index{extract\+\_\+psf@{extract\+\_\+psf}!psf.\+c@{psf.\+c}}
+\subsubsection[{extract\+\_\+psf}]{\setlength{\rightskip}{0pt plus 5cm}int extract\+\_\+psf (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{char $\ast$}]{out\+\_\+name, }
+\item[{long}]{size}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_af9b62f480ba2302654ff582813b788a7}
+\hypertarget{psf_8c_a01ed764330e6c6b04fbe7510ce8b19fe}{\index{psf.\+c@{psf.\+c}!extract\+\_\+psf\+\_\+photcent@{extract\+\_\+psf\+\_\+photcent}}
+\index{extract\+\_\+psf\+\_\+photcent@{extract\+\_\+psf\+\_\+photcent}!psf.\+c@{psf.\+c}}
+\subsubsection[{extract\+\_\+psf\+\_\+photcent}]{\setlength{\rightskip}{0pt plus 5cm}long extract\+\_\+psf\+\_\+photcent (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{char $\ast$}]{out\+\_\+name, }
+\item[{long}]{size}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a01ed764330e6c6b04fbe7510ce8b19fe}
+\hypertarget{psf_8c_a7dd909f53ab571d565aee68676db6314}{\index{psf.\+c@{psf.\+c}!fast\+\_\+center\+\_\+\+P\+S\+F@{fast\+\_\+center\+\_\+\+P\+S\+F}}
+\index{fast\+\_\+center\+\_\+\+P\+S\+F@{fast\+\_\+center\+\_\+\+P\+S\+F}!psf.\+c@{psf.\+c}}
+\subsubsection[{fast\+\_\+center\+\_\+\+P\+S\+F}]{\setlength{\rightskip}{0pt plus 5cm}int fast\+\_\+center\+\_\+\+P\+S\+F (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{double $\ast$}]{xcenter, }
+\item[{double $\ast$}]{ycenter, }
+\item[{long}]{box\+\_\+size}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a7dd909f53ab571d565aee68676db6314}
+\hypertarget{psf_8c_a849d8bd203387433c16ca493dbc9cd8b}{\index{psf.\+c@{psf.\+c}!get\+\_\+sigma@{get\+\_\+sigma}}
+\index{get\+\_\+sigma@{get\+\_\+sigma}!psf.\+c@{psf.\+c}}
+\subsubsection[{get\+\_\+sigma}]{\setlength{\rightskip}{0pt plus 5cm}float get\+\_\+sigma (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{float}]{x, }
+\item[{float}]{y, }
+\item[{char $\ast$}]{options}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a849d8bd203387433c16ca493dbc9cd8b}
+\hypertarget{psf_8c_abcb04d3f0d4a45e95f60d527267e3c01}{\index{psf.\+c@{psf.\+c}!get\+\_\+sigma\+\_\+alone@{get\+\_\+sigma\+\_\+alone}}
+\index{get\+\_\+sigma\+\_\+alone@{get\+\_\+sigma\+\_\+alone}!psf.\+c@{psf.\+c}}
+\subsubsection[{get\+\_\+sigma\+\_\+alone}]{\setlength{\rightskip}{0pt plus 5cm}float get\+\_\+sigma\+\_\+alone (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_abcb04d3f0d4a45e95f60d527267e3c01}
+\hypertarget{psf_8c_ad098da2627dc8a7e50f4d28cc21f207e}{\index{psf.\+c@{psf.\+c}!init\+\_\+psf@{init\+\_\+psf}}
+\index{init\+\_\+psf@{init\+\_\+psf}!psf.\+c@{psf.\+c}}
+\subsubsection[{init\+\_\+psf}]{\setlength{\rightskip}{0pt plus 5cm}int init\+\_\+psf (
+\begin{DoxyParamCaption}
+{}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_ad098da2627dc8a7e50f4d28cc21f207e}
+\hypertarget{psf_8c_a333ca4e7da003b7a764d2dffdf5f88a5}{\index{psf.\+c@{psf.\+c}!measure\+\_\+enc\+\_\+\+N\+R\+J@{measure\+\_\+enc\+\_\+\+N\+R\+J}}
+\index{measure\+\_\+enc\+\_\+\+N\+R\+J@{measure\+\_\+enc\+\_\+\+N\+R\+J}!psf.\+c@{psf.\+c}}
+\subsubsection[{measure\+\_\+enc\+\_\+\+N\+R\+J}]{\setlength{\rightskip}{0pt plus 5cm}float measure\+\_\+enc\+\_\+\+N\+R\+J (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{float}]{xcenter, }
+\item[{float}]{ycenter, }
+\item[{float}]{fraction}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a333ca4e7da003b7a764d2dffdf5f88a5}
+\hypertarget{psf_8c_aaca4c2d408eb3489b630371723f57dd4}{\index{psf.\+c@{psf.\+c}!measure\+\_\+enc\+\_\+\+N\+R\+J1@{measure\+\_\+enc\+\_\+\+N\+R\+J1}}
+\index{measure\+\_\+enc\+\_\+\+N\+R\+J1@{measure\+\_\+enc\+\_\+\+N\+R\+J1}!psf.\+c@{psf.\+c}}
+\subsubsection[{measure\+\_\+enc\+\_\+\+N\+R\+J1}]{\setlength{\rightskip}{0pt plus 5cm}int measure\+\_\+enc\+\_\+\+N\+R\+J1 (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{float}]{xcenter, }
+\item[{float}]{ycenter, }
+\item[{char $\ast$}]{filename}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_aaca4c2d408eb3489b630371723f57dd4}
+\hypertarget{psf_8c_a0f4c6ab65bafc31f48148840966fd5c4}{\index{psf.\+c@{psf.\+c}!measure\+\_\+\+F\+W\+H\+M@{measure\+\_\+\+F\+W\+H\+M}}
+\index{measure\+\_\+\+F\+W\+H\+M@{measure\+\_\+\+F\+W\+H\+M}!psf.\+c@{psf.\+c}}
+\subsubsection[{measure\+\_\+\+F\+W\+H\+M}]{\setlength{\rightskip}{0pt plus 5cm}float measure\+\_\+\+F\+W\+H\+M (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{float}]{xcenter, }
+\item[{float}]{ycenter, }
+\item[{float}]{step, }
+\item[{long}]{nb\+\_\+step}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a0f4c6ab65bafc31f48148840966fd5c4}
+\hypertarget{psf_8c_ad8c6a4fede41630967d22194fc6c13a7}{\index{psf.\+c@{psf.\+c}!P\+S\+F\+\_\+coaddbest@{P\+S\+F\+\_\+coaddbest}}
+\index{P\+S\+F\+\_\+coaddbest@{P\+S\+F\+\_\+coaddbest}!psf.\+c@{psf.\+c}}
+\subsubsection[{P\+S\+F\+\_\+coaddbest}]{\setlength{\rightskip}{0pt plus 5cm}long P\+S\+F\+\_\+coaddbest (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+Dcin\+\_\+name, }
+\item[{char $\ast$}]{I\+Dout\+\_\+name, }
+\item[{float}]{r\+\_\+pix}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_ad8c6a4fede41630967d22194fc6c13a7}
+\hypertarget{psf_8c_a49eb8cd6c9cb295c641c7f9caad91740}{\index{psf.\+c@{psf.\+c}!P\+S\+F\+\_\+finddiskcent@{P\+S\+F\+\_\+finddiskcent}}
+\index{P\+S\+F\+\_\+finddiskcent@{P\+S\+F\+\_\+finddiskcent}!psf.\+c@{psf.\+c}}
+\subsubsection[{P\+S\+F\+\_\+finddiskcent}]{\setlength{\rightskip}{0pt plus 5cm}int P\+S\+F\+\_\+finddiskcent (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{float}]{rad, }
+\item[{float $\ast$}]{result}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a49eb8cd6c9cb295c641c7f9caad91740}
+\hypertarget{psf_8c_af2df062b5f29a653d5ac12cdcea74f4c}{\index{psf.\+c@{psf.\+c}!P\+S\+F\+\_\+finddiskcent\+\_\+alone@{P\+S\+F\+\_\+finddiskcent\+\_\+alone}}
+\index{P\+S\+F\+\_\+finddiskcent\+\_\+alone@{P\+S\+F\+\_\+finddiskcent\+\_\+alone}!psf.\+c@{psf.\+c}}
+\subsubsection[{P\+S\+F\+\_\+finddiskcent\+\_\+alone}]{\setlength{\rightskip}{0pt plus 5cm}int P\+S\+F\+\_\+finddiskcent\+\_\+alone (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{float}]{rad}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_af2df062b5f29a653d5ac12cdcea74f4c}
+\hypertarget{psf_8c_a7ebfd70d0dbbc1f8eddff61192dd1329}{\index{psf.\+c@{psf.\+c}!P\+S\+F\+\_\+make\+Chromat\+P\+S\+F@{P\+S\+F\+\_\+make\+Chromat\+P\+S\+F}}
+\index{P\+S\+F\+\_\+make\+Chromat\+P\+S\+F@{P\+S\+F\+\_\+make\+Chromat\+P\+S\+F}!psf.\+c@{psf.\+c}}
+\subsubsection[{P\+S\+F\+\_\+make\+Chromat\+P\+S\+F}]{\setlength{\rightskip}{0pt plus 5cm}long P\+S\+F\+\_\+make\+Chromat\+P\+S\+F (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{amp\+\_\+name, }
+\item[{char $\ast$}]{pha\+\_\+name, }
+\item[{float}]{coeff1, }
+\item[{float}]{coeff2, }
+\item[{long}]{N\+Bstep, }
+\item[{float}]{Apo\+Coeff, }
+\item[{char $\ast$}]{out\+\_\+name}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a7ebfd70d0dbbc1f8eddff61192dd1329}
+\hypertarget{psf_8c_a9ab047b44065d6cdfc09096ae53bc465}{\index{psf.\+c@{psf.\+c}!psf\+\_\+measure\+\_\+\+S\+R@{psf\+\_\+measure\+\_\+\+S\+R}}
+\index{psf\+\_\+measure\+\_\+\+S\+R@{psf\+\_\+measure\+\_\+\+S\+R}!psf.\+c@{psf.\+c}}
+\subsubsection[{psf\+\_\+measure\+\_\+\+S\+R}]{\setlength{\rightskip}{0pt plus 5cm}float psf\+\_\+measure\+\_\+\+S\+R (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name, }
+\item[{float}]{factor, }
+\item[{float}]{r1, }
+\item[{float}]{r2}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a9ab047b44065d6cdfc09096ae53bc465}
+\hypertarget{psf_8c_a749c5dea33b1814011082b60aab2e234}{\index{psf.\+c@{psf.\+c}!P\+S\+F\+\_\+measure\+Photocenter@{P\+S\+F\+\_\+measure\+Photocenter}}
+\index{P\+S\+F\+\_\+measure\+Photocenter@{P\+S\+F\+\_\+measure\+Photocenter}!psf.\+c@{psf.\+c}}
+\subsubsection[{P\+S\+F\+\_\+measure\+Photocenter}]{\setlength{\rightskip}{0pt plus 5cm}int P\+S\+F\+\_\+measure\+Photocenter (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a749c5dea33b1814011082b60aab2e234}
+\hypertarget{psf_8c_a22f3beba5bcab43b856f9ed93d7c128d}{\index{psf.\+c@{psf.\+c}!psf\+\_\+variance@{psf\+\_\+variance}}
+\index{psf\+\_\+variance@{psf\+\_\+variance}!psf.\+c@{psf.\+c}}
+\subsubsection[{psf\+\_\+variance}]{\setlength{\rightskip}{0pt plus 5cm}int psf\+\_\+variance (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+out\+\_\+m, }
+\item[{char $\ast$}]{I\+D\+\_\+out\+\_\+v, }
+\item[{char $\ast$}]{options}
+\end{DoxyParamCaption}
+)}}\label{psf_8c_a22f3beba5bcab43b856f9ed93d7c128d}
+
+
+\subsection{Variable Documentation}
+\hypertarget{psf_8c_a9842752e03b4de9b4593f1a3b34364ab}{\index{psf.\+c@{psf.\+c}!data@{data}}
+\index{data@{data}!psf.\+c@{psf.\+c}}
+\subsubsection[{data}]{\setlength{\rightskip}{0pt plus 5cm}{\bf D\+A\+T\+A} data}}\label{psf_8c_a9842752e03b4de9b4593f1a3b34364ab}
+\hypertarget{psf_8c_a45c45f9affb7a1208d03534b2c5b0afd}{\index{psf.\+c@{psf.\+c}!F\+W\+H\+M\+\_\+\+M\+E\+A\+S\+U\+R\+E\+D@{F\+W\+H\+M\+\_\+\+M\+E\+A\+S\+U\+R\+E\+D}}
+\index{F\+W\+H\+M\+\_\+\+M\+E\+A\+S\+U\+R\+E\+D@{F\+W\+H\+M\+\_\+\+M\+E\+A\+S\+U\+R\+E\+D}!psf.\+c@{psf.\+c}}
+\subsubsection[{F\+W\+H\+M\+\_\+\+M\+E\+A\+S\+U\+R\+E\+D}]{\setlength{\rightskip}{0pt plus 5cm}double F\+W\+H\+M\+\_\+\+M\+E\+A\+S\+U\+R\+E\+D}}\label{psf_8c_a45c45f9affb7a1208d03534b2c5b0afd}

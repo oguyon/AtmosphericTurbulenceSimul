@@ -1,0 +1,1200 @@
+\hypertarget{AtmosphereModel_8c}{\section{src/\+Atmosphere\+Model/\+Atmosphere\+Model.c File Reference}
+\label{AtmosphereModel_8c}\index{src/\+Atmosphere\+Model/\+Atmosphere\+Model.\+c@{src/\+Atmosphere\+Model/\+Atmosphere\+Model.\+c}}
+}
+{\ttfamily \#include $<$string.\+h$>$}\\*
+{\ttfamily \#include $<$stdlib.\+h$>$}\\*
+{\ttfamily \#include $<$stdio.\+h$>$}\\*
+{\ttfamily \#include $<$malloc.\+h$>$}\\*
+{\ttfamily \#include $<$ctype.\+h$>$}\\*
+{\ttfamily \#include $<$math.\+h$>$}\\*
+{\ttfamily \#include $<$time.\+h$>$}\\*
+{\ttfamily \#include \char`\"{}C\+L\+Icore.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}C\+O\+R\+E\+M\+O\+D\+\_\+tools/\+C\+O\+R\+E\+M\+O\+D\+\_\+tools.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}Atmosphere\+Model/\+Atmosphere\+Model.\+h\char`\"{}}\\*
+{\ttfamily \#include \char`\"{}Optics\+Materials/\+Optics\+Materials.\+h\char`\"{}}\\*
+\subsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \hyperlink{AtmosphereModel_8c_a5d9d454d4b9f2ff8106d5199ac0d0186}{S\+W\+A\+P}(x, y)~temp=(x);x=(y);y=temp;
+\item 
+\#define \hyperlink{AtmosphereModel_8c_a598a3330b3c21701223ee0ca14316eca}{P\+I}~3.\+14159265358979323846264338328
+\end{DoxyCompactItemize}
+\subsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \hyperlink{AtmosphereModel_8c_a1a8094b55afb74a2db035a9b82a3f120}{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F\+\_\+cli} ()
+\item 
+int \hyperlink{AtmosphereModel_8c_a5bebc7fed3ae71f6d73abebeaa527110}{init\+\_\+\+Atmosphere\+Model} ()
+\item 
+int \hyperlink{AtmosphereModel_8c_ad8d8f5ccadcab0081293852bc844d133}{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A\+\_\+readsize} (char $\ast$fname)
+\item 
+int \hyperlink{AtmosphereModel_8c_a70bca9a3fd87a77b3ce892edbebc01e7}{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A} (char $\ast$fname, double $\ast$lptr, double $\ast$R\+Iptr, double $\ast$absptr)
+\item 
+void \hyperlink{AtmosphereModel_8c_a33a1cefdccd2b19639ffdf27c6a7abbd}{tselec} (struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags)
+\item 
+void \hyperlink{AtmosphereModel_8c_a4af6534d9215653c20526ecaaf80d9d3}{glatf} (double lat, double $\ast$gv, double $\ast$reff)
+\item 
+double \hyperlink{AtmosphereModel_8c_afa1fe6df744c3d47b7b91f851962b3ea}{ccor} (double alt, double r, double h1, double zh)
+\item 
+double \hyperlink{AtmosphereModel_8c_ac2904e7bac2f213922ad6ed41eae2b21}{ccor2} (double alt, double r, double h1, double zh, double h2)
+\item 
+double \hyperlink{AtmosphereModel_8c_ac9fa1e29d97fde4cb409270927779d27}{scalh} (double alt, double xm, double temp)
+\item 
+double \hyperlink{AtmosphereModel_8c_a4b1bfbfc1a16a9713b24e0ada4fbdd2a}{dnet} (double \hyperlink{nrlmsise-00_8c_ac47fb7efa6b9610bdc78116f1f94ec42}{dd}, double dm, double zhm, double xmm, double xm)
+\item 
+void \hyperlink{AtmosphereModel_8c_ace413e8af59596333e916355b54a08c7}{splini} (double $\ast$xa, double $\ast$ya, double $\ast$y2a, int n, double x, double $\ast$y)
+\item 
+void \hyperlink{AtmosphereModel_8c_a219484a4d3318d5361a52365d97cddc3}{splint} (double $\ast$xa, double $\ast$ya, double $\ast$y2a, int n, double x, double $\ast$y)
+\item 
+void \hyperlink{AtmosphereModel_8c_ae2e73ba3832c389e53954019ceb47ded}{spline} (double $\ast$x, double $\ast$y, int n, double yp1, double ypn, double $\ast$y2)
+\item 
+\hyperlink{nrlmsise-00_8h_ad38d2e3fa313d97ec413ff90989d9fdd}{\+\_\+\+\_\+inline\+\_\+double} \hyperlink{AtmosphereModel_8c_a2fec2cce97c98dff8ba8bc5cb3011af1}{zeta} (double zz, double zl)
+\item 
+double \hyperlink{AtmosphereModel_8c_a444802ef41a0aa4a3fa7a63456ba5eeb}{densm} (double alt, double d0, double xm, double $\ast$tz, int mn3, double $\ast$zn3, double $\ast$tn3, double $\ast$tgn3, int mn2, double $\ast$zn2, double $\ast$tn2, double $\ast$tgn2)
+\item 
+double \hyperlink{AtmosphereModel_8c_acf308b81d9ca237baf0e2ecce89c8d5b}{densu} (double alt, double dlb, double tinf, double tlb, double xm, double alpha, double $\ast$tz, double zlb, double s2, int mn1, double $\ast$zn1, double $\ast$tn1, double $\ast$tgn1)
+\item 
+\hyperlink{nrlmsise-00_8h_ad38d2e3fa313d97ec413ff90989d9fdd}{\+\_\+\+\_\+inline\+\_\+double} \hyperlink{AtmosphereModel_8c_adb43b07f5b513c1fc160ad8e49e91468}{g0} (double a, double $\ast$p)
+\item 
+\hyperlink{nrlmsise-00_8h_ad38d2e3fa313d97ec413ff90989d9fdd}{\+\_\+\+\_\+inline\+\_\+double} \hyperlink{AtmosphereModel_8c_ac607590e0e6c779fc4a6cbb1261975c6}{sumex} (double ex)
+\item 
+\hyperlink{nrlmsise-00_8h_ad38d2e3fa313d97ec413ff90989d9fdd}{\+\_\+\+\_\+inline\+\_\+double} \hyperlink{AtmosphereModel_8c_a7f68e5f9adad978d8d875e5e927802e2}{sg0} (double ex, double $\ast$p, double $\ast$ap)
+\item 
+double \hyperlink{AtmosphereModel_8c_ac4b2621b2a2cb25659563dbc6cd081c4}{globe7} (double $\ast$p, struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags)
+\item 
+double \hyperlink{AtmosphereModel_8c_a6cd7c8294f6550f02fd6257e0aff7db2}{glob7s} (double $\ast$p, struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags)
+\item 
+void \hyperlink{AtmosphereModel_8c_a0734128a68d5d8a372352d7436445d3e}{gtd7} (struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags, struct \hyperlink{structnrlmsise__output}{nrlmsise\+\_\+output} $\ast$output)
+\item 
+void \hyperlink{AtmosphereModel_8c_a641d02c0e964627af5da468d4e07b87a}{gtd7d} (struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags, struct \hyperlink{structnrlmsise__output}{nrlmsise\+\_\+output} $\ast$output)
+\item 
+void \hyperlink{AtmosphereModel_8c_a315893daf042707ca0e6e763ac9eabaf}{ghp7} (struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags, struct \hyperlink{structnrlmsise__output}{nrlmsise\+\_\+output} $\ast$output, double press)
+\item 
+void \hyperlink{AtmosphereModel_8c_a3e6980995783492f90a76daf5da46e4b}{gts7} (struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags, struct \hyperlink{structnrlmsise__output}{nrlmsise\+\_\+output} $\ast$output)
+\item 
+float \hyperlink{AtmosphereModel_8c_af3eaa1718cee9771127f3484d0c3711f}{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N} (float alt, float lambda)
+\item 
+double \hyperlink{AtmosphereModel_8c_a75ec2b97989b0403122986484ea0c75e}{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation} (double T)
+\item 
+int \hyperlink{AtmosphereModel_8c_a8486dc860462f82e495fb1ea0d1dbdbd}{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model} (char $\ast$fname)
+\item 
+int \hyperlink{AtmosphereModel_8c_a4baf9fd94561674a0dcaa444fd98dd10}{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model} (char $\ast$fname)
+\item 
+int \hyperlink{AtmosphereModel_8c_afa89ff1dee3effce041367bed5c41ce8}{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model} (char $\ast$fname)
+\item 
+int \hyperlink{AtmosphereModel_8c_a674f05a4c3cb75693d627329efa8a97d}{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F} (char $\ast$\hyperlink{AtmosphericTurbulence_8c_a7b93340f43c04166d39fc39a8baeb730}{C\+O\+N\+F\+F\+I\+L\+E})
+\begin{DoxyCompactList}\small\item\em read configuration file and create atmosphere model \end{DoxyCompactList}\item 
+double \hyperlink{AtmosphereModel_8c_ae11a6d10a265e50af5c6368c7e8f3f4a}{Atmosphere\+Model\+\_\+\+Refraction\+Path} (double lambda, double Zangle, int Write\+Path)
+\end{DoxyCompactItemize}
+\subsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+\hyperlink{structDATA}{D\+A\+T\+A} \hyperlink{AtmosphereModel_8c_a9842752e03b4de9b4593f1a3b34364ab}{data}
+\item 
+float \hyperlink{AtmosphereModel_8c_a58f391202e2e3ae1de02f60930370e29}{Zenith\+Angle}
+\item 
+int \hyperlink{AtmosphereModel_8c_a2bb6dc8651c6d335c8e7305137a9163d}{Time\+Day\+Of\+Year}
+\item 
+float \hyperlink{AtmosphereModel_8c_a484fb6b4b11b8e7d9afa597a3c74b6b7}{Time\+Local\+Solar\+Time}
+\item 
+float \hyperlink{AtmosphereModel_8c_a04d1c5a3c14a3778dc9e11c4246c5b47}{Site\+Lat}
+\item 
+float \hyperlink{AtmosphereModel_8c_aae7039a4e5f89a8544bf3ee26ed5147c}{Site\+Long}
+\item 
+float \hyperlink{AtmosphereModel_8c_a88a8aec3f67e89469d3843c46270eff1}{Site\+Alt}
+\item 
+float \hyperlink{AtmosphereModel_8c_a78d44b4bb2e42dc83220d0d5f48d6265}{C\+O2\+\_\+ppm}
+\item 
+int \hyperlink{AtmosphereModel_8c_a2cbc5c432c83844c53739df6889532b9}{Site\+T\+Pauto}
+\item 
+float \hyperlink{AtmosphereModel_8c_a2668cbc7b2207914267a54852cffe842}{Site\+Temp}
+\item 
+float \hyperlink{AtmosphereModel_8c_a3d2f9c2a77215284ad0dffa9b2cb15f7}{Site\+Press}
+\item 
+float \hyperlink{AtmosphereModel_8c_ad2c618edf01028772c7ac13c845a363c}{Site\+H2\+O\+Method}
+\item 
+float \hyperlink{AtmosphereModel_8c_a5503fe9348e93f8c9f1e0f2cb8216211}{Site\+T\+P\+W}
+\item 
+float \hyperlink{AtmosphereModel_8c_afeb4d1b5c1a1c96fffb032bf78d77b0d}{Site\+R\+H}
+\item 
+float \hyperlink{AtmosphereModel_8c_ae42c824d86b2ab0b2e7b1f0f3dd60e54}{Site\+P\+W\+S\+H}
+\item 
+float \hyperlink{AtmosphereModel_8c_afffc6c2b72cad4313261f240d110479b}{alpha1\+H2\+O}
+\item 
+int \hyperlink{AtmosphereModel_8c_accddb11f40eb70f10f1f0dddd96e4f42}{init\+Atmosphere\+Model} = 0
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_ad698ce3400566bbadab58d690ddecab3}{dens\+N2}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a3f9eb215baf8acc09e3cde2bb9701957}{dens\+O2}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_ac160033a75c71078f12208e1c7c7f31c}{dens\+Ar}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a95e88d397f9673626e5fd5983224b849}{dens\+H2\+O}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_acad22a19b83f6981cb26a2da393616ed}{dens\+C\+O2}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a142102604eb987c08b91916aaf459256}{dens\+Ne}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a02bfa42aa553976fc0883b1eb338d0ef}{dens\+He}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a7051661de930c676eb95814502d0a0dc}{dens\+C\+H4}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a1520e2223044f37874eb7a4d490c26eb}{dens\+Kr}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a24ce44322b7e375b9133dff8e4cab5f3}{dens\+H2}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a0da5131e71e76edb38152841989d84dc}{dens\+O3}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_ab9eb06272c26263837cbe26dd6e6d7b5}{dens\+N}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_aa9155a79e3dbd1daf8aa59e9fa0b30f2}{dens\+O}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_afa0a903e274b6b6f1971aa12c4769a5d}{dens\+H}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a6bde73884951df63edb5b80d298024f3}{denstot}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a5774ca46968799aa690e13f693e3395e}{density}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a033b752be3885dfa35baaf77e6fcf357}{temperature}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_a8fb248f8a277a7ca5c64b6c2f419e4c6}{pressure}
+\item 
+float $\ast$ \hyperlink{AtmosphereModel_8c_ad8066f8edf544b9823580a976b05f5e7}{R\+H}
+\item 
+float \hyperlink{AtmosphereModel_8c_a279634e020c65aede527e49b41b848ad}{dens0}
+\item 
+double \hyperlink{AtmosphereModel_8c_a3fb2a5ab95a69242ee81da7f795a5405}{v\+\_\+\+A\+B\+S\+C\+O\+E\+F\+F} = 0.\+0
+\item 
+double \hyperlink{AtmosphereModel_8c_a0da8045968e2bdf94ce733bf01042989}{v\+\_\+\+T\+R\+A\+N\+S\+M} = 1.\+0
+\item 
+long \hyperlink{AtmosphereModel_8c_ab727a06c65df61003dacf1740e507dda}{v\+\_\+\+L\+O\+N\+G1}
+\item 
+long \hyperlink{AtmosphereModel_8c_ae9d212927dcdf805bfd1a278f0831319}{v\+\_\+\+L\+O\+N\+G2}
+\item 
+long \hyperlink{AtmosphereModel_8c_a4d41a7f58e2ffef764319d6618e9f087}{R\+I\+A\+\_\+\+N\+Bpts}
+\item 
+double \hyperlink{AtmosphereModel_8c_a7417d78a361c42fe1c519c95d026fdaa}{R\+I\+A\+\_\+lambda\+\_\+min}
+\item 
+double \hyperlink{AtmosphereModel_8c_a66d75ad8869ce6ae827bfaf66baf911f}{R\+I\+A\+\_\+lambda\+\_\+max}
+\item 
+int \hyperlink{AtmosphereModel_8c_ae4e386cb507673104fd1a55cd4806acd}{init\+R\+I\+A\+\_\+\+N2} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_ac0f6702b5b9ccf3c462ea8f889da965d}{R\+I\+A\+\_\+\+N2\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a3e00e7522599e20d317df677cbdb8fb1}{R\+I\+A\+\_\+\+N2\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a510252a195422fec044bd2ce21b0b70e}{R\+I\+A\+\_\+\+N2\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_a9960f50186ee1a0eb77a4301baf1409b}{init\+R\+I\+A\+\_\+\+O2} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_aeb27070fcb60c0c5b31753de1d49961b}{R\+I\+A\+\_\+\+O2\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a2ca2349aae5abbafc85d8d39f4fa7c3a}{R\+I\+A\+\_\+\+O2\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a6b73ac5016ce5dfcf7009f3a65ba4fd0}{R\+I\+A\+\_\+\+O2\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_ac701d597d647aee36ce091a03b40d314}{init\+R\+I\+A\+\_\+\+Ar} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a1adb76dd462ca4cb6af9ed45475fb6dd}{R\+I\+A\+\_\+\+Ar\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a156adac3be69aa425c9285c1504da1b9}{R\+I\+A\+\_\+\+Ar\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a3b8895eaf832ed455f3fc79575a679e5}{R\+I\+A\+\_\+\+Ar\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_aa612128356c5aac699db453fef8fc0ba}{init\+R\+I\+A\+\_\+\+H2\+O} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_aa8069f99faef4edbac149e4f4b173bfd}{R\+I\+A\+\_\+\+H2\+O\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a273b30553a1c320e2d6da6bc033b4b2b}{R\+I\+A\+\_\+\+H2\+O\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_af31f45c7cbb4003018984e61b7b2a26c}{R\+I\+A\+\_\+\+H2\+O\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_afdb7ea134feb6c53c0fec08fa5dda9e3}{init\+R\+I\+A\+\_\+\+C\+O2} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a29ebc69ce75a06fbfce38d11a59b6d8a}{R\+I\+A\+\_\+\+C\+O2\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a7a967101ffa532221cdad370e9fea2ac}{R\+I\+A\+\_\+\+C\+O2\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_ac527cc3ba32d234582bcd5eabc648d5d}{R\+I\+A\+\_\+\+C\+O2\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_aaf9169004d8a135824b79f2f5462775b}{init\+R\+I\+A\+\_\+\+Ne} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_aee78c7d74cd8484736123604b1a123ae}{R\+I\+A\+\_\+\+Ne\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_ab17c3ff4ae995544f2303466bdd35cd4}{R\+I\+A\+\_\+\+Ne\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_ad2898636c44a340f2ef75e2fd31511eb}{R\+I\+A\+\_\+\+Ne\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_a7ab3892d0e94ace09734e9029d4315b6}{init\+R\+I\+A\+\_\+\+He} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_ae41ae7f8a35d2678c851327e3bd95e20}{R\+I\+A\+\_\+\+He\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_aa9a3fe5edad0adb1c51956a63dcd575a}{R\+I\+A\+\_\+\+He\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a0c5f396db94f37e5e6614c9bf395cf4e}{R\+I\+A\+\_\+\+He\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_a20b4e1d5941be3c5101b7af7a087d3a2}{init\+R\+I\+A\+\_\+\+C\+H4} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a9ed6ce508b7bf45d27502d06064ce7ad}{R\+I\+A\+\_\+\+C\+H4\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a02cef9b6e555fbd6489028a6e3898735}{R\+I\+A\+\_\+\+C\+H4\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a127e8005807235d7d54161da8cb6f23f}{R\+I\+A\+\_\+\+C\+H4\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_a8a6780550b7ba386d395a0cfa1d5bdb4}{init\+R\+I\+A\+\_\+\+Kr} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a88e092643aaf768db72f4240e65c5f29}{R\+I\+A\+\_\+\+Kr\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a4af77c209412f3e58cc680fce4ed4360}{R\+I\+A\+\_\+\+Kr\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a15bcc1aa63b963a7331ff962c1e7871e}{R\+I\+A\+\_\+\+Kr\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_a2d5527f776976e2a30ef55710892eb85}{init\+R\+I\+A\+\_\+\+H2} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a46d32a8daa036bd31dacc9dc8fd0f393}{R\+I\+A\+\_\+\+H2\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a5bd0e8e729f236491706bf79fb8878c7}{R\+I\+A\+\_\+\+H2\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a84eb849d13c5d7d5d9bbb8eb42242567}{R\+I\+A\+\_\+\+H2\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_a3cf086ede1da21b747be07b9152887d6}{init\+R\+I\+A\+\_\+\+O3} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a761f6100c7e5be7e63202c986bb61980}{R\+I\+A\+\_\+\+O3\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a1af430a277f3a643f9cc02e008b8263f}{R\+I\+A\+\_\+\+O3\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a76d348287ea40e944bb042b1d56ef3fc}{R\+I\+A\+\_\+\+O3\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_a839bba60cc3fec6d6357f649152b6304}{init\+R\+I\+A\+\_\+\+N} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a6bdfc9c667a63ec86a8f061995950607}{R\+I\+A\+\_\+\+N\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a6b83cd55b082663e4be17cf5fef53788}{R\+I\+A\+\_\+\+N\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a459e7e9c1c1142374c00da1060c43fc1}{R\+I\+A\+\_\+\+N\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_aa1b80365fcb5a8adee4dfe4228520033}{init\+R\+I\+A\+\_\+\+O} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a146cf1bbe9338fac8d14d6d5814679e8}{R\+I\+A\+\_\+\+O\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a4adfabea7b37a659c2f63408871253f5}{R\+I\+A\+\_\+\+O\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a35f1af74692ce8d94594aa82c32953ea}{R\+I\+A\+\_\+\+O\+\_\+abs}
+\item 
+int \hyperlink{AtmosphereModel_8c_a73320d74a5d4bf11ed488ceb3c5159de}{init\+R\+I\+A\+\_\+\+H} = 0
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_aa15124f3261a04a95bc82cbcbb834e06}{R\+I\+A\+\_\+\+H\+\_\+lambda}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_aec16b10e821a4ce2e39976a8cd470f2c}{R\+I\+A\+\_\+\+H\+\_\+ri}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a629e03449a71eb50932f9204ba6847d6}{R\+I\+A\+\_\+\+H\+\_\+abs}
+\item 
+long \hyperlink{AtmosphereModel_8c_a2598e9003789dfb14670e5718b22d6bb}{N\+B\+\_\+comp\+\_\+array}
+\item 
+double $\ast$ \hyperlink{AtmosphereModel_8c_a96bf536dea1c64d20d4694e23e61d1f2}{comp\+\_\+array\+\_\+lambda}
+\item 
+long $\ast$ \hyperlink{AtmosphereModel_8c_afb2f7da184161744be40578e3b9f295f}{comp\+\_\+array\+\_\+lli}
+\item 
+int \hyperlink{AtmosphereModel_8c_af31d465b3c5177db2ad0a0db958c42dd}{lliprecomp} = -\/1
+\item 
+static double \hyperlink{AtmosphereModel_8c_a9a778fbd1234a0e028c01268c7052111}{gsurf}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a5a6fce2fc5cae153945fea2c45beeb4f}{re}
+\item 
+static double \hyperlink{AtmosphereModel_8c_ac47fb7efa6b9610bdc78116f1f94ec42}{dd}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a88ca4eee7979d96378a848dc8d690194}{dm04}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a31e4b27c95a4f7607ff83c5f6658baff}{dm16}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a3d039f2243aa6c4c56d0f71faafe3a3f}{dm28}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a90d87baf0902dd023cd60a544c9bd7d1}{dm32}
+\item 
+static double \hyperlink{AtmosphereModel_8c_afae9a0c814cddf6ce27b7fe8dffe57a7}{dm40}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a3d331ddbf53b6b720388a221d01ffde5}{dm01}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a7e634bc0af879e109efe029cabb7a681}{dm14}
+\item 
+static double \hyperlink{AtmosphereModel_8c_af1178fe9c91c432a2eb4f8bce487f122}{meso\+\_\+tn1} \mbox{[}5\mbox{]}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a793989a4dd46c72a8f65b89d0416fe29}{meso\+\_\+tn2} \mbox{[}4\mbox{]}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a54d193f8b08abc8f1dbc203dd86c8d96}{meso\+\_\+tn3} \mbox{[}5\mbox{]}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a90f2ec0e8bf6a8b6972dde3026828773}{meso\+\_\+tgn1} \mbox{[}2\mbox{]}
+\item 
+static double \hyperlink{AtmosphereModel_8c_aff651e4d19dfbd75ce329f35ddbe9350}{meso\+\_\+tgn2} \mbox{[}2\mbox{]}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a42cc3fd7704e724ee42bff5a7b646716}{meso\+\_\+tgn3} \mbox{[}2\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_aa3caa9a62f4d69b33356c093e59da51f}{pt} \mbox{[}150\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_a9d7bc0edd2bc401a23d0bb6bbdcc261d}{pd} \mbox{[}9\mbox{]}\mbox{[}150\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_ad4f203c6cf70efc738b56d4377ded829}{ps} \mbox{[}150\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_adefb8cc23535073a700d4009d0343679}{pdl} \mbox{[}2\mbox{]}\mbox{[}25\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_a7d39dedd36f08d4f3ee17c979bf92332}{ptm} \mbox{[}50\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_ac7ac86294545f793edad8b9574d73132}{pdm} \mbox{[}8\mbox{]}\mbox{[}10\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_a0e0f42582354ba5f5ddbed2ffe696fa9}{ptl} \mbox{[}4\mbox{]}\mbox{[}100\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_afc39d71d3e372c3178c33a31ee91d713}{pma} \mbox{[}10\mbox{]}\mbox{[}100\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_ae391523526f8ec527742657b4f50db0e}{sam} \mbox{[}100\mbox{]}
+\item 
+double \hyperlink{AtmosphereModel_8c_ad9e05d1fb99e07d634b35cdde6c978dc}{pavgm} \mbox{[}10\mbox{]}
+\item 
+static double \hyperlink{AtmosphereModel_8c_ad73a5e2e20f577ed77653eb51b7327ff}{dfa}
+\item 
+static double \hyperlink{AtmosphereModel_8c_ae88729d6c4d0930c73a130b2a9b9407c}{plg} \mbox{[}4\mbox{]}\mbox{[}9\mbox{]}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a4e83b83fb0481b147c5edd139cb0158b}{ctloc}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a0f4f8372d2da884c4eb58ae9135f4013}{stloc}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a03ff47cbc5b206133c0c6cca19f54eaa}{c2tloc}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a5b45e3666a7664914c9cdf3abb476960}{s2tloc}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a82a48eaf6f5edce5fa25a760e18a5c04}{s3tloc}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a5078d8de77665cc0dcaa7e2ecd20d9a6}{c3tloc}
+\item 
+static double \hyperlink{AtmosphereModel_8c_a70bc40d53750a0de2cd687b7172660bc}{apdf}
+\item 
+static double \hyperlink{AtmosphereModel_8c_ae2e227d16dce2a7b3989c8f5bcd6cf08}{apt} \mbox{[}4\mbox{]}
+\end{DoxyCompactItemize}
+
+
+\subsection{Macro Definition Documentation}
+\hypertarget{AtmosphereModel_8c_a598a3330b3c21701223ee0ca14316eca}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!P\+I@{P\+I}}
+\index{P\+I@{P\+I}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{P\+I}]{\setlength{\rightskip}{0pt plus 5cm}\#define P\+I~3.\+14159265358979323846264338328}}\label{AtmosphereModel_8c_a598a3330b3c21701223ee0ca14316eca}
+\hypertarget{AtmosphereModel_8c_a5d9d454d4b9f2ff8106d5199ac0d0186}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!S\+W\+A\+P@{S\+W\+A\+P}}
+\index{S\+W\+A\+P@{S\+W\+A\+P}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{S\+W\+A\+P}]{\setlength{\rightskip}{0pt plus 5cm}\#define S\+W\+A\+P(
+\begin{DoxyParamCaption}
+\item[{}]{x, }
+\item[{}]{y}
+\end{DoxyParamCaption}
+)~temp=(x);x=(y);y=temp;}}\label{AtmosphereModel_8c_a5d9d454d4b9f2ff8106d5199ac0d0186}
+
+
+\subsection{Function Documentation}
+\hypertarget{AtmosphereModel_8c_a4baf9fd94561674a0dcaa444fd98dd10}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model}}
+\index{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model}]{\setlength{\rightskip}{0pt plus 5cm}int Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{fname}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a4baf9fd94561674a0dcaa444fd98dd10}
+\hypertarget{AtmosphereModel_8c_a674f05a4c3cb75693d627329efa8a97d}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F@{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F}}
+\index{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F@{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F}]{\setlength{\rightskip}{0pt plus 5cm}int Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{C\+O\+N\+F\+F\+I\+L\+E}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a674f05a4c3cb75693d627329efa8a97d}
+
+
+read configuration file and create atmosphere model 
+
+\hypertarget{AtmosphereModel_8c_a1a8094b55afb74a2db035a9b82a3f120}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F\+\_\+cli@{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F\+\_\+cli}}
+\index{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F\+\_\+cli@{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F\+\_\+cli}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F\+\_\+cli}]{\setlength{\rightskip}{0pt plus 5cm}int Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F\+\_\+cli (
+\begin{DoxyParamCaption}
+{}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a1a8094b55afb74a2db035a9b82a3f120}
+\hypertarget{AtmosphereModel_8c_a75ec2b97989b0403122986484ea0c75e}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation@{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation}}
+\index{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation@{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation}]{\setlength{\rightskip}{0pt plus 5cm}double Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation (
+\begin{DoxyParamCaption}
+\item[{double}]{T}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a75ec2b97989b0403122986484ea0c75e}
+using \char`\"{} The I\+A\+P\+W\+S Formulation 1995 for the Thermodynamic Properties of Ordinary Water Substance for General and Scientific Use \char`\"{}, Journal of Physical and Chemical Reference Data, June 2002 ,Volume 31, Issue 2, pp. 387535 output \+: saturation H2\+O pressure \mbox{[}Pa\mbox{]} \hypertarget{AtmosphereModel_8c_afa89ff1dee3effce041367bed5c41ce8}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model}}
+\index{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model}]{\setlength{\rightskip}{0pt plus 5cm}int Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{fname}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_afa89ff1dee3effce041367bed5c41ce8}
+load atmosphere model A\+S\+C\+I\+I file model lists concentration of atmosphere components, temperature, pressure one line every 10m of elevation, 10000 lines (0-\/100km) \hypertarget{AtmosphereModel_8c_a70bca9a3fd87a77b3ce892edbebc01e7}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A@{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A}}
+\index{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A@{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A}]{\setlength{\rightskip}{0pt plus 5cm}int A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{fname, }
+\item[{double $\ast$}]{lptr, }
+\item[{double $\ast$}]{R\+Iptr, }
+\item[{double $\ast$}]{absptr}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a70bca9a3fd87a77b3ce892edbebc01e7}
+\hypertarget{AtmosphereModel_8c_ad8d8f5ccadcab0081293852bc844d133}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A\+\_\+readsize@{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A\+\_\+readsize}}
+\index{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A\+\_\+readsize@{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A\+\_\+readsize}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A\+\_\+readsize}]{\setlength{\rightskip}{0pt plus 5cm}int A\+T\+M\+O\+S\+P\+H\+E\+R\+E\+M\+O\+D\+E\+L\+\_\+load\+R\+I\+A\+\_\+readsize (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{fname}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_ad8d8f5ccadcab0081293852bc844d133}
+\hypertarget{AtmosphereModel_8c_ae11a6d10a265e50af5c6368c7e8f3f4a}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Atmosphere\+Model\+\_\+\+Refraction\+Path@{Atmosphere\+Model\+\_\+\+Refraction\+Path}}
+\index{Atmosphere\+Model\+\_\+\+Refraction\+Path@{Atmosphere\+Model\+\_\+\+Refraction\+Path}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Atmosphere\+Model\+\_\+\+Refraction\+Path}]{\setlength{\rightskip}{0pt plus 5cm}double Atmosphere\+Model\+\_\+\+Refraction\+Path (
+\begin{DoxyParamCaption}
+\item[{double}]{lambda, }
+\item[{double}]{Zangle, }
+\item[{int}]{Write\+Path}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_ae11a6d10a265e50af5c6368c7e8f3f4a}
+lambda in m if Write\+Path = 1, write light path in output A\+S\+C\+I\+I file return atm refraction value \mbox{[}arcsec\mbox{]} \hypertarget{AtmosphereModel_8c_a8486dc860462f82e495fb1ea0d1dbdbd}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model}}
+\index{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model}]{\setlength{\rightskip}{0pt plus 5cm}int Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{fname}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a8486dc860462f82e495fb1ea0d1dbdbd}
+\hypertarget{AtmosphereModel_8c_af3eaa1718cee9771127f3484d0c3711f}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N@{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N}}
+\index{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N@{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N}]{\setlength{\rightskip}{0pt plus 5cm}float Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N (
+\begin{DoxyParamCaption}
+\item[{float}]{alt, }
+\item[{float}]{lambda}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_af3eaa1718cee9771127f3484d0c3711f}
+\hypertarget{AtmosphereModel_8c_afa1fe6df744c3d47b7b91f851962b3ea}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!ccor@{ccor}}
+\index{ccor@{ccor}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{ccor}]{\setlength{\rightskip}{0pt plus 5cm}double ccor (
+\begin{DoxyParamCaption}
+\item[{double}]{alt, }
+\item[{double}]{r, }
+\item[{double}]{h1, }
+\item[{double}]{zh}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_afa1fe6df744c3d47b7b91f851962b3ea}
+\hypertarget{AtmosphereModel_8c_ac2904e7bac2f213922ad6ed41eae2b21}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!ccor2@{ccor2}}
+\index{ccor2@{ccor2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{ccor2}]{\setlength{\rightskip}{0pt plus 5cm}double ccor2 (
+\begin{DoxyParamCaption}
+\item[{double}]{alt, }
+\item[{double}]{r, }
+\item[{double}]{h1, }
+\item[{double}]{zh, }
+\item[{double}]{h2}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_ac2904e7bac2f213922ad6ed41eae2b21}
+\hypertarget{AtmosphereModel_8c_a444802ef41a0aa4a3fa7a63456ba5eeb}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!densm@{densm}}
+\index{densm@{densm}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{densm}]{\setlength{\rightskip}{0pt plus 5cm}double densm (
+\begin{DoxyParamCaption}
+\item[{double}]{alt, }
+\item[{double}]{d0, }
+\item[{double}]{xm, }
+\item[{double $\ast$}]{tz, }
+\item[{int}]{mn3, }
+\item[{double $\ast$}]{zn3, }
+\item[{double $\ast$}]{tn3, }
+\item[{double $\ast$}]{tgn3, }
+\item[{int}]{mn2, }
+\item[{double $\ast$}]{zn2, }
+\item[{double $\ast$}]{tn2, }
+\item[{double $\ast$}]{tgn2}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a444802ef41a0aa4a3fa7a63456ba5eeb}
+\hypertarget{AtmosphereModel_8c_acf308b81d9ca237baf0e2ecce89c8d5b}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!densu@{densu}}
+\index{densu@{densu}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{densu}]{\setlength{\rightskip}{0pt plus 5cm}double densu (
+\begin{DoxyParamCaption}
+\item[{double}]{alt, }
+\item[{double}]{dlb, }
+\item[{double}]{tinf, }
+\item[{double}]{tlb, }
+\item[{double}]{xm, }
+\item[{double}]{alpha, }
+\item[{double $\ast$}]{tz, }
+\item[{double}]{zlb, }
+\item[{double}]{s2, }
+\item[{int}]{mn1, }
+\item[{double $\ast$}]{zn1, }
+\item[{double $\ast$}]{tn1, }
+\item[{double $\ast$}]{tgn1}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_acf308b81d9ca237baf0e2ecce89c8d5b}
+\hypertarget{AtmosphereModel_8c_a4b1bfbfc1a16a9713b24e0ada4fbdd2a}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dnet@{dnet}}
+\index{dnet@{dnet}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dnet}]{\setlength{\rightskip}{0pt plus 5cm}double dnet (
+\begin{DoxyParamCaption}
+\item[{double}]{dd, }
+\item[{double}]{dm, }
+\item[{double}]{zhm, }
+\item[{double}]{xmm, }
+\item[{double}]{xm}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a4b1bfbfc1a16a9713b24e0ada4fbdd2a}
+\hypertarget{AtmosphereModel_8c_adb43b07f5b513c1fc160ad8e49e91468}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!g0@{g0}}
+\index{g0@{g0}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{g0}]{\setlength{\rightskip}{0pt plus 5cm}{\bf \+\_\+\+\_\+inline\+\_\+double} g0 (
+\begin{DoxyParamCaption}
+\item[{double}]{a, }
+\item[{double $\ast$}]{p}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_adb43b07f5b513c1fc160ad8e49e91468}
+\hypertarget{AtmosphereModel_8c_a315893daf042707ca0e6e763ac9eabaf}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!ghp7@{ghp7}}
+\index{ghp7@{ghp7}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{ghp7}]{\setlength{\rightskip}{0pt plus 5cm}void ghp7 (
+\begin{DoxyParamCaption}
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags, }
+\item[{struct {\bf nrlmsise\+\_\+output} $\ast$}]{output, }
+\item[{double}]{press}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a315893daf042707ca0e6e763ac9eabaf}
+\hypertarget{AtmosphereModel_8c_a4af6534d9215653c20526ecaaf80d9d3}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!glatf@{glatf}}
+\index{glatf@{glatf}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{glatf}]{\setlength{\rightskip}{0pt plus 5cm}void glatf (
+\begin{DoxyParamCaption}
+\item[{double}]{lat, }
+\item[{double $\ast$}]{gv, }
+\item[{double $\ast$}]{reff}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a4af6534d9215653c20526ecaaf80d9d3}
+\hypertarget{AtmosphereModel_8c_a6cd7c8294f6550f02fd6257e0aff7db2}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!glob7s@{glob7s}}
+\index{glob7s@{glob7s}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{glob7s}]{\setlength{\rightskip}{0pt plus 5cm}double glob7s (
+\begin{DoxyParamCaption}
+\item[{double $\ast$}]{p, }
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a6cd7c8294f6550f02fd6257e0aff7db2}
+\hypertarget{AtmosphereModel_8c_ac4b2621b2a2cb25659563dbc6cd081c4}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!globe7@{globe7}}
+\index{globe7@{globe7}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{globe7}]{\setlength{\rightskip}{0pt plus 5cm}double globe7 (
+\begin{DoxyParamCaption}
+\item[{double $\ast$}]{p, }
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_ac4b2621b2a2cb25659563dbc6cd081c4}
+\hypertarget{AtmosphereModel_8c_a0734128a68d5d8a372352d7436445d3e}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!gtd7@{gtd7}}
+\index{gtd7@{gtd7}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{gtd7}]{\setlength{\rightskip}{0pt plus 5cm}void gtd7 (
+\begin{DoxyParamCaption}
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags, }
+\item[{struct {\bf nrlmsise\+\_\+output} $\ast$}]{output}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a0734128a68d5d8a372352d7436445d3e}
+\hypertarget{AtmosphereModel_8c_a641d02c0e964627af5da468d4e07b87a}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!gtd7d@{gtd7d}}
+\index{gtd7d@{gtd7d}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{gtd7d}]{\setlength{\rightskip}{0pt plus 5cm}void gtd7d (
+\begin{DoxyParamCaption}
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags, }
+\item[{struct {\bf nrlmsise\+\_\+output} $\ast$}]{output}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a641d02c0e964627af5da468d4e07b87a}
+\hypertarget{AtmosphereModel_8c_a3e6980995783492f90a76daf5da46e4b}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!gts7@{gts7}}
+\index{gts7@{gts7}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{gts7}]{\setlength{\rightskip}{0pt plus 5cm}void gts7 (
+\begin{DoxyParamCaption}
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags, }
+\item[{struct {\bf nrlmsise\+\_\+output} $\ast$}]{output}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a3e6980995783492f90a76daf5da46e4b}
+\hypertarget{AtmosphereModel_8c_a5bebc7fed3ae71f6d73abebeaa527110}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+\_\+\+Atmosphere\+Model@{init\+\_\+\+Atmosphere\+Model}}
+\index{init\+\_\+\+Atmosphere\+Model@{init\+\_\+\+Atmosphere\+Model}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+\_\+\+Atmosphere\+Model}]{\setlength{\rightskip}{0pt plus 5cm}int init\+\_\+\+Atmosphere\+Model (
+\begin{DoxyParamCaption}
+{}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a5bebc7fed3ae71f6d73abebeaa527110}
+\hypertarget{AtmosphereModel_8c_ac9fa1e29d97fde4cb409270927779d27}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!scalh@{scalh}}
+\index{scalh@{scalh}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{scalh}]{\setlength{\rightskip}{0pt plus 5cm}double scalh (
+\begin{DoxyParamCaption}
+\item[{double}]{alt, }
+\item[{double}]{xm, }
+\item[{double}]{temp}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_ac9fa1e29d97fde4cb409270927779d27}
+\hypertarget{AtmosphereModel_8c_a7f68e5f9adad978d8d875e5e927802e2}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!sg0@{sg0}}
+\index{sg0@{sg0}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{sg0}]{\setlength{\rightskip}{0pt plus 5cm}{\bf \+\_\+\+\_\+inline\+\_\+double} sg0 (
+\begin{DoxyParamCaption}
+\item[{double}]{ex, }
+\item[{double $\ast$}]{p, }
+\item[{double $\ast$}]{ap}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a7f68e5f9adad978d8d875e5e927802e2}
+\hypertarget{AtmosphereModel_8c_ae2e73ba3832c389e53954019ceb47ded}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!spline@{spline}}
+\index{spline@{spline}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{spline}]{\setlength{\rightskip}{0pt plus 5cm}void spline (
+\begin{DoxyParamCaption}
+\item[{double $\ast$}]{x, }
+\item[{double $\ast$}]{y, }
+\item[{int}]{n, }
+\item[{double}]{yp1, }
+\item[{double}]{ypn, }
+\item[{double $\ast$}]{y2}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_ae2e73ba3832c389e53954019ceb47ded}
+\hypertarget{AtmosphereModel_8c_ace413e8af59596333e916355b54a08c7}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!splini@{splini}}
+\index{splini@{splini}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{splini}]{\setlength{\rightskip}{0pt plus 5cm}void splini (
+\begin{DoxyParamCaption}
+\item[{double $\ast$}]{xa, }
+\item[{double $\ast$}]{ya, }
+\item[{double $\ast$}]{y2a, }
+\item[{int}]{n, }
+\item[{double}]{x, }
+\item[{double $\ast$}]{y}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_ace413e8af59596333e916355b54a08c7}
+\hypertarget{AtmosphereModel_8c_a219484a4d3318d5361a52365d97cddc3}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!splint@{splint}}
+\index{splint@{splint}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{splint}]{\setlength{\rightskip}{0pt plus 5cm}void splint (
+\begin{DoxyParamCaption}
+\item[{double $\ast$}]{xa, }
+\item[{double $\ast$}]{ya, }
+\item[{double $\ast$}]{y2a, }
+\item[{int}]{n, }
+\item[{double}]{x, }
+\item[{double $\ast$}]{y}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a219484a4d3318d5361a52365d97cddc3}
+\hypertarget{AtmosphereModel_8c_ac607590e0e6c779fc4a6cbb1261975c6}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!sumex@{sumex}}
+\index{sumex@{sumex}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{sumex}]{\setlength{\rightskip}{0pt plus 5cm}{\bf \+\_\+\+\_\+inline\+\_\+double} sumex (
+\begin{DoxyParamCaption}
+\item[{double}]{ex}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_ac607590e0e6c779fc4a6cbb1261975c6}
+\hypertarget{AtmosphereModel_8c_a33a1cefdccd2b19639ffdf27c6a7abbd}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!tselec@{tselec}}
+\index{tselec@{tselec}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{tselec}]{\setlength{\rightskip}{0pt plus 5cm}void tselec (
+\begin{DoxyParamCaption}
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a33a1cefdccd2b19639ffdf27c6a7abbd}
+\hypertarget{AtmosphereModel_8c_a2fec2cce97c98dff8ba8bc5cb3011af1}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!zeta@{zeta}}
+\index{zeta@{zeta}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{zeta}]{\setlength{\rightskip}{0pt plus 5cm}{\bf \+\_\+\+\_\+inline\+\_\+double} zeta (
+\begin{DoxyParamCaption}
+\item[{double}]{zz, }
+\item[{double}]{zl}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8c_a2fec2cce97c98dff8ba8bc5cb3011af1}
+
+
+\subsection{Variable Documentation}
+\hypertarget{AtmosphereModel_8c_afffc6c2b72cad4313261f240d110479b}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!alpha1\+H2\+O@{alpha1\+H2\+O}}
+\index{alpha1\+H2\+O@{alpha1\+H2\+O}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{alpha1\+H2\+O}]{\setlength{\rightskip}{0pt plus 5cm}float alpha1\+H2\+O}}\label{AtmosphereModel_8c_afffc6c2b72cad4313261f240d110479b}
+\hypertarget{AtmosphereModel_8c_a70bc40d53750a0de2cd687b7172660bc}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!apdf@{apdf}}
+\index{apdf@{apdf}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{apdf}]{\setlength{\rightskip}{0pt plus 5cm}double apdf\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a70bc40d53750a0de2cd687b7172660bc}
+\hypertarget{AtmosphereModel_8c_ae2e227d16dce2a7b3989c8f5bcd6cf08}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!apt@{apt}}
+\index{apt@{apt}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{apt}]{\setlength{\rightskip}{0pt plus 5cm}double apt\mbox{[}4\mbox{]}\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_ae2e227d16dce2a7b3989c8f5bcd6cf08}
+\hypertarget{AtmosphereModel_8c_a03ff47cbc5b206133c0c6cca19f54eaa}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!c2tloc@{c2tloc}}
+\index{c2tloc@{c2tloc}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{c2tloc}]{\setlength{\rightskip}{0pt plus 5cm}double c2tloc\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a03ff47cbc5b206133c0c6cca19f54eaa}
+\hypertarget{AtmosphereModel_8c_a5078d8de77665cc0dcaa7e2ecd20d9a6}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!c3tloc@{c3tloc}}
+\index{c3tloc@{c3tloc}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{c3tloc}]{\setlength{\rightskip}{0pt plus 5cm}double c3tloc\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a5078d8de77665cc0dcaa7e2ecd20d9a6}
+\hypertarget{AtmosphereModel_8c_a78d44b4bb2e42dc83220d0d5f48d6265}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!C\+O2\+\_\+ppm@{C\+O2\+\_\+ppm}}
+\index{C\+O2\+\_\+ppm@{C\+O2\+\_\+ppm}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{C\+O2\+\_\+ppm}]{\setlength{\rightskip}{0pt plus 5cm}float C\+O2\+\_\+ppm}}\label{AtmosphereModel_8c_a78d44b4bb2e42dc83220d0d5f48d6265}
+\hypertarget{AtmosphereModel_8c_a96bf536dea1c64d20d4694e23e61d1f2}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!comp\+\_\+array\+\_\+lambda@{comp\+\_\+array\+\_\+lambda}}
+\index{comp\+\_\+array\+\_\+lambda@{comp\+\_\+array\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{comp\+\_\+array\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ comp\+\_\+array\+\_\+lambda}}\label{AtmosphereModel_8c_a96bf536dea1c64d20d4694e23e61d1f2}
+\hypertarget{AtmosphereModel_8c_afb2f7da184161744be40578e3b9f295f}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!comp\+\_\+array\+\_\+lli@{comp\+\_\+array\+\_\+lli}}
+\index{comp\+\_\+array\+\_\+lli@{comp\+\_\+array\+\_\+lli}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{comp\+\_\+array\+\_\+lli}]{\setlength{\rightskip}{0pt plus 5cm}long$\ast$ comp\+\_\+array\+\_\+lli}}\label{AtmosphereModel_8c_afb2f7da184161744be40578e3b9f295f}
+\hypertarget{AtmosphereModel_8c_a4e83b83fb0481b147c5edd139cb0158b}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!ctloc@{ctloc}}
+\index{ctloc@{ctloc}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{ctloc}]{\setlength{\rightskip}{0pt plus 5cm}double ctloc\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a4e83b83fb0481b147c5edd139cb0158b}
+\hypertarget{AtmosphereModel_8c_a9842752e03b4de9b4593f1a3b34364ab}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!data@{data}}
+\index{data@{data}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{data}]{\setlength{\rightskip}{0pt plus 5cm}{\bf D\+A\+T\+A} data}}\label{AtmosphereModel_8c_a9842752e03b4de9b4593f1a3b34364ab}
+\hypertarget{AtmosphereModel_8c_ac47fb7efa6b9610bdc78116f1f94ec42}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dd@{dd}}
+\index{dd@{dd}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dd}]{\setlength{\rightskip}{0pt plus 5cm}double dd\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_ac47fb7efa6b9610bdc78116f1f94ec42}
+\hypertarget{AtmosphereModel_8c_a279634e020c65aede527e49b41b848ad}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens0@{dens0}}
+\index{dens0@{dens0}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens0}]{\setlength{\rightskip}{0pt plus 5cm}float dens0}}\label{AtmosphereModel_8c_a279634e020c65aede527e49b41b848ad}
+\hypertarget{AtmosphereModel_8c_ac160033a75c71078f12208e1c7c7f31c}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+Ar@{dens\+Ar}}
+\index{dens\+Ar@{dens\+Ar}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+Ar}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+Ar}}\label{AtmosphereModel_8c_ac160033a75c71078f12208e1c7c7f31c}
+\hypertarget{AtmosphereModel_8c_a7051661de930c676eb95814502d0a0dc}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+C\+H4@{dens\+C\+H4}}
+\index{dens\+C\+H4@{dens\+C\+H4}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+C\+H4}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+C\+H4}}\label{AtmosphereModel_8c_a7051661de930c676eb95814502d0a0dc}
+\hypertarget{AtmosphereModel_8c_acad22a19b83f6981cb26a2da393616ed}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+C\+O2@{dens\+C\+O2}}
+\index{dens\+C\+O2@{dens\+C\+O2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+C\+O2}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+C\+O2}}\label{AtmosphereModel_8c_acad22a19b83f6981cb26a2da393616ed}
+\hypertarget{AtmosphereModel_8c_afa0a903e274b6b6f1971aa12c4769a5d}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+H@{dens\+H}}
+\index{dens\+H@{dens\+H}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+H}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+H}}\label{AtmosphereModel_8c_afa0a903e274b6b6f1971aa12c4769a5d}
+\hypertarget{AtmosphereModel_8c_a24ce44322b7e375b9133dff8e4cab5f3}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+H2@{dens\+H2}}
+\index{dens\+H2@{dens\+H2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+H2}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+H2}}\label{AtmosphereModel_8c_a24ce44322b7e375b9133dff8e4cab5f3}
+\hypertarget{AtmosphereModel_8c_a95e88d397f9673626e5fd5983224b849}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+H2\+O@{dens\+H2\+O}}
+\index{dens\+H2\+O@{dens\+H2\+O}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+H2\+O}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+H2\+O}}\label{AtmosphereModel_8c_a95e88d397f9673626e5fd5983224b849}
+\hypertarget{AtmosphereModel_8c_a02bfa42aa553976fc0883b1eb338d0ef}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+He@{dens\+He}}
+\index{dens\+He@{dens\+He}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+He}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+He}}\label{AtmosphereModel_8c_a02bfa42aa553976fc0883b1eb338d0ef}
+\hypertarget{AtmosphereModel_8c_a5774ca46968799aa690e13f693e3395e}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!density@{density}}
+\index{density@{density}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{density}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ density}}\label{AtmosphereModel_8c_a5774ca46968799aa690e13f693e3395e}
+\hypertarget{AtmosphereModel_8c_a1520e2223044f37874eb7a4d490c26eb}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+Kr@{dens\+Kr}}
+\index{dens\+Kr@{dens\+Kr}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+Kr}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+Kr}}\label{AtmosphereModel_8c_a1520e2223044f37874eb7a4d490c26eb}
+\hypertarget{AtmosphereModel_8c_ab9eb06272c26263837cbe26dd6e6d7b5}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+N@{dens\+N}}
+\index{dens\+N@{dens\+N}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+N}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+N}}\label{AtmosphereModel_8c_ab9eb06272c26263837cbe26dd6e6d7b5}
+\hypertarget{AtmosphereModel_8c_ad698ce3400566bbadab58d690ddecab3}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+N2@{dens\+N2}}
+\index{dens\+N2@{dens\+N2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+N2}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+N2}}\label{AtmosphereModel_8c_ad698ce3400566bbadab58d690ddecab3}
+\hypertarget{AtmosphereModel_8c_a142102604eb987c08b91916aaf459256}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+Ne@{dens\+Ne}}
+\index{dens\+Ne@{dens\+Ne}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+Ne}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+Ne}}\label{AtmosphereModel_8c_a142102604eb987c08b91916aaf459256}
+\hypertarget{AtmosphereModel_8c_aa9155a79e3dbd1daf8aa59e9fa0b30f2}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+O@{dens\+O}}
+\index{dens\+O@{dens\+O}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+O}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+O}}\label{AtmosphereModel_8c_aa9155a79e3dbd1daf8aa59e9fa0b30f2}
+\hypertarget{AtmosphereModel_8c_a3f9eb215baf8acc09e3cde2bb9701957}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+O2@{dens\+O2}}
+\index{dens\+O2@{dens\+O2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+O2}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+O2}}\label{AtmosphereModel_8c_a3f9eb215baf8acc09e3cde2bb9701957}
+\hypertarget{AtmosphereModel_8c_a0da5131e71e76edb38152841989d84dc}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dens\+O3@{dens\+O3}}
+\index{dens\+O3@{dens\+O3}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dens\+O3}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ dens\+O3}}\label{AtmosphereModel_8c_a0da5131e71e76edb38152841989d84dc}
+\hypertarget{AtmosphereModel_8c_a6bde73884951df63edb5b80d298024f3}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!denstot@{denstot}}
+\index{denstot@{denstot}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{denstot}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ denstot}}\label{AtmosphereModel_8c_a6bde73884951df63edb5b80d298024f3}
+\hypertarget{AtmosphereModel_8c_ad73a5e2e20f577ed77653eb51b7327ff}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dfa@{dfa}}
+\index{dfa@{dfa}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dfa}]{\setlength{\rightskip}{0pt plus 5cm}double dfa\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_ad73a5e2e20f577ed77653eb51b7327ff}
+\hypertarget{AtmosphereModel_8c_a3d331ddbf53b6b720388a221d01ffde5}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dm01@{dm01}}
+\index{dm01@{dm01}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dm01}]{\setlength{\rightskip}{0pt plus 5cm}double dm01\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a3d331ddbf53b6b720388a221d01ffde5}
+\hypertarget{AtmosphereModel_8c_a88ca4eee7979d96378a848dc8d690194}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dm04@{dm04}}
+\index{dm04@{dm04}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dm04}]{\setlength{\rightskip}{0pt plus 5cm}double dm04\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a88ca4eee7979d96378a848dc8d690194}
+\hypertarget{AtmosphereModel_8c_a7e634bc0af879e109efe029cabb7a681}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dm14@{dm14}}
+\index{dm14@{dm14}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dm14}]{\setlength{\rightskip}{0pt plus 5cm}double dm14\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a7e634bc0af879e109efe029cabb7a681}
+\hypertarget{AtmosphereModel_8c_a31e4b27c95a4f7607ff83c5f6658baff}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dm16@{dm16}}
+\index{dm16@{dm16}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dm16}]{\setlength{\rightskip}{0pt plus 5cm}double dm16\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a31e4b27c95a4f7607ff83c5f6658baff}
+\hypertarget{AtmosphereModel_8c_a3d039f2243aa6c4c56d0f71faafe3a3f}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dm28@{dm28}}
+\index{dm28@{dm28}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dm28}]{\setlength{\rightskip}{0pt plus 5cm}double dm28\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a3d039f2243aa6c4c56d0f71faafe3a3f}
+\hypertarget{AtmosphereModel_8c_a90d87baf0902dd023cd60a544c9bd7d1}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dm32@{dm32}}
+\index{dm32@{dm32}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dm32}]{\setlength{\rightskip}{0pt plus 5cm}double dm32\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a90d87baf0902dd023cd60a544c9bd7d1}
+\hypertarget{AtmosphereModel_8c_afae9a0c814cddf6ce27b7fe8dffe57a7}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!dm40@{dm40}}
+\index{dm40@{dm40}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{dm40}]{\setlength{\rightskip}{0pt plus 5cm}double dm40\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_afae9a0c814cddf6ce27b7fe8dffe57a7}
+\hypertarget{AtmosphereModel_8c_a9a778fbd1234a0e028c01268c7052111}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!gsurf@{gsurf}}
+\index{gsurf@{gsurf}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{gsurf}]{\setlength{\rightskip}{0pt plus 5cm}double gsurf\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a9a778fbd1234a0e028c01268c7052111}
+\hypertarget{AtmosphereModel_8c_accddb11f40eb70f10f1f0dddd96e4f42}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+Atmosphere\+Model@{init\+Atmosphere\+Model}}
+\index{init\+Atmosphere\+Model@{init\+Atmosphere\+Model}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+Atmosphere\+Model}]{\setlength{\rightskip}{0pt plus 5cm}int init\+Atmosphere\+Model = 0}}\label{AtmosphereModel_8c_accddb11f40eb70f10f1f0dddd96e4f42}
+\hypertarget{AtmosphereModel_8c_ac701d597d647aee36ce091a03b40d314}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+Ar@{init\+R\+I\+A\+\_\+\+Ar}}
+\index{init\+R\+I\+A\+\_\+\+Ar@{init\+R\+I\+A\+\_\+\+Ar}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+Ar}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+Ar = 0}}\label{AtmosphereModel_8c_ac701d597d647aee36ce091a03b40d314}
+\hypertarget{AtmosphereModel_8c_a20b4e1d5941be3c5101b7af7a087d3a2}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+C\+H4@{init\+R\+I\+A\+\_\+\+C\+H4}}
+\index{init\+R\+I\+A\+\_\+\+C\+H4@{init\+R\+I\+A\+\_\+\+C\+H4}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+C\+H4}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+C\+H4 = 0}}\label{AtmosphereModel_8c_a20b4e1d5941be3c5101b7af7a087d3a2}
+\hypertarget{AtmosphereModel_8c_afdb7ea134feb6c53c0fec08fa5dda9e3}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+C\+O2@{init\+R\+I\+A\+\_\+\+C\+O2}}
+\index{init\+R\+I\+A\+\_\+\+C\+O2@{init\+R\+I\+A\+\_\+\+C\+O2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+C\+O2}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+C\+O2 = 0}}\label{AtmosphereModel_8c_afdb7ea134feb6c53c0fec08fa5dda9e3}
+\hypertarget{AtmosphereModel_8c_a73320d74a5d4bf11ed488ceb3c5159de}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+H@{init\+R\+I\+A\+\_\+\+H}}
+\index{init\+R\+I\+A\+\_\+\+H@{init\+R\+I\+A\+\_\+\+H}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+H}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+H = 0}}\label{AtmosphereModel_8c_a73320d74a5d4bf11ed488ceb3c5159de}
+\hypertarget{AtmosphereModel_8c_a2d5527f776976e2a30ef55710892eb85}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+H2@{init\+R\+I\+A\+\_\+\+H2}}
+\index{init\+R\+I\+A\+\_\+\+H2@{init\+R\+I\+A\+\_\+\+H2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+H2}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+H2 = 0}}\label{AtmosphereModel_8c_a2d5527f776976e2a30ef55710892eb85}
+\hypertarget{AtmosphereModel_8c_aa612128356c5aac699db453fef8fc0ba}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+H2\+O@{init\+R\+I\+A\+\_\+\+H2\+O}}
+\index{init\+R\+I\+A\+\_\+\+H2\+O@{init\+R\+I\+A\+\_\+\+H2\+O}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+H2\+O}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+H2\+O = 0}}\label{AtmosphereModel_8c_aa612128356c5aac699db453fef8fc0ba}
+\hypertarget{AtmosphereModel_8c_a7ab3892d0e94ace09734e9029d4315b6}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+He@{init\+R\+I\+A\+\_\+\+He}}
+\index{init\+R\+I\+A\+\_\+\+He@{init\+R\+I\+A\+\_\+\+He}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+He}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+He = 0}}\label{AtmosphereModel_8c_a7ab3892d0e94ace09734e9029d4315b6}
+\hypertarget{AtmosphereModel_8c_a8a6780550b7ba386d395a0cfa1d5bdb4}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+Kr@{init\+R\+I\+A\+\_\+\+Kr}}
+\index{init\+R\+I\+A\+\_\+\+Kr@{init\+R\+I\+A\+\_\+\+Kr}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+Kr}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+Kr = 0}}\label{AtmosphereModel_8c_a8a6780550b7ba386d395a0cfa1d5bdb4}
+\hypertarget{AtmosphereModel_8c_a839bba60cc3fec6d6357f649152b6304}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+N@{init\+R\+I\+A\+\_\+\+N}}
+\index{init\+R\+I\+A\+\_\+\+N@{init\+R\+I\+A\+\_\+\+N}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+N}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+N = 0}}\label{AtmosphereModel_8c_a839bba60cc3fec6d6357f649152b6304}
+\hypertarget{AtmosphereModel_8c_ae4e386cb507673104fd1a55cd4806acd}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+N2@{init\+R\+I\+A\+\_\+\+N2}}
+\index{init\+R\+I\+A\+\_\+\+N2@{init\+R\+I\+A\+\_\+\+N2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+N2}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+N2 = 0}}\label{AtmosphereModel_8c_ae4e386cb507673104fd1a55cd4806acd}
+\hypertarget{AtmosphereModel_8c_aaf9169004d8a135824b79f2f5462775b}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+Ne@{init\+R\+I\+A\+\_\+\+Ne}}
+\index{init\+R\+I\+A\+\_\+\+Ne@{init\+R\+I\+A\+\_\+\+Ne}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+Ne}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+Ne = 0}}\label{AtmosphereModel_8c_aaf9169004d8a135824b79f2f5462775b}
+\hypertarget{AtmosphereModel_8c_aa1b80365fcb5a8adee4dfe4228520033}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+O@{init\+R\+I\+A\+\_\+\+O}}
+\index{init\+R\+I\+A\+\_\+\+O@{init\+R\+I\+A\+\_\+\+O}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+O}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+O = 0}}\label{AtmosphereModel_8c_aa1b80365fcb5a8adee4dfe4228520033}
+\hypertarget{AtmosphereModel_8c_a9960f50186ee1a0eb77a4301baf1409b}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+O2@{init\+R\+I\+A\+\_\+\+O2}}
+\index{init\+R\+I\+A\+\_\+\+O2@{init\+R\+I\+A\+\_\+\+O2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+O2}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+O2 = 0}}\label{AtmosphereModel_8c_a9960f50186ee1a0eb77a4301baf1409b}
+\hypertarget{AtmosphereModel_8c_a3cf086ede1da21b747be07b9152887d6}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!init\+R\+I\+A\+\_\+\+O3@{init\+R\+I\+A\+\_\+\+O3}}
+\index{init\+R\+I\+A\+\_\+\+O3@{init\+R\+I\+A\+\_\+\+O3}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{init\+R\+I\+A\+\_\+\+O3}]{\setlength{\rightskip}{0pt plus 5cm}int init\+R\+I\+A\+\_\+\+O3 = 0}}\label{AtmosphereModel_8c_a3cf086ede1da21b747be07b9152887d6}
+\hypertarget{AtmosphereModel_8c_af31d465b3c5177db2ad0a0db958c42dd}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!lliprecomp@{lliprecomp}}
+\index{lliprecomp@{lliprecomp}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{lliprecomp}]{\setlength{\rightskip}{0pt plus 5cm}int lliprecomp = -\/1}}\label{AtmosphereModel_8c_af31d465b3c5177db2ad0a0db958c42dd}
+\hypertarget{AtmosphereModel_8c_a90f2ec0e8bf6a8b6972dde3026828773}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!meso\+\_\+tgn1@{meso\+\_\+tgn1}}
+\index{meso\+\_\+tgn1@{meso\+\_\+tgn1}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{meso\+\_\+tgn1}]{\setlength{\rightskip}{0pt plus 5cm}double meso\+\_\+tgn1\mbox{[}2\mbox{]}\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a90f2ec0e8bf6a8b6972dde3026828773}
+\hypertarget{AtmosphereModel_8c_aff651e4d19dfbd75ce329f35ddbe9350}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!meso\+\_\+tgn2@{meso\+\_\+tgn2}}
+\index{meso\+\_\+tgn2@{meso\+\_\+tgn2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{meso\+\_\+tgn2}]{\setlength{\rightskip}{0pt plus 5cm}double meso\+\_\+tgn2\mbox{[}2\mbox{]}\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_aff651e4d19dfbd75ce329f35ddbe9350}
+\hypertarget{AtmosphereModel_8c_a42cc3fd7704e724ee42bff5a7b646716}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!meso\+\_\+tgn3@{meso\+\_\+tgn3}}
+\index{meso\+\_\+tgn3@{meso\+\_\+tgn3}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{meso\+\_\+tgn3}]{\setlength{\rightskip}{0pt plus 5cm}double meso\+\_\+tgn3\mbox{[}2\mbox{]}\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a42cc3fd7704e724ee42bff5a7b646716}
+\hypertarget{AtmosphereModel_8c_af1178fe9c91c432a2eb4f8bce487f122}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!meso\+\_\+tn1@{meso\+\_\+tn1}}
+\index{meso\+\_\+tn1@{meso\+\_\+tn1}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{meso\+\_\+tn1}]{\setlength{\rightskip}{0pt plus 5cm}double meso\+\_\+tn1\mbox{[}5\mbox{]}\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_af1178fe9c91c432a2eb4f8bce487f122}
+\hypertarget{AtmosphereModel_8c_a793989a4dd46c72a8f65b89d0416fe29}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!meso\+\_\+tn2@{meso\+\_\+tn2}}
+\index{meso\+\_\+tn2@{meso\+\_\+tn2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{meso\+\_\+tn2}]{\setlength{\rightskip}{0pt plus 5cm}double meso\+\_\+tn2\mbox{[}4\mbox{]}\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a793989a4dd46c72a8f65b89d0416fe29}
+\hypertarget{AtmosphereModel_8c_a54d193f8b08abc8f1dbc203dd86c8d96}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!meso\+\_\+tn3@{meso\+\_\+tn3}}
+\index{meso\+\_\+tn3@{meso\+\_\+tn3}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{meso\+\_\+tn3}]{\setlength{\rightskip}{0pt plus 5cm}double meso\+\_\+tn3\mbox{[}5\mbox{]}\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a54d193f8b08abc8f1dbc203dd86c8d96}
+\hypertarget{AtmosphereModel_8c_a2598e9003789dfb14670e5718b22d6bb}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!N\+B\+\_\+comp\+\_\+array@{N\+B\+\_\+comp\+\_\+array}}
+\index{N\+B\+\_\+comp\+\_\+array@{N\+B\+\_\+comp\+\_\+array}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{N\+B\+\_\+comp\+\_\+array}]{\setlength{\rightskip}{0pt plus 5cm}long N\+B\+\_\+comp\+\_\+array}}\label{AtmosphereModel_8c_a2598e9003789dfb14670e5718b22d6bb}
+\hypertarget{AtmosphereModel_8c_ad9e05d1fb99e07d634b35cdde6c978dc}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!pavgm@{pavgm}}
+\index{pavgm@{pavgm}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{pavgm}]{\setlength{\rightskip}{0pt plus 5cm}double pavgm\mbox{[}10\mbox{]}}}\label{AtmosphereModel_8c_ad9e05d1fb99e07d634b35cdde6c978dc}
+{\bfseries Initial value\+:}
+\begin{DoxyCode}
+= \{
+    2.61000E+02, 2.64000E+02, 2.29000E+02, 2.17000E+02, 2.17000E+02,
+    2.23000E+02, 2.86760E+02,-2.93940E+00, 2.50000E+00, 0.00000E+00
+\}
+\end{DoxyCode}
+\hypertarget{AtmosphereModel_8c_a9d7bc0edd2bc401a23d0bb6bbdcc261d}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!pd@{pd}}
+\index{pd@{pd}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{pd}]{\setlength{\rightskip}{0pt plus 5cm}double pd\mbox{[}9\mbox{]}\mbox{[}150\mbox{]}}}\label{AtmosphereModel_8c_a9d7bc0edd2bc401a23d0bb6bbdcc261d}
+\hypertarget{AtmosphereModel_8c_adefb8cc23535073a700d4009d0343679}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!pdl@{pdl}}
+\index{pdl@{pdl}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{pdl}]{\setlength{\rightskip}{0pt plus 5cm}double pdl\mbox{[}2\mbox{]}\mbox{[}25\mbox{]}}}\label{AtmosphereModel_8c_adefb8cc23535073a700d4009d0343679}
+{\bfseries Initial value\+:}
+\begin{DoxyCode}
+= \{
+    \{   1.09930E+00, 3.90631E+00, 3.07165E+00, 9.86161E-01, 1.63536E+01,
+        4.63830E+00, 1.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+        0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+        0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+        0.00000E+00, 0.00000E+00, 1.28840E+00, 3.10302E-02, 1.18339E-01
+    \},
+    \{   1.00000E+00, 7.00000E-01, 1.15020E+00, 3.44689E+00, 1.28840E+00,
+        1.00000E+00, 1.08738E+00, 1.22947E+00, 1.10016E+00, 7.34129E-01,
+        1.15241E+00, 2.22784E+00, 7.95046E-01, 4.01612E+00, 4.47749E+00,
+        1.23435E+02,-7.60535E-02, 1.68986E-06, 7.44294E-01, 1.03604E+00,
+        1.72783E+02, 1.15020E+00, 3.44689E+00,-7.46230E-01, 9.49154E-01
+    \}
+\}
+\end{DoxyCode}
+\hypertarget{AtmosphereModel_8c_ac7ac86294545f793edad8b9574d73132}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!pdm@{pdm}}
+\index{pdm@{pdm}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{pdm}]{\setlength{\rightskip}{0pt plus 5cm}double pdm\mbox{[}8\mbox{]}\mbox{[}10\mbox{]}}}\label{AtmosphereModel_8c_ac7ac86294545f793edad8b9574d73132}
+{\bfseries Initial value\+:}
+\begin{DoxyCode}
+= \{
+    \{   2.45600E+07, 6.71072E-06, 1.00000E+02, 0.00000E+00, 1.10000E+02,
+        1.00000E+01, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00
+    \},
+    \{   8.59400E+10, 1.00000E+00, 1.05000E+02,-8.00000E+00, 1.10000E+02,
+        1.00000E+01, 9.00000E+01, 2.00000E+00, 0.00000E+00, 0.00000E+00
+    \},
+    \{   2.81000E+11, 0.00000E+00, 1.05000E+02, 2.80000E+01, 2.89500E+01,
+        0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00
+    \},
+    \{   3.30000E+10, 2.68270E-01, 1.05000E+02, 1.00000E+00, 1.10000E+02,
+        1.00000E+01, 1.10000E+02,-1.00000E+01, 0.00000E+00, 0.00000E+00
+    \},
+    \{   1.33000E+09, 1.19615E-02, 1.05000E+02, 0.00000E+00, 1.10000E+02,
+        1.00000E+01, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00
+    \},
+    \{   1.76100E+05, 1.00000E+00, 9.50000E+01,-8.00000E+00, 1.10000E+02,
+        1.00000E+01, 9.00000E+01, 2.00000E+00, 0.00000E+00, 0.00000E+00,
+    \},
+    \{   1.00000E+07, 1.00000E+00, 1.05000E+02,-8.00000E+00, 1.10000E+02,
+        1.00000E+01, 9.00000E+01, 2.00000E+00, 0.00000E+00, 0.00000E+00
+    \},
+    \{   1.00000E+06, 1.00000E+00, 1.05000E+02,-8.00000E+00, 5.50000E+02,
+        7.60000E+01, 9.00000E+01, 2.00000E+00, 0.00000E+00, 4.00000E+03
+    \}
+\}
+\end{DoxyCode}
+\hypertarget{AtmosphereModel_8c_ae88729d6c4d0930c73a130b2a9b9407c}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!plg@{plg}}
+\index{plg@{plg}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{plg}]{\setlength{\rightskip}{0pt plus 5cm}double plg\mbox{[}4\mbox{]}\mbox{[}9\mbox{]}\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_ae88729d6c4d0930c73a130b2a9b9407c}
+\hypertarget{AtmosphereModel_8c_afc39d71d3e372c3178c33a31ee91d713}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!pma@{pma}}
+\index{pma@{pma}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{pma}]{\setlength{\rightskip}{0pt plus 5cm}double pma\mbox{[}10\mbox{]}\mbox{[}100\mbox{]}}}\label{AtmosphereModel_8c_afc39d71d3e372c3178c33a31ee91d713}
+\hypertarget{AtmosphereModel_8c_a8fb248f8a277a7ca5c64b6c2f419e4c6}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!pressure@{pressure}}
+\index{pressure@{pressure}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{pressure}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ pressure}}\label{AtmosphereModel_8c_a8fb248f8a277a7ca5c64b6c2f419e4c6}
+\hypertarget{AtmosphereModel_8c_ad4f203c6cf70efc738b56d4377ded829}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!ps@{ps}}
+\index{ps@{ps}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{ps}]{\setlength{\rightskip}{0pt plus 5cm}double ps\mbox{[}150\mbox{]}}}\label{AtmosphereModel_8c_ad4f203c6cf70efc738b56d4377ded829}
+\hypertarget{AtmosphereModel_8c_aa3caa9a62f4d69b33356c093e59da51f}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!pt@{pt}}
+\index{pt@{pt}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{pt}]{\setlength{\rightskip}{0pt plus 5cm}double pt\mbox{[}150\mbox{]}}}\label{AtmosphereModel_8c_aa3caa9a62f4d69b33356c093e59da51f}
+\hypertarget{AtmosphereModel_8c_a0e0f42582354ba5f5ddbed2ffe696fa9}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!ptl@{ptl}}
+\index{ptl@{ptl}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{ptl}]{\setlength{\rightskip}{0pt plus 5cm}double ptl}}\label{AtmosphereModel_8c_a0e0f42582354ba5f5ddbed2ffe696fa9}
+\hypertarget{AtmosphereModel_8c_a7d39dedd36f08d4f3ee17c979bf92332}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!ptm@{ptm}}
+\index{ptm@{ptm}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{ptm}]{\setlength{\rightskip}{0pt plus 5cm}double ptm\mbox{[}50\mbox{]}}}\label{AtmosphereModel_8c_a7d39dedd36f08d4f3ee17c979bf92332}
+{\bfseries Initial value\+:}
+\begin{DoxyCode}
+= \{
+    1.04130E+03, 3.86000E+02, 1.95000E+02, 1.66728E+01, 2.13000E+02,
+    1.20000E+02, 2.40000E+02, 1.87000E+02,-2.00000E+00, 0.00000E+00
+\}
+\end{DoxyCode}
+\hypertarget{AtmosphereModel_8c_a5a6fce2fc5cae153945fea2c45beeb4f}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!re@{re}}
+\index{re@{re}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{re}]{\setlength{\rightskip}{0pt plus 5cm}double re\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a5a6fce2fc5cae153945fea2c45beeb4f}
+\hypertarget{AtmosphereModel_8c_ad8066f8edf544b9823580a976b05f5e7}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+H@{R\+H}}
+\index{R\+H@{R\+H}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+H}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ R\+H}}\label{AtmosphereModel_8c_ad8066f8edf544b9823580a976b05f5e7}
+\hypertarget{AtmosphereModel_8c_a3b8895eaf832ed455f3fc79575a679e5}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+Ar\+\_\+abs@{R\+I\+A\+\_\+\+Ar\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+Ar\+\_\+abs@{R\+I\+A\+\_\+\+Ar\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+Ar\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+Ar\+\_\+abs}}\label{AtmosphereModel_8c_a3b8895eaf832ed455f3fc79575a679e5}
+\hypertarget{AtmosphereModel_8c_a1adb76dd462ca4cb6af9ed45475fb6dd}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+Ar\+\_\+lambda@{R\+I\+A\+\_\+\+Ar\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+Ar\+\_\+lambda@{R\+I\+A\+\_\+\+Ar\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+Ar\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+Ar\+\_\+lambda}}\label{AtmosphereModel_8c_a1adb76dd462ca4cb6af9ed45475fb6dd}
+\hypertarget{AtmosphereModel_8c_a156adac3be69aa425c9285c1504da1b9}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+Ar\+\_\+ri@{R\+I\+A\+\_\+\+Ar\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+Ar\+\_\+ri@{R\+I\+A\+\_\+\+Ar\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+Ar\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+Ar\+\_\+ri}}\label{AtmosphereModel_8c_a156adac3be69aa425c9285c1504da1b9}
+\hypertarget{AtmosphereModel_8c_a127e8005807235d7d54161da8cb6f23f}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+C\+H4\+\_\+abs@{R\+I\+A\+\_\+\+C\+H4\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+C\+H4\+\_\+abs@{R\+I\+A\+\_\+\+C\+H4\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+C\+H4\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+C\+H4\+\_\+abs}}\label{AtmosphereModel_8c_a127e8005807235d7d54161da8cb6f23f}
+\hypertarget{AtmosphereModel_8c_a9ed6ce508b7bf45d27502d06064ce7ad}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+C\+H4\+\_\+lambda@{R\+I\+A\+\_\+\+C\+H4\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+C\+H4\+\_\+lambda@{R\+I\+A\+\_\+\+C\+H4\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+C\+H4\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+C\+H4\+\_\+lambda}}\label{AtmosphereModel_8c_a9ed6ce508b7bf45d27502d06064ce7ad}
+\hypertarget{AtmosphereModel_8c_a02cef9b6e555fbd6489028a6e3898735}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+C\+H4\+\_\+ri@{R\+I\+A\+\_\+\+C\+H4\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+C\+H4\+\_\+ri@{R\+I\+A\+\_\+\+C\+H4\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+C\+H4\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+C\+H4\+\_\+ri}}\label{AtmosphereModel_8c_a02cef9b6e555fbd6489028a6e3898735}
+\hypertarget{AtmosphereModel_8c_ac527cc3ba32d234582bcd5eabc648d5d}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+C\+O2\+\_\+abs@{R\+I\+A\+\_\+\+C\+O2\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+C\+O2\+\_\+abs@{R\+I\+A\+\_\+\+C\+O2\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+C\+O2\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+C\+O2\+\_\+abs}}\label{AtmosphereModel_8c_ac527cc3ba32d234582bcd5eabc648d5d}
+\hypertarget{AtmosphereModel_8c_a29ebc69ce75a06fbfce38d11a59b6d8a}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+C\+O2\+\_\+lambda@{R\+I\+A\+\_\+\+C\+O2\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+C\+O2\+\_\+lambda@{R\+I\+A\+\_\+\+C\+O2\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+C\+O2\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+C\+O2\+\_\+lambda}}\label{AtmosphereModel_8c_a29ebc69ce75a06fbfce38d11a59b6d8a}
+\hypertarget{AtmosphereModel_8c_a7a967101ffa532221cdad370e9fea2ac}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+C\+O2\+\_\+ri@{R\+I\+A\+\_\+\+C\+O2\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+C\+O2\+\_\+ri@{R\+I\+A\+\_\+\+C\+O2\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+C\+O2\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+C\+O2\+\_\+ri}}\label{AtmosphereModel_8c_a7a967101ffa532221cdad370e9fea2ac}
+\hypertarget{AtmosphereModel_8c_a84eb849d13c5d7d5d9bbb8eb42242567}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+H2\+\_\+abs@{R\+I\+A\+\_\+\+H2\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+H2\+\_\+abs@{R\+I\+A\+\_\+\+H2\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+H2\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+H2\+\_\+abs}}\label{AtmosphereModel_8c_a84eb849d13c5d7d5d9bbb8eb42242567}
+\hypertarget{AtmosphereModel_8c_a46d32a8daa036bd31dacc9dc8fd0f393}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+H2\+\_\+lambda@{R\+I\+A\+\_\+\+H2\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+H2\+\_\+lambda@{R\+I\+A\+\_\+\+H2\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+H2\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+H2\+\_\+lambda}}\label{AtmosphereModel_8c_a46d32a8daa036bd31dacc9dc8fd0f393}
+\hypertarget{AtmosphereModel_8c_a5bd0e8e729f236491706bf79fb8878c7}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+H2\+\_\+ri@{R\+I\+A\+\_\+\+H2\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+H2\+\_\+ri@{R\+I\+A\+\_\+\+H2\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+H2\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+H2\+\_\+ri}}\label{AtmosphereModel_8c_a5bd0e8e729f236491706bf79fb8878c7}
+\hypertarget{AtmosphereModel_8c_af31f45c7cbb4003018984e61b7b2a26c}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+H2\+O\+\_\+abs@{R\+I\+A\+\_\+\+H2\+O\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+H2\+O\+\_\+abs@{R\+I\+A\+\_\+\+H2\+O\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+H2\+O\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+H2\+O\+\_\+abs}}\label{AtmosphereModel_8c_af31f45c7cbb4003018984e61b7b2a26c}
+\hypertarget{AtmosphereModel_8c_aa8069f99faef4edbac149e4f4b173bfd}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+H2\+O\+\_\+lambda@{R\+I\+A\+\_\+\+H2\+O\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+H2\+O\+\_\+lambda@{R\+I\+A\+\_\+\+H2\+O\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+H2\+O\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+H2\+O\+\_\+lambda}}\label{AtmosphereModel_8c_aa8069f99faef4edbac149e4f4b173bfd}
+\hypertarget{AtmosphereModel_8c_a273b30553a1c320e2d6da6bc033b4b2b}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+H2\+O\+\_\+ri@{R\+I\+A\+\_\+\+H2\+O\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+H2\+O\+\_\+ri@{R\+I\+A\+\_\+\+H2\+O\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+H2\+O\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+H2\+O\+\_\+ri}}\label{AtmosphereModel_8c_a273b30553a1c320e2d6da6bc033b4b2b}
+\hypertarget{AtmosphereModel_8c_a629e03449a71eb50932f9204ba6847d6}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+H\+\_\+abs@{R\+I\+A\+\_\+\+H\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+H\+\_\+abs@{R\+I\+A\+\_\+\+H\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+H\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+H\+\_\+abs}}\label{AtmosphereModel_8c_a629e03449a71eb50932f9204ba6847d6}
+\hypertarget{AtmosphereModel_8c_aa15124f3261a04a95bc82cbcbb834e06}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+H\+\_\+lambda@{R\+I\+A\+\_\+\+H\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+H\+\_\+lambda@{R\+I\+A\+\_\+\+H\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+H\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+H\+\_\+lambda}}\label{AtmosphereModel_8c_aa15124f3261a04a95bc82cbcbb834e06}
+\hypertarget{AtmosphereModel_8c_aec16b10e821a4ce2e39976a8cd470f2c}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+H\+\_\+ri@{R\+I\+A\+\_\+\+H\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+H\+\_\+ri@{R\+I\+A\+\_\+\+H\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+H\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+H\+\_\+ri}}\label{AtmosphereModel_8c_aec16b10e821a4ce2e39976a8cd470f2c}
+\hypertarget{AtmosphereModel_8c_a0c5f396db94f37e5e6614c9bf395cf4e}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+He\+\_\+abs@{R\+I\+A\+\_\+\+He\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+He\+\_\+abs@{R\+I\+A\+\_\+\+He\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+He\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+He\+\_\+abs}}\label{AtmosphereModel_8c_a0c5f396db94f37e5e6614c9bf395cf4e}
+\hypertarget{AtmosphereModel_8c_ae41ae7f8a35d2678c851327e3bd95e20}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+He\+\_\+lambda@{R\+I\+A\+\_\+\+He\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+He\+\_\+lambda@{R\+I\+A\+\_\+\+He\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+He\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+He\+\_\+lambda}}\label{AtmosphereModel_8c_ae41ae7f8a35d2678c851327e3bd95e20}
+\hypertarget{AtmosphereModel_8c_aa9a3fe5edad0adb1c51956a63dcd575a}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+He\+\_\+ri@{R\+I\+A\+\_\+\+He\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+He\+\_\+ri@{R\+I\+A\+\_\+\+He\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+He\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+He\+\_\+ri}}\label{AtmosphereModel_8c_aa9a3fe5edad0adb1c51956a63dcd575a}
+\hypertarget{AtmosphereModel_8c_a15bcc1aa63b963a7331ff962c1e7871e}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+Kr\+\_\+abs@{R\+I\+A\+\_\+\+Kr\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+Kr\+\_\+abs@{R\+I\+A\+\_\+\+Kr\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+Kr\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+Kr\+\_\+abs}}\label{AtmosphereModel_8c_a15bcc1aa63b963a7331ff962c1e7871e}
+\hypertarget{AtmosphereModel_8c_a88e092643aaf768db72f4240e65c5f29}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+Kr\+\_\+lambda@{R\+I\+A\+\_\+\+Kr\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+Kr\+\_\+lambda@{R\+I\+A\+\_\+\+Kr\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+Kr\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+Kr\+\_\+lambda}}\label{AtmosphereModel_8c_a88e092643aaf768db72f4240e65c5f29}
+\hypertarget{AtmosphereModel_8c_a4af77c209412f3e58cc680fce4ed4360}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+Kr\+\_\+ri@{R\+I\+A\+\_\+\+Kr\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+Kr\+\_\+ri@{R\+I\+A\+\_\+\+Kr\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+Kr\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+Kr\+\_\+ri}}\label{AtmosphereModel_8c_a4af77c209412f3e58cc680fce4ed4360}
+\hypertarget{AtmosphereModel_8c_a66d75ad8869ce6ae827bfaf66baf911f}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+lambda\+\_\+max@{R\+I\+A\+\_\+lambda\+\_\+max}}
+\index{R\+I\+A\+\_\+lambda\+\_\+max@{R\+I\+A\+\_\+lambda\+\_\+max}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+lambda\+\_\+max}]{\setlength{\rightskip}{0pt plus 5cm}double R\+I\+A\+\_\+lambda\+\_\+max}}\label{AtmosphereModel_8c_a66d75ad8869ce6ae827bfaf66baf911f}
+\hypertarget{AtmosphereModel_8c_a7417d78a361c42fe1c519c95d026fdaa}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+lambda\+\_\+min@{R\+I\+A\+\_\+lambda\+\_\+min}}
+\index{R\+I\+A\+\_\+lambda\+\_\+min@{R\+I\+A\+\_\+lambda\+\_\+min}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+lambda\+\_\+min}]{\setlength{\rightskip}{0pt plus 5cm}double R\+I\+A\+\_\+lambda\+\_\+min}}\label{AtmosphereModel_8c_a7417d78a361c42fe1c519c95d026fdaa}
+\hypertarget{AtmosphereModel_8c_a510252a195422fec044bd2ce21b0b70e}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+N2\+\_\+abs@{R\+I\+A\+\_\+\+N2\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+N2\+\_\+abs@{R\+I\+A\+\_\+\+N2\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+N2\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+N2\+\_\+abs}}\label{AtmosphereModel_8c_a510252a195422fec044bd2ce21b0b70e}
+\hypertarget{AtmosphereModel_8c_ac0f6702b5b9ccf3c462ea8f889da965d}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+N2\+\_\+lambda@{R\+I\+A\+\_\+\+N2\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+N2\+\_\+lambda@{R\+I\+A\+\_\+\+N2\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+N2\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+N2\+\_\+lambda}}\label{AtmosphereModel_8c_ac0f6702b5b9ccf3c462ea8f889da965d}
+\hypertarget{AtmosphereModel_8c_a3e00e7522599e20d317df677cbdb8fb1}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+N2\+\_\+ri@{R\+I\+A\+\_\+\+N2\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+N2\+\_\+ri@{R\+I\+A\+\_\+\+N2\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+N2\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+N2\+\_\+ri}}\label{AtmosphereModel_8c_a3e00e7522599e20d317df677cbdb8fb1}
+\hypertarget{AtmosphereModel_8c_a459e7e9c1c1142374c00da1060c43fc1}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+N\+\_\+abs@{R\+I\+A\+\_\+\+N\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+N\+\_\+abs@{R\+I\+A\+\_\+\+N\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+N\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+N\+\_\+abs}}\label{AtmosphereModel_8c_a459e7e9c1c1142374c00da1060c43fc1}
+\hypertarget{AtmosphereModel_8c_a6bdfc9c667a63ec86a8f061995950607}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+N\+\_\+lambda@{R\+I\+A\+\_\+\+N\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+N\+\_\+lambda@{R\+I\+A\+\_\+\+N\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+N\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+N\+\_\+lambda}}\label{AtmosphereModel_8c_a6bdfc9c667a63ec86a8f061995950607}
+\hypertarget{AtmosphereModel_8c_a6b83cd55b082663e4be17cf5fef53788}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+N\+\_\+ri@{R\+I\+A\+\_\+\+N\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+N\+\_\+ri@{R\+I\+A\+\_\+\+N\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+N\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+N\+\_\+ri}}\label{AtmosphereModel_8c_a6b83cd55b082663e4be17cf5fef53788}
+\hypertarget{AtmosphereModel_8c_a4d41a7f58e2ffef764319d6618e9f087}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+N\+Bpts@{R\+I\+A\+\_\+\+N\+Bpts}}
+\index{R\+I\+A\+\_\+\+N\+Bpts@{R\+I\+A\+\_\+\+N\+Bpts}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+N\+Bpts}]{\setlength{\rightskip}{0pt plus 5cm}long R\+I\+A\+\_\+\+N\+Bpts}}\label{AtmosphereModel_8c_a4d41a7f58e2ffef764319d6618e9f087}
+\hypertarget{AtmosphereModel_8c_ad2898636c44a340f2ef75e2fd31511eb}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+Ne\+\_\+abs@{R\+I\+A\+\_\+\+Ne\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+Ne\+\_\+abs@{R\+I\+A\+\_\+\+Ne\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+Ne\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+Ne\+\_\+abs}}\label{AtmosphereModel_8c_ad2898636c44a340f2ef75e2fd31511eb}
+\hypertarget{AtmosphereModel_8c_aee78c7d74cd8484736123604b1a123ae}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+Ne\+\_\+lambda@{R\+I\+A\+\_\+\+Ne\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+Ne\+\_\+lambda@{R\+I\+A\+\_\+\+Ne\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+Ne\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+Ne\+\_\+lambda}}\label{AtmosphereModel_8c_aee78c7d74cd8484736123604b1a123ae}
+\hypertarget{AtmosphereModel_8c_ab17c3ff4ae995544f2303466bdd35cd4}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+Ne\+\_\+ri@{R\+I\+A\+\_\+\+Ne\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+Ne\+\_\+ri@{R\+I\+A\+\_\+\+Ne\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+Ne\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+Ne\+\_\+ri}}\label{AtmosphereModel_8c_ab17c3ff4ae995544f2303466bdd35cd4}
+\hypertarget{AtmosphereModel_8c_a6b73ac5016ce5dfcf7009f3a65ba4fd0}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+O2\+\_\+abs@{R\+I\+A\+\_\+\+O2\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+O2\+\_\+abs@{R\+I\+A\+\_\+\+O2\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+O2\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+O2\+\_\+abs}}\label{AtmosphereModel_8c_a6b73ac5016ce5dfcf7009f3a65ba4fd0}
+\hypertarget{AtmosphereModel_8c_aeb27070fcb60c0c5b31753de1d49961b}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+O2\+\_\+lambda@{R\+I\+A\+\_\+\+O2\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+O2\+\_\+lambda@{R\+I\+A\+\_\+\+O2\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+O2\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+O2\+\_\+lambda}}\label{AtmosphereModel_8c_aeb27070fcb60c0c5b31753de1d49961b}
+\hypertarget{AtmosphereModel_8c_a2ca2349aae5abbafc85d8d39f4fa7c3a}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+O2\+\_\+ri@{R\+I\+A\+\_\+\+O2\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+O2\+\_\+ri@{R\+I\+A\+\_\+\+O2\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+O2\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+O2\+\_\+ri}}\label{AtmosphereModel_8c_a2ca2349aae5abbafc85d8d39f4fa7c3a}
+\hypertarget{AtmosphereModel_8c_a76d348287ea40e944bb042b1d56ef3fc}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+O3\+\_\+abs@{R\+I\+A\+\_\+\+O3\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+O3\+\_\+abs@{R\+I\+A\+\_\+\+O3\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+O3\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+O3\+\_\+abs}}\label{AtmosphereModel_8c_a76d348287ea40e944bb042b1d56ef3fc}
+\hypertarget{AtmosphereModel_8c_a761f6100c7e5be7e63202c986bb61980}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+O3\+\_\+lambda@{R\+I\+A\+\_\+\+O3\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+O3\+\_\+lambda@{R\+I\+A\+\_\+\+O3\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+O3\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+O3\+\_\+lambda}}\label{AtmosphereModel_8c_a761f6100c7e5be7e63202c986bb61980}
+\hypertarget{AtmosphereModel_8c_a1af430a277f3a643f9cc02e008b8263f}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+O3\+\_\+ri@{R\+I\+A\+\_\+\+O3\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+O3\+\_\+ri@{R\+I\+A\+\_\+\+O3\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+O3\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+O3\+\_\+ri}}\label{AtmosphereModel_8c_a1af430a277f3a643f9cc02e008b8263f}
+\hypertarget{AtmosphereModel_8c_a35f1af74692ce8d94594aa82c32953ea}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+O\+\_\+abs@{R\+I\+A\+\_\+\+O\+\_\+abs}}
+\index{R\+I\+A\+\_\+\+O\+\_\+abs@{R\+I\+A\+\_\+\+O\+\_\+abs}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+O\+\_\+abs}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+O\+\_\+abs}}\label{AtmosphereModel_8c_a35f1af74692ce8d94594aa82c32953ea}
+\hypertarget{AtmosphereModel_8c_a146cf1bbe9338fac8d14d6d5814679e8}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+O\+\_\+lambda@{R\+I\+A\+\_\+\+O\+\_\+lambda}}
+\index{R\+I\+A\+\_\+\+O\+\_\+lambda@{R\+I\+A\+\_\+\+O\+\_\+lambda}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+O\+\_\+lambda}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+O\+\_\+lambda}}\label{AtmosphereModel_8c_a146cf1bbe9338fac8d14d6d5814679e8}
+\hypertarget{AtmosphereModel_8c_a4adfabea7b37a659c2f63408871253f5}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!R\+I\+A\+\_\+\+O\+\_\+ri@{R\+I\+A\+\_\+\+O\+\_\+ri}}
+\index{R\+I\+A\+\_\+\+O\+\_\+ri@{R\+I\+A\+\_\+\+O\+\_\+ri}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{R\+I\+A\+\_\+\+O\+\_\+ri}]{\setlength{\rightskip}{0pt plus 5cm}double$\ast$ R\+I\+A\+\_\+\+O\+\_\+ri}}\label{AtmosphereModel_8c_a4adfabea7b37a659c2f63408871253f5}
+\hypertarget{AtmosphereModel_8c_a5b45e3666a7664914c9cdf3abb476960}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!s2tloc@{s2tloc}}
+\index{s2tloc@{s2tloc}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{s2tloc}]{\setlength{\rightskip}{0pt plus 5cm}double s2tloc\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a5b45e3666a7664914c9cdf3abb476960}
+\hypertarget{AtmosphereModel_8c_a82a48eaf6f5edce5fa25a760e18a5c04}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!s3tloc@{s3tloc}}
+\index{s3tloc@{s3tloc}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{s3tloc}]{\setlength{\rightskip}{0pt plus 5cm}double s3tloc\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a82a48eaf6f5edce5fa25a760e18a5c04}
+\hypertarget{AtmosphereModel_8c_ae391523526f8ec527742657b4f50db0e}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!sam@{sam}}
+\index{sam@{sam}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{sam}]{\setlength{\rightskip}{0pt plus 5cm}double sam\mbox{[}100\mbox{]}}}\label{AtmosphereModel_8c_ae391523526f8ec527742657b4f50db0e}
+{\bfseries Initial value\+:}
+\begin{DoxyCode}
+= \{
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00, 1.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00,
+    0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00, 0.00000E+00
+\}
+\end{DoxyCode}
+\hypertarget{AtmosphereModel_8c_a88a8aec3f67e89469d3843c46270eff1}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+Alt@{Site\+Alt}}
+\index{Site\+Alt@{Site\+Alt}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+Alt}]{\setlength{\rightskip}{0pt plus 5cm}float Site\+Alt}}\label{AtmosphereModel_8c_a88a8aec3f67e89469d3843c46270eff1}
+\hypertarget{AtmosphereModel_8c_ad2c618edf01028772c7ac13c845a363c}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+H2\+O\+Method@{Site\+H2\+O\+Method}}
+\index{Site\+H2\+O\+Method@{Site\+H2\+O\+Method}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+H2\+O\+Method}]{\setlength{\rightskip}{0pt plus 5cm}float Site\+H2\+O\+Method}}\label{AtmosphereModel_8c_ad2c618edf01028772c7ac13c845a363c}
+\hypertarget{AtmosphereModel_8c_a04d1c5a3c14a3778dc9e11c4246c5b47}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+Lat@{Site\+Lat}}
+\index{Site\+Lat@{Site\+Lat}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+Lat}]{\setlength{\rightskip}{0pt plus 5cm}float Site\+Lat}}\label{AtmosphereModel_8c_a04d1c5a3c14a3778dc9e11c4246c5b47}
+\hypertarget{AtmosphereModel_8c_aae7039a4e5f89a8544bf3ee26ed5147c}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+Long@{Site\+Long}}
+\index{Site\+Long@{Site\+Long}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+Long}]{\setlength{\rightskip}{0pt plus 5cm}float Site\+Long}}\label{AtmosphereModel_8c_aae7039a4e5f89a8544bf3ee26ed5147c}
+\hypertarget{AtmosphereModel_8c_a3d2f9c2a77215284ad0dffa9b2cb15f7}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+Press@{Site\+Press}}
+\index{Site\+Press@{Site\+Press}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+Press}]{\setlength{\rightskip}{0pt plus 5cm}float Site\+Press}}\label{AtmosphereModel_8c_a3d2f9c2a77215284ad0dffa9b2cb15f7}
+\hypertarget{AtmosphereModel_8c_ae42c824d86b2ab0b2e7b1f0f3dd60e54}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+P\+W\+S\+H@{Site\+P\+W\+S\+H}}
+\index{Site\+P\+W\+S\+H@{Site\+P\+W\+S\+H}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+P\+W\+S\+H}]{\setlength{\rightskip}{0pt plus 5cm}float Site\+P\+W\+S\+H}}\label{AtmosphereModel_8c_ae42c824d86b2ab0b2e7b1f0f3dd60e54}
+\hypertarget{AtmosphereModel_8c_afeb4d1b5c1a1c96fffb032bf78d77b0d}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+R\+H@{Site\+R\+H}}
+\index{Site\+R\+H@{Site\+R\+H}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+R\+H}]{\setlength{\rightskip}{0pt plus 5cm}float Site\+R\+H}}\label{AtmosphereModel_8c_afeb4d1b5c1a1c96fffb032bf78d77b0d}
+\hypertarget{AtmosphereModel_8c_a2668cbc7b2207914267a54852cffe842}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+Temp@{Site\+Temp}}
+\index{Site\+Temp@{Site\+Temp}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+Temp}]{\setlength{\rightskip}{0pt plus 5cm}float Site\+Temp}}\label{AtmosphereModel_8c_a2668cbc7b2207914267a54852cffe842}
+\hypertarget{AtmosphereModel_8c_a2cbc5c432c83844c53739df6889532b9}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+T\+Pauto@{Site\+T\+Pauto}}
+\index{Site\+T\+Pauto@{Site\+T\+Pauto}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+T\+Pauto}]{\setlength{\rightskip}{0pt plus 5cm}int Site\+T\+Pauto}}\label{AtmosphereModel_8c_a2cbc5c432c83844c53739df6889532b9}
+\hypertarget{AtmosphereModel_8c_a5503fe9348e93f8c9f1e0f2cb8216211}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Site\+T\+P\+W@{Site\+T\+P\+W}}
+\index{Site\+T\+P\+W@{Site\+T\+P\+W}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Site\+T\+P\+W}]{\setlength{\rightskip}{0pt plus 5cm}float Site\+T\+P\+W}}\label{AtmosphereModel_8c_a5503fe9348e93f8c9f1e0f2cb8216211}
+\hypertarget{AtmosphereModel_8c_a0f4f8372d2da884c4eb58ae9135f4013}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!stloc@{stloc}}
+\index{stloc@{stloc}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{stloc}]{\setlength{\rightskip}{0pt plus 5cm}double stloc\hspace{0.3cm}{\ttfamily [static]}}}\label{AtmosphereModel_8c_a0f4f8372d2da884c4eb58ae9135f4013}
+\hypertarget{AtmosphereModel_8c_a033b752be3885dfa35baaf77e6fcf357}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!temperature@{temperature}}
+\index{temperature@{temperature}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{temperature}]{\setlength{\rightskip}{0pt plus 5cm}float$\ast$ temperature}}\label{AtmosphereModel_8c_a033b752be3885dfa35baaf77e6fcf357}
+\hypertarget{AtmosphereModel_8c_a2bb6dc8651c6d335c8e7305137a9163d}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Time\+Day\+Of\+Year@{Time\+Day\+Of\+Year}}
+\index{Time\+Day\+Of\+Year@{Time\+Day\+Of\+Year}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Time\+Day\+Of\+Year}]{\setlength{\rightskip}{0pt plus 5cm}int Time\+Day\+Of\+Year}}\label{AtmosphereModel_8c_a2bb6dc8651c6d335c8e7305137a9163d}
+\hypertarget{AtmosphereModel_8c_a484fb6b4b11b8e7d9afa597a3c74b6b7}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Time\+Local\+Solar\+Time@{Time\+Local\+Solar\+Time}}
+\index{Time\+Local\+Solar\+Time@{Time\+Local\+Solar\+Time}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Time\+Local\+Solar\+Time}]{\setlength{\rightskip}{0pt plus 5cm}float Time\+Local\+Solar\+Time}}\label{AtmosphereModel_8c_a484fb6b4b11b8e7d9afa597a3c74b6b7}
+\hypertarget{AtmosphereModel_8c_a3fb2a5ab95a69242ee81da7f795a5405}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!v\+\_\+\+A\+B\+S\+C\+O\+E\+F\+F@{v\+\_\+\+A\+B\+S\+C\+O\+E\+F\+F}}
+\index{v\+\_\+\+A\+B\+S\+C\+O\+E\+F\+F@{v\+\_\+\+A\+B\+S\+C\+O\+E\+F\+F}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{v\+\_\+\+A\+B\+S\+C\+O\+E\+F\+F}]{\setlength{\rightskip}{0pt plus 5cm}double v\+\_\+\+A\+B\+S\+C\+O\+E\+F\+F = 0.\+0}}\label{AtmosphereModel_8c_a3fb2a5ab95a69242ee81da7f795a5405}
+\hypertarget{AtmosphereModel_8c_ab727a06c65df61003dacf1740e507dda}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!v\+\_\+\+L\+O\+N\+G1@{v\+\_\+\+L\+O\+N\+G1}}
+\index{v\+\_\+\+L\+O\+N\+G1@{v\+\_\+\+L\+O\+N\+G1}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{v\+\_\+\+L\+O\+N\+G1}]{\setlength{\rightskip}{0pt plus 5cm}long v\+\_\+\+L\+O\+N\+G1}}\label{AtmosphereModel_8c_ab727a06c65df61003dacf1740e507dda}
+\hypertarget{AtmosphereModel_8c_ae9d212927dcdf805bfd1a278f0831319}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!v\+\_\+\+L\+O\+N\+G2@{v\+\_\+\+L\+O\+N\+G2}}
+\index{v\+\_\+\+L\+O\+N\+G2@{v\+\_\+\+L\+O\+N\+G2}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{v\+\_\+\+L\+O\+N\+G2}]{\setlength{\rightskip}{0pt plus 5cm}long v\+\_\+\+L\+O\+N\+G2}}\label{AtmosphereModel_8c_ae9d212927dcdf805bfd1a278f0831319}
+\hypertarget{AtmosphereModel_8c_a0da8045968e2bdf94ce733bf01042989}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!v\+\_\+\+T\+R\+A\+N\+S\+M@{v\+\_\+\+T\+R\+A\+N\+S\+M}}
+\index{v\+\_\+\+T\+R\+A\+N\+S\+M@{v\+\_\+\+T\+R\+A\+N\+S\+M}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{v\+\_\+\+T\+R\+A\+N\+S\+M}]{\setlength{\rightskip}{0pt plus 5cm}double v\+\_\+\+T\+R\+A\+N\+S\+M = 1.\+0}}\label{AtmosphereModel_8c_a0da8045968e2bdf94ce733bf01042989}
+\hypertarget{AtmosphereModel_8c_a58f391202e2e3ae1de02f60930370e29}{\index{Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}!Zenith\+Angle@{Zenith\+Angle}}
+\index{Zenith\+Angle@{Zenith\+Angle}!Atmosphere\+Model.\+c@{Atmosphere\+Model.\+c}}
+\subsubsection[{Zenith\+Angle}]{\setlength{\rightskip}{0pt plus 5cm}float Zenith\+Angle}}\label{AtmosphereModel_8c_a58f391202e2e3ae1de02f60930370e29}

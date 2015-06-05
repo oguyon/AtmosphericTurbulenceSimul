@@ -1,0 +1,146 @@
+\hypertarget{AtmosphereModel_8h}{\section{src/\+Atmosphere\+Model/\+Atmosphere\+Model.h File Reference}
+\label{AtmosphereModel_8h}\index{src/\+Atmosphere\+Model/\+Atmosphere\+Model.\+h@{src/\+Atmosphere\+Model/\+Atmosphere\+Model.\+h}}
+}
+\subsection*{Data Structures}
+\begin{DoxyCompactItemize}
+\item 
+struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags}
+\item 
+struct \hyperlink{structap__array}{ap\+\_\+array}
+\item 
+struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input}
+\item 
+struct \hyperlink{structnrlmsise__output}{nrlmsise\+\_\+output}
+\end{DoxyCompactItemize}
+\subsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \hyperlink{AtmosphereModel_8h_ad38d2e3fa313d97ec413ff90989d9fdd}{\+\_\+\+\_\+inline\+\_\+double}~double
+\end{DoxyCompactItemize}
+\subsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+float \hyperlink{AtmosphereModel_8h_a701be56f02d2e0d99514e7c043893714}{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N} (float alt, float lambdaum)
+\item 
+double \hyperlink{AtmosphereModel_8h_a75ec2b97989b0403122986484ea0c75e}{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation} (double T)
+\item 
+int \hyperlink{AtmosphereModel_8h_a8486dc860462f82e495fb1ea0d1dbdbd}{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model} (char $\ast$fname)
+\item 
+int \hyperlink{AtmosphereModel_8h_a4baf9fd94561674a0dcaa444fd98dd10}{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model} (char $\ast$fname)
+\item 
+int \hyperlink{AtmosphereModel_8h_afa89ff1dee3effce041367bed5c41ce8}{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model} (char $\ast$fname)
+\item 
+int \hyperlink{AtmosphereModel_8h_a674f05a4c3cb75693d627329efa8a97d}{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F} (char $\ast$\hyperlink{AtmosphericTurbulence_8c_a7b93340f43c04166d39fc39a8baeb730}{C\+O\+N\+F\+F\+I\+L\+E})
+\begin{DoxyCompactList}\small\item\em read configuration file and create atmosphere model \end{DoxyCompactList}\item 
+double \hyperlink{AtmosphereModel_8h_ae11a6d10a265e50af5c6368c7e8f3f4a}{Atmosphere\+Model\+\_\+\+Refraction\+Path} (double lambda, double Zangle, int Write\+Path)
+\item 
+void \hyperlink{AtmosphereModel_8h_a0734128a68d5d8a372352d7436445d3e}{gtd7} (struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags, struct \hyperlink{structnrlmsise__output}{nrlmsise\+\_\+output} $\ast$output)
+\item 
+void \hyperlink{AtmosphereModel_8h_a641d02c0e964627af5da468d4e07b87a}{gtd7d} (struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags, struct \hyperlink{structnrlmsise__output}{nrlmsise\+\_\+output} $\ast$output)
+\item 
+void \hyperlink{AtmosphereModel_8h_a3e6980995783492f90a76daf5da46e4b}{gts7} (struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags, struct \hyperlink{structnrlmsise__output}{nrlmsise\+\_\+output} $\ast$output)
+\item 
+void \hyperlink{AtmosphereModel_8h_a315893daf042707ca0e6e763ac9eabaf}{ghp7} (struct \hyperlink{structnrlmsise__input}{nrlmsise\+\_\+input} $\ast$\hyperlink{calc__flex_8c_a171692544b8e065853e387755849a433}{input}, struct \hyperlink{structnrlmsise__flags}{nrlmsise\+\_\+flags} $\ast$flags, struct \hyperlink{structnrlmsise__output}{nrlmsise\+\_\+output} $\ast$output, double press)
+\end{DoxyCompactItemize}
+
+
+\subsection{Macro Definition Documentation}
+\hypertarget{AtmosphereModel_8h_ad38d2e3fa313d97ec413ff90989d9fdd}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!\+\_\+\+\_\+inline\+\_\+double@{\+\_\+\+\_\+inline\+\_\+double}}
+\index{\+\_\+\+\_\+inline\+\_\+double@{\+\_\+\+\_\+inline\+\_\+double}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{\+\_\+\+\_\+inline\+\_\+double}]{\setlength{\rightskip}{0pt plus 5cm}\#define \+\_\+\+\_\+inline\+\_\+double~double}}\label{AtmosphereModel_8h_ad38d2e3fa313d97ec413ff90989d9fdd}
+
+
+\subsection{Function Documentation}
+\hypertarget{AtmosphereModel_8h_a4baf9fd94561674a0dcaa444fd98dd10}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model}}
+\index{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model}]{\setlength{\rightskip}{0pt plus 5cm}int Atmosphere\+Model\+\_\+build\+\_\+std\+Atm\+Model (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{fname}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_a4baf9fd94561674a0dcaa444fd98dd10}
+\hypertarget{AtmosphereModel_8h_a674f05a4c3cb75693d627329efa8a97d}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F@{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F}}
+\index{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F@{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F}]{\setlength{\rightskip}{0pt plus 5cm}int Atmosphere\+Model\+\_\+\+Create\+\_\+from\+\_\+\+C\+O\+N\+F (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{C\+O\+N\+F\+F\+I\+L\+E}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_a674f05a4c3cb75693d627329efa8a97d}
+
+
+read configuration file and create atmosphere model 
+
+\hypertarget{AtmosphereModel_8h_a75ec2b97989b0403122986484ea0c75e}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation@{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation}}
+\index{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation@{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation}]{\setlength{\rightskip}{0pt plus 5cm}double Atmosphere\+Model\+\_\+\+H2\+O\+\_\+\+Saturation (
+\begin{DoxyParamCaption}
+\item[{double}]{T}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_a75ec2b97989b0403122986484ea0c75e}
+using \char`\"{} The I\+A\+P\+W\+S Formulation 1995 for the Thermodynamic Properties of Ordinary Water Substance for General and Scientific Use \char`\"{}, Journal of Physical and Chemical Reference Data, June 2002 ,Volume 31, Issue 2, pp. 387535 output \+: saturation H2\+O pressure \mbox{[}Pa\mbox{]} \hypertarget{AtmosphereModel_8h_afa89ff1dee3effce041367bed5c41ce8}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model}}
+\index{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model}]{\setlength{\rightskip}{0pt plus 5cm}int Atmosphere\+Model\+\_\+load\+\_\+std\+Atm\+Model (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{fname}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_afa89ff1dee3effce041367bed5c41ce8}
+load atmosphere model A\+S\+C\+I\+I file model lists concentration of atmosphere components, temperature, pressure one line every 10m of elevation, 10000 lines (0-\/100km) \hypertarget{AtmosphereModel_8h_ae11a6d10a265e50af5c6368c7e8f3f4a}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!Atmosphere\+Model\+\_\+\+Refraction\+Path@{Atmosphere\+Model\+\_\+\+Refraction\+Path}}
+\index{Atmosphere\+Model\+\_\+\+Refraction\+Path@{Atmosphere\+Model\+\_\+\+Refraction\+Path}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{Atmosphere\+Model\+\_\+\+Refraction\+Path}]{\setlength{\rightskip}{0pt plus 5cm}double Atmosphere\+Model\+\_\+\+Refraction\+Path (
+\begin{DoxyParamCaption}
+\item[{double}]{lambda, }
+\item[{double}]{Zangle, }
+\item[{int}]{Write\+Path}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_ae11a6d10a265e50af5c6368c7e8f3f4a}
+lambda in m if Write\+Path = 1, write light path in output A\+S\+C\+I\+I file return atm refraction value \mbox{[}arcsec\mbox{]} \hypertarget{AtmosphereModel_8h_a8486dc860462f82e495fb1ea0d1dbdbd}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model}}
+\index{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model@{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model}]{\setlength{\rightskip}{0pt plus 5cm}int Atmosphere\+Model\+\_\+save\+\_\+std\+Atm\+Model (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{fname}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_a8486dc860462f82e495fb1ea0d1dbdbd}
+\hypertarget{AtmosphereModel_8h_a701be56f02d2e0d99514e7c043893714}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N@{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N}}
+\index{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N@{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N}]{\setlength{\rightskip}{0pt plus 5cm}float Atmosphere\+Model\+\_\+std\+Atm\+Model\+\_\+\+N (
+\begin{DoxyParamCaption}
+\item[{float}]{alt, }
+\item[{float}]{lambdaum}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_a701be56f02d2e0d99514e7c043893714}
+\hypertarget{AtmosphereModel_8h_a315893daf042707ca0e6e763ac9eabaf}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!ghp7@{ghp7}}
+\index{ghp7@{ghp7}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{ghp7}]{\setlength{\rightskip}{0pt plus 5cm}void ghp7 (
+\begin{DoxyParamCaption}
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags, }
+\item[{struct {\bf nrlmsise\+\_\+output} $\ast$}]{output, }
+\item[{double}]{press}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_a315893daf042707ca0e6e763ac9eabaf}
+\hypertarget{AtmosphereModel_8h_a0734128a68d5d8a372352d7436445d3e}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!gtd7@{gtd7}}
+\index{gtd7@{gtd7}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{gtd7}]{\setlength{\rightskip}{0pt plus 5cm}void gtd7 (
+\begin{DoxyParamCaption}
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags, }
+\item[{struct {\bf nrlmsise\+\_\+output} $\ast$}]{output}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_a0734128a68d5d8a372352d7436445d3e}
+\hypertarget{AtmosphereModel_8h_a641d02c0e964627af5da468d4e07b87a}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!gtd7d@{gtd7d}}
+\index{gtd7d@{gtd7d}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{gtd7d}]{\setlength{\rightskip}{0pt plus 5cm}void gtd7d (
+\begin{DoxyParamCaption}
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags, }
+\item[{struct {\bf nrlmsise\+\_\+output} $\ast$}]{output}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_a641d02c0e964627af5da468d4e07b87a}
+\hypertarget{AtmosphereModel_8h_a3e6980995783492f90a76daf5da46e4b}{\index{Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}!gts7@{gts7}}
+\index{gts7@{gts7}!Atmosphere\+Model.\+h@{Atmosphere\+Model.\+h}}
+\subsubsection[{gts7}]{\setlength{\rightskip}{0pt plus 5cm}void gts7 (
+\begin{DoxyParamCaption}
+\item[{struct {\bf nrlmsise\+\_\+input} $\ast$}]{input, }
+\item[{struct {\bf nrlmsise\+\_\+flags} $\ast$}]{flags, }
+\item[{struct {\bf nrlmsise\+\_\+output} $\ast$}]{output}
+\end{DoxyParamCaption}
+)}}\label{AtmosphereModel_8h_a3e6980995783492f90a76daf5da46e4b}

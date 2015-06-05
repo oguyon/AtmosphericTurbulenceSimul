@@ -1,0 +1,45 @@
+#!/bin/bash
+
+
+printhelp ()
+{
+echo "------------------------------------------------------------------------"
+echo "                 Create Hufnager-Valley turbulence profile"
+echo " "
+echo " Usage :"
+echo " $0 <windspeed [m/s]> <r0 [m]> <sitealt [m]>"
+echo ""
+echo " input : "
+echo "     windspeed : High altitude component wind speed [m/s]"
+echo "     r0        : Fried parameter [m] at lambda=0.55um"
+echo "     sitealt   : Site altitude above see level [m]"
+echo ""
+echo " output : file turbHV.prof"
+echo " "
+echo " NOTES/DESCRIPTION:      "
+echo "      The high-level turbulence is set according to wind speed (param 1) "
+echo "      Ground-level turbulence is then adjusted to match desired r0"
+echo "      turbulence is discretized into a few layers"
+echo "      wind speed increases from 30% of specified high altitude WS at the ground"
+echo ""
+echo " EXAMPLE : "
+echo "   $0 20.0 0.15 4200"
+echo "------------------------------------------------------------------------"
+}
+
+NBARGS=3
+
+if [ "$1" = "help" ] || [ "$#" -ne $NBARGS ]; then
+	printhelp
+if [ "$#" -ne $NBARGS ]; then
+    echo "Illegal number of parameters ($NBARGS params required, $# entered)"
+fi
+	exit
+fi
+
+
+AtmosphericTurbulenceSimul << EOF
+mkHVturbprof $1 $2 $3 turbHV.prof
+exit
+EOF
+

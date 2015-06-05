@@ -1,0 +1,147 @@
+\hypertarget{AtmosphericTurbulence_8h}{\section{src/\+Atmospheric\+Turbulence/\+Atmospheric\+Turbulence.h File Reference}
+\label{AtmosphericTurbulence_8h}\index{src/\+Atmospheric\+Turbulence/\+Atmospheric\+Turbulence.\+h@{src/\+Atmospheric\+Turbulence/\+Atmospheric\+Turbulence.\+h}}
+}
+\subsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_aa97038832a0fc9258ed8c3affe19603b}{init\+\_\+\+Atmospheric\+Turbulence} ()
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_a021521431b0964cd22050f04e2ac192c}{Atmospheric\+Turbulence\+\_\+change\+\_\+configuration\+\_\+file} (char $\ast$fname)
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_afed213222483e1203b0085865ccf0aec}{make\+\_\+master\+\_\+turbulence\+\_\+screen} (char $\ast$I\+D\+\_\+name1, char $\ast$I\+D\+\_\+name2, long size, float outerscale, float innerscale)
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_a96dcf297bc7ab456d213bf2983ae38ea}{make\+\_\+master\+\_\+turbulence\+\_\+screen\+\_\+pow} (char $\ast$I\+D\+\_\+name1, char $\ast$I\+D\+\_\+name2, long size, float power)
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_a643c17d6f9de8c5c9c01992c0e9d683e}{contract\+\_\+wavefront\+\_\+series} (char $\ast$in\+\_\+prefix, char $\ast$out\+\_\+prefix, long N\+B\+\_\+files)
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_a2c9ef94b08e69bd28c7be244421279ba}{contract\+\_\+wavefront\+\_\+cube} (char $\ast$ina\+\_\+file, char $\ast$inp\+\_\+file, char $\ast$outa\+\_\+file, char $\ast$outp\+\_\+file, int factor)
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_a5c52d7fcae693afbee62929227221a5e}{contract\+\_\+wavefront\+\_\+cube\+\_\+phaseonly} (char $\ast$inp\+\_\+file, char $\ast$outp\+\_\+file, int factor)
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_acb02a3a2a3f1b6e08c358df9658cb280}{make\+\_\+\+Atmospheric\+Turbulence\+\_\+wavefront\+\_\+series} ()
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_a18423fb1183581d48128ad45a90fdf6f}{measure\+\_\+wavefront\+\_\+series} (float factor)
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_a6bff849fb34541fc7fd9567653387d7a}{measure\+\_\+wavefront\+\_\+series\+\_\+expoframes} (float etime, char $\ast$outfile)
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_aca754dcf8b7185e34073afd3b4fad05e}{frame\+\_\+select\+\_\+\+P\+S\+F} (char $\ast$logfile, long N\+Bfiles, float frac)
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_a9ae58073a69fd25d766c7c9b7e77fc46}{Atmospheric\+Turbulence\+\_\+\+W\+Fprocess} ()
+\item 
+int \hyperlink{AtmosphericTurbulence_8h_a8ecc2eed8b6a382d1cf986338264391a}{Atmospheric\+Turbulence\+\_\+make\+H\+V\+\_\+\+C\+N2prof} (double wspeed, double r0, double sitealt, char $\ast$outfile)
+\end{DoxyCompactItemize}
+
+
+\subsection{Function Documentation}
+\hypertarget{AtmosphericTurbulence_8h_a021521431b0964cd22050f04e2ac192c}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!Atmospheric\+Turbulence\+\_\+change\+\_\+configuration\+\_\+file@{Atmospheric\+Turbulence\+\_\+change\+\_\+configuration\+\_\+file}}
+\index{Atmospheric\+Turbulence\+\_\+change\+\_\+configuration\+\_\+file@{Atmospheric\+Turbulence\+\_\+change\+\_\+configuration\+\_\+file}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{Atmospheric\+Turbulence\+\_\+change\+\_\+configuration\+\_\+file}]{\setlength{\rightskip}{0pt plus 5cm}int Atmospheric\+Turbulence\+\_\+change\+\_\+configuration\+\_\+file (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{fname}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_a021521431b0964cd22050f04e2ac192c}
+\hypertarget{AtmosphericTurbulence_8h_a8ecc2eed8b6a382d1cf986338264391a}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!Atmospheric\+Turbulence\+\_\+make\+H\+V\+\_\+\+C\+N2prof@{Atmospheric\+Turbulence\+\_\+make\+H\+V\+\_\+\+C\+N2prof}}
+\index{Atmospheric\+Turbulence\+\_\+make\+H\+V\+\_\+\+C\+N2prof@{Atmospheric\+Turbulence\+\_\+make\+H\+V\+\_\+\+C\+N2prof}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{Atmospheric\+Turbulence\+\_\+make\+H\+V\+\_\+\+C\+N2prof}]{\setlength{\rightskip}{0pt plus 5cm}int Atmospheric\+Turbulence\+\_\+make\+H\+V\+\_\+\+C\+N2prof (
+\begin{DoxyParamCaption}
+\item[{double}]{wspeed, }
+\item[{double}]{r0, }
+\item[{double}]{sitealt, }
+\item[{char $\ast$}]{outfile}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_a8ecc2eed8b6a382d1cf986338264391a}
+\hypertarget{AtmosphericTurbulence_8h_a9ae58073a69fd25d766c7c9b7e77fc46}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!Atmospheric\+Turbulence\+\_\+\+W\+Fprocess@{Atmospheric\+Turbulence\+\_\+\+W\+Fprocess}}
+\index{Atmospheric\+Turbulence\+\_\+\+W\+Fprocess@{Atmospheric\+Turbulence\+\_\+\+W\+Fprocess}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{Atmospheric\+Turbulence\+\_\+\+W\+Fprocess}]{\setlength{\rightskip}{0pt plus 5cm}int Atmospheric\+Turbulence\+\_\+\+W\+Fprocess (
+\begin{DoxyParamCaption}
+{}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_a9ae58073a69fd25d766c7c9b7e77fc46}
+\hypertarget{AtmosphericTurbulence_8h_a2c9ef94b08e69bd28c7be244421279ba}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!contract\+\_\+wavefront\+\_\+cube@{contract\+\_\+wavefront\+\_\+cube}}
+\index{contract\+\_\+wavefront\+\_\+cube@{contract\+\_\+wavefront\+\_\+cube}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{contract\+\_\+wavefront\+\_\+cube}]{\setlength{\rightskip}{0pt plus 5cm}int contract\+\_\+wavefront\+\_\+cube (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{ina\+\_\+file, }
+\item[{char $\ast$}]{inp\+\_\+file, }
+\item[{char $\ast$}]{outa\+\_\+file, }
+\item[{char $\ast$}]{outp\+\_\+file, }
+\item[{int}]{factor}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_a2c9ef94b08e69bd28c7be244421279ba}
+\hypertarget{AtmosphericTurbulence_8h_a5c52d7fcae693afbee62929227221a5e}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!contract\+\_\+wavefront\+\_\+cube\+\_\+phaseonly@{contract\+\_\+wavefront\+\_\+cube\+\_\+phaseonly}}
+\index{contract\+\_\+wavefront\+\_\+cube\+\_\+phaseonly@{contract\+\_\+wavefront\+\_\+cube\+\_\+phaseonly}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{contract\+\_\+wavefront\+\_\+cube\+\_\+phaseonly}]{\setlength{\rightskip}{0pt plus 5cm}int contract\+\_\+wavefront\+\_\+cube\+\_\+phaseonly (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{inp\+\_\+file, }
+\item[{char $\ast$}]{outp\+\_\+file, }
+\item[{int}]{factor}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_a5c52d7fcae693afbee62929227221a5e}
+\hypertarget{AtmosphericTurbulence_8h_a643c17d6f9de8c5c9c01992c0e9d683e}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!contract\+\_\+wavefront\+\_\+series@{contract\+\_\+wavefront\+\_\+series}}
+\index{contract\+\_\+wavefront\+\_\+series@{contract\+\_\+wavefront\+\_\+series}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{contract\+\_\+wavefront\+\_\+series}]{\setlength{\rightskip}{0pt plus 5cm}int contract\+\_\+wavefront\+\_\+series (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{in\+\_\+prefix, }
+\item[{char $\ast$}]{out\+\_\+prefix, }
+\item[{long}]{N\+B\+\_\+files}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_a643c17d6f9de8c5c9c01992c0e9d683e}
+\hypertarget{AtmosphericTurbulence_8h_aca754dcf8b7185e34073afd3b4fad05e}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!frame\+\_\+select\+\_\+\+P\+S\+F@{frame\+\_\+select\+\_\+\+P\+S\+F}}
+\index{frame\+\_\+select\+\_\+\+P\+S\+F@{frame\+\_\+select\+\_\+\+P\+S\+F}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{frame\+\_\+select\+\_\+\+P\+S\+F}]{\setlength{\rightskip}{0pt plus 5cm}int frame\+\_\+select\+\_\+\+P\+S\+F (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{logfile, }
+\item[{long}]{N\+Bfiles, }
+\item[{float}]{frac}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_aca754dcf8b7185e34073afd3b4fad05e}
+\hypertarget{AtmosphericTurbulence_8h_aa97038832a0fc9258ed8c3affe19603b}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!init\+\_\+\+Atmospheric\+Turbulence@{init\+\_\+\+Atmospheric\+Turbulence}}
+\index{init\+\_\+\+Atmospheric\+Turbulence@{init\+\_\+\+Atmospheric\+Turbulence}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{init\+\_\+\+Atmospheric\+Turbulence}]{\setlength{\rightskip}{0pt plus 5cm}int init\+\_\+\+Atmospheric\+Turbulence (
+\begin{DoxyParamCaption}
+{}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_aa97038832a0fc9258ed8c3affe19603b}
+\hypertarget{AtmosphericTurbulence_8h_acb02a3a2a3f1b6e08c358df9658cb280}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!make\+\_\+\+Atmospheric\+Turbulence\+\_\+wavefront\+\_\+series@{make\+\_\+\+Atmospheric\+Turbulence\+\_\+wavefront\+\_\+series}}
+\index{make\+\_\+\+Atmospheric\+Turbulence\+\_\+wavefront\+\_\+series@{make\+\_\+\+Atmospheric\+Turbulence\+\_\+wavefront\+\_\+series}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{make\+\_\+\+Atmospheric\+Turbulence\+\_\+wavefront\+\_\+series}]{\setlength{\rightskip}{0pt plus 5cm}int make\+\_\+\+Atmospheric\+Turbulence\+\_\+wavefront\+\_\+series (
+\begin{DoxyParamCaption}
+{}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_acb02a3a2a3f1b6e08c358df9658cb280}
+temporary arrays for phase unwrapping \hypertarget{AtmosphericTurbulence_8h_afed213222483e1203b0085865ccf0aec}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!make\+\_\+master\+\_\+turbulence\+\_\+screen@{make\+\_\+master\+\_\+turbulence\+\_\+screen}}
+\index{make\+\_\+master\+\_\+turbulence\+\_\+screen@{make\+\_\+master\+\_\+turbulence\+\_\+screen}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{make\+\_\+master\+\_\+turbulence\+\_\+screen}]{\setlength{\rightskip}{0pt plus 5cm}int make\+\_\+master\+\_\+turbulence\+\_\+screen (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name1, }
+\item[{char $\ast$}]{I\+D\+\_\+name2, }
+\item[{long}]{size, }
+\item[{float}]{outerscale, }
+\item[{float}]{innerscale}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_afed213222483e1203b0085865ccf0aec}
+\hypertarget{AtmosphericTurbulence_8h_a96dcf297bc7ab456d213bf2983ae38ea}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!make\+\_\+master\+\_\+turbulence\+\_\+screen\+\_\+pow@{make\+\_\+master\+\_\+turbulence\+\_\+screen\+\_\+pow}}
+\index{make\+\_\+master\+\_\+turbulence\+\_\+screen\+\_\+pow@{make\+\_\+master\+\_\+turbulence\+\_\+screen\+\_\+pow}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{make\+\_\+master\+\_\+turbulence\+\_\+screen\+\_\+pow}]{\setlength{\rightskip}{0pt plus 5cm}int make\+\_\+master\+\_\+turbulence\+\_\+screen\+\_\+pow (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+name1, }
+\item[{char $\ast$}]{I\+D\+\_\+name2, }
+\item[{long}]{size, }
+\item[{float}]{power}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_a96dcf297bc7ab456d213bf2983ae38ea}
+\hypertarget{AtmosphericTurbulence_8h_a18423fb1183581d48128ad45a90fdf6f}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!measure\+\_\+wavefront\+\_\+series@{measure\+\_\+wavefront\+\_\+series}}
+\index{measure\+\_\+wavefront\+\_\+series@{measure\+\_\+wavefront\+\_\+series}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{measure\+\_\+wavefront\+\_\+series}]{\setlength{\rightskip}{0pt plus 5cm}int measure\+\_\+wavefront\+\_\+series (
+\begin{DoxyParamCaption}
+\item[{float}]{factor}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_a18423fb1183581d48128ad45a90fdf6f}
+\hypertarget{AtmosphericTurbulence_8h_a6bff849fb34541fc7fd9567653387d7a}{\index{Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}!measure\+\_\+wavefront\+\_\+series\+\_\+expoframes@{measure\+\_\+wavefront\+\_\+series\+\_\+expoframes}}
+\index{measure\+\_\+wavefront\+\_\+series\+\_\+expoframes@{measure\+\_\+wavefront\+\_\+series\+\_\+expoframes}!Atmospheric\+Turbulence.\+h@{Atmospheric\+Turbulence.\+h}}
+\subsubsection[{measure\+\_\+wavefront\+\_\+series\+\_\+expoframes}]{\setlength{\rightskip}{0pt plus 5cm}int measure\+\_\+wavefront\+\_\+series\+\_\+expoframes (
+\begin{DoxyParamCaption}
+\item[{float}]{etime, }
+\item[{char $\ast$}]{outfile}
+\end{DoxyParamCaption}
+)}}\label{AtmosphericTurbulence_8h_a6bff849fb34541fc7fd9567653387d7a}
