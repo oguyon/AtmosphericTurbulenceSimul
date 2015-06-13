@@ -1,6 +1,7 @@
 var NAVTREE =
 [
   [ "AtmosphericTurbulenceSimul", "index.html", [
+    [ "Turbulence Simulator", "md_README.html", null ],
     [ "Command Line Interface (CLI)", "md_src_CLIcore.html", null ],
     [ "Data Structures", null, [
       [ "Data Structures", "annotated.html", "annotated" ],
@@ -36,8 +37,8 @@ var NAVTREEINDEX =
 "fft_8c.html#a0767c4e140bc8498e1984f927c16803f",
 "image__basic_8h.html#a9015319dc9f68dadcf37ecf89803bfc0",
 "info_8h.html#a2fec1f01f282c945af49013129d31d69",
-"psf_8c.html#af2df062b5f29a653d5ac12cdcea74f4c",
-"structsymrec.html#a3ed0bae32ad0e16423a49153484094f8"
+"psf_8c.html#ae5fb0bbb2ff345eaae0226a55d041fc9",
+"structsymrec.html#a13b3ddedd56ed8a393dfd4b266bb81e1"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

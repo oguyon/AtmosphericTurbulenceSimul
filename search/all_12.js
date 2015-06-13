@@ -18,6 +18,7 @@ var searchData=
   ['read_5fpgmimage',['read_PGMimage',['../image__format_8c.html#ac74ef340de60b2075fc79fdd82904a88',1,'image_format.c']]],
   ['read_5fsharedmem_5fimage',['read_sharedmem_image',['../COREMOD__memory_8c.html#aa344e4c7481b275005bd6872679ba7cd',1,'read_sharedmem_image(char *name):&#160;COREMOD_memory.c'],['../COREMOD__memory_8h.html#aa344e4c7481b275005bd6872679ba7cd',1,'read_sharedmem_image(char *name):&#160;COREMOD_memory.c']]],
   ['read_5fsharedmem_5fimage_5fcli',['read_sharedmem_image_cli',['../COREMOD__memory_8c.html#a679d5cfb0ec125d809695ac6622fbf86',1,'COREMOD_memory.c']]],
+  ['readme_2emd',['README.md',['../README_8md.html',1,'']]],
   ['rect',['rect',['../structkdtree.html#aad2df600bbe8cf682fe61ac6847f5e18',1,'kdtree']]],
   ['reject',['REJECT',['../calc__flex_8c.html#a835f10dd1ab4bf9a80c4cd80ee6e3058',1,'calc_flex.c']]],
   ['replace_5fchar',['replace_char',['../COREMOD__tools_8c.html#ae647a10dfc3314cf3fae8c0d35c24356',1,'replace_char(char *content, char cin, char cout):&#160;COREMOD_tools.c'],['../COREMOD__tools_8h.html#ae647a10dfc3314cf3fae8c0d35c24356',1,'replace_char(char *content, char cin, char cout):&#160;COREMOD_tools.c']]],
