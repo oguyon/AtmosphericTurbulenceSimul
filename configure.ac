@@ -1,7 +1,7 @@
 #
 # Process this file with autoconf to produce a configure script.
 #
-AC_INIT([AtmosphericTurbulenceSimul], [1.1.01], [oliv.guyon@gmail.com])
+AC_INIT([AtmosphericTurbulenceSimul], [1.1.02], [oliv.guyon@gmail.com])
 AC_PREREQ(2.61)
 #AC_CONFIG_HEADER([config.h])
 
