@@ -534,6 +534,8 @@ int COREMOD_MEMORY_image_set_semwait_cli()
 
 
 
+
+
 int COREMOD_MEMORY_cp2shm_cli()
 {
     if(CLI_checkarg(1,4)+CLI_checkarg(2,3)==0)
@@ -3730,6 +3732,9 @@ long COREMOD_MEMORY_image_set_sempost(char *IDname)
 
     ID = image_ID(IDname);
 
+    if(ID==-1)
+        ID = read_sharedmem_image(IDname);
+        
     if(data.image[ID].sem == 1)
         sem_post(data.image[ID].semptr);
     else
@@ -3744,6 +3749,9 @@ long COREMOD_MEMORY_image_set_semwait(char *IDname)
     int semval;
 
     ID = image_ID(IDname);
+
+    if(ID==-1)
+        ID = read_sharedmem_image(IDname);
 
     if(data.image[ID].sem == 1)
         sem_wait(data.image[ID].semptr);
@@ -3773,11 +3781,9 @@ void *waitforsemID(void *ID)
     {
         if(tid!=thrarray_semwait[t])
         {
-
             s = pthread_cancel(thrarray_semwait[t]);
         }
     }
-
 
     pthread_exit(NULL);
 }
@@ -3834,20 +3840,17 @@ long COREMOD_MEMORY_image_set_semflush(char *IDname)
     long i;
 
     ID = image_ID(IDname);
-    //printf("sem  = %d\n", data.image[ID].sem);
+    if(ID==-1)
+        ID = read_sharedmem_image(IDname);
 
     if(data.image[ID].sem == 1)
     {
         sem_getvalue(data.image[ID].semptr, &semval);
-   //     printf("Semaphore value = %d   ->  ", semval);
-   //     fflush(stdout);
 
         for(i=0; i<semval; i++)
             sem_trywait(data.image[ID].semptr);
 
         sem_getvalue(data.image[ID].semptr, &semval);
-    //    printf("Semaphore value = %d    \n", semval);
-    //    fflush(stdout);
     }
     else
         printf("No semaphore !\n");

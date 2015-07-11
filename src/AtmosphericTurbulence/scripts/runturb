@@ -130,7 +130,7 @@ SHM_SOUTPUTM=2                      # output shared memory phase unit. 0:rad, 1:
 # these parameters apply to both the REF LAMBDA output and the SCIENCE LAMBDA ouput
 
 # pixel size, scale -----------------------------------------------
-WFsize=512                           # pixel size of output images
+WFsize=512                          # pixel size of output images
 PUPIL_SCALE=0.01                    # pupil scale - m per pixel 
 
 
@@ -162,12 +162,16 @@ SIMTDELAY=0                         # additional time delay [us] between frames 
 # The total simulation time will be NB_TSPAN x TIME_SPAN
 # There will be NB_TSPAN consecutive files, each of them a data cube with TIME_SPAN/WFTIME_STEP frames
 
+WAITFORSEM=0                       # 1 if wait for semaphore to advance to next WF
+WAITSEMIMNAME="wfsimwait"          # semaphore name
+
+
 
 
 # ------------ COMPUTATION PARAMETERS, MODES --------------------------------
 
 SKIP_EXISTING=1                     # set to 1 if the code should skip existing output files, otherwise, the code will start at t=0 and overwrite any existing file. This feature is useful if the code needs to be stopped and re-started later
-WF_RAW_SIZE=1024                     # size of the raw wavefronts used internally in the code (can be bigger than the output pixel size)
+WF_RAW_SIZE=1024                    # size of the raw wavefronts used internally in the code (can be bigger than the output pixel size)
 MASTER_SIZE=4096                    # size in pixel of master turbulence screens - names should be t<n>_<MASTER_SIZE>
 
 # make sure MASTER_SIZE is significantly larger than the pupil to avoid wavefront repetition and low frequency attenuation 
@@ -289,6 +293,8 @@ printf "WFTIME_STEP               %20f  # time step in seconds between wavefront
 printf "TIME_SPAN                 %20f  # time span for one continuous WF cube file\n" $TIME_SPAN >> $conffilename
 printf "NB_TSPAN                  %20d  # total number of consecutive wavefront cubes to compute\n" $NB_TSPAN >> $conffilename
 printf "SIMTDELAY                 %20d  # additional time delay [us] between frames (used to limit CPU load)\n" $SIMTDELAY >> $conffilename
+printf "WAITFORSEM                %20d  # wait for semaphore to advance to next WF\n" $WAITFORSEM >> $conffilename
+printf "WAITSEMIMNAME             %20s  # semaphore name\n" $WAITSEMIMNAME >> $conffilename
 
 printf "SKIP_EXISTING             %20d  # set to 1 if the code should skip existing output files\n" $SKIP_EXISTING >> $conffilename
 printf "WF_RAW_SIZE               %20d  # size of the raw wavefronts used internally in the code (can be bigger than the output pixel size)\n" $WF_RAW_SIZE >> $conffilename

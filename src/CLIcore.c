@@ -1224,6 +1224,8 @@ int command_line( int argc, char **argv)
     int option_index = 0;
     struct sched_param schedpar;
     int r;
+    char command[200];
+
 
 
 
@@ -1237,6 +1239,7 @@ int command_line( int argc, char **argv)
         {"help",       no_argument,       0, 'h'},
         {"info",       no_argument,       0, 'i'},
         {"overwrite",  no_argument,       0, 'o'},
+        {"idle",       no_argument,       0, 'e'}, 
         {"debug",      required_argument, 0, 'd'},
         {"mmon",      required_argument, 0, 'm'},
         {"pname",     required_argument, 0, 'n'},
@@ -1252,7 +1255,7 @@ int command_line( int argc, char **argv)
 
     while (1)
     {
-        c = getopt_long (argc, argv, "hiod:m:n:f:s:",
+        c = getopt_long (argc, argv, "hioed:m:n:f:s:",
                          long_options, &option_index);
 
         /* Detect the end of the options. */
@@ -1291,6 +1294,12 @@ int command_line( int argc, char **argv)
             data.overwrite = 1;
             break;
 
+        case 'e':
+            printf("Idle mode: only runs process when X is idle (pid %ld)\n", (long) getpid());
+            sprintf(command, "runidle %ld > /dev/null &\n", (long) getpid());
+            r = system(command);
+            break;
+            
         case 'm':
             printf("Starting memory monitor on '%s'\n", optarg);
             memory_monitor(optarg);

@@ -590,6 +590,8 @@ int make_AtmosphericTurbulence_wavefront_series()
     float TIME_STEP;
     float TIME_SPAN;
     long NB_TSPAN;
+    int WAITFORSEM = 0;
+    char WAITSEMIMNAME[100];
 
     int WFOUTPUT = 1;
     int SHM_OUTPUT = 0;
@@ -1041,35 +1043,47 @@ int make_AtmosphericTurbulence_wavefront_series()
 
     /*  ID=image_ID("ST_pa");*/
 
-    strcpy(KEYWORD,"SIMTDELAY");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
-    SIMTDELAY = atol(CONTENT);
-
-
     strcpy(KEYWORD,"REALTIME");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     ATMWF_REALTIME = atoi(CONTENT);
     strcpy(KEYWORD,"REALTIMEFACTOR");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     ATMWF_REALTIMEFACTOR = atof(CONTENT);
 
 
 
-    strcpy(KEYWORD,"WFTIME_STEP");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    strcpy(KEYWORD, "WFTIME_STEP");
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     TIME_STEP = atof(CONTENT);
-    strcpy(KEYWORD,"TIME_SPAN");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    strcpy(KEYWORD, "TIME_SPAN");
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     TIME_SPAN = atof(CONTENT);
-    strcpy(KEYWORD,"NB_TSPAN");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    strcpy(KEYWORD, "NB_TSPAN");
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     NB_TSPAN = atol(CONTENT);
 
 
+    strcpy(KEYWORD, "SIMTDELAY");
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
+    SIMTDELAY = atol(CONTENT);
+
+    strcpy(KEYWORD, "WAITFORSEM");
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
+    WAITFORSEM = atoi(CONTENT);
+    
+    strcpy(KEYWORD, "WAITSEMIMNAME");
+    read_config_parameter(CONFFILE, KEYWORD, WAITSEMIMNAME);
+//    printf("WAITSEMIMNAME = %s\n", WAITSEMIMNAME);
+//    exit(0);
+
+
+
+
+
     strcpy(KEYWORD,"WFOUTPUT");
-    if(read_config_parameter_exists(CONFFILE,KEYWORD)==1)
+    if(read_config_parameter_exists(CONFFILE, KEYWORD)==1)
     {
-        read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+        read_config_parameter(CONFFILE,KEYWORD, CONTENT);
         WFOUTPUT = atoi(CONTENT);
     }
 
@@ -1692,6 +1706,14 @@ int make_AtmosphericTurbulence_wavefront_series()
             */
 
             usleep(SIMTDELAY);
+
+            
+            if(WAITFORSEM==1) // wait for semaphore to advance to next WF step
+            {
+                printf("WAITING for semaphore \"%s\" ...\n", WAITSEMIMNAME);
+                COREMOD_MEMORY_image_set_semwait(WAITSEMIMNAME);
+                printf("Done\n");
+            }
 
             clock_gettime(CLOCK_REALTIME, &tnow);
             tnowdouble = 1.0*tnow.tv_sec + 1.0e-9*tnow.tv_nsec;

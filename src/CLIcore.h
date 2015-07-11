@@ -262,24 +262,6 @@ typedef struct
 
 
 
-/*
-typedef struct
-{
-  int used;
-  char name[80];
-  long value;
-} VARIABLELONG;
-
-
-typedef struct
-{
-  int used;
-  char name[80];
-  char value[80];
-} VARIABLESTRING;
-*/
-
-
 
 
 // THIS IS WHERE EVERYTHING THAT NEEDS TO BE WIDELY ACCESSIBLE GETS STORED
@@ -357,29 +339,5 @@ typedef struct
 
 
 
-
-
-/*** configuration file definition */
-/*
-typedef struct
-{
-	char name[100];
-	char content[100];
-	int type;
-	union
-	char comment[200];
-} CONF_FILE_ENTRY;
-
-typedef struct
-{
-	
-	
-} CONF_FILE_LINE;
-*/
-
-
-//extern int ECHO;
-//extern PRECISION CFITSVARRAY[SZ_CFITSVARRAY];
-//extern long CFITSVARRAY_LONG[SZ_CFITSVARRAY];
 
 #endif
