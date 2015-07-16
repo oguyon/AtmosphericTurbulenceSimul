@@ -1,5 +1,12 @@
-# Turbulence Simulator 
+# Turbulence Simulator  {#mainpage} 
 
+
+Simulates effect of atmospheric turbulence on wavefronts at visible and near-IR wavelength.
+Includes chromatic diffractive propagation between layers, inner, outer scales, wind speed and direction for each layer, CN2 profile. 
+
+OPD and scintillation can be computed for multiple wavelengths and multiple directions.
+
+Output can be FITS files (cubes), or shared memory image for real-time use by other programs. In shared memory mode, physical time and computer clock time can be synced, with a one-to-one match or a slowing down / speeding up factor.
 
 
 ## Downloading source code
