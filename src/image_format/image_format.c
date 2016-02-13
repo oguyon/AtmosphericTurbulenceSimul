@@ -95,6 +95,21 @@ typedef struct {
 
 //int IMAGE_FORMAT_2Dim_to_ASCII(char *IDname, char *fname)
 
+
+int image_writeBMP_auto_cli()
+{
+  if(CLI_checkarg(1,4)+CLI_checkarg(2,4)+CLI_checkarg(3,4)+CLI_checkarg(4,3)==0)
+    {
+      image_writeBMP_auto(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.string, data.cmdargtoken[3].val.string, data.cmdargtoken[4].val.string);
+      return 0;
+    }
+  else
+    return 1;
+}
+
+
+
+
 int IMAGE_FORMAT_im_to_ASCII_cli()
 {
   if(CLI_checkarg(1,4)+CLI_checkarg(2,3)==0)
@@ -188,6 +203,15 @@ int init_image_format()
   strcpy(data.cmd[data.NBcmd].syntax,"<input image> <output ASCII file>");
   strcpy(data.cmd[data.NBcmd].example,"im2ascii im im.txt");
   strcpy(data.cmd[data.NBcmd].Ccall,"int IMAGE_FORMAT_im_to_ASCII(char *IDname, char *fname)");
+  data.NBcmd++;
+  
+  strcpy(data.cmd[data.NBcmd].key,"saveBMP");
+  strcpy(data.cmd[data.NBcmd].module,__FILE__);
+  data.cmd[data.NBcmd].fp = image_writeBMP_auto_cli;
+  strcpy(data.cmd[data.NBcmd].info,"write RGB image as BMP - auto scaling");
+  strcpy(data.cmd[data.NBcmd].syntax,"<red image> <green image> <blue image> <output BMP file name>");
+  strcpy(data.cmd[data.NBcmd].example,"saveBMP imr img imb im.bmp");
+  strcpy(data.cmd[data.NBcmd].Ccall,"int image_writeBMP_auto(char *IDnameR, char *IDnameG, char *IDnameB, char *outname)");
   data.NBcmd++;
   
   strcpy(data.cmd[data.NBcmd].key,"cr2tofits");
@@ -448,69 +472,70 @@ uint32 write24BitBmpFile(char *filename, uint32 width, uint32 height, unsigned c
 
 int image_writeBMP_auto(char *IDnameR, char *IDnameG, char *IDnameB, char *outname)
 {
-  long IDR,IDG,IDB;
-  uint32 width;
-  uint32 height;
-  unsigned char *array;
-  uint32 ii,jj;
-  double minr,ming,minb,maxr,maxg,maxb;
-  
+    long IDR,IDG,IDB;
+    uint32 width;
+    uint32 height;
+    unsigned char *array;
+    uint32 ii,jj;
+    double minr,ming,minb,maxr,maxg,maxb;
 
-  minr=img_min(IDnameR);
-  ming=img_min(IDnameG);
-  minb=img_min(IDnameB);
-  
-  maxr=img_max(IDnameR);
-  maxg=img_max(IDnameG);
-  maxb=img_max(IDnameB);
-  
-  IDR=image_ID(IDnameR);
-  IDG=image_ID(IDnameG);
-  IDB=image_ID(IDnameB);
-  width = (uint32) data.image[IDR].md[0].size[0];
-  height = (uint32) data.image[IDR].md[0].size[1];
-  array = (unsigned char*) malloc(sizeof(unsigned char)*width*height*3);
 
-  for(ii=0;ii<width;ii++)
-    for(jj=0;jj<height;jj++)
-      {
-	array[(jj*width+ii)*3] = (unsigned char) ((data.image[IDR].array.F[(height-jj-1)*width+ii]-minr)*(255.0/(maxr-minr)));
-	array[(jj*width+ii)*3+1] = (unsigned char) ((data.image[IDG].array.F[(height-jj-1)*width+ii]-ming)*(255.0/(maxg-ming)));
-	array[(jj*width+ii)*3+2] = (unsigned char) ((data.image[IDB].array.F[(height-jj-1)*width+ii]-minb)*(255.0/(maxb-minb)));
-      }
-  write24BitBmpFile(outname,width,height,array);
-  free(array);
+    minr=img_min(IDnameR);
+    ming=img_min(IDnameG);
+    minb=img_min(IDnameB);
 
-  return(0);
+    maxr=img_max(IDnameR);
+    maxg=img_max(IDnameG);
+    maxb=img_max(IDnameB);
+
+    IDR=image_ID(IDnameR);
+    IDG=image_ID(IDnameG);
+    IDB=image_ID(IDnameB);
+    width = (uint32) data.image[IDR].md[0].size[0];
+    height = (uint32) data.image[IDR].md[0].size[1];
+    array = (unsigned char*) malloc(sizeof(unsigned char)*width*height*3);
+
+    for(ii=0; ii<width; ii++)
+        for(jj=0; jj<height; jj++)
+        {
+            array[(jj*width+ii)*3] = (unsigned char) ((data.image[IDR].array.F[(height-jj-1)*width+ii]-minr)*(255.0/(maxr-minr)));
+            array[(jj*width+ii)*3+1] = (unsigned char) ((data.image[IDG].array.F[(height-jj-1)*width+ii]-ming)*(255.0/(maxg-ming)));
+            array[(jj*width+ii)*3+2] = (unsigned char) ((data.image[IDB].array.F[(height-jj-1)*width+ii]-minb)*(255.0/(maxb-minb)));
+        }
+    write24BitBmpFile(outname,width,height,array);
+    free(array);
+
+    return(0);
 }
 
 int image_writeBMP(char *IDnameR, char *IDnameG, char *IDnameB, char *outname)
 {
-  long IDR,IDG,IDB;
-  uint32 width;
-  uint32 height;
-  unsigned char *array;
-  uint32 ii,jj;
-  
-  IDR=image_ID(IDnameR);
-  IDG=image_ID(IDnameG);
-  IDB=image_ID(IDnameB);
-  width = (uint32) data.image[IDR].md[0].size[0];
-  height = (uint32) data.image[IDR].md[0].size[1];
-  array = (unsigned char*) malloc(sizeof(unsigned char)*width*height*3);
+    long IDR,IDG,IDB;
+    uint32 width;
+    uint32 height;
+    unsigned char *array;
+    uint32 ii,jj;
 
-  for(ii=0;ii<width;ii++)
-    for(jj=0;jj<height;jj++)
-      {
-	array[(jj*width+ii)*3] = (unsigned char) (data.image[IDR].array.F[(height-jj-1)*width+ii]);
-	array[(jj*width+ii)*3+1] = (unsigned char) (data.image[IDG].array.F[(height-jj-1)*width+ii]);
-	array[(jj*width+ii)*3+2] = (unsigned char) (data.image[IDB].array.F[(height-jj-1)*width+ii]);
-      }
-  write24BitBmpFile(outname,width,height,array);
-  free(array);
+    IDR=image_ID(IDnameR);
+    IDG=image_ID(IDnameG);
+    IDB=image_ID(IDnameB);
+    width = (uint32) data.image[IDR].md[0].size[0];
+    height = (uint32) data.image[IDR].md[0].size[1];
+    array = (unsigned char*) malloc(sizeof(unsigned char)*width*height*3);
 
-  return(0);
+    for(ii=0; ii<width; ii++)
+        for(jj=0; jj<height; jj++)
+        {
+            array[(jj*width+ii)*3] = (unsigned char) (data.image[IDR].array.F[(height-jj-1)*width+ii]);
+            array[(jj*width+ii)*3+1] = (unsigned char) (data.image[IDG].array.F[(height-jj-1)*width+ii]);
+            array[(jj*width+ii)*3+2] = (unsigned char) (data.image[IDB].array.F[(height-jj-1)*width+ii]);
+        }
+    write24BitBmpFile(outname,width,height,array);
+    free(array);
+
+    return(0);
 }
+
 
 long getImageInfo(FILE* inputFile, long offset, int numberOfChars)
 {
@@ -703,7 +728,7 @@ int read_PGMimage(char *fname, char *ID_name)
             fprintf(stderr,"ERROR: File is not PGM image\n");
         else
         {
-            r = fscanf(fp,"%ld %ld",&xsize,&ysize);
+            r = fscanf(fp,"%ld %ld", &xsize, &ysize);
             printf("PGM image size: %ld x %ld\n",xsize,ysize);
             r = fscanf(fp,"%ld",&maxval);
             if(maxval!=65535)
@@ -711,7 +736,7 @@ int read_PGMimage(char *fname, char *ID_name)
             else
             {
                 printf("Reading PGM image\n");
-                ID = create_2Dimage_ID(ID_name,xsize,ysize);
+                ID = create_2Dimage_ID(ID_name, xsize, ysize);
                 fgetc(fp);
                 for(jj=0; jj<ysize; jj++)
                 {
@@ -786,7 +811,7 @@ int CR2toFITS(char *fnameCR2, char *fnameFITS)
             data.image[ID].array.F[ii] /= (shutter*aperture*aperture*iso);
     }
 
-    save_fl_fits("tmpfits1",fnameFITS);
+    save_fl_fits("tmpfits1", fnameFITS);
     delete_image_ID("tmpfits1");
 
     return(0);
@@ -1051,6 +1076,8 @@ int convert_rawbayerFITStorgbFITS_simple(char *ID_name, char *ID_name_r, char *I
     RGBmode = 1;
   if((Xsize == 5202)&&(Ysize == 3465))
     RGBmode = 2;
+  if((Xsize == 5208)&&(Ysize == 3476))
+    RGBmode = 1;
 
   if(RGBmode == 0)
     {

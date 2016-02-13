@@ -53,90 +53,94 @@ int init_psf()
 // lamda goes from lambda0*coeff1 to lambda0*coeff2
 long PSF_makeChromatPSF(char *amp_name, char *pha_name, float coeff1, float coeff2, long NBstep, float ApoCoeff, char *out_name)
 {
-  long ID_out;
-  long xsize,ysize;
-  long IDamp,IDpha;
-  //  float lambdafact;
-  long step;
-  float x,y,u,t;
-  long ID_in;
-  long ii,jj,i,j;
-  float coeff,mcoeff,tmp;
-  float eps = 1.0e-5;
+    long ID_out;
+    long xsize,ysize;
+    long IDamp,IDpha;
+    //  float lambdafact;
+    long step;
+    float x,y,u,t;
+    long ID_in;
+    long ii,jj,i,j;
+    float coeff,mcoeff,tmp;
+    float eps = 1.0e-5;
 
 
-  IDamp = image_ID(amp_name);
-  IDpha = image_ID(pha_name);
-  
-  xsize = data.image[IDamp].md[0].size[0];
-  ysize = data.image[IDamp].md[0].size[1];
+    IDamp = image_ID(amp_name);
+    IDpha = image_ID(pha_name);
 
-  if((data.image[IDpha].md[0].size[0]!=xsize)||(data.image[IDpha].md[0].size[0]!=xsize))
+    xsize = data.image[IDamp].md[0].size[0];
+    ysize = data.image[IDamp].md[0].size[1];
+
+    if((data.image[IDpha].md[0].size[0]!=xsize)||(data.image[IDpha].md[0].size[0]!=xsize))
     {
-      printf("ERROR in makeChromatPSF: images %s and %s have different sizes\n",amp_name,pha_name);
-      exit(0);
+        printf("ERROR in makeChromatPSF: images %s and %s have different sizes\n",amp_name,pha_name);
+        exit(0);
     }
 
-  ID_out = create_2Dimage_ID(out_name,xsize,ysize);
-  list_image_ID();
+    ID_out = create_2Dimage_ID(out_name,xsize,ysize);
+    list_image_ID();
 
-  for(step = 0; step < NBstep; step ++)
+    for(step = 0; step < NBstep; step ++)
     {
-      fprintf(stdout,"\rMake chromatic PSF [%3ld]: %.2f %s completed",step,100.0*step/NBstep,"%");
-      fflush(stdout);
-      coeff = coeff1*pow(pow((coeff2/coeff1),1.0/(NBstep-1)),step);// + (coeff2-coeff1)*(1.0*step/(NBstep-1));
-      x = (coeff - (coeff1+coeff2)/2.0)/((coeff2-coeff1)/2.0);
-      // x goes from -1 to 1
-      if(ApoCoeff > eps)
-	mcoeff = pow((1.0-pow((fabs(x)-(1.0-ApoCoeff))/ApoCoeff,2.0)),4.0);
-      else
-	mcoeff = 1.0;
-      
-      if((1.0-x*x)<eps)
-	mcoeff = 0.0;
-      if(fabs(x)<ApoCoeff)
-	mcoeff = 1.0;
-      //      fprintf(stdout,"(%f %f %f %f %f)",coeff,coeff1,coeff2,x,mcoeff);
+        fprintf(stdout,"\rMake chromatic PSF [%3ld]: %.2f %s completed",step,100.0*step/NBstep,"%");
+        fflush(stdout);
+        coeff = coeff1*pow(pow((coeff2/coeff1),1.0/(NBstep-1)),step);// + (coeff2-coeff1)*(1.0*step/(NBstep-1));
+        x = (coeff - (coeff1+coeff2)/2.0)/((coeff2-coeff1)/2.0);
+        // x goes from -1 to 1
+        if(ApoCoeff > eps)
+            mcoeff = pow((1.0-pow((fabs(x)-(1.0-ApoCoeff))/ApoCoeff,2.0)),4.0);
+        else
+            mcoeff = 1.0;
 
-      arith_image_cstmult(pha_name,coeff,"phamult");
-      mk_complex_from_amph(amp_name,"phamult","tmpimc");
-      delete_image_ID("phamult");
-      permut("tmpimc");
-      do2dfft("tmpimc","tmpimc1");
-      delete_image_ID("tmpimc");
-      permut("tmpimc1");
-      mk_amph_from_complex("tmpimc1","tmpamp","tmppha");
-      delete_image_ID("tmpimc1");
-      delete_image_ID("tmppha");
-      arith_image_cstpow("tmpamp",2.0,"tmpint");
-      delete_image_ID("tmpamp");
-      list_image_ID();
-      ID_in = image_ID("tmpint");
-      for(ii=0;ii<xsize;ii++)
-	for(jj=0;jj<ysize;jj++)
-	  {
-	    x = (1.0*(ii-xsize/2)*coeff)+xsize/2;
-	    y = (1.0*(jj-ysize/2)*coeff)+ysize/2;
-	    i = (long) x;
-	    j = (long) y;
-	    u = x-i;
-	    t = y-j;
-	    if((i<xsize-1)&&(j<ysize-1)&&(i>-1)&&(j>-1))
-	      {
-		tmp = (1.0-u)*(1.0-t)*data.image[ID_in].array.F[j*xsize+i];
-		tmp += (1.0-u)*t*data.image[ID_in].array.F[(j+1)*xsize+i];
-		tmp += u*(1.0-t)*data.image[ID_in].array.F[j*xsize+i+1];
-		tmp += u*t*data.image[ID_in].array.F[(j+1)*xsize+i+1];
-		data.image[ID_out].array.F[jj*xsize+ii] += mcoeff*tmp/coeff/coeff;
-	      }
-	  }
-      delete_image_ID("tmpint");
-     } 
+        if((1.0-x*x)<eps)
+            mcoeff = 0.0;
+        if(fabs(x)<ApoCoeff)
+            mcoeff = 1.0;
+        //      fprintf(stdout,"(%f %f %f %f %f)",coeff,coeff1,coeff2,x,mcoeff);
 
-  printf("\n");
+        arith_image_cstmult(pha_name,coeff,"phamult");
+        mk_complex_from_amph(amp_name, "phamult", "tmpimc", 0);
+        delete_image_ID("phamult");
+        permut("tmpimc");
+        do2dfft("tmpimc","tmpimc1");
+        delete_image_ID("tmpimc");
+        permut("tmpimc1");
+        mk_amph_from_complex("tmpimc1", "tmpamp", "tmppha", 0);
+        delete_image_ID("tmpimc1");
+        delete_image_ID("tmppha");
+        arith_image_cstpow("tmpamp",2.0,"tmpint");
+        delete_image_ID("tmpamp");
+        list_image_ID();
+        ID_in = image_ID("tmpint");
+        for(ii=0; ii<xsize; ii++)
+            for(jj=0; jj<ysize; jj++)
+            {
+                x = (1.0*(ii-xsize/2)*coeff)+xsize/2;
+                y = (1.0*(jj-ysize/2)*coeff)+ysize/2;
+                i = (long) x;
+                j = (long) y;
+                u = x-i;
+                t = y-j;
+                if((i<xsize-1)&&(j<ysize-1)&&(i>-1)&&(j>-1))
+                {
+                    tmp = (1.0-u)*(1.0-t)*data.image[ID_in].array.F[j*xsize+i];
+                    tmp += (1.0-u)*t*data.image[ID_in].array.F[(j+1)*xsize+i];
+                    tmp += u*(1.0-t)*data.image[ID_in].array.F[j*xsize+i+1];
+                    tmp += u*t*data.image[ID_in].array.F[(j+1)*xsize+i+1];
+                    data.image[ID_out].array.F[jj*xsize+ii] += mcoeff*tmp/coeff/coeff;
+                }
+            }
+        delete_image_ID("tmpint");
+    }
 
-  return(ID_out);
+    printf("\n");
+
+    return(ID_out);
 }
+
+
+
+
 
 int PSF_finddiskcent(char *ID_name, float rad, float *result)
 {

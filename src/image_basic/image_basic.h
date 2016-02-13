@@ -100,4 +100,6 @@ long IMAGE_BASIC_streamaverage(char *IDname, long NBcoadd, char *IDoutname, int 
 
 long IMAGE_BASIC_streamfeed(char *IDname, char *streamname, float frequ);
 
+long IMAGE_BASIC_streamrecord(char *streamname, long NBframes, char *IDname);
+
 #endif

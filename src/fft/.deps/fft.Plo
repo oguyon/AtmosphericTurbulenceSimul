@@ -51,7 +51,15 @@ fft.lo: fft.c /usr/include/stdc-predef.h /usr/include/string.h \
  /usr/include/x86_64-linux-gnu/bits/errno.h /usr/include/linux/errno.h \
  /usr/include/x86_64-linux-gnu/asm/errno.h \
  /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
- /usr/include/gsl/gsl_inline.h /home/guyon/src/Cfits/src/00CORE/00CORE.h \
+ /usr/include/gsl/gsl_inline.h /usr/include/signal.h \
+ /usr/include/x86_64-linux-gnu/bits/signum.h \
+ /usr/include/x86_64-linux-gnu/bits/siginfo.h \
+ /usr/include/x86_64-linux-gnu/bits/sigaction.h \
+ /usr/include/x86_64-linux-gnu/bits/sigcontext.h \
+ /usr/include/x86_64-linux-gnu/bits/sigstack.h \
+ /usr/include/x86_64-linux-gnu/sys/ucontext.h \
+ /usr/include/x86_64-linux-gnu/bits/sigthread.h \
+ /home/guyon/src/Cfits/src/00CORE/00CORE.h \
  /home/guyon/src/Cfits/src/COREMOD_memory/COREMOD_memory.h \
  /home/guyon/src/Cfits/src/COREMOD_iofits/COREMOD_iofits.h \
  /home/guyon/src/Cfits/src/COREMOD_arith/COREMOD_arith.h \
@@ -203,6 +211,22 @@ fft.lo: fft.c /usr/include/stdc-predef.h /usr/include/string.h \
 /usr/include/asm-generic/errno-base.h:
 
 /usr/include/gsl/gsl_inline.h:
+
+/usr/include/signal.h:
+
+/usr/include/x86_64-linux-gnu/bits/signum.h:
+
+/usr/include/x86_64-linux-gnu/bits/siginfo.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigaction.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigcontext.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigstack.h:
+
+/usr/include/x86_64-linux-gnu/sys/ucontext.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigthread.h:
 
 /home/guyon/src/Cfits/src/00CORE/00CORE.h:
 

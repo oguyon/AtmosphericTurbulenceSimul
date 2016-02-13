@@ -225,432 +225,456 @@ int init_COREMOD_arith()
 
 long arith_set_pixel(char *ID_name, double value, long x, long y)
 {
-  long ID;
-  long naxes[2];
-  int atype;
-  int n;
+    long ID;
+    long naxes[2];
+    int atype;
+    int n;
 
-  ID = image_ID(ID_name);
-  atype = data.image[ID].md[0].atype;
-  naxes[0] = data.image[ID].md[0].size[0];
-  naxes[1] = data.image[ID].md[0].size[1];
-  
-  data.image[ID].md[0].write = 1;
-  if(atype == FLOAT)
-    data.image[ID].array.F[y*naxes[0]+x] = value;
-  else if(atype == DOUBLE)
-    data.image[ID].array.D[y*naxes[0]+x] = value;
-  else
+    ID = image_ID(ID_name);
+    atype = data.image[ID].md[0].atype;
+    naxes[0] = data.image[ID].md[0].size[0];
+    naxes[1] = data.image[ID].md[0].size[1];
+
+  //  printf("Setting pixel %ld %ld of image %s [%ld] to %f\n", x, y, ID_name, ID, (float) value);
+
+    data.image[ID].md[0].write = 1;
+    if(atype == FLOAT)
     {
-      n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
-      if(n >= SBUFFERSIZE) 
-	printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-      printERROR(__FILE__,__func__,__LINE__,errmsg);
-      exit(0);
+        data.image[ID].array.F[y*naxes[0]+x] = (float) value;
+    //    printf("float -> %f\n", data.image[ID].array.F[y*naxes[0]+x]);
     }
-  data.image[ID].md[0].write = 0;
-  data.image[ID].md[0].cnt0++;
-  
-  return(ID);
+    else if(atype == DOUBLE)
+    {
+        data.image[ID].array.D[y*naxes[0]+x] = value;
+    }
+    else
+    {
+        n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
+        if(n >= SBUFFERSIZE)
+            printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
+        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        exit(0);
+    }
+    data.image[ID].md[0].write = 0;
+    data.image[ID].md[0].cnt0++;
+    COREMOD_MEMORY_image_set_sempost(ID_name, -1);
+
+    return(ID);
 }
+
 
 
 
 long arith_set_row(char *ID_name, double value, long y)
 {
-  long ID;
-  long naxes[2];
-  long ii;
-  int atype;
-  int n;
+    long ID;
+    long naxes[2];
+    long ii;
+    int atype;
+    int n;
 
-  ID = image_ID(ID_name);
-  atype = data.image[ID].md[0].atype;
-  naxes[0]=data.image[ID].md[0].size[0];
-  naxes[1]=data.image[ID].md[0].size[1];
+    ID = image_ID(ID_name);
+    atype = data.image[ID].md[0].atype;
+    naxes[0]=data.image[ID].md[0].size[0];
+    naxes[1]=data.image[ID].md[0].size[1];
 
-  data.image[ID].md[0].write = 1;
-  if(atype==FLOAT)
+    data.image[ID].md[0].write = 1;
+    if(atype==FLOAT)
     {
-      for(ii=0;ii<naxes[0];ii++)
-	data.image[ID].array.F[y*naxes[0]+ii] = value;
+        for(ii=0; ii<naxes[0]; ii++)
+            data.image[ID].array.F[y*naxes[0]+ii] = value;
     }
-  else if(atype==DOUBLE)
+    else if(atype==DOUBLE)
     {
-      for(ii=0;ii<naxes[0];ii++)
-	data.image[ID].array.D[y*naxes[0]+ii] = value;
+        for(ii=0; ii<naxes[0]; ii++)
+            data.image[ID].array.D[y*naxes[0]+ii] = value;
     }
-  else
+    else
     {
-      n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
-      if(n >= SBUFFERSIZE) 
-	printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-      printERROR(__FILE__,__func__,__LINE__,errmsg);
-      exit(0);
+        n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
+        if(n >= SBUFFERSIZE)
+            printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
+        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        exit(0);
     }
 
-  data.image[ID].md[0].write = 0;
-  data.image[ID].md[0].cnt0++;
+    data.image[ID].md[0].write = 0;
+    data.image[ID].md[0].cnt0++;
+    COREMOD_MEMORY_image_set_sempost(ID_name, -1);
 
-  return(ID);
+    return(ID);
 }
+
+
+
 
 long arith_set_col(char *ID_name, double value, long x)
 {
-  long ID;
-  long naxes[2];
-  long y;
-  int atype;
-  int n;
-  
-  ID = image_ID(ID_name);
-  naxes[0]=data.image[ID].md[0].size[0];
-  naxes[1]=data.image[ID].md[0].size[1];
-  atype = data.image[ID].md[0].atype;
+    long ID;
+    long naxes[2];
+    long y;
+    int atype;
+    int n;
+
+    ID = image_ID(ID_name);
+    naxes[0]=data.image[ID].md[0].size[0];
+    naxes[1]=data.image[ID].md[0].size[1];
+    atype = data.image[ID].md[0].atype;
 
 
-  data.image[ID].md[0].write = 1;
-  if(atype == FLOAT)
+    data.image[ID].md[0].write = 1;
+    if(atype == FLOAT)
     {
-      for(y=0;y<naxes[1];y++)
-	data.image[ID].array.F[y*naxes[0]+x] = value;
+        for(y=0; y<naxes[1]; y++)
+            data.image[ID].array.F[y*naxes[0]+x] = value;
     }
-  else if(atype == DOUBLE)
+    else if(atype == DOUBLE)
     {
-      for(y=0;y<naxes[1];y++)
-	data.image[ID].array.D[y*naxes[0]+x] = value;
+        for(y=0; y<naxes[1]; y++)
+            data.image[ID].array.D[y*naxes[0]+x] = value;
     }
-  else
+    else
     {
-      n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
-      if(n >= SBUFFERSIZE) 
-	printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-      printERROR(__FILE__,__func__,__LINE__,errmsg);
-      exit(0);
+        n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
+        if(n >= SBUFFERSIZE)
+            printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
+        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        exit(0);
     }
 
-  data.image[ID].md[0].write = 0;
-  data.image[ID].md[0].cnt0++;
+    data.image[ID].md[0].write = 0;
+    data.image[ID].md[0].cnt0++;
+    COREMOD_MEMORY_image_set_sempost(ID_name, -1);
 
-  return(ID);
+
+    return(ID);
 }
+
+
+
 
 long arith_image_zero(char *ID_name)
 {
-  long ID;
-  long nelem;
-  int n;
+    long ID;
+    long nelem;
+    int n;
 
-  ID = image_ID(ID_name);
-  nelem = data.image[ID].md[0].nelement;
+    ID = image_ID(ID_name);
+    nelem = data.image[ID].md[0].nelement;
 
-  data.image[ID].md[0].write = 0;
-  if(data.image[ID].md[0].atype == FLOAT)
-    memset(data.image[ID].array.F,0,sizeof(float)*nelem);
-  else if(data.image[ID].md[0].atype == DOUBLE)
-    memset(data.image[ID].array.D,0,sizeof(double)*nelem);
-  else if(data.image[ID].md[0].atype == CHAR)
-    memset(data.image[ID].array.C,0,sizeof(char)*nelem);
-  else if(data.image[ID].md[0].atype == INT)
-    memset(data.image[ID].array.I,0,sizeof(int)*nelem);
-  else if(data.image[ID].md[0].atype == COMPLEX_FLOAT)
-    memset(data.image[ID].array.CF,0,sizeof(float)*2*nelem);
-  else if(data.image[ID].md[0].atype == COMPLEX_DOUBLE)
-    memset(data.image[ID].array.CD,0,sizeof(double)*2*nelem);
-  else if(data.image[ID].md[0].atype == USHORT)
-    memset(data.image[ID].array.U,0,sizeof(unsigned short)*nelem);
-  else 
+    data.image[ID].md[0].write = 0;
+    if(data.image[ID].md[0].atype == FLOAT)
+        memset(data.image[ID].array.F,0,sizeof(float)*nelem);
+    else if(data.image[ID].md[0].atype == DOUBLE)
+        memset(data.image[ID].array.D,0,sizeof(double)*nelem);
+    else if(data.image[ID].md[0].atype == CHAR)
+        memset(data.image[ID].array.C,0,sizeof(char)*nelem);
+    else if(data.image[ID].md[0].atype == INT)
+        memset(data.image[ID].array.I,0,sizeof(int)*nelem);
+    else if(data.image[ID].md[0].atype == COMPLEX_FLOAT)
+        memset(data.image[ID].array.CF,0,sizeof(float)*2*nelem);
+    else if(data.image[ID].md[0].atype == COMPLEX_DOUBLE)
+        memset(data.image[ID].array.CD,0,sizeof(double)*2*nelem);
+    else if(data.image[ID].md[0].atype == USHORT)
+        memset(data.image[ID].array.U,0,sizeof(unsigned short)*nelem);
+    else
     {
-      n = snprintf(errmsg,SBUFFERSIZE,"cannot detect image type for image %s",ID_name);
-      if(n >= SBUFFERSIZE) 
-	printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-      printERROR(__FILE__,__func__,__LINE__,errmsg);
-      exit(0);
+        n = snprintf(errmsg,SBUFFERSIZE,"cannot detect image type for image %s",ID_name);
+        if(n >= SBUFFERSIZE)
+            printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
+        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        exit(0);
     }
-  data.image[ID].md[0].write = 0;
-  data.image[ID].md[0].cnt0++;
+    data.image[ID].md[0].write = 0;
+    data.image[ID].md[0].cnt0++;
+    COREMOD_MEMORY_image_set_sempost(ID_name, -1);
 
-  return(ID);
+    return(ID);
 }
+
+
+
 
 
 int arith_image_crop(char *ID_name, char *ID_out, long *start, long *end, long cropdim)
 {
-  long naxis;
-  long IDin,IDout;
-  long i;
-  long *naxes = NULL;
-  long *naxesout = NULL;
-  long ii,jj,kk;
-  int atype;
-  int n;
+    long naxis;
+    long IDin,IDout;
+    long i;
+    long *naxes = NULL;
+    long *naxesout = NULL;
+    long ii,jj,kk;
+    int atype;
+    int n;
 
-  long start_c[3];
-  long end_c[3];
+    long start_c[3];
+    long end_c[3];
 
-  for(i=0;i<3;i++)
+    for(i=0; i<3; i++)
     {
-      start_c[i] = 0;
-      end_c[i] = 0;
+        start_c[i] = 0;
+        end_c[i] = 0;
     }
 
-  IDin = image_ID(ID_name);
-  if(IDin==-1)
+    IDin = image_ID(ID_name);
+    if(IDin==-1)
     {
-      n = snprintf(errmsg,SBUFFERSIZE,"Missing input image = %s",ID_name);
-      if(n >= SBUFFERSIZE) 
-	printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-      printERROR(__FILE__,__func__,__LINE__,errmsg);
-      list_image_ID();
-      exit(0);
+        n = snprintf(errmsg,SBUFFERSIZE,"Missing input image = %s",ID_name);
+        if(n >= SBUFFERSIZE)
+            printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
+        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        list_image_ID();
+        exit(0);
     }
 
-  naxis = data.image[IDin].md[0].naxis;
-  if(naxis < 1)
+    naxis = data.image[IDin].md[0].naxis;
+    if(naxis < 1)
     {
-      printERROR(__FILE__,__func__,__LINE__,"naxis < 1");
-      exit(0);
+        printERROR(__FILE__,__func__,__LINE__,"naxis < 1");
+        exit(0);
     }
-  naxes = (long*) malloc(sizeof(long)*naxis);
-  if(naxes==NULL)
-     {
-       n = snprintf(errmsg,SBUFFERSIZE,"malloc() error, naxis = %ld",naxis);
-       if(n >= SBUFFERSIZE) 
-	 printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-       printERROR(__FILE__,__func__,__LINE__,errmsg);
-       exit(0);
-     }
- 
-  naxesout  = (long*) malloc(sizeof(long)*naxis);
-  if(naxesout==NULL)
-     {
-       printERROR(__FILE__,__func__,__LINE__,"malloc() error");
-       exit(0);
-     }
-
-  atype = data.image[IDin].md[0].atype;
- 
-  naxes[0] = 0;
-  naxesout[0] = 0;
-  for(i=0;i<naxis;i++)
+    naxes = (long*) malloc(sizeof(long)*naxis);
+    if(naxes==NULL)
     {
-      naxes[i] = data.image[IDin].md[0].size[i];
-      naxesout[i] = end[i]-start[i];
-    }
-  IDout = create_image_ID(ID_out, naxis, naxesout, atype, data.SHARED_DFT, data.NBKEWORD_DFT);
-
-  start_c[0] = start[0];
-  if(start_c[0]<0)
-    start_c[0] = 0;
-  end_c[0] = end[0];
-  if(end_c[0]>naxes[0])
-    end_c[0] = naxes[0];
-  if(naxis>1)
-    {
-      start_c[1] = start[1];
-      if(start_c[1]<0)
-	start_c[1] = 0;
-      end_c[1] = end[1];
-      if(end_c[1]>naxes[1])
-	end_c[1] = naxes[1];
-    }
-  if(naxis>2)
-    {
-      start_c[2] = start[2];
-      if(start_c[2]<0)
-	start_c[2] = 0;
-      end_c[2] = end[2];
-      if(end_c[2]>naxes[2])
-	end_c[2] = naxes[2];
+        n = snprintf(errmsg,SBUFFERSIZE,"malloc() error, naxis = %ld",naxis);
+        if(n >= SBUFFERSIZE)
+            printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
+        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        exit(0);
     }
 
-
-  printf("CROP: \n");
-  for(i=0;i<3;i++)
+    naxesout  = (long*) malloc(sizeof(long)*naxis);
+    if(naxesout==NULL)
     {
-      printf("axis %ld: %ld -> %ld\n",i,start_c[i],end_c[i]);
+        printERROR(__FILE__,__func__,__LINE__,"malloc() error");
+        exit(0);
+    }
+
+    atype = data.image[IDin].md[0].atype;
+
+    naxes[0] = 0;
+    naxesout[0] = 0;
+    for(i=0; i<naxis; i++)
+    {
+        naxes[i] = data.image[IDin].md[0].size[i];
+        naxesout[i] = end[i]-start[i];
+    }
+    IDout = create_image_ID(ID_out, naxis, naxesout, atype, data.SHARED_DFT, data.NBKEWORD_DFT);
+
+    start_c[0] = start[0];
+    if(start_c[0]<0)
+        start_c[0] = 0;
+    end_c[0] = end[0];
+    if(end_c[0]>naxes[0])
+        end_c[0] = naxes[0];
+    if(naxis>1)
+    {
+        start_c[1] = start[1];
+        if(start_c[1]<0)
+            start_c[1] = 0;
+        end_c[1] = end[1];
+        if(end_c[1]>naxes[1])
+            end_c[1] = naxes[1];
+    }
+    if(naxis>2)
+    {
+        start_c[2] = start[2];
+        if(start_c[2]<0)
+            start_c[2] = 0;
+        end_c[2] = end[2];
+        if(end_c[2]>naxes[2])
+            end_c[2] = naxes[2];
     }
 
 
-  if(cropdim!=naxis)
+    printf("CROP: \n");
+    for(i=0; i<3; i++)
     {
-      printf("Error (arith_image_crop): cropdim [%ld] and naxis [%ld] are different\n",cropdim,naxis);
-    }
-  
-
-  if(naxis==1)
-    {
-      if(atype == FLOAT)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    data.image[IDout].array.F[ii-start[0]] = data.image[IDin].array.F[ii];	  
-	}
-      else if(atype == DOUBLE)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    data.image[IDout].array.D[ii-start[0]] = data.image[IDin].array.D[ii];
-	}
-      else if(atype == COMPLEX_FLOAT)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    {
-	       data.image[IDout].array.CF[ii-start[0]].re = data.image[IDin].array.CF[ii].re;
-	       data.image[IDout].array.CF[ii-start[0]].im = data.image[IDin].array.CF[ii].im;
-	    }
-	}
-      else if(atype == COMPLEX_DOUBLE)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    {
-	       data.image[IDout].array.CD[ii-start[0]].re = data.image[IDin].array.CD[ii].re;
-	       data.image[IDout].array.CD[ii-start[0]].im = data.image[IDin].array.CD[ii].im;
-	    }
-	}
-      else if(atype == USHORT)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    data.image[IDout].array.U[ii-start[0]] = data.image[IDin].array.U[ii];	  
-	}     
-      else
-	{
-	  n = snprintf(errmsg,SBUFFERSIZE,"invalid data type");
-	  if(n >= SBUFFERSIZE) 
-	    printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-	  printERROR(__FILE__,__func__,__LINE__,errmsg);
-	  exit(0);
-	}
-    }
-  if(naxis==2)
-    {
-      if(atype == FLOAT)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      data.image[IDout].array.F[(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.F[jj*naxes[0]+ii];
-	}
-      else if(atype == DOUBLE)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      data.image[IDout].array.D[(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.D[jj*naxes[0]+ii];
-	}
-      else if(atype == COMPLEX_FLOAT)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      {	      
-		data.image[IDout].array.CF[(jj-start[1])*naxesout[0]+(ii-start[0])].re = data.image[IDin].array.CF[jj*naxes[0]+ii].re;
-		data.image[IDout].array.CF[(jj-start[1])*naxesout[0]+(ii-start[0])].im = data.image[IDin].array.CF[jj*naxes[0]+ii].im;
-	      }
-	}
-      else if(atype == COMPLEX_DOUBLE)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      {
-		data.image[IDout].array.CD[(jj-start[1])*naxesout[0]+(ii-start[0])].re = data.image[IDin].array.CD[jj*naxes[0]+ii].re;
-		data.image[IDout].array.CD[(jj-start[1])*naxesout[0]+(ii-start[0])].im = data.image[IDin].array.CD[jj*naxes[0]+ii].im;
-	      }
-	}
-      else if(atype == USHORT)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      data.image[IDout].array.U[(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.U[jj*naxes[0]+ii];
-	}
-      else
-	{
-	  printERROR(__FILE__,__func__,__LINE__,"invalid data type");
-	  exit(0);
-	}
-    }
-  if(naxis==3)
-    {
-      if(atype == FLOAT)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      for(kk=start_c[2];kk<end_c[2];kk++)
-		data.image[IDout].array.F[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.F[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii];
-	}
-      else if(atype == DOUBLE)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      for(kk=start_c[2];kk<end_c[2];kk++)
-		data.image[IDout].array.D[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.D[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii];
-	}
-      else if(atype == COMPLEX_FLOAT)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      for(kk=start_c[2];kk<end_c[2];kk++)
-		{
-		  data.image[IDout].array.CF[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])].re = data.image[IDin].array.CF[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii].re;		  
-		  data.image[IDout].array.CF[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])].im = data.image[IDin].array.CF[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii].im;
-		}
-	}
-      else if(atype == COMPLEX_DOUBLE)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      for(kk=start_c[2];kk<end_c[2];kk++)
-		{
-		  data.image[IDout].array.CD[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])].re = data.image[IDin].array.CD[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii].re;		  
-		  data.image[IDout].array.CD[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])].im = data.image[IDin].array.CD[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii].im;
-		}
-	}
-      else if(atype == USHORT)
-	{
-	  for(ii=start_c[0];ii<end_c[0];ii++)
-	    for(jj=start_c[1];jj<end_c[1];jj++)
-	      for(kk=start_c[2];kk<end_c[2];kk++)
-		data.image[IDout].array.U[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.U[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii];
-	}
-      else
-	{
-	  printERROR(__FILE__,__func__,__LINE__,"invalid data type");
-	  exit(0);
-	}
+        printf("axis %ld: %ld -> %ld\n",i,start_c[i],end_c[i]);
     }
 
-  free(naxesout);
-  free(naxes);
- 
- return(0);
+
+    if(cropdim!=naxis)
+    {
+        printf("Error (arith_image_crop): cropdim [%ld] and naxis [%ld] are different\n",cropdim,naxis);
+    }
+
+
+    if(naxis==1)
+    {
+        if(atype == FLOAT)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                data.image[IDout].array.F[ii-start[0]] = data.image[IDin].array.F[ii];
+        }
+        else if(atype == DOUBLE)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                data.image[IDout].array.D[ii-start[0]] = data.image[IDin].array.D[ii];
+        }
+        else if(atype == COMPLEX_FLOAT)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+            {
+                data.image[IDout].array.CF[ii-start[0]].re = data.image[IDin].array.CF[ii].re;
+                data.image[IDout].array.CF[ii-start[0]].im = data.image[IDin].array.CF[ii].im;
+            }
+        }
+        else if(atype == COMPLEX_DOUBLE)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+            {
+                data.image[IDout].array.CD[ii-start[0]].re = data.image[IDin].array.CD[ii].re;
+                data.image[IDout].array.CD[ii-start[0]].im = data.image[IDin].array.CD[ii].im;
+            }
+        }
+        else if(atype == USHORT)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                data.image[IDout].array.U[ii-start[0]] = data.image[IDin].array.U[ii];
+        }
+        else
+        {
+            n = snprintf(errmsg,SBUFFERSIZE,"invalid data type");
+            if(n >= SBUFFERSIZE)
+                printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
+            printERROR(__FILE__,__func__,__LINE__,errmsg);
+            exit(0);
+        }
+    }
+    if(naxis==2)
+    {
+        if(atype == FLOAT)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                    data.image[IDout].array.F[(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.F[jj*naxes[0]+ii];
+        }
+        else if(atype == DOUBLE)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                    data.image[IDout].array.D[(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.D[jj*naxes[0]+ii];
+        }
+        else if(atype == COMPLEX_FLOAT)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                {
+                    data.image[IDout].array.CF[(jj-start[1])*naxesout[0]+(ii-start[0])].re = data.image[IDin].array.CF[jj*naxes[0]+ii].re;
+                    data.image[IDout].array.CF[(jj-start[1])*naxesout[0]+(ii-start[0])].im = data.image[IDin].array.CF[jj*naxes[0]+ii].im;
+                }
+        }
+        else if(atype == COMPLEX_DOUBLE)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                {
+                    data.image[IDout].array.CD[(jj-start[1])*naxesout[0]+(ii-start[0])].re = data.image[IDin].array.CD[jj*naxes[0]+ii].re;
+                    data.image[IDout].array.CD[(jj-start[1])*naxesout[0]+(ii-start[0])].im = data.image[IDin].array.CD[jj*naxes[0]+ii].im;
+                }
+        }
+        else if(atype == USHORT)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                    data.image[IDout].array.U[(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.U[jj*naxes[0]+ii];
+        }
+        else
+        {
+            printERROR(__FILE__,__func__,__LINE__,"invalid data type");
+            exit(0);
+        }
+    }
+    if(naxis==3)
+    {
+        if(atype == FLOAT)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                    for(kk=start_c[2]; kk<end_c[2]; kk++)
+                        data.image[IDout].array.F[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.F[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii];
+        }
+        else if(atype == DOUBLE)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                    for(kk=start_c[2]; kk<end_c[2]; kk++)
+                        data.image[IDout].array.D[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.D[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii];
+        }
+        else if(atype == COMPLEX_FLOAT)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                    for(kk=start_c[2]; kk<end_c[2]; kk++)
+                    {
+                        data.image[IDout].array.CF[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])].re = data.image[IDin].array.CF[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii].re;
+                        data.image[IDout].array.CF[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])].im = data.image[IDin].array.CF[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii].im;
+                    }
+        }
+        else if(atype == COMPLEX_DOUBLE)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                    for(kk=start_c[2]; kk<end_c[2]; kk++)
+                    {
+                        data.image[IDout].array.CD[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])].re = data.image[IDin].array.CD[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii].re;
+                        data.image[IDout].array.CD[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])].im = data.image[IDin].array.CD[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii].im;
+                    }
+        }
+        else if(atype == USHORT)
+        {
+            for(ii=start_c[0]; ii<end_c[0]; ii++)
+                for(jj=start_c[1]; jj<end_c[1]; jj++)
+                    for(kk=start_c[2]; kk<end_c[2]; kk++)
+                        data.image[IDout].array.U[(kk-start[2])*naxesout[0]*naxesout[1]+(jj-start[1])*naxesout[0]+(ii-start[0])] = data.image[IDin].array.U[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii];
+        }
+        else
+        {
+            printERROR(__FILE__,__func__,__LINE__,"invalid data type");
+            exit(0);
+        }
+    }
+
+    free(naxesout);
+    free(naxes);
+
+    return(0);
 }
+
 
 
 int arith_image_extract2D(char *in_name, char *out_name, long size_x, long size_y, long xstart, long ystart)
 {
-  long *start = NULL;
-  long *end = NULL;
-  
-  start = (long*) malloc(sizeof(long)*2);
-  if(start==NULL)
-     {
-       printERROR(__FILE__,__func__,__LINE__,"malloc() error");
-       exit(0);
-     }
+    long *start = NULL;
+    long *end = NULL;
 
-  end = (long*) malloc(sizeof(long)*2);
-  if(end==NULL)
-     {
-       printERROR(__FILE__,__func__,__LINE__,"malloc() error");
-       exit(0);
-     }
+    start = (long*) malloc(sizeof(long)*2);
+    if(start==NULL)
+    {
+        printERROR(__FILE__,__func__,__LINE__,"malloc() error");
+        exit(0);
+    }
 
-  start[0]=xstart;
-  start[1]=ystart;
-  end[0]=xstart+size_x;
-  end[1]=ystart+size_y;
-  arith_image_crop(in_name, out_name, start, end, 2);
+    end = (long*) malloc(sizeof(long)*2);
+    if(end==NULL)
+    {
+        printERROR(__FILE__,__func__,__LINE__,"malloc() error");
+        exit(0);
+    }
 
-  free(start);
-  free(end);
+    start[0]=xstart;
+    start[1]=ystart;
+    end[0]=xstart+size_x;
+    end[1]=ystart+size_y;
+    arith_image_crop(in_name, out_name, start, end, 2);
 
-  return(0);
+    free(start);
+    free(end);
+
+    return(0);
 }
+
 
 
 
@@ -658,85 +682,87 @@ int arith_image_extract2D(char *in_name, char *out_name, long size_x, long size_
 
 int arith_image_extract3D(char *in_name, char *out_name, long size_x, long size_y, long size_z, long xstart, long ystart, long zstart)
 {
-  long *start = NULL;
-  long *end = NULL;
-  
-  start = (long*) malloc(sizeof(long)*3);
-  if(start==NULL)
-     {
-       printERROR(__FILE__,__func__,__LINE__,"malloc() error");
-       printf("params: %s %s %ld %ld %ld %ld %ld %ld \n",in_name, out_name, size_x, size_y, size_z, xstart, ystart, zstart);
-       exit(0);
-     }
+    long *start = NULL;
+    long *end = NULL;
 
-  end = (long*) malloc(sizeof(long)*3);
-  if(end==NULL)
-     {
-       printERROR(__FILE__,__func__,__LINE__,"malloc() error");
-       printf("params: %s %s %ld %ld %ld %ld %ld %ld \n",in_name, out_name, size_x, size_y, size_z, xstart, ystart, zstart);
-       exit(0);
-     }
+    start = (long*) malloc(sizeof(long)*3);
+    if(start==NULL)
+    {
+        printERROR(__FILE__,__func__,__LINE__,"malloc() error");
+        printf("params: %s %s %ld %ld %ld %ld %ld %ld \n",in_name, out_name, size_x, size_y, size_z, xstart, ystart, zstart);
+        exit(0);
+    }
 
-  start[0]=xstart;
-  start[1]=ystart;
-  start[2]=zstart;
-  end[0]=xstart+size_x;
-  end[1]=ystart+size_y;
-  end[2]=zstart+size_z;
-  arith_image_crop(in_name,out_name,start,end,3);
+    end = (long*) malloc(sizeof(long)*3);
+    if(end==NULL)
+    {
+        printERROR(__FILE__,__func__,__LINE__,"malloc() error");
+        printf("params: %s %s %ld %ld %ld %ld %ld %ld \n",in_name, out_name, size_x, size_y, size_z, xstart, ystart, zstart);
+        exit(0);
+    }
 
-  free(start);
-  free(end);
+    start[0]=xstart;
+    start[1]=ystart;
+    start[2]=zstart;
+    end[0]=xstart+size_x;
+    end[1]=ystart+size_y;
+    end[2]=zstart+size_z;
+    arith_image_crop(in_name,out_name,start,end,3);
 
-  return(0);
+    free(start);
+    free(end);
+
+    return(0);
 }
+
 
 
 // join two cubes
 long arith_image_merge3D(char *ID_name1, char *ID_name2, char *IDout_name)
 {
-  long ID1, ID2, IDout;
-  long xsize, ysize, zsize1, zsize2, zsizeout;
-  long ii, jj, kk;
-  void *mapv;
+    long ID1, ID2, IDout;
+    long xsize, ysize, zsize1, zsize2, zsizeout;
+    long ii, jj, kk;
+    void *mapv;
 
-  ID1 = image_ID(ID_name1);
-  ID2 = image_ID(ID_name2);
-  
-  xsize = data.image[ID1].md[0].size[0];
-  ysize = data.image[ID1].md[0].size[1];
+    ID1 = image_ID(ID_name1);
+    ID2 = image_ID(ID_name2);
 
-  if(data.image[ID1].md[0].naxis==2)
-    zsize1 = 1;
-  else
-    zsize1 = data.image[ID1].md[0].size[2];
+    xsize = data.image[ID1].md[0].size[0];
+    ysize = data.image[ID1].md[0].size[1];
 
-  if(data.image[ID2].md[0].naxis==2)
-    zsize2 = 1;
-  else
-    zsize2 = data.image[ID2].md[0].size[2];
+    if(data.image[ID1].md[0].naxis==2)
+        zsize1 = 1;
+    else
+        zsize1 = data.image[ID1].md[0].size[2];
+
+    if(data.image[ID2].md[0].naxis==2)
+        zsize2 = 1;
+    else
+        zsize2 = data.image[ID2].md[0].size[2];
 
 
 
-  if((xsize != data.image[ID2].md[0].size[0])||(ysize != data.image[ID2].md[0].size[1]))
+    if((xsize != data.image[ID2].md[0].size[0])||(ysize != data.image[ID2].md[0].size[1]))
     {
-      printf("ERROR: input images must have same x y sizes\n");
-      printf("%s :  %ld %ld\n", ID_name1, xsize, ysize);
-      printf("%s :  %ld %ld\n", ID_name2, data.image[ID2].md[0].size[0], data.image[ID2].md[0].size[1]);
-      exit(0);
+        printf("ERROR: input images must have same x y sizes\n");
+        printf("%s :  %ld %ld\n", ID_name1, xsize, ysize);
+        printf("%s :  %ld %ld\n", ID_name2, data.image[ID2].md[0].size[0], data.image[ID2].md[0].size[1]);
+        exit(0);
     }
 
-  IDout = create_3Dimage_ID(IDout_name, xsize, ysize, zsize1+zsize2);
-  
-  mapv = (void*) data.image[IDout].array.F;
+    IDout = create_3Dimage_ID(IDout_name, xsize, ysize, zsize1+zsize2);
 
-  memcpy ( mapv, (void*) data.image[ID1].array.F, sizeof(float)*xsize*ysize*zsize1);
-  
-  mapv += sizeof(float)*xsize*ysize*zsize1;
-  memcpy ( mapv, data.image[ID2].array.F, sizeof(float)*xsize*ysize*zsize2);
+    mapv = (void*) data.image[IDout].array.F;
 
-  return(IDout);
+    memcpy ( mapv, (void*) data.image[ID1].array.F, sizeof(float)*xsize*ysize*zsize1);
+
+    mapv += sizeof(float)*xsize*ysize*zsize1;
+    memcpy ( mapv, data.image[ID2].array.F, sizeof(float)*xsize*ysize*zsize2);
+
+    return(IDout);
 }
+
 
 
 
@@ -744,218 +770,223 @@ long arith_image_merge3D(char *ID_name1, char *ID_name2, char *IDout_name)
 
 double arith_image_total(char *ID_name)
 {
-  long double value;
-  long ID;
-  long ii;
-  long nelement;
-  int atype;
-  
-  ID = image_ID(ID_name);
-  atype = data.image[ID].md[0].atype;
+    long double value;
+    long ID;
+    long ii;
+    long nelement;
+    int atype;
 
-  nelement = data.image[ID].md[0].nelement;
-   
-  value = 0.0;
+    ID = image_ID(ID_name);
+    atype = data.image[ID].md[0].atype;
 
-  if(atype==CHAR)
+    nelement = data.image[ID].md[0].nelement;
+
+    value = 0.0;
+
+    if(atype==CHAR)
     {
-      for (ii = 0; ii < nelement; ii++)
-	value += (long double) data.image[ID].array.C[ii];
+        for (ii = 0; ii < nelement; ii++)
+            value += (long double) data.image[ID].array.C[ii];
     }
-  else if(atype==INT)
+    else if(atype==INT)
     {
-      for (ii = 0; ii < nelement; ii++)
-	value += (long double) data.image[ID].array.I[ii];
+        for (ii = 0; ii < nelement; ii++)
+            value += (long double) data.image[ID].array.I[ii];
     }
-  else if(atype==FLOAT)
+    else if(atype==FLOAT)
     {
-      for (ii = 0; ii < nelement; ii++)
-	value += (long double) data.image[ID].array.F[ii];
+        for (ii = 0; ii < nelement; ii++)
+            value += (long double) data.image[ID].array.F[ii];
     }
-  else if(atype==DOUBLE)
+    else if(atype==DOUBLE)
     {
-      for (ii = 0; ii < nelement; ii++)
-	value += (long double) data.image[ID].array.D[ii];
+        for (ii = 0; ii < nelement; ii++)
+            value += (long double) data.image[ID].array.D[ii];
     }
-  else if(atype==USHORT)
+    else if(atype==USHORT)
     {
-      for (ii = 0; ii < nelement; ii++)
-	value += (long double) data.image[ID].array.U[ii];
+        for (ii = 0; ii < nelement; ii++)
+            value += (long double) data.image[ID].array.U[ii];
     }
-  else
+    else
     {
-      printERROR(__FILE__,__func__,__LINE__,"invalid data type");
-      exit(0);
+        printERROR(__FILE__,__func__,__LINE__,"invalid data type");
+        exit(0);
     }
 
-  return((double) value);
+    return((double) value);
 }
+
 
 
 
 double arith_image_mean(char *ID_name)
 {
-  double value;
-  long ID;
-  
-  ID = image_ID(ID_name);
-  
-  value = (double) (arith_image_total(ID_name)/data.image[ID].md[0].nelement);
-  
-  return(value);
+    double value;
+    long ID;
+
+    ID = image_ID(ID_name);
+
+    value = (double) (arith_image_total(ID_name)/data.image[ID].md[0].nelement);
+
+    return(value);
 }
+
 
 double arith_image_min(char *ID_name)
 {
-  double value,value1;
-  long ID;
-  long ii;
-  long nelement;
-  int atype;
-  int OK=0;
-  
-  ID = image_ID(ID_name);
-  atype = data.image[ID].md[0].atype;
+    double value,value1;
+    long ID;
+    long ii;
+    long nelement;
+    int atype;
+    int OK=0;
 
-  nelement = data.image[ID].md[0].nelement;
-    
-  value = (double) 0.0;
-  if(atype==CHAR)
-    {
-      value = (double) data.image[ID].array.C[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.C[ii];
-	  if(value1<value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(atype==INT)
-    {
-      value = (double) data.image[ID].array.I[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.I[ii];
-	  if(value1<value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(atype==FLOAT)
-    {
-      value = (double) data.image[ID].array.F[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.F[ii];
-	  if(value1<value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(atype==DOUBLE)
-    {
-      value = (double) data.image[ID].array.D[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.D[ii];
-	  if(value1<value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(atype==USHORT)
-    {
-      value = (double) data.image[ID].array.U[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.U[ii];
-	  if(value1<value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(OK==0)
-    printf("Error : Invalid data format for arith_image_min\n");
+    ID = image_ID(ID_name);
+    atype = data.image[ID].md[0].atype;
 
-  return(value);
+    nelement = data.image[ID].md[0].nelement;
+
+    value = (double) 0.0;
+    if(atype==CHAR)
+    {
+        value = (double) data.image[ID].array.C[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.C[ii];
+            if(value1<value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(atype==INT)
+    {
+        value = (double) data.image[ID].array.I[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.I[ii];
+            if(value1<value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(atype==FLOAT)
+    {
+        value = (double) data.image[ID].array.F[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.F[ii];
+            if(value1<value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(atype==DOUBLE)
+    {
+        value = (double) data.image[ID].array.D[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.D[ii];
+            if(value1<value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(atype==USHORT)
+    {
+        value = (double) data.image[ID].array.U[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.U[ii];
+            if(value1<value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(OK==0)
+        printf("Error : Invalid data format for arith_image_min\n");
+
+    return(value);
 }
+
+
 
 double arith_image_max(char *ID_name)
 {
-  double value,value1;
-  long ID;
-  long ii;
-  long nelement;
-  int atype;
-  int OK=0;
-  
-  ID = image_ID(ID_name);
-  atype = data.image[ID].md[0].atype;
+    double value,value1;
+    long ID;
+    long ii;
+    long nelement;
+    int atype;
+    int OK=0;
 
-  nelement = data.image[ID].md[0].nelement;
-    
-  value = (double) 0.0;
-  if(atype==CHAR)
-    {
-      value = (double) data.image[ID].array.C[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.C[ii];
-	  if(value1>value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(atype==INT)
-    {
-      value = (double) data.image[ID].array.I[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.I[ii];
-	  if(value1>value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(atype==FLOAT)
-    {
-      value = (double) data.image[ID].array.F[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.F[ii];
-	  if(value1>value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(atype==DOUBLE)
-    {
-      value = (double) data.image[ID].array.D[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.D[ii];
-	  if(value1>value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(atype==USHORT)
-    {
-      value = (double) data.image[ID].array.U[0];
-      for (ii = 0; ii < nelement; ii++)
-	{
-	  value1 = (double) data.image[ID].array.U[ii];
-	  if(value1>value)
-	    value = value1;
-	}
-      OK=1;
-    }
-  if(OK==0)
-    printf("Error : Invalid data format for arith_image_max\n");
+    ID = image_ID(ID_name);
+    atype = data.image[ID].md[0].atype;
 
-  return(value);
+    nelement = data.image[ID].md[0].nelement;
+
+    value = (double) 0.0;
+    if(atype==CHAR)
+    {
+        value = (double) data.image[ID].array.C[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.C[ii];
+            if(value1>value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(atype==INT)
+    {
+        value = (double) data.image[ID].array.I[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.I[ii];
+            if(value1>value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(atype==FLOAT)
+    {
+        value = (double) data.image[ID].array.F[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.F[ii];
+            if(value1>value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(atype==DOUBLE)
+    {
+        value = (double) data.image[ID].array.D[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.D[ii];
+            if(value1>value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(atype==USHORT)
+    {
+        value = (double) data.image[ID].array.U[0];
+        for (ii = 0; ii < nelement; ii++)
+        {
+            value1 = (double) data.image[ID].array.U[ii];
+            if(value1>value)
+                value = value1;
+        }
+        OK=1;
+    }
+    if(OK==0)
+        printf("Error : Invalid data format for arith_image_max\n");
+
+    return(value);
 }
+
 
 
 

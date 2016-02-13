@@ -2,8 +2,8 @@
 #include <string.h>
 #include <malloc.h>
 #include <math.h>
-#include <time.h>
 #include <stdlib.h>
+
 
 #include "CLIcore.h"
 #include "00CORE/00CORE.h"
@@ -145,6 +145,19 @@ int make_rnd_cli()
 }
 
 
+
+int make_rndgauss_cli()
+{
+  if(CLI_checkarg(1,3)+CLI_checkarg(2,2)+CLI_checkarg(3,2)==0)
+    {
+		make_rnd(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.numl, data.cmdargtoken[3].val.numl, "gauss"); 
+      return 0;
+    }
+  else
+    return 1;
+}
+
+
 //long make_rnd(char *ID_name, long l1, long l2, char *options)
 
 
@@ -244,9 +257,19 @@ int init_image_gen()
   data.cmd[data.NBcmd].fp = make_rnd_cli;
   strcpy(data.cmd[data.NBcmd].info,"make random image");
   strcpy(data.cmd[data.NBcmd].syntax,"<name> <xsize> <ysize>");
-  strcpy(data.cmd[data.NBcmd].example,"mkrndim 512 512");
+  strcpy(data.cmd[data.NBcmd].example,"mkrndim im 512 512");
   strcpy(data.cmd[data.NBcmd].Ccall,"long make_rnd(char *ID_name, long l1, long l2, char *options)");
   data.NBcmd++;
+
+  strcpy(data.cmd[data.NBcmd].key,"mkrndgim");
+  strcpy(data.cmd[data.NBcmd].module,__FILE__);
+  data.cmd[data.NBcmd].fp = make_rndgauss_cli;
+  strcpy(data.cmd[data.NBcmd].info,"make random image, gaussian distrib");
+  strcpy(data.cmd[data.NBcmd].syntax,"<name> <xsize> <ysize>");
+  strcpy(data.cmd[data.NBcmd].example,"mkrndgim im 512 512");
+  strcpy(data.cmd[data.NBcmd].Ccall,"long make_rnd(char *ID_name, long l1, long l2, char *options)");
+  data.NBcmd++;
+
 
 //long make_rnd(char *ID_name, long l1, long l2, char *options)
 
@@ -940,7 +963,10 @@ long make_hexagon(char *IDname, long l1, long l2, double x_center, double y_cent
     double x, y, r;
     double value;
 
-    printf("Making hexagon at %f x %f\n",x_center,y_center);
+   
+    
+    printf("Making hexagon at %f x %f\n", x_center, y_center);
+        
 
     create_2Dimage_ID(IDname,l1,l2);
     ID = image_ID(IDname);
@@ -970,6 +996,7 @@ long make_hexagon(char *IDname, long l1, long l2, double x_center, double y_cent
         }
 
 
+
     return(ID);
 }
 
@@ -997,6 +1024,94 @@ long make_hexsegpupil(char *IDname, long size, double radius, double gap, double
     int seg;
     long kk, jj;
     float xc, yc, tc;
+
+    int WriteCIF = 1;
+    FILE *fpmlevel;
+    FILE *fp;
+    FILE *fp1;
+    double pixscale = 1.0;
+    long vID;
+    double x, y;
+    int pt;
+
+    long IDmap1;
+    long index;
+    double mapscalefactor = 1.037;
+    long size1;
+
+    long *seglevel;
+    long i;
+    long tmpl1, tmpl2;
+    int ret;
+    int segi;
+    float segf;
+    int k;
+
+    int *bitval; // 0 or 1
+    int bitindex = 4; // 0 = MSB
+
+    if(WriteCIF==1)
+    {
+        fp = fopen("hexcoord.txt", "w");
+        fp1 = fopen("hexcoord_pt.txt", "w");
+        
+        fprintf(fp, "DS 1 1 1;\n");
+    }
+
+    if((vID=variable_ID("pixscale"))!=-1)
+    {
+        pixscale = data.variable[vID].value.f;
+        printf("pixscale = %f\n", pixscale);
+    }
+
+    SEGcnt = 100;
+    if((vID=variable_ID("SEGcnt"))!=-1)
+    {
+        SEGcnt = (long) (0.1+data.variable[vID].value.f);
+        printf("SEGcnt = %ld\n", SEGcnt);
+    }
+
+  
+    seglevel = (long*) malloc(sizeof(long)*SEGcnt);
+    bitval = (int*) malloc(sizeof(int)*SEGcnt);
+ 
+    fpmlevel = fopen("fpm_level.txt", "r");
+    if(fp!=NULL)
+        {
+            for(i=0;i<SEGcnt;i++)
+                {
+                   ret = fscanf(fpmlevel, "%ld %ld\n", &tmpl1, &tmpl2);
+                   seglevel[tmpl1-1] = tmpl2+15; 
+                }
+            fclose(fpmlevel);
+        }
+
+
+    // SINGLE BIT
+    for(i=0;i<SEGcnt;i++)
+        {
+            printf("%5ld %5ld   ", i+1, seglevel[i]);
+            segf = 1.0*seglevel[i]/16.0;
+            for(k=0;k<5;k++)
+                {
+                    segi = (int) segf;
+                    printf(" %d", segi);
+                    segf -= segi;
+                    segf *= 2;
+                    
+                    if(k==bitindex)
+                        bitval[i] = segi;
+                }
+            printf("\n");
+        }
+
+
+
+
+
+    IDmap1 = image_ID("indexmap");
+    size1 = data.image[IDmap1].md[0].size[0];
+
 
     size2 = size*size;
 
@@ -1057,13 +1172,42 @@ long make_hexsegpupil(char *IDname, long size, double radius, double gap, double
                         piston = 0.0;
                 }
                 printf("Hexagon %ld: ", SEGcnt);
-                ID1 = make_hexagon("_TMPhex",size, size, 0.5*size+x2, 0.5*size+y2, (step-gap)*(sqrt(3.0)/2.0));
+                ID1 = make_hexagon("_TMPhex", size, size, 0.5*size+x2, 0.5*size+y2, (step-gap)*(sqrt(3.0)/2.0));
+
+
+
                 tot = 0.0;
                 for(ii=0; ii<size2; ii++)
                     tot += data.image[ID1].array.F[ii]*data.image[IDdisk].array.F[ii];
                 if(tot<0.1)
                 {
                     SEGcnt++;
+                    if(WriteCIF==1)
+                    {
+                        ii = (long) (0.5*size1 + x2*(0.5*size1/radius)*mapscalefactor);
+                        jj = (long) (0.5*size1 + y2*(0.5*size1/radius)*mapscalefactor);
+                        index = 0;
+                        if(IDmap1 != -1)
+                            index = data.image[IDmap1].array.U[jj*size1+ii];
+
+
+                      //  fprintf(fp, "# hex%03ld     index%03ld   [ %f %f ] -> [ %f %f ]     [%4ld %4ld] %f\n", SEGcnt, index, x2, y2, 0.5*size+x2, 0.5*size+y2, ii, jj, radius);
+                        if(bitval[index-1]==1)
+                        {
+                            fprintf(fp, "L %ld;\n", seglevel[index-1]);
+                        fprintf(fp, "P");
+                        for(pt=0; pt<6; pt++)
+                        {
+                            x = pixscale*(x2 + 1.0*cos(2.0*M_PI*pt/6)*(step-gap));
+                            y = pixscale*(y2 + 1.0*sin(2.0*M_PI*pt/6)*(step-gap));
+                            fprintf(fp, " %ld,%ld", (long) (100.0*x), (long) (100.0*y));
+                            fprintf(fp1, "%ld %ld\n", (long) (100.0*x), (long) (100.0*y));
+
+                        }
+                        fprintf(fp, ";\n");
+                    }
+                    }
+
                     if(PISTONerr==1)
                     {
                         for(ii=0; ii<size2; ii++)
@@ -1112,6 +1256,33 @@ long make_hexsegpupil(char *IDname, long size, double radius, double gap, double
                 if(tot<0.1)
                 {
                     SEGcnt++;
+
+                    if(WriteCIF==1)
+                    {
+                        ii = (long) (0.5*size1 + x2*(0.5*size1/radius)*mapscalefactor);
+                        jj = (long) (0.5*size1 + y2*(0.5*size1/radius)*mapscalefactor);
+                        index = 0;
+                        if(IDmap1 != -1)
+                            index = data.image[IDmap1].array.U[jj*size1+ii];
+
+
+                       // fprintf(fp, "# hex%03ld     index%03ld   [ %f %f ] -> [ %f %f ]   [%4ld %4ld] %f\n", SEGcnt, index, x2, y2, 0.5*size+x2, 0.5*size+y2, ii, jj, radius);
+
+                        if(bitval[index-1]==1)
+                        {
+                        fprintf(fp, "L %ld;\n", seglevel[index-1]);
+                        fprintf(fp, "P");
+                        for(pt=0; pt<6; pt++)
+                        {
+                            x = pixscale*(x2 + 1.0*cos(2.0*M_PI*pt/6)*(step-gap));
+                            y = pixscale*(y2 + 1.0*sin(2.0*M_PI*pt/6)*(step-gap));
+                            fprintf(fp, " %ld,%ld", (long) (100.0*x), (long) (100.0*y));
+                            fprintf(fp1, "%ld %ld\n", (long) (100.0*x), (long) (100.0*y));
+                        }
+                        fprintf(fp, ";\n");
+                        }
+                    }
+
                     if(PISTONerr==1)
                     {
                         for(ii=0; ii<size2; ii++)
@@ -1133,9 +1304,23 @@ long make_hexsegpupil(char *IDname, long size, double radius, double gap, double
 
         }
     delete_image_ID("_TMPdisk");
-
+    
     printf("%ld segments\n",SEGcnt);
+  
 
+    if(WriteCIF==1)
+    {
+        fprintf(fp, "DF;\n");
+        fprintf(fp, "E\n");
+        
+        fclose(fp);
+        fclose(fp1);
+    }
+    free(seglevel);
+    free(bitval);
+
+
+exit(0);
 
     if(mkInfluenceFunctions==1) // TT and focus for each segment
     {
@@ -1177,6 +1362,7 @@ long make_hexsegpupil(char *IDname, long size, double radius, double gap, double
 
     return(ID);
 }
+
 
 
 
@@ -1257,7 +1443,7 @@ long make_rnd(char *ID_name, long l1, long l2, char *options)
   naxes[0] = data.image[ID].md[0].size[0];
   naxes[1] = data.image[ID].md[0].size[1]; 
   nelement=naxes[0]*naxes[1];
-  /*  srand(time(NULL));*/
+ 
 
 
   // openMP is slow when calling gsl random number generator : do not use openMP here
@@ -1344,160 +1530,162 @@ int make_rnd1(char *ID_name, long l1, long l2, char *options)
 */
 long make_gauss(char *ID_name, long l1, long l2, double a, double A)
 {
-  long ID;
-  long ii,jj;
-  long naxes[2];
-  double distsq;
+    long ID;
+    long ii,jj;
+    long naxes[2];
+    double distsq;
 
-  create_2Dimage_ID(ID_name,l1,l2);
-  ID = image_ID(ID_name);
-  naxes[0] = data.image[ID].md[0].size[0];
-  naxes[1] = data.image[ID].md[0].size[1]; 
-  
-  for (jj = 0; jj < naxes[1]; jj++) 
-    for (ii = 0; ii < naxes[0]; ii++)
-      { 
-	distsq = (ii-naxes[0]/2)*(ii-naxes[0]/2)+(jj-naxes[1]/2)*(jj-naxes[1]/2);
-	data.image[ID].array.F[jj*naxes[0]+ii] = (double) A*exp(-distsq/a/a);
-      } 
-  /*  printf("FWHM = %f\n",2.0*a*sqrt(log(2)));*/
-  return(ID);
+    create_2Dimage_ID(ID_name,l1,l2);
+    ID = image_ID(ID_name);
+    naxes[0] = data.image[ID].md[0].size[0];
+    naxes[1] = data.image[ID].md[0].size[1];
+
+    for (jj = 0; jj < naxes[1]; jj++)
+        for (ii = 0; ii < naxes[0]; ii++)
+        {
+            distsq = (ii-naxes[0]/2)*(ii-naxes[0]/2)+(jj-naxes[1]/2)*(jj-naxes[1]/2);
+            data.image[ID].array.F[jj*naxes[0]+ii] = (double) A*exp(-distsq/a/a);
+        }
+    /*  printf("FWHM = %f\n",2.0*a*sqrt(log(2)));*/
+    return(ID);
 }
 
 long make_2axis_gauss(char *ID_name, long l1, long l2, double a, double A, double E, double PA)
 {
-  long ID;
-  long ii,jj;
-  long naxes[2];
-  double distsq;
-  double iin,jjn;
+    long ID;
+    long ii,jj;
+    long naxes[2];
+    double distsq;
+    double iin,jjn;
 
-  create_2Dimage_ID(ID_name,l1,l2);
-  ID = image_ID(ID_name);
-  naxes[0] = data.image[ID].md[0].size[0];
-  naxes[1] = data.image[ID].md[0].size[1]; 
-  
-  for (jj = 0; jj < naxes[1]; jj++) 
-    for (ii = 0; ii < naxes[0]; ii++)
-      { 
-	iin=1.0*(ii-naxes[0]/2)*cos(PA)+1.0*(jj-naxes[1]/2)*sin(PA);
-	jjn=1.0*(jj-naxes[1]/2)*cos(PA)-1.0*(ii-naxes[0]/2)*sin(PA);
-	distsq = iin*iin+(1.0/(1.0+E))*jjn*jjn;
-	data.image[ID].array.F[jj*naxes[0]+ii] = (double) A*exp(-distsq/a/a);
-      } 
-  
-  return(ID);
+    create_2Dimage_ID(ID_name,l1,l2);
+    ID = image_ID(ID_name);
+    naxes[0] = data.image[ID].md[0].size[0];
+    naxes[1] = data.image[ID].md[0].size[1];
+
+    for (jj = 0; jj < naxes[1]; jj++)
+        for (ii = 0; ii < naxes[0]; ii++)
+        {
+            iin=1.0*(ii-naxes[0]/2)*cos(PA)+1.0*(jj-naxes[1]/2)*sin(PA);
+            jjn=1.0*(jj-naxes[1]/2)*cos(PA)-1.0*(ii-naxes[0]/2)*sin(PA);
+            distsq = iin*iin+(1.0/(1.0+E))*jjn*jjn;
+            data.image[ID].array.F[jj*naxes[0]+ii] = (double) A*exp(-distsq/a/a);
+        }
+
+    return(ID);
 }
 
 long make_cluster(char *ID_name, long l1, long l2, char *options)
 {
-  long ID;
-  long ii,jj;
-  long naxes[2];
-  long nb_star = 3000;
-  double cluster_size = 0.1; /* relative to the FOV */
-  double concentration = 1.0;
-  long i;
-  double tmp,dist,angle;
-  char input[50];
-  int str_pos;
-  int sim = 0;
-  long lii,ljj,hii,hjj;
+    long ID;
+    long ii,jj;
+    long naxes[2];
+    long nb_star = 3000;
+    double cluster_size = 0.1; /* relative to the FOV */
+    double concentration = 1.0;
+    long i;
+    double tmp,dist,angle;
+    char input[50];
+    int str_pos;
+    int sim = 0;
+    long lii,ljj,hii,hjj;
 
-  if (strstr(options,"-nbstars ")!=NULL)
+    if (strstr(options,"-nbstars ")!=NULL)
     {
-      str_pos=strstr(options,"-nbstars ")-options;
-      str_pos = str_pos + strlen("-nbstars ");
-      i=0;
-      while((options[i+str_pos]!=' ')&&(options[i+str_pos]!='\n')&&(options[i+str_pos]!='\0'))
-	{
-	  input[i] = options[i+str_pos];
-	  i++;
-	}
-      input[i] = '\0';
-      nb_star = atol(input);
-      printf("number of stars is %ld\n",nb_star);
+        str_pos=strstr(options,"-nbstars ")-options;
+        str_pos = str_pos + strlen("-nbstars ");
+        i=0;
+        while((options[i+str_pos]!=' ')&&(options[i+str_pos]!='\n')&&(options[i+str_pos]!='\0'))
+        {
+            input[i] = options[i+str_pos];
+            i++;
+        }
+        input[i] = '\0';
+        nb_star = atol(input);
+        printf("number of stars is %ld\n",nb_star);
     }
 
-  if (strstr(options,"-conc ")!=NULL)
+    if (strstr(options,"-conc ")!=NULL)
     {
-      str_pos=strstr(options,"-conc ")-options;
-      str_pos = str_pos + strlen("-conc ");
-      i=0;
-      while((options[i+str_pos]!=' ')&&(options[i+str_pos]!='\n')&&(options[i+str_pos]!='\0'))
-	{
-	  input[i] = options[i+str_pos];
-	  i++;
-	}
-      input[i] = '\0';
-      concentration = atof(input);
-      printf("concentration is %f\n",concentration);
+        str_pos=strstr(options,"-conc ")-options;
+        str_pos = str_pos + strlen("-conc ");
+        i=0;
+        while((options[i+str_pos]!=' ')&&(options[i+str_pos]!='\n')&&(options[i+str_pos]!='\0'))
+        {
+            input[i] = options[i+str_pos];
+            i++;
+        }
+        input[i] = '\0';
+        concentration = atof(input);
+        printf("concentration is %f\n",concentration);
     }
 
-  if (strstr(options,"-size ")!=NULL)
+    if (strstr(options,"-size ")!=NULL)
     {
-      str_pos=strstr(options,"-size ")-options;
-      str_pos = str_pos + strlen("-size ");
-      i=0;
-      while((options[i+str_pos]!=' ')&&(options[i+str_pos]!='\n')&&(options[i+str_pos]!='\0'))
-	{
-	  input[i] = options[i+str_pos];
-	  i++;
-	}
-      input[i] = '\0';
-      cluster_size = atof(input);
-      printf("cluster size is %f\n",cluster_size);
+        str_pos=strstr(options,"-size ")-options;
+        str_pos = str_pos + strlen("-size ");
+        i=0;
+        while((options[i+str_pos]!=' ')&&(options[i+str_pos]!='\n')&&(options[i+str_pos]!='\0'))
+        {
+            input[i] = options[i+str_pos];
+            i++;
+        }
+        input[i] = '\0';
+        cluster_size = atof(input);
+        printf("cluster size is %f\n",cluster_size);
     }
 
     if(strstr(options,"-sim")!=NULL)
-      {
-	printf("all sources in the central half array \n");
-	sim = 1;
-      }
-
-  create_2Dimage_ID(ID_name,l1,l2);
-  ID = image_ID(ID_name);
-  naxes[0] = data.image[ID].md[0].size[0];
-  naxes[1] = data.image[ID].md[0].size[1]; 
-  
-  if (sim==0)
     {
-      lii = 0;
-      ljj = 0;
-      hii = naxes[0];
-      hjj = naxes[1];
-    }
-  else
-    {
-      lii = naxes[0]/4;
-      ljj = naxes[1]/4;
-      hii = 3*naxes[0]/4;
-      hjj = 3*naxes[1]/4;
+        printf("all sources in the central half array \n");
+        sim = 1;
     }
 
- // srand(time(NULL));  
-  i = 0;
-  while(i<nb_star)
-      { 
-	dist = gauss();
-	dist = sqrt(sqrt(dist*dist));
-	dist = pow(dist,concentration);
-	angle = 2*PI*ran1();
-	ii = (long) (naxes[0]/2+(cluster_size*naxes[0]/2)*dist*cos(angle));
-	jj = (long) (naxes[1]/2+(cluster_size*naxes[1]/2)*dist*sin(angle));
-	
-	if ((ii>lii)&&(jj>ljj)&&(ii<hii)&&(jj<hjj))
-	  {
-	    tmp = gauss();
-	    data.image[ID].array.F[jj*naxes[0]+ii] += tmp*tmp;
-	    i++;
-	  }
+    create_2Dimage_ID(ID_name,l1,l2);
+    ID = image_ID(ID_name);
+    naxes[0] = data.image[ID].md[0].size[0];
+    naxes[1] = data.image[ID].md[0].size[1];
+
+    if (sim==0)
+    {
+        lii = 0;
+        ljj = 0;
+        hii = naxes[0];
+        hjj = naxes[1];
+    }
+    else
+    {
+        lii = naxes[0]/4;
+        ljj = naxes[1]/4;
+        hii = 3*naxes[0]/4;
+        hjj = 3*naxes[1]/4;
+    }
+
+    i = 0;
+    while(i<nb_star)
+    {
+        dist = gauss();
+        dist = sqrt(sqrt(dist*dist));
+        dist = pow(dist,concentration);
+        angle = 2*PI*ran1();
+        ii = (long) (naxes[0]/2+(cluster_size*naxes[0]/2)*dist*cos(angle));
+        jj = (long) (naxes[1]/2+(cluster_size*naxes[1]/2)*dist*sin(angle));
+
+        if ((ii>lii)&&(jj>ljj)&&(ii<hii)&&(jj<hjj))
+        {
+            tmp = gauss();
+            data.image[ID].array.F[jj*naxes[0]+ii] += tmp*tmp;
+            i++;
+        }
 
 
-      } 
-  
-  return(ID);
+    }
+
+    return(ID);
 }
+
+
+
 
 long make_galaxy(char *ID_name, long l1, long l2, double S_radius, double S_L0, double S_ell, double S_PA, double E_radius, double E_L0, double E_ell, double E_PA)
 {

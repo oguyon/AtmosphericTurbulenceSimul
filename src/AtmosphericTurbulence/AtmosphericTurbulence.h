@@ -6,6 +6,7 @@ int init_AtmosphericTurbulence();
 
 int AtmosphericTurbulence_change_configuration_file(char *fname);
 
+long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float sigmawind, float Lwind, long size, char *IDout_name);
 
 int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, float outerscale, float innerscale);
 
@@ -23,12 +24,15 @@ int make_AtmosphericTurbulence_wavefront_series();
 
 int measure_wavefront_series(float factor);
 
+int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, long WFPlag, long WFP_NBstep, long WFP_xyrad, long WFPiipix, long WFPjjpix);
+int AtmosphericTurbulence_Test_LinPredictor(long NB_WFstep, double WFphaNoise, char *IDWFPfilt_name, long WFPlag, long WFPiipix, long WFPjjpix);
+
 int measure_wavefront_series_expoframes(float etime, char *outfile);
 
 int frame_select_PSF(char *logfile, long NBfiles, float frac);
 
 int AtmosphericTurbulence_WFprocess();
 
-int AtmosphericTurbulence_makeHV_CN2prof(double wspeed, double r0, double sitealt, char *outfile);
+int AtmosphericTurbulence_makeHV_CN2prof(double wspeed, double r0, double sitealt, long NBlayer, char *outfile);
 
 #endif

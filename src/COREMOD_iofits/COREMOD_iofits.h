@@ -19,7 +19,7 @@ int save_fl_fits(char *ID_name, char *file_name);
 
 int save_sh_fits(char *ID_name, char *file_name);
 
-int saveall_fl_fits();
+int saveall_fits(char *savedirname);
 
 int break_cube(char *ID_name);
 

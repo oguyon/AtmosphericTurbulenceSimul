@@ -4,7 +4,6 @@
 #include <malloc.h>
 #include <ctype.h>
 #include <math.h>
-#include <time.h>
 
 
 #include "CLIcore.h"
@@ -85,7 +84,7 @@ float dens0;
 
 double v_ABSCOEFF = 0.0;  // [m-1]
 double v_TRANSM = 1.0;
-long v_LONG1, v_LONG2;
+
 
 
 
@@ -96,71 +95,85 @@ double RIA_lambda_min; // [m]
 double RIA_lambda_max; // [m]
 
 int initRIA_N2 = 0;
+long RIA_N2_NBpts; // number of points (will be loaded from file)
 double *RIA_N2_lambda;
 double *RIA_N2_ri;
 double *RIA_N2_abs;
 
 int initRIA_O2 = 0;
+long RIA_O2_NBpts; // number of points (will be loaded from file)
 double *RIA_O2_lambda;
 double *RIA_O2_ri;
 double *RIA_O2_abs;
 
 int initRIA_Ar = 0;
+long RIA_Ar_NBpts; // number of points (will be loaded from file)
 double *RIA_Ar_lambda;
 double *RIA_Ar_ri;
 double *RIA_Ar_abs;
 
 int initRIA_H2O = 0;
+long RIA_H2O_NBpts; // number of points (will be loaded from file)
 double *RIA_H2O_lambda;
 double *RIA_H2O_ri;
 double *RIA_H2O_abs;
 
 int initRIA_CO2 = 0;
+long RIA_CO2_NBpts; // number of points (will be loaded from file)
 double *RIA_CO2_lambda;
 double *RIA_CO2_ri;
 double *RIA_CO2_abs;
 
 int initRIA_Ne = 0;
+long RIA_Ne_NBpts; // number of points (will be loaded from file)
 double *RIA_Ne_lambda;
 double *RIA_Ne_ri;
 double *RIA_Ne_abs;
 
 int initRIA_He = 0;
+long RIA_He_NBpts; // number of points (will be loaded from file)
 double *RIA_He_lambda;
 double *RIA_He_ri;
 double *RIA_He_abs;
 
 int initRIA_CH4 = 0;
+long RIA_CH4_NBpts; // number of points (will be loaded from file)
 double *RIA_CH4_lambda;
 double *RIA_CH4_ri;
 double *RIA_CH4_abs;
 
 int initRIA_Kr = 0;
+long RIA_Kr_NBpts; // number of points (will be loaded from file)
 double *RIA_Kr_lambda;
 double *RIA_Kr_ri;
 double *RIA_Kr_abs;
 
 int initRIA_H2 = 0;
+long RIA_H2_NBpts; // number of points (will be loaded from file)
 double *RIA_H2_lambda;
 double *RIA_H2_ri;
 double *RIA_H2_abs;
 
 int initRIA_O3 = 0;
+long RIA_O3_NBpts; // number of points (will be loaded from file)
 double *RIA_O3_lambda;
 double *RIA_O3_ri;
 double *RIA_O3_abs;
 
 int initRIA_N = 0;
+long RIA_N_NBpts; // number of points (will be loaded from file)
 double *RIA_N_lambda;
 double *RIA_N_ri;
 double *RIA_N_abs;
 
 int initRIA_O = 0;
+long RIA_O_NBpts; // number of points (will be loaded from file)
 double *RIA_O_lambda;
 double *RIA_O_ri;
 double *RIA_O_abs;
 
 int initRIA_H = 0;
+long RIA_H_NBpts; // number of points (will be loaded from file)
 double *RIA_H_lambda;
 double *RIA_H_ri;
 double *RIA_H_abs;
@@ -173,6 +186,20 @@ long *comp_array_lli;
 int lliprecomp = -1; // if >=0, use this index in array
 
 
+int lliprecompN2 = -1; // if >=0, use this index in array
+int lliprecompO2 = -1; // if >=0, use this index in array
+int lliprecompAr = -1; // if >=0, use this index in array
+int lliprecompH2O = -1; // if >=0, use this index in array
+int lliprecompCO2 = -1; // if >=0, use this index in array
+int lliprecompNe = -1; // if >=0, use this index in array
+int lliprecompHe = -1; // if >=0, use this index in array
+int lliprecompCH4 = -1; // if >=0, use this index in array
+int lliprecompKr = -1; // if >=0, use this index in array
+int lliprecompH2 = -1; // if >=0, use this index in array
+int lliprecompO3 = -1; // if >=0, use this index in array
+int lliprecompO = -1; // if >=0, use this index in array
+int lliprecompN = -1; // if >=0, use this index in array
+int lliprecompH = -1; // if >=0, use this index in array
 
 
 
@@ -2565,6 +2592,557 @@ void gts7(struct nrlmsise_input *input, struct nrlmsise_flags *flags, struct nrl
 
 
 
+// densities in [cm-3]
+
+double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_Ar, double dens_H2O, double dens_CO2, double dens_Ne, double dens_He, double dens_CH4, double dens_Kr, double dens_H2, double dens_O3, double dens_N, double dens_O, double dens_H)
+{
+    long i;
+    float ifrac;
+    double LLN2, LLO2, LLAr, LLH2O, LLCO2, LLNe, LLHe, LLCH4, LLKr, LLH2, LLO3, LLN, LLO, LLH;
+    double LoschmidtConstant =  2.6867805e25; // [m-3] for  1 atm (= 101.325 kPa) and 0 °C (= 273.15 K)
+    double LL;
+    double denstotal;
+    long lli;
+    double tmpc;
+    double abscoeff = 0.0;
+    double n;
+    long llistep;
+    int llidir, lliOK;
+
+        // N2
+    if(initRIA_N2==1)
+    {
+        lli = lliprecompN2;
+        if(lli<0)
+            lli = (long) (RIA_N2_NBpts/2);
+        
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_N2_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_N2_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }
+        
+        lliprecompN2 = lli;
+        n = RIA_N2_ri[lli];
+        abscoeff = RIA_N2_abs[lli];
+    }
+    else
+    {
+        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("N2"), lambda);
+        abscoeff = 0.0;
+    }
+    LLN2 = (n*n-1)/(n*n+2);
+    tmpc = dens_N2/(LoschmidtConstant/1e6);
+    LLN2 *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_N2;
+
+
+
+    // O2
+    if(initRIA_O2==1)
+    {
+       lli = lliprecompO2;
+        if(lli<0)
+            lli = (long) (RIA_O2_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_O2_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_O2_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }
+        
+        lliprecompO2 = lli;
+        n = RIA_O2_ri[lli];
+        abscoeff = RIA_O2_abs[lli];
+    }
+    else
+    {
+        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("O2"), lambda);
+        abscoeff = 0.0;
+    }
+    LLO2 = (n*n-1)/(n*n+2);
+    tmpc = dens_O2/(LoschmidtConstant/1e6);
+    LLO2 *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_O2;
+
+
+
+    // Ar
+    if(initRIA_Ar==1)
+    {
+        lli = lliprecompAr;
+        if(lli<0)
+            lli = (long) (RIA_Ar_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_Ar_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_Ar_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompAr = lli;
+        n = RIA_Ar_ri[lli];
+        abscoeff = RIA_Ar_abs[lli];
+    }
+    else
+    {
+        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("Ar"), lambda);
+        abscoeff = 0.0;
+    }
+    LLAr = (n*n-1)/(n*n+2);
+    tmpc = dens_Ar/(LoschmidtConstant/1e6);
+    LLAr *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_Ar;
+
+
+
+
+    // H2O
+    if(initRIA_H2O==1)
+    {
+        lli = lliprecompH2O;
+        if(lli<0)
+            lli = (long) (RIA_H2O_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_H2O_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_H2O_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompH2O = lli;
+        n = RIA_H2O_ri[lli];
+        abscoeff = RIA_H2O_abs[lli];
+    }
+    else
+    {
+        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("H2Og"), lambda);
+        abscoeff = 0.0;
+    }
+    LLH2O = (n*n-1)/(n*n+2);
+    tmpc = dens_H2O/(LoschmidtConstant/1e6);
+    LLH2O *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_H2O;
+
+
+
+
+    // CO2
+    if(initRIA_CO2==1)
+    {
+        lli = lliprecompCO2;
+        if(lli<0)
+            lli = (long) (RIA_CO2_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_CO2_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_CO2_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompCO2 = lli;
+        n = RIA_CO2_ri[lli];
+        abscoeff = RIA_CO2_abs[lli];
+    }
+    else
+    {
+        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("CO2"), lambda);
+        abscoeff = 0.0;
+    }
+    LLCO2 = (n*n-1)/(n*n+2);
+    tmpc = dens_CO2/(LoschmidtConstant/1e6);
+    LLCO2 *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_CO2;
+
+
+
+
+    // Ne
+    if(initRIA_Ne==1)
+    {
+        lli = lliprecompNe;
+        if(lli<0)
+            lli = (long) (RIA_Ne_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_Ne_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_Ne_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompNe = lli;
+        n = RIA_Ne_ri[lli];
+        abscoeff = RIA_Ne_abs[lli];
+    }
+    else
+    {
+        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("Ne"), lambda);
+        abscoeff = 0.0;
+    }
+    LLNe = (n*n-1)/(n*n+2);
+    tmpc = dens_Ne/(LoschmidtConstant/1e6);
+    LLNe *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_Ne;
+
+
+
+
+    // He
+    if(initRIA_He==1)
+    {
+        lli = lliprecompHe;
+        if(lli<0)
+            lli = (long) (RIA_He_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_He_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_He_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompHe = lli;
+        n = RIA_He_ri[lli];
+        abscoeff = RIA_He_abs[lli];
+    }
+    else
+    {
+        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("He"), lambda);
+        abscoeff = 0.0;
+    }
+    LLHe = (n*n-1)/(n*n+2);
+    tmpc = dens_He/(LoschmidtConstant/1e6);
+    LLHe *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_He;
+
+
+
+
+    // CH4
+    if(initRIA_CH4==1)
+    {
+        lli = lliprecompCH4;
+        if(lli<0)
+            lli = (long) (RIA_CH4_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_CH4_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_CH4_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompCH4 = lli;
+        n = RIA_CH4_ri[lli];
+        abscoeff = RIA_CH4_abs[lli];
+    }
+    else
+    {
+//        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("CH4"), lambda);
+        n = 1.0;
+        abscoeff = 0.0;
+    }
+    LLCH4 = (n*n-1)/(n*n+2);
+    tmpc = dens_CH4/(LoschmidtConstant/1e6);
+    LLCH4 *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_CH4;
+
+
+
+
+    // Kr
+    if(initRIA_Kr==1)
+    {
+        lli = lliprecompKr;
+        if(lli<0)
+            lli = (long) (RIA_Kr_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_Kr_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_Kr_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompKr = lli;
+        n = RIA_Kr_ri[lli];
+        abscoeff = RIA_Kr_abs[lli];  
+    }
+    else
+    {
+//        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("Kr"), lambda);
+        n = 1.0;
+        abscoeff = 0.0;
+    }
+    LLKr = (n*n-1)/(n*n+2);
+    tmpc = dens_Kr/(LoschmidtConstant/1e6);
+    LLKr *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_Kr;
+
+
+
+
+
+    // H2
+    if(initRIA_H2==1)
+    {
+        lli = lliprecompH2;
+        if(lli<0)
+            lli = (long) (RIA_H2_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_H2_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_H2_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompH2 = lli;
+        n = RIA_H2_ri[lli];
+        abscoeff = RIA_H2_abs[lli];  
+    }
+    else
+    {
+        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("H2"), lambda);
+        abscoeff = 0.0;
+    }
+    LLH2 = (n*n-1)/(n*n+2);
+    tmpc = dens_H2/(LoschmidtConstant/1e6);
+    LLH2 *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_H2;
+
+
+
+
+
+    // O3
+    if(initRIA_O3==1)
+    {
+        lli = lliprecompO3;
+        if(lli<0)
+            lli = (long) (RIA_O3_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_O3_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_O3_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompO3 = lli;
+        n = RIA_O3_ri[lli];
+        abscoeff = RIA_O3_abs[lli];  
+    }
+    else
+    {
+        //n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("O3"), lambda);
+        n = 1.0;
+        abscoeff = 0.0;
+    }
+    LLO3 = (n*n-1)/(n*n+2);
+    tmpc = dens_O3/(LoschmidtConstant/1e6);
+    LLO3 *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_O3;
+
+
+
+
+
+    // N
+    if(initRIA_N==1)
+    {
+        lli = lliprecompN;
+        if(lli<0)
+            lli = (long) (RIA_N_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_N_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_N_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompN = lli;
+        n = RIA_N_ri[lli];
+        abscoeff = RIA_N_abs[lli];        
+    }
+    else
+    {
+//        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("N"), lambda);
+        n = 1.0;
+        abscoeff = 0.0;
+    }
+    LLN = (n*n-1)/(n*n+2);
+    tmpc = dens_N/(LoschmidtConstant/1e6);
+    LLN *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_N;
+
+
+
+
+
+    // O
+    if(initRIA_O==1)
+    {
+        lli = lliprecompO;
+        if(lli<0)
+            lli = (long) (RIA_O_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_O_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_O_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompO = lli;
+        n = RIA_O_ri[lli];
+        abscoeff = RIA_O_abs[lli];        
+    }
+    else
+    {
+        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("O"), lambda);
+//        n = 1.0;
+        abscoeff = 0.0;
+    }
+    LLO = (n*n-1)/(n*n+2);
+    tmpc = dens_O/(LoschmidtConstant/1e6);
+    LLO *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_O;
+
+
+
+
+
+    // H
+    if(initRIA_H==1)
+    {
+        lli = lliprecompH;
+        if(lli<0)
+            lli = (long) (RIA_H_NBpts/2);
+            
+        llistep = 100;
+        lliOK = 0;
+        llidir = 1;  // direction : -1=neg, 1=pos
+        while(llistep!=1)
+            {
+                llistep = (long) (0.3*llistep);
+                if(llistep==0)
+                    llistep = 1;
+                while((RIA_H_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_H_NBpts-llistep)&&(lli>llistep))
+                    lli += llidir*llistep;
+                llidir = -llidir;
+            }        
+        lliprecompH = lli;
+        n = RIA_H_ri[lli];
+        abscoeff = RIA_H_abs[lli];     
+    }
+    else
+    {
+//        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("H"), lambda);
+        n = 1.0;
+        abscoeff = 0.0;
+    }
+    LLH = (n*n-1)/(n*n+2);
+    tmpc = dens_H/(LoschmidtConstant/1e6);
+    LLH *= tmpc;
+    v_ABSCOEFF += tmpc*abscoeff;
+    denstotal += dens_H;
+
+    
+
+    LL = LLN2 + LLO2 + LLAr + LLH2O + LLCO2 + LLNe + LLHe + LLCH4 + LLKr + LLH2 + LLO3 + LLN + LLO + LLH;
+    n = sqrt((2.0*LL+1.0)/(1.0-LL));
+
+    return(n-1.0);
+}
+
 
 
 //
@@ -2579,19 +3157,21 @@ float AtmosphereModel_stdAtmModel_N(float alt, float lambda)
     float dens;
     float val;
     double n;
-    struct nrlmsise_output output;
-    struct nrlmsise_input input;
-    struct nrlmsise_flags flags;
+//    struct nrlmsise_output output;
+//    struct nrlmsise_input input;
+//    struct nrlmsise_flags flags;
     long i;
     float ifrac;
     double LLN2, LLO2, LLAr, LLH2O, LLCO2, LLNe, LLHe, LLCH4, LLKr, LLH2, LLO3, LLN, LLO, LLH;
-    double LoschmidtConstant =  2.6867805e25; // for  1 atm (= 101.325 kPa) and 0 °C (= 273.15 K)
+    double LoschmidtConstant =  2.6867805e25; // [m-3] for  1 atm (= 101.325 kPa) and 0 °C (= 273.15 K)
     double LL;
     double denstotal;
     long lli;
     double tmpc;
     double abscoeff = 0.0;
-
+    
+    double dens_N2, dens_O2, dens_Ar, dens_H2O, dens_CO2, dens_Ne, dens_He, dens_CH4, dens_Kr, dens_H2, dens_O3, dens_N, dens_O, dens_H;
+    
     long llistep;
     int llidir, lliOK;
 
@@ -2608,551 +3188,34 @@ float AtmosphereModel_stdAtmModel_N(float alt, float lambda)
         ifrac = 1.0;
 
 
+    // densities [cm-3]
+    dens_N2 = ((1.0-ifrac)*densN2[i]+ifrac*densN2[i+1]);
+    dens_O2 = ((1.0-ifrac)*densO2[i]+ifrac*densO2[i+1]);
+    dens_Ar = ((1.0-ifrac)*densAr[i]+ifrac*densAr[i+1]);
+    dens_H2O = ((1.0-ifrac)*densH2O[i]+ifrac*densH2O[i+1]);
+    dens_CO2 = ((1.0-ifrac)*densCO2[i]+ifrac*densCO2[i+1]);
+    dens_Ne = ((1.0-ifrac)*densNe[i]+ifrac*densNe[i+1]);
+    dens_He = ((1.0-ifrac)*densHe[i]+ifrac*densHe[i+1]);
+    dens_CH4 = ((1.0-ifrac)*densCH4[i]+ifrac*densCH4[i+1]);
+    dens_Kr = ((1.0-ifrac)*densKr[i]+ifrac*densKr[i+1]);
+    dens_H2 = ((1.0-ifrac)*densH2[i]+ifrac*densH2[i+1]);
+    dens_O3 = ((1.0-ifrac)*densO3[i]+ifrac*densO3[i+1]);
+    dens_N = ((1.0-ifrac)*densN[i]+ifrac*densN[i+1]);
+    dens_O = ((1.0-ifrac)*densO[i]+ifrac*densO[i+1]);
+    dens_H = ((1.0-ifrac)*densH[i]+ifrac*densH[i+1]);
 
-    // find lli
-    /*	lli = (long) (RIA_NBpts/2);
-    	llistep = 100;
-    	lliOK = 0;
-    	llidir = 1;  // direction : -1=neg, 1=pos
-    	while(llistep!=1)
-    	{
-    		llistep = (long) (0.3*llistep);
-    		if(llistep==0)
-    			llistep = 1;
-    		while((RIA_N2_lambda[lli]*lldir<lambda*lldir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-    			lli += lldirdir*llistep;
-    		if(RIA_N2_lambda[lli]*lldir>lambda*lldir)
-    			lldir = -lldir;
-    	}*/
-    /*
-    	lli = (long) ( (lambdaum*1e-6-RIA_lambda_min)/(RIA_lambda_max-RIA_lambda_min)*RIA_NBpts );
-    	if(lli<0)
-    		lli = 0;
-    	if(lli>RIA_NBpts-1)
-    		lli = RIA_NBpts-1;
-    	*/
-    //	printf("  %g  [%g %g %ld]  lli = %ld / %ld\n", lambdaum, RIA_lambda_min, RIA_lambda_max, RIA_NBpts, lli, RIA_NBpts);
-    //	fflush(stdout);
 
     denstotal = 0.0;
     v_ABSCOEFF = 0.0;
 
-    v_LONG1 = lli;
-    v_LONG2 = RIA_NBpts;
-
+   
+    val = AirMixture_N(lambda, dens_N2, dens_O2, dens_Ar, dens_H2O, dens_CO2, dens_Ne, dens_He, dens_CH4, dens_Kr, dens_H2, dens_O3, dens_N, dens_O, dens_H);
 
     // Use N2 to compute lli
 
 
-    // N2
-    if(initRIA_N2==1)
-    {
-        lli = lliprecomp;
-        if(lli<0)
-        {
-            lli = (long) (RIA_NBpts/2);
-            llistep = 100;
-            lliOK = 0;
-            llidir = 1;  // direction : -1=neg, 1=pos
-            while(llistep!=1)
-            {
-                llistep = (long) (0.3*llistep);
-                if(llistep==0)
-                    llistep = 1;
-                while((RIA_N2_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                    lli += llidir*llistep;
-                llidir = -llidir;
-            }
-        }
-        v_LONG1 = lli;
-        n = RIA_N2_ri[lli];
-        abscoeff = RIA_N2_abs[lli];
-        v_LONG1 = lli;
-    }
-    else
-    {
-        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("N2"), lambda);
-        abscoeff = 0.0;
-    }
-    LLN2 = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densN2[i]+ifrac*densN2[i+1])/(LoschmidtConstant/1e6);
-    LLN2 *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densN2[i]+ifrac*densN2[i+1]);
 
 
-
-    // O2
-    if(initRIA_O2==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_O2_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_O2_ri[lli];
-        abscoeff = RIA_O2_abs[lli];
-    }
-    else
-    {
-        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("O2"), lambda);
-        abscoeff = 0.0;
-    }
-    LLO2 = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densO2[i]+ifrac*densO2[i+1])/(LoschmidtConstant/1e6);
-    LLO2 *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densO2[i]+ifrac*densO2[i+1]);
-
-
-
-    // Ar
-    if(initRIA_Ar==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_Ar_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_Ar_ri[lli];
-        abscoeff = RIA_Ar_abs[lli];
-    }
-    else
-    {
-        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("Ar"), lambda);
-        abscoeff = 0.0;
-    }
-    LLAr = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densAr[i]+ifrac*densAr[i+1])/(LoschmidtConstant/1e6);
-    LLAr *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densAr[i]+ifrac*densAr[i+1]);
-
-
-
-
-    // H2O
-    if(initRIA_H2O==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_H2O_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_H2O_ri[lli];
-        abscoeff = RIA_H2O_abs[lli];
-    }
-    else
-    {
-        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("H2Og"), lambda);
-        abscoeff = 0.0;
-    }
-    LLH2O = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densH2O[i]+ifrac*densH2O[i+1])/(LoschmidtConstant/1e6);
-    LLH2O *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densH2O[i]+ifrac*densH2O[i+1]);
-
-
-
-
-    // CO2
-    if(initRIA_CO2==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_CO2_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_CO2_ri[lli];
-        abscoeff = RIA_CO2_abs[lli];
-    }
-    else
-    {
-        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("CO2"), lambda);
-        abscoeff = 0.0;
-    }
-    LLCO2 = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densCO2[i]+ifrac*densCO2[i+1])/(LoschmidtConstant/1e6);
-    LLCO2 *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densCO2[i]+ifrac*densCO2[i+1]);
-
-
-
-
-    // Ne
-    if(initRIA_Ne==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_Ne_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_Ne_ri[lli];
-        abscoeff = RIA_Ne_abs[lli];
-    }
-    else
-    {
-        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("Ne"), lambda);
-        abscoeff = 0.0;
-    }
-    LLNe = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densNe[i]+ifrac*densNe[i+1])/(LoschmidtConstant/1e6);
-    LLNe *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densNe[i]+ifrac*densNe[i+1]);
-
-
-
-
-    // He
-    if(initRIA_He==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_He_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_He_ri[lli];
-        abscoeff = RIA_He_abs[lli];
-    }
-    else
-    {
-        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("He"), lambda);
-        abscoeff = 0.0;
-    }
-    LLHe = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densHe[i]+ifrac*densHe[i+1])/(LoschmidtConstant/1e6);
-    LLHe *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densHe[i]+ifrac*densHe[i+1]);
-
-
-
-
-    // CH4
-    if(initRIA_CH4==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_CH4_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_CH4_ri[lli];
-        abscoeff = RIA_CH4_abs[lli];
-    }
-    else
-    {
-//        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("CH4"), lambda);
-        n = 1.0;
-        abscoeff = 0.0;
-    }
-    LLCH4 = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densCH4[i]+ifrac*densCH4[i+1])/(LoschmidtConstant/1e6);
-    LLCH4 *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densCH4[i]+ifrac*densCH4[i+1]);
-
-
-
-
-    // Kr
-    if(initRIA_Kr==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_Kr_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_Kr_ri[lli];
-        abscoeff = RIA_Kr_abs[lli];
-    }
-    else
-    {
-//        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("Kr"), lambda);
-        n = 1.0;
-        abscoeff = 0.0;
-    }
-    LLKr = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densKr[i]+ifrac*densKr[i+1])/(LoschmidtConstant/1e6);
-    LLKr *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densKr[i]+ifrac*densKr[i+1]);
-
-
-
-
-
-    // H2
-    if(initRIA_H2==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_H2_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_H2_ri[lli];
-        abscoeff = RIA_H2_abs[lli];
-    }
-    else
-    {
-        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("H2"), lambda);
-        abscoeff = 0.0;
-    }
-    LLH2 = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densH2[i]+ifrac*densH2[i+1])/(LoschmidtConstant/1e6);
-    LLH2 *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densH2[i]+ifrac*densH2[i+1]);
-
-
-
-
-
-    // O3
-    if(initRIA_O3==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_O3_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_O3_ri[lli];
-        abscoeff = RIA_O3_abs[lli];
-    }
-    else
-    {
-        //n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("O3"), lambda);
-        n = 1.0;
-        abscoeff = 0.0;
-    }
-    LLO3 = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densO3[i]+ifrac*densO3[i+1])/(LoschmidtConstant/1e6);
-    LLO3 *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densO3[i]+ifrac*densO3[i+1]);
-
-
-
-
-
-    // N
-    if(initRIA_N==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_N_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_N_ri[lli];
-        abscoeff = RIA_N_abs[lli];
-    }
-    else
-    {
-//        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("N"), lambda);
-        n = 1.0;
-        abscoeff = 0.0;
-    }
-    LLN = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densN[i]+ifrac*densN[i+1])/(LoschmidtConstant/1e6);
-    LLN *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densN[i]+ifrac*densN[i+1]);
-
-
-
-
-
-    // O
-    if(initRIA_O==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_O_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_O_ri[lli];
-        abscoeff = RIA_O_abs[lli];
-    }
-    else
-    {
-        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("O"), lambda);
-//        n = 1.0;
-        abscoeff = 0.0;
-    }
-    LLO = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densO[i]+ifrac*densO[i+1])/(LoschmidtConstant/1e6);
-    LLO *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densO[i]+ifrac*densO[i+1]);
-
-
-
-
-
-    // H
-    if(initRIA_H==1)
-    {
-        /*        lli = (long) (RIA_NBpts/2);
-                llistep = 100;
-                lliOK = 0;
-                llidir = 1;
-                while(llistep!=1)
-                {
-                    llistep = (long) (0.3*llistep);
-                    if(llistep==0)
-                        llistep = 1;
-                    while((RIA_H_lambda[lli]*llidir<lambda*llidir)&&(lli<RIA_NBpts-llistep)&&(lli>llistep))
-                        lli += llidir*llistep;
-                    llidir = -llidir;
-                }*/
-        n = RIA_H_ri[lli];
-        abscoeff = RIA_H_abs[lli];
-    }
-    else
-    {
-//        n = OPTICSMATERIALS_n(OPTICSMATERIALS_code("H"), lambda);
-        n = 1.0;
-        abscoeff = 0.0;
-    }
-    LLH = (n*n-1)/(n*n+2);
-    tmpc = ((1.0-ifrac)*densH[i]+ifrac*densH[i+1])/(LoschmidtConstant/1e6);
-    LLH *= tmpc;
-    v_ABSCOEFF += tmpc*abscoeff;
-    denstotal += ((1.0-ifrac)*densH[i]+ifrac*densH[i+1]);
-
-
-
-    //	printf("lambdaum = %f  %ld    H2O abs coeff = %f   1m abs coeff = %g\n", lambdaum, lli, RIA_H2O_abs[lli], v_ABSCOEFF);
-    //	printf("partial pressure water: %f atm\n", ((1.0-ifrac)*densH2O[i]+ifrac*densH2O[i+1])/(LoschmidtConstant/1e6));
-    //	exit(0);
-
-    LL = LLN2 + LLO2 + LLAr + LLH2O + LLCO2 + LLNe + LLHe + LLCH4 + LLKr + LLH2 + LLO3 + LLN + LLO + LLH;
-
-    //printf("%f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", LLN2, LLO2, LLAr, LLH2O, LLCO2, LLNe, LLHe, LLCH4, LLKr, LLH2, LLO3, LLN, LLO, LLH);
-
-    //exit(0);
-
-    n = sqrt((2.0*LL+1.0)/(1.0-LL));
-
-
-    // simple model: use overall density
-    //	val = 0.0000834213+0.0240603/(130.0-1.0/pow(lambdaum,2.0))+0.00015997/(38.9-1.0/pow(lambdaum,2.0));
-    //	val *= (dens/0.001178);
-
-    val = n-1.0;
-
-
-
-    //	printf("===== %5ld  %10g   %10g  %10g     %10g\n ", i, (double) alt, ifrac, val, LL);
-
-
-    //,  1.0+(0.0000834213+0.0240603/(130.0-1.0/pow(lambdaum,2.0))+0.00015997/(38.9-1.0/pow(lambdaum,2.0)))*(dens/0.001178));
-    //(double) densH2O[i], (double) dens0,  densH2O[i]/dens0, val, OPTICSMATERIALS_n(10, lambdaum/1000000.0));
-
-    //dens = (1.0-ifrac)*densH2O[i] + ifrac*densH2O[i];
-    //val = (1.0-dens/dens0)*val + dens/dens0*(OPTICSMATERIALS_n(10, lambdaum/1000000.0)-1.0);
-
-    //printf("-> %g  %g [%g %f]\n", val, n-1.0, denstot/(LoschmidtConstant/1e6), output.t[1]);
-
-    //	printf(" [%g %g -> %g %g] ", alt, lambdaum, val, dens/0.001178);
 
     return(val);
 }
@@ -3225,6 +3288,9 @@ int AtmosphereModel_save_stdAtmModel(char *fname)
     FILE *fp;
 
     fp = fopen(fname, "w");
+    
+     fprintf(fp, "#  1:alt[m]  2:denstot[part/cm3] 3:N2  4:O2  5:Ar  6:H2O  7:CO2  8:Ne  9:He  10:CH4  11:Kr  12:H2  13:N  14:O  15:H    16:density[g/cm3]  17:temperature[K] 18:pressure[stdatm]  19:RH\n");
+    
     for (i=0; i<10000; i++)
     {
         fprintf(fp, "%6.0f   %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g   %.8g    %8.3lf   %12.10lf  %.5f\n", 10.0*i, denstot[i], densN2[i], densO2[i], densAr[i], densH2O[i], densCO2[i], densNe[i], densHe[i], densCH4[i], densKr[i], densH2[i], densO3[i], densN[i], densO[i], densH[i],  density[i], temperature[i], pressure[i], RH[i]);
@@ -3569,10 +3635,9 @@ int AtmosphereModel_build_stdAtmModel(char *fname)
 
 
 
-
     //fp = fopen(fname, "w");
     /* evaluate 0 to 1000 */
-    fprintf(fp, "#  1:alt[m]  2:denstot[part/cm3] 3:N2  4:O2  5:Ar  6:H2O  7:CO2  8:Ne  9:He  10:CH4  11:Kr  12:H2  13:N  14:O  15:H    16:density[g/cm3]  17:temperature[K] 18:pressure[stdatm]  19:RH\n");
+  //  fprintf(fp, "#  1:alt[m]  2:denstot[part/cm3] 3:N2  4:O2  5:Ar  6:H2O  7:CO2  8:Ne  9:He  10:CH4  11:Kr  12:H2  13:N  14:O  15:H    16:density[g/cm3]  17:temperature[K] 18:pressure[stdatm]  19:RH\n");
     TotPart = 0.0;
     TotPart1 = 0.0;
     TotPart2 = 0.0;
@@ -3707,6 +3772,7 @@ int AtmosphereModel_load_stdAtmModel(char *fname)
 
 /// read configuration file and create atmosphere model
 
+
 int AtmosphereModel_Create_from_CONF(char *CONFFILE)
 {
     char KEYWORD[200];
@@ -3768,7 +3834,6 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
 
 
 
-
     strcpy(KEYWORD,"CO2_PPM");
     read_config_parameter(CONFFILE,KEYWORD,CONTENT);
     CO2_ppm = atof(CONTENT);
@@ -3794,6 +3859,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for N2\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_N2.dat")==1)
     {
+        RIA_N2_NBpts = RIA_NBpts;
         RIA_N2_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_N2_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_N2_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3806,6 +3872,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for O2\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_O2.dat")==1)
     {
+        RIA_O2_NBpts = RIA_NBpts;
         RIA_O2_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_O2_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_O2_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3816,6 +3883,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for Ar\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_Ar.dat")==1)
     {
+        RIA_Ar_NBpts = RIA_NBpts;
         RIA_Ar_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_Ar_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_Ar_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3826,6 +3894,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for H2O\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_H2O.dat")==1)
     {
+        RIA_H2O_NBpts = RIA_NBpts;
         RIA_H2O_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_H2O_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_H2O_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3836,6 +3905,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for CO2\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_CO2.dat")==1)
     {
+        RIA_CO2_NBpts = RIA_NBpts;
         RIA_CO2_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_CO2_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_CO2_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3843,9 +3913,10 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
         initRIA_CO2 = 1;
     }
 
-    printf("Reading Refractive Index and Abs for N2\n");
-    if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_N2.dat")==1)
+    printf("Reading Refractive Index and Abs for Ne\n");
+    if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_Ne.dat")==1)
     {
+        RIA_Ne_NBpts = RIA_NBpts;
         RIA_Ne_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_Ne_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_Ne_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3856,6 +3927,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for He\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_He.dat")==1)
     {
+        RIA_He_NBpts = RIA_NBpts;
         RIA_He_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_He_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_He_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3866,6 +3938,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for CH4\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_CH4.dat")==1)
     {
+        RIA_CH4_NBpts = RIA_NBpts;
         RIA_CH4_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_CH4_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_CH4_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3876,6 +3949,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for Kr\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_Kr.dat")==1)
     {
+        RIA_Kr_NBpts = RIA_NBpts;
         RIA_Kr_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_Kr_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_Kr_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3886,6 +3960,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for H2\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_H2.dat")==1)
     {
+        RIA_H2_NBpts = RIA_NBpts;
         RIA_H2_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_H2_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_H2_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3897,16 +3972,18 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for O3\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_O3.dat")==1)
     {
-    RIA_O3_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
-    RIA_O3_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
-    RIA_O3_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
-    ATMOSPHEREMODEL_loadRIA("./RefractiveIndices/RIA_O3.dat", RIA_O3_lambda, RIA_O3_ri, RIA_O3_abs);
-    initRIA_O3 = 1;
-}
+        RIA_O3_NBpts = RIA_NBpts;
+        RIA_O3_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
+        RIA_O3_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
+        RIA_O3_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
+        ATMOSPHEREMODEL_loadRIA("./RefractiveIndices/RIA_O3.dat", RIA_O3_lambda, RIA_O3_ri, RIA_O3_abs);
+        initRIA_O3 = 1;
+    }
 
     printf("Reading Refractive Index and Abs for N\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_N.dat")==1)
     {
+        RIA_N_NBpts = RIA_NBpts;
         RIA_N_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_N_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_N_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3917,6 +3994,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     printf("Reading Refractive Index and Abs for O\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_O.dat")==1)
     {
+        RIA_O_NBpts = RIA_NBpts;
         RIA_O_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_O_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
         RIA_O_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
@@ -3924,108 +4002,108 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
         initRIA_O = 1;
     }
 
-     printf("Reading Refractive Index and Abs for H\n");
+    printf("Reading Refractive Index and Abs for H\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_H.dat")==1)
     {
-    RIA_H_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
-    RIA_H_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
-    RIA_H_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
-    ATMOSPHEREMODEL_loadRIA("./RefractiveIndices/RIA_H.dat", RIA_H_lambda, RIA_H_ri, RIA_H_abs);
-    initRIA_H = 1;
-}
+        RIA_H_NBpts = RIA_NBpts;
+        RIA_H_lambda = (double*) malloc(sizeof(double)*RIA_NBpts);
+        RIA_H_ri = (double*) malloc(sizeof(double)*RIA_NBpts);
+        RIA_H_abs = (double*) malloc(sizeof(double)*RIA_NBpts);
+        ATMOSPHEREMODEL_loadRIA("./RefractiveIndices/RIA_H.dat", RIA_H_lambda, RIA_H_ri, RIA_H_abs);
+        initRIA_H = 1;
+    }
 
 
 
 
-
-
-
-
-
-
-    //	printf("Building reference atmoshpere model ...\n");
-
+    printf("Building reference atmoshpere model ...\n");
     AtmosphereModel_build_stdAtmModel("atm.txt");
-
-    // load atmosphere model
-    //	AtmosphereModel_load_stdAtmModel("atm.txt");
-    //AtmosphericTurbulence_save_stdAtmModel("atm1.txt");
-
-
-
-
-
 
 
 
     // ***************** refractive index as a function of lambda at site ****************************
 
     fp  = fopen("RindexSite.txt", "w");
-    for(lambda=0.5e-6; lambda<2.0e-6; lambda*=1.01)
+    for(lambda=0.2e-6; lambda<2.0e-6; lambda*=1.0+1e-6)
     {
         n = 1.0 + AtmosphereModel_stdAtmModel_N(SiteAlt, lambda);
-        fprintf(fp, "%g %.10f %.10f\n", lambda, n, v_ABSCOEFF);
-        printf("%g %.10f\n", lambda, n);
+        fprintf(fp, "%.8g %.14f %.14f\n", lambda, n, v_ABSCOEFF);
+        //  printf("%g %.10f\n", lambda, n);
     }
     fclose(fp);
 
 
     fp = fopen("Refract.txt", "w");
     fclose(fp);
- 
+
 
 
     // *************** LIGHT PATH THROUGH ATMOSPHERE AT TWO SEPARATE WAVELENGTHS ***********************
 
-    lliprecomp = -1;
+    lliprecompN2 = -1; // if >=0, use this index in array
+    lliprecompO2 = -1; // if >=0, use this index in array
+    lliprecompAr = -1; // if >=0, use this index in array
+    lliprecompH2O = -1; // if >=0, use this index in array
+    lliprecompCO2 = -1; // if >=0, use this index in array
+    lliprecompNe = -1; // if >=0, use this index in array
+    lliprecompHe = -1; // if >=0, use this index in array
+    lliprecompCH4 = -1; // if >=0, use this index in array
+    lliprecompKr = -1; // if >=0, use this index in array
+    lliprecompH2 = -1; // if >=0, use this index in array
+    lliprecompO3 = -1; // if >=0, use this index in array
+    lliprecompO = -1; // if >=0, use this index in array
+    lliprecompN = -1; // if >=0, use this index in array
+    lliprecompH = -1; // if >=0, use this index in array
+
+
 
     AtmosphereModel_RefractionPath(0.6e-6, ZenithAngle, 1);
     r = system("cp refractpath.txt refractpath1.txt");
     AtmosphereModel_RefractionPath(1.6e-6, ZenithAngle, 1);
     r = system("cp refractpath.txt refractpath2.txt");
 
-    
 
 
 
     // **************** REFRACTION AND TRANSMISSION AS A FUNCTION OF WAVELENGTH *********************
 
     // precompute wavelength array and indices
-  /*  llistep = 1;
-    llistart = 0;
-    while(RIA_N2_lambda[llistart]<4.1e-6)
-        llistart++;
-    lliend = llistart;
-    while(RIA_N2_lambda[lliend]<4.2e-6)
-        lliend++;
-    NB_comp_array = (lliend-llistart)/llistep;
-    comp_array_lambda = (double*) malloc(sizeof(double)*NB_comp_array);
-    comp_array_lli = (long*) malloc(sizeof(double)*NB_comp_array);
+    /*  llistep = 1;
+      llistart = 0;
+      while(RIA_N2_lambda[llistart]<4.1e-6)
+          llistart++;
+      lliend = llistart;
+      while(RIA_N2_lambda[lliend]<4.2e-6)
+          lliend++;
+      NB_comp_array = (lliend-llistart)/llistep;
+      comp_array_lambda = (double*) malloc(sizeof(double)*NB_comp_array);
+      comp_array_lli = (long*) malloc(sizeof(double)*NB_comp_array);
 
-    for(li=0; li<NB_comp_array; li++)
-    {
-        lli = llistart + li*llistep;
-        comp_array_lambda[li] = RIA_N2_lambda[lli];
-        comp_array_lli[li] = lli;
-    }
+      for(li=0; li<NB_comp_array; li++)
+      {
+          lli = llistart + li*llistep;
+          comp_array_lambda[li] = RIA_N2_lambda[lli];
+          comp_array_lli[li] = lli;
+      }
 
-    for(li=0; li<NB_comp_array; li++)
-    {
-        lambda = comp_array_lambda[li];
-        lliprecomp = comp_array_lli[li];
-        rangle = AtmosphereModel_RefractionPath(lambda, ZenithAngle, 0);
-        fp = fopen("Refract.txt", "a");
-        fprintf(fp, "%g %.12f %.12f\n", lambda, rangle, v_TRANSM);
-        fclose(fp);
-    }
-    lliprecomp = -1;
+      for(li=0; li<NB_comp_array; li++)
+      {
+          lambda = comp_array_lambda[li];
+          lliprecomp = comp_array_lli[li];
+          rangle = AtmosphereModel_RefractionPath(lambda, ZenithAngle, 0);
+          fp = fopen("Refract.txt", "a");
+          fprintf(fp, "%g %.12f %.12f\n", lambda, rangle, v_TRANSM);
+          fclose(fp);
+      }
+      lliprecomp = -1;
 
-    free(comp_array_lambda);
-    free(comp_array_lli);
-*/
+      free(comp_array_lambda);
+      free(comp_array_lli);
+    */
 
     return 0;
 }
+
 
 
 
@@ -4105,7 +4183,7 @@ double AtmosphereModel_RefractionPath(double lambda, double Zangle, int WritePat
         errV = fabs(offsetangle/M_PI*180.0*3600.0);
         iter++;
     }
-    printf("%10.6f um   %12.10f   %10ld/%10ld   Atmospheric Refraction = %10.6f arcsec   ", lambda*1e6, 1.0+AtmosphereModel_stdAtmModel_N(SiteAlt, lambda), v_LONG1, v_LONG2, (Zangle-Zangle0)/M_PI*180.0*3600.0);
+    printf("%10.6f um   %12.10f     Atmospheric Refraction = %10.6f arcsec   ", lambda*1e6, 1.0+AtmosphereModel_stdAtmModel_N(SiteAlt, lambda), (Zangle-Zangle0)/M_PI*180.0*3600.0);
     printf("TRANSMISSION = %lf\n", flux);
     v_TRANSM = flux;
 

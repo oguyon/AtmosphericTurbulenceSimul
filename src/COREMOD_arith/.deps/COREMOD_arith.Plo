@@ -58,6 +58,13 @@ COREMOD_arith.lo: COREMOD_arith.c /usr/include/stdc-predef.h \
  /usr/include/x86_64-linux-gnu/bits/semaphore.h /usr/include/fftw3.h \
  /usr/include/gsl/gsl_rng.h /usr/include/gsl/gsl_types.h \
  /usr/include/gsl/gsl_errno.h /usr/include/gsl/gsl_inline.h \
+ /usr/include/signal.h /usr/include/x86_64-linux-gnu/bits/signum.h \
+ /usr/include/x86_64-linux-gnu/bits/siginfo.h \
+ /usr/include/x86_64-linux-gnu/bits/sigaction.h \
+ /usr/include/x86_64-linux-gnu/bits/sigcontext.h \
+ /usr/include/x86_64-linux-gnu/bits/sigstack.h \
+ /usr/include/x86_64-linux-gnu/sys/ucontext.h \
+ /usr/include/x86_64-linux-gnu/bits/sigthread.h \
  /home/guyon/src/Cfits/src/00CORE/00CORE.h \
  /home/guyon/src/Cfits/src/COREMOD_memory/COREMOD_memory.h \
  /home/guyon/src/Cfits/src/COREMOD_tools/COREMOD_tools.h \
@@ -226,6 +233,22 @@ COREMOD_arith.lo: COREMOD_arith.c /usr/include/stdc-predef.h \
 /usr/include/gsl/gsl_errno.h:
 
 /usr/include/gsl/gsl_inline.h:
+
+/usr/include/signal.h:
+
+/usr/include/x86_64-linux-gnu/bits/signum.h:
+
+/usr/include/x86_64-linux-gnu/bits/siginfo.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigaction.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigcontext.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigstack.h:
+
+/usr/include/x86_64-linux-gnu/sys/ucontext.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigthread.h:
 
 /home/guyon/src/Cfits/src/00CORE/00CORE.h:
 

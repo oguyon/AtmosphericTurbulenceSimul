@@ -307,7 +307,7 @@ printf "\n\n" >> $conffilename
 
 
 $execname << EOF
-mkatmospheremodel $conffilename
+#mkatmospheremodel $conffilename
 mkwfs
 exit
 EOF

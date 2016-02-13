@@ -2,7 +2,7 @@
 #define _AtmosphereModel_H
 
 
-
+double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_Ar, double dens_H2O, double dens_CO2, double dens_Ne, double dens_He, double dens_CH4, double dens_Kr, double dens_H2, double dens_O3, double dens_N, double dens_O, double dens_H);
 float AtmosphereModel_stdAtmModel_N(float alt, float lambdaum);
 double AtmosphereModel_H2O_Saturation(double T);
 
