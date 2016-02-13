@@ -20,6 +20,7 @@ var fft_8c =
     [ "fft_DFT", "fft_8c.html#a9b330f51d4f25ca37351e07add1cb35e", null ],
     [ "fft_DFTinsertFPM", "fft_8c.html#a158657be89e05f93441ab5fc6c85bce4", null ],
     [ "fft_DFTinsertFPM_re", "fft_8c.html#ab524cceb33e24feca8158ab537acd31b", null ],
+    [ "fft_do2dfft_cli", "fft_8c.html#aa67fab2cad9d0556e934f171e4ab34dd", null ],
     [ "fft_image_translate", "fft_8c.html#aa4e7210e4d89462147f12e20d982973d", null ],
     [ "fft_image_translate_cli", "fft_8c.html#a05a87c671b3a203729d7b2c59062bd50", null ],
     [ "fft_permut_cli", "fft_8c.html#a51ab82c5c2877a2430556f77742bd70f", null ],

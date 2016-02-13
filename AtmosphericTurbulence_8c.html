@@ -127,6 +127,7 @@ $(document).ready(function(){initNavTree('AtmosphericTurbulence_8c.html','');});
 <code>#include &quot;<a class="el" href="info_8h_source.html">info/info.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="image__gen_8h_source.html">image_gen/image_gen.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="statistic_8h_source.html">statistic/statistic.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="linopt__imtools_8h_source.html">linopt_imtools/linopt_imtools.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="AtmosphericTurbulence_8h_source.html">AtmosphericTurbulence/AtmosphericTurbulence.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="psf_8h_source.html">psf/psf.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="WFpropagate_8h_source.html">WFpropagate/WFpropagate.h</a>&quot;</code><br />
@@ -144,14 +145,24 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a3b0069bb15c3efc6f74f551c93009824"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a3b0069bb15c3efc6f74f551c93009824">make_AtmosphericTurbulence_wavefront_series_cli</a> ()</td></tr>
 <tr class="separator:a3b0069bb15c3efc6f74f551c93009824"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa82b03aec6f7f11a85f1fcc1a3885c02"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aa82b03aec6f7f11a85f1fcc1a3885c02">make_AtmosphericTurbulence_vonKarmanWind_cli</a> ()</td></tr>
+<tr class="separator:aa82b03aec6f7f11a85f1fcc1a3885c02"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac99f5ae045b116551c39733cc98284a7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#ac99f5ae045b116551c39733cc98284a7">AtmosphericTurbulence_mkmastert_cli</a> ()</td></tr>
 <tr class="separator:ac99f5ae045b116551c39733cc98284a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aefc744181f8831d63ecc044445804d21"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aefc744181f8831d63ecc044445804d21">AtmosphericTurbulence_makeHV_CN2prof_cli</a> ()</td></tr>
 <tr class="separator:aefc744181f8831d63ecc044445804d21"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a123cbd7712de3eb797f2e2d7b48f31d7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a123cbd7712de3eb797f2e2d7b48f31d7">AtmosphericTurbulence_measure_wavefront_series_expoframes_cli</a> ()</td></tr>
+<tr class="separator:a123cbd7712de3eb797f2e2d7b48f31d7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a16cf128ec55c19f50ed9d4a8aaf060e5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a16cf128ec55c19f50ed9d4a8aaf060e5">AtmosphericTurbulence_Build_LinPredictor_cli</a> ()</td></tr>
+<tr class="separator:a16cf128ec55c19f50ed9d4a8aaf060e5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a355b228985d86128cf0dd74a3b684655"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a355b228985d86128cf0dd74a3b684655">AtmosphericTurbulence_Test_LinPredictor_cli</a> ()</td></tr>
+<tr class="separator:a355b228985d86128cf0dd74a3b684655"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa97038832a0fc9258ed8c3affe19603b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aa97038832a0fc9258ed8c3affe19603b">init_AtmosphericTurbulence</a> ()</td></tr>
 <tr class="separator:aa97038832a0fc9258ed8c3affe19603b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a021521431b0964cd22050f04e2ac192c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a021521431b0964cd22050f04e2ac192c">AtmosphericTurbulence_change_configuration_file</a> (char *fname)</td></tr>
 <tr class="separator:a021521431b0964cd22050f04e2ac192c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef788345d9b20c248b516045496ad8dc"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aef788345d9b20c248b516045496ad8dc">make_AtmosphericTurbulence_vonKarmanWind</a> (long vKsize, float pixscale, float sigmawind, float Lwind, long size, char *IDout_name)</td></tr>
+<tr class="separator:aef788345d9b20c248b516045496ad8dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afed213222483e1203b0085865ccf0aec"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#afed213222483e1203b0085865ccf0aec">make_master_turbulence_screen</a> (char *ID_name1, char *ID_name2, long size, float outerscale, float innerscale)</td></tr>
 <tr class="separator:afed213222483e1203b0085865ccf0aec"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a96dcf297bc7ab456d213bf2983ae38ea"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a96dcf297bc7ab456d213bf2983ae38ea">make_master_turbulence_screen_pow</a> (char *ID_name1, char *ID_name2, long size, float power)</td></tr>
@@ -160,12 +171,22 @@ Functions</h2></td></tr>
 <tr class="separator:a2c9ef94b08e69bd28c7be244421279ba"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5c52d7fcae693afbee62929227221a5e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a5c52d7fcae693afbee62929227221a5e">contract_wavefront_cube_phaseonly</a> (char *inp_file, char *outp_file, int factor)</td></tr>
 <tr class="separator:a5c52d7fcae693afbee62929227221a5e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6c3139e4f450454cdaa4ce079dcc6191"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a6c3139e4f450454cdaa4ce079dcc6191">Z_Air</a> (double P, double T, double <a class="el" href="AtmosphereModel_8c.html#ad8066f8edf544b9823580a976b05f5e7">RH</a>)</td></tr>
+<tr class="separator:a6c3139e4f450454cdaa4ce079dcc6191"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a00902d1a290cdedf3678e8dbaeb75ba9"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a00902d1a290cdedf3678e8dbaeb75ba9">Z_N2</a> (double P, double T)</td></tr>
+<tr class="separator:a00902d1a290cdedf3678e8dbaeb75ba9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0be9a4e0033f9f808c0356c85f7abfc6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a0be9a4e0033f9f808c0356c85f7abfc6">AtmosphericTurbulence_ReadConf</a> ()</td></tr>
+<tr class="separator:a0be9a4e0033f9f808c0356c85f7abfc6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acb02a3a2a3f1b6e08c358df9658cb280"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#acb02a3a2a3f1b6e08c358df9658cb280">make_AtmosphericTurbulence_wavefront_series</a> ()</td></tr>
 <tr class="separator:acb02a3a2a3f1b6e08c358df9658cb280"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a643c17d6f9de8c5c9c01992c0e9d683e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a643c17d6f9de8c5c9c01992c0e9d683e">contract_wavefront_series</a> (char *in_prefix, char *out_prefix, long NB_files)</td></tr>
 <tr class="separator:a643c17d6f9de8c5c9c01992c0e9d683e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a18423fb1183581d48128ad45a90fdf6f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a18423fb1183581d48128ad45a90fdf6f">measure_wavefront_series</a> (float factor)</td></tr>
 <tr class="separator:a18423fb1183581d48128ad45a90fdf6f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af5e30341c15e9a9993de28b937ca57bc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#af5e30341c15e9a9993de28b937ca57bc">AtmosphericTurbulence_Build_LinPredictor</a> (long NB_WFstep, double WFphaNoise, long WFPlag, long WFP_NBstep, long WFP_xyrad, long WFPiipix, long WFPjjpix)</td></tr>
+<tr class="separator:af5e30341c15e9a9993de28b937ca57bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a07b3a6424d08292147e3b323215052a0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a07b3a6424d08292147e3b323215052a0">AtmosphericTurbulence_Test_LinPredictor</a> (long NB_WFstep, double WFphaNoise, char *IDWFPfilt_name, long WFPlag, long WFPiipix, long WFPjjpix)</td></tr>
+<tr class="separator:a07b3a6424d08292147e3b323215052a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6bff849fb34541fc7fd9567653387d7a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a6bff849fb34541fc7fd9567653387d7a">measure_wavefront_series_expoframes</a> (float etime, char *outfile)</td></tr>
 <tr class="separator:a6bff849fb34541fc7fd9567653387d7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aca754dcf8b7185e34073afd3b4fad05e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aca754dcf8b7185e34073afd3b4fad05e">frame_select_PSF</a> (char *logfile, long NBfiles, float frac)</td></tr>
@@ -174,8 +195,8 @@ Functions</h2></td></tr>
 <tr class="separator:a62a0dc4dc265415e3cad264f30687af8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9ae58073a69fd25d766c7c9b7e77fc46"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a9ae58073a69fd25d766c7c9b7e77fc46">AtmosphericTurbulence_WFprocess</a> ()</td></tr>
 <tr class="separator:a9ae58073a69fd25d766c7c9b7e77fc46"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8ecc2eed8b6a382d1cf986338264391a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a8ecc2eed8b6a382d1cf986338264391a">AtmosphericTurbulence_makeHV_CN2prof</a> (double wspeed, double r0, double sitealt, char *outfile)</td></tr>
-<tr class="separator:a8ecc2eed8b6a382d1cf986338264391a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2f4c3fff9c6dfedad311ab74a0626296"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a2f4c3fff9c6dfedad311ab74a0626296">AtmosphericTurbulence_makeHV_CN2prof</a> (double wspeed, double r0, double sitealt, long NBlayer, char *outfile)</td></tr>
+<tr class="separator:a2f4c3fff9c6dfedad311ab74a0626296"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
@@ -189,6 +210,82 @@ Variables</h2></td></tr>
 <tr class="separator:aae7039a4e5f89a8544bf3ee26ed5147c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a88a8aec3f67e89469d3843c46270eff1"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a88a8aec3f67e89469d3843c46270eff1">SiteAlt</a></td></tr>
 <tr class="separator:a88a8aec3f67e89469d3843c46270eff1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:add565bb566d8195db3359eec0df584d3"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#add565bb566d8195db3359eec0df584d3">C_me</a> = 9.10938291e-31</td></tr>
+<tr class="separator:add565bb566d8195db3359eec0df584d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a15f7740a09954187607d90cdc0082c49"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a15f7740a09954187607d90cdc0082c49">C_e0</a> = 8.854187817620e-12</td></tr>
+<tr class="separator:a15f7740a09954187607d90cdc0082c49"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7ec958a6bd75f64e30393c5f4e52fc06"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a7ec958a6bd75f64e30393c5f4e52fc06">C_Na</a> = 6.0221413e23</td></tr>
+<tr class="separator:a7ec958a6bd75f64e30393c5f4e52fc06"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4f8a8903f8efd56c28de95167046957c"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a4f8a8903f8efd56c28de95167046957c">C_e</a> = 1.60217657e-19</td></tr>
+<tr class="separator:a4f8a8903f8efd56c28de95167046957c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa0b8f08d72072b76fe9f31dc0403b83f"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aa0b8f08d72072b76fe9f31dc0403b83f">C_ls</a> = 2.686777447e25</td></tr>
+<tr class="separator:aa0b8f08d72072b76fe9f31dc0403b83f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1573d7be1f067fb100475a3aa14cc8fc"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a1573d7be1f067fb100475a3aa14cc8fc">rhocoeff</a> = 1.0</td></tr>
+<tr class="separator:a1573d7be1f067fb100475a3aa14cc8fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac21b42fbf60265786bb0e12e6fc615f0"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#ac21b42fbf60265786bb0e12e6fc615f0">CONF_LAMBDA</a></td></tr>
+<tr class="separator:ac21b42fbf60265786bb0e12e6fc615f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8950a7297621f3949dd6d7dfadf68ab1"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a8950a7297621f3949dd6d7dfadf68ab1">CONF_SEEING</a></td></tr>
+<tr class="separator:a8950a7297621f3949dd6d7dfadf68ab1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7b7e273392df6d6c2ec16945b01786ee"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a7b7e273392df6d6c2ec16945b01786ee">CONF_TURBULENCE_PROF_FILE</a> [200]</td></tr>
+<tr class="separator:a7b7e273392df6d6c2ec16945b01786ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1091cd593c2c31d7a8a00ef95e4aa0f5"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a1091cd593c2c31d7a8a00ef95e4aa0f5">CONF_ZANGLE</a></td></tr>
+<tr class="separator:a1091cd593c2c31d7a8a00ef95e4aa0f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a97d2daf8a79a20d09014c0f4ea861f0c"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a97d2daf8a79a20d09014c0f4ea861f0c">CONF_SOURCE_Xpos</a></td></tr>
+<tr class="separator:a97d2daf8a79a20d09014c0f4ea861f0c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5705bdbef9a892cda66756d86d3e3276"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a5705bdbef9a892cda66756d86d3e3276">CONF_SOURCE_Ypos</a></td></tr>
+<tr class="separator:a5705bdbef9a892cda66756d86d3e3276"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5d19199bf1a6c3a411d39db02925e3fe"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a5d19199bf1a6c3a411d39db02925e3fe">CONF_WFOUTPUT</a> = 1</td></tr>
+<tr class="separator:a5d19199bf1a6c3a411d39db02925e3fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a53ff51dd9539f3de10e6eb9ed875f64f"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a53ff51dd9539f3de10e6eb9ed875f64f">CONF_WF_FILE_PREFIX</a> [200]</td></tr>
+<tr class="separator:a53ff51dd9539f3de10e6eb9ed875f64f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8e195677536b4bd7334b86b77112cb98"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a8e195677536b4bd7334b86b77112cb98">CONF_SHM_OUTPUT</a> = 0</td></tr>
+<tr class="separator:a8e195677536b4bd7334b86b77112cb98"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2168ef75bbfaae52add0795a41c0b92c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a2168ef75bbfaae52add0795a41c0b92c">CONF_MAKE_SWAVEFRONT</a> = 0</td></tr>
+<tr class="separator:a2168ef75bbfaae52add0795a41c0b92c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa14d1167c70460eba6b3c1ae51c4ba75"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aa14d1167c70460eba6b3c1ae51c4ba75">CONF_SLAMBDA</a></td></tr>
+<tr class="separator:aa14d1167c70460eba6b3c1ae51c4ba75"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a27b77dc020e65b0a96373745d3adc82b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a27b77dc020e65b0a96373745d3adc82b">CONF_SWF_WRITE2DISK</a> = 0</td></tr>
+<tr class="separator:a27b77dc020e65b0a96373745d3adc82b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5ab24f8aedc864f6db5bf30d28c752cc"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a5ab24f8aedc864f6db5bf30d28c752cc">CONF_SWF_FILE_PREFIX</a> [200]</td></tr>
+<tr class="separator:a5ab24f8aedc864f6db5bf30d28c752cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa1f52c2d8d1da07af49bac90df2d42c5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aa1f52c2d8d1da07af49bac90df2d42c5">CONF_SHM_SOUTPUT</a> = 0</td></tr>
+<tr class="separator:aa1f52c2d8d1da07af49bac90df2d42c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3f5be76c56c450eb9f58471be360d308"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a3f5be76c56c450eb9f58471be360d308">CONF_SHM_SPREFIX</a> [100]</td></tr>
+<tr class="separator:a3f5be76c56c450eb9f58471be360d308"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7a76c0bd9b8382b4d1ee7c7a64d448bf"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a7a76c0bd9b8382b4d1ee7c7a64d448bf">CONF_SHM_SOUTPUTM</a> = 0</td></tr>
+<tr class="separator:a7a76c0bd9b8382b4d1ee7c7a64d448bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a72d138944316a849af4abb2ea6ae9369"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a72d138944316a849af4abb2ea6ae9369">CONF_WFsize</a></td></tr>
+<tr class="separator:a72d138944316a849af4abb2ea6ae9369"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aba05e89da11e2725cc3e66f3b6938821"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aba05e89da11e2725cc3e66f3b6938821">CONF_PUPIL_SCALE</a></td></tr>
+<tr class="separator:aba05e89da11e2725cc3e66f3b6938821"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a420c48bf7c6b954273e9c0293d954a9f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a420c48bf7c6b954273e9c0293d954a9f">CONF_ATMWF_REALTIME</a></td></tr>
+<tr class="separator:a420c48bf7c6b954273e9c0293d954a9f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad37a9f1f3d3d7a0b0232879ce8f2f98b"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#ad37a9f1f3d3d7a0b0232879ce8f2f98b">CONF_ATMWF_REALTIMEFACTOR</a> = 1.0</td></tr>
+<tr class="separator:ad37a9f1f3d3d7a0b0232879ce8f2f98b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a325e211376bdbd9b7ba7f89559f71f56"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a325e211376bdbd9b7ba7f89559f71f56">CONF_WFTIME_STEP</a></td></tr>
+<tr class="separator:a325e211376bdbd9b7ba7f89559f71f56"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa8763ad66132b3a61982d34d3d36857d"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#aa8763ad66132b3a61982d34d3d36857d">CONF_TIME_SPAN</a></td></tr>
+<tr class="separator:aa8763ad66132b3a61982d34d3d36857d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9190a96f3ce33477acce1d64fb4aab35"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a9190a96f3ce33477acce1d64fb4aab35">CONF_NB_TSPAN</a></td></tr>
+<tr class="separator:a9190a96f3ce33477acce1d64fb4aab35"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5c72baf4f248db1696ad9a59d251f336"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a5c72baf4f248db1696ad9a59d251f336">CONF_SIMTDELAY</a> = 0</td></tr>
+<tr class="separator:a5c72baf4f248db1696ad9a59d251f336"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3367738f9f85932d1fe8aae26d8f27c9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a3367738f9f85932d1fe8aae26d8f27c9">CONF_WAITFORSEM</a> = 0</td></tr>
+<tr class="separator:a3367738f9f85932d1fe8aae26d8f27c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a45ada02a64e89afa83a326a8764ee515"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a45ada02a64e89afa83a326a8764ee515">CONF_WAITSEMIMNAME</a> [100]</td></tr>
+<tr class="separator:a45ada02a64e89afa83a326a8764ee515"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ade3ea8477364b1558ab7ecf3117574c2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#ade3ea8477364b1558ab7ecf3117574c2">CONF_SKIP_EXISTING</a></td></tr>
+<tr class="separator:ade3ea8477364b1558ab7ecf3117574c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af09e1ccb9d39f88636615eb180382fb7"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#af09e1ccb9d39f88636615eb180382fb7">CONF_WF_RAW_SIZE</a></td></tr>
+<tr class="separator:af09e1ccb9d39f88636615eb180382fb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae666e897ba01a4abcbcc2ecd11831f99"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#ae666e897ba01a4abcbcc2ecd11831f99">CONF_MASTER_SIZE</a></td></tr>
+<tr class="separator:ae666e897ba01a4abcbcc2ecd11831f99"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8e17bd89e5e3661b16c1d4fa3b02e02b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a8e17bd89e5e3661b16c1d4fa3b02e02b">CONF_FRESNEL_PROPAGATION</a></td></tr>
+<tr class="separator:a8e17bd89e5e3661b16c1d4fa3b02e02b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a439a3621f2f56f442cb80672f50c0f36"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a439a3621f2f56f442cb80672f50c0f36">CONF_WAVEFRONT_AMPLITUDE</a></td></tr>
+<tr class="separator:a439a3621f2f56f442cb80672f50c0f36"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9b96a67ff589537250bfd67ea55b0e96"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphericTurbulence_8c.html#a9b96a67ff589537250bfd67ea55b0e96">CONF_FRESNEL_PROPAGATION_BIN</a></td></tr>
+<tr class="separator:a9b96a67ff589537250bfd67ea55b0e96"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a class="anchor" id="a598a3330b3c21701223ee0ca14316eca"></a>
@@ -230,6 +327,77 @@ Variables</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a class="anchor" id="af5e30341c15e9a9993de28b937ca57bc"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int AtmosphericTurbulence_Build_LinPredictor </td>
+          <td>(</td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>NB_WFstep</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>WFphaNoise</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>WFPlag</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>WFP_NBstep</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>WFP_xyrad</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>WFPiipix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>WFPjjpix</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a16cf128ec55c19f50ed9d4a8aaf060e5"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int AtmosphericTurbulence_Build_LinPredictor_cli </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a021521431b0964cd22050f04e2ac192c"></a>
 <div class="memitem">
 <div class="memproto">
@@ -246,7 +414,7 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a class="anchor" id="a8ecc2eed8b6a382d1cf986338264391a"></a>
+<a class="anchor" id="a2f4c3fff9c6dfedad311ab74a0626296"></a>
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
@@ -267,6 +435,12 @@ Variables</h2></td></tr>
           <td></td>
           <td class="paramtype">double&#160;</td>
           <td class="paramname"><em>sitealt</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>NBlayer</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -337,12 +511,107 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="a123cbd7712de3eb797f2e2d7b48f31d7"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int AtmosphericTurbulence_measure_wavefront_series_expoframes_cli </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="ac99f5ae045b116551c39733cc98284a7"></a>
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
           <td class="memname">int AtmosphericTurbulence_mkmastert_cli </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a0be9a4e0033f9f808c0356c85f7abfc6"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int AtmosphericTurbulence_ReadConf </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a07b3a6424d08292147e3b323215052a0"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int AtmosphericTurbulence_Test_LinPredictor </td>
+          <td>(</td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>NB_WFstep</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>WFphaNoise</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>IDWFPfilt_name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>WFPlag</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>WFPiipix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>WFPjjpix</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a355b228985d86128cf0dd74a3b684655"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int AtmosphericTurbulence_Test_LinPredictor_cli </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -522,6 +791,71 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="aef788345d9b20c248b516045496ad8dc"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long make_AtmosphericTurbulence_vonKarmanWind </td>
+          <td>(</td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>vKsize</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>pixscale</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>sigmawind</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>Lwind</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>IDout_name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="aa82b03aec6f7f11a85f1fcc1a3885c02"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int make_AtmosphericTurbulence_vonKarmanWind_cli </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="acb02a3a2a3f1b6e08c358df9658cb280"></a>
 <div class="memitem">
 <div class="memproto">
@@ -677,7 +1011,509 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="a6c3139e4f450454cdaa4ce079dcc6191"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double Z_Air </td>
+          <td>(</td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>P</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>T</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>RH</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a00902d1a290cdedf3678e8dbaeb75ba9"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double Z_N2 </td>
+          <td>(</td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>P</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>T</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <h2 class="groupheader">Variable Documentation</h2>
+<a class="anchor" id="a4f8a8903f8efd56c28de95167046957c"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double C_e = 1.60217657e-19</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a15f7740a09954187607d90cdc0082c49"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double C_e0 = 8.854187817620e-12</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="aa0b8f08d72072b76fe9f31dc0403b83f"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double C_ls = 2.686777447e25</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="add565bb566d8195db3359eec0df584d3"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double C_me = 9.10938291e-31</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a7ec958a6bd75f64e30393c5f4e52fc06"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double C_Na = 6.0221413e23</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a420c48bf7c6b954273e9c0293d954a9f"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_ATMWF_REALTIME</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="ad37a9f1f3d3d7a0b0232879ce8f2f98b"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double CONF_ATMWF_REALTIMEFACTOR = 1.0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a8e17bd89e5e3661b16c1d4fa3b02e02b"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_FRESNEL_PROPAGATION</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a9b96a67ff589537250bfd67ea55b0e96"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_FRESNEL_PROPAGATION_BIN</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="ac21b42fbf60265786bb0e12e6fc615f0"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_LAMBDA</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a2168ef75bbfaae52add0795a41c0b92c"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_MAKE_SWAVEFRONT = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="ae666e897ba01a4abcbcc2ecd11831f99"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long CONF_MASTER_SIZE</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a9190a96f3ce33477acce1d64fb4aab35"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long CONF_NB_TSPAN</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="aba05e89da11e2725cc3e66f3b6938821"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_PUPIL_SCALE</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a8950a7297621f3949dd6d7dfadf68ab1"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_SEEING</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a8e195677536b4bd7334b86b77112cb98"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_SHM_OUTPUT = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="aa1f52c2d8d1da07af49bac90df2d42c5"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_SHM_SOUTPUT = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a7a76c0bd9b8382b4d1ee7c7a64d448bf"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_SHM_SOUTPUTM = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a3f5be76c56c450eb9f58471be360d308"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char CONF_SHM_SPREFIX[100]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a5c72baf4f248db1696ad9a59d251f336"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long CONF_SIMTDELAY = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="ade3ea8477364b1558ab7ecf3117574c2"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_SKIP_EXISTING</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="aa14d1167c70460eba6b3c1ae51c4ba75"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_SLAMBDA</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a97d2daf8a79a20d09014c0f4ea861f0c"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_SOURCE_Xpos</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a5705bdbef9a892cda66756d86d3e3276"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_SOURCE_Ypos</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a5ab24f8aedc864f6db5bf30d28c752cc"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char CONF_SWF_FILE_PREFIX[200]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a27b77dc020e65b0a96373745d3adc82b"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_SWF_WRITE2DISK = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="aa8763ad66132b3a61982d34d3d36857d"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_TIME_SPAN</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a7b7e273392df6d6c2ec16945b01786ee"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char CONF_TURBULENCE_PROF_FILE[200]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a3367738f9f85932d1fe8aae26d8f27c9"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_WAITFORSEM = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a45ada02a64e89afa83a326a8764ee515"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char CONF_WAITSEMIMNAME[100]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a439a3621f2f56f442cb80672f50c0f36"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_WAVEFRONT_AMPLITUDE</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a53ff51dd9539f3de10e6eb9ed875f64f"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char CONF_WF_FILE_PREFIX[200]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="af09e1ccb9d39f88636615eb180382fb7"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long CONF_WF_RAW_SIZE</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a5d19199bf1a6c3a411d39db02925e3fe"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int CONF_WFOUTPUT = 1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a72d138944316a849af4abb2ea6ae9369"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long CONF_WFsize</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a325e211376bdbd9b7ba7f89559f71f56"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_WFTIME_STEP</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a1091cd593c2c31d7a8a00ef95e4aa0f5"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float CONF_ZANGLE</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a7b93340f43c04166d39fc39a8baeb730"></a>
 <div class="memitem">
 <div class="memproto">
@@ -696,6 +1532,18 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname"><a class="el" href="structDATA.html">DATA</a> data</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a1573d7be1f067fb100475a3aa14cc8fc"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double rhocoeff = 1.0</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -744,7 +1592,7 @@ Variables</h2></td></tr>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="dir_1c699cef90b15b1f476abc9da5826c96.html">AtmosphericTurbulence</a></li><li class="navelem"><a class="el" href="AtmosphericTurbulence_8c.html">AtmosphericTurbulence.c</a></li>
-    <li class="footer">Generated on Wed Jul 15 2015 15:48:11 for AtmosphericTurbulenceSimul by
+    <li class="footer">Generated on Sat Feb 13 2016 08:38:19 for AtmosphericTurbulenceSimul by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.8 </li>
   </ul>

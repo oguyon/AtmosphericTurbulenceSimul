@@ -7,8 +7,8 @@ var NAVTREE =
       [ "Data Structures", "annotated.html", "annotated" ],
       [ "Data Structure Index", "classes.html", null ],
       [ "Data Fields", "functions.html", [
-        [ "All", "functions.html", null ],
-        [ "Variables", "functions_vars.html", null ]
+        [ "All", "functions.html", "functions_dup" ],
+        [ "Variables", "functions_vars.html", "functions_vars" ]
       ] ]
     ] ],
     [ "Files", null, [
@@ -29,16 +29,16 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "00CORE-util_8c.html",
-"AtmosphericTurbulence_8h.html#a5c52d7fcae693afbee62929227221a5e",
-"COREMOD__arith_8c.html#ab55299f3fd5c25fcb806f85337918925",
-"COREMOD__iofits-util_8c.html#aeb9dca3f78d29aea5c3a6995ec867ad0",
-"COREMOD__memory_8h.html#adb3be222ee04cb10c6e8d0e1c95767a6",
-"calc__bison_8c.html#adfcaf974b837e3efc130377e9837b4fd",
-"fft_8c.html#a0767c4e140bc8498e1984f927c16803f",
-"image__basic_8h.html#a9015319dc9f68dadcf37ecf89803bfc0",
-"info_8h.html#a0a70fd9ed7f3b3cc865a6d88b0f82cf9",
-"psf_8c.html#ae5fb0bbb2ff345eaae0226a55d041fc9",
-"structsymrec.html#a13b3ddedd56ed8a393dfd4b266bb81e1"
+"AtmosphericTurbulence_8c.html#a00902d1a290cdedf3678e8dbaeb75ba9",
+"COREMOD__arith_8c.html#a4a17218dbfc3e664a5ebf7514eb16f34",
+"COREMOD__arith_8h.html#a8f6355984b430fd6692acc1b09c9ac54",
+"COREMOD__memory_8c.html#ad56cfee75a59c62d6f11f0a1095acd35",
+"calc__bison_8c.html#a15c9f7bd2f0e9686df5d9df4f3314aa9ab19b8d3b02ef04969cc90e92c9d58eac",
+"calc__flex_8c.html#aa79d63ed3ff8d2249baf1732a73089f5",
+"globals_func_y.html",
+"image__format_8h.html#a679762f45c4f28ac53b1829fbef56337",
+"linopt__imtools_8c.html#a3dcfe6564cde5885c38647fdba5b75ba",
+"structDATA.html#a6facd114f508ec4fcb52003b9f93d123"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

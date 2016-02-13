@@ -3,6 +3,7 @@ var image__filter_8c =
     [ "f_filter", "image__filter_8c.html#a983a2cf4010d4e31f22cd93bc0d78110", null ],
     [ "fconvolve", "image__filter_8c.html#a43925b90d27adb83c34fee7b07fabbef", null ],
     [ "fconvolve_1", "image__filter_8c.html#a14386b786b3c429416fd9246c63963aa", null ],
+    [ "fconvolve_cli", "image__filter_8c.html#a2709e6d02cb3a99df3551a93a56593de", null ],
     [ "fconvolve_padd", "image__filter_8c.html#a529c6b6ef9b8f2d35a188f42d213349c", null ],
     [ "fconvolveblock", "image__filter_8c.html#a2de3ac209e1f4a57fbf04ee091b2aa67", null ],
     [ "film_scanner_vsripes_remove", "image__filter_8c.html#aea2478c5583226eee6fa13d539f09080", null ],

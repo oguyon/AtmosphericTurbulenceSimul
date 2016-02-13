@@ -208,6 +208,8 @@ Functions</h2></td></tr>
 <tr class="separator:a967029e85e9269e656d5509b91e3352d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2cb85fb1b0a43235f5f2febbca8e4299"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="image__basic_8h.html#a2cb85fb1b0a43235f5f2febbca8e4299">IMAGE_BASIC_streamfeed</a> (char *IDname, char *streamname, float frequ)</td></tr>
 <tr class="separator:a2cb85fb1b0a43235f5f2febbca8e4299"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0aa91ffd5ac8910c861776b6fbd2b09d"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="image__basic_8h.html#a0aa91ffd5ac8910c861776b6fbd2b09d">IMAGE_BASIC_streamrecord</a> (char *streamname, long NBframes, char *IDname)</td></tr>
+<tr class="separator:a0aa91ffd5ac8910c861776b6fbd2b09d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a class="anchor" id="a4333392d52801f822056bbe9f8e698c5"></a>
@@ -1643,7 +1645,8 @@ Functions</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-<p>coadd frames from image stream output is by default float type mode : 0 : simple average 1 : average + std dev (std dev in "imgstreamrms") 2 : average + std dev -&gt; badpix map for detector calibration ("badpixmap") </p>
+<p>coadd frames from image stream output is by default float type mode : 0 : simple average 1 : average + std dev (std dev in "imgstreamrms") 2 : average + std dev -&gt; badpix map for detector calibration ("badpixmap") 3 : same as 1</p>
+<p>NOTE: averaging will stop when receiving signal SIGUSR1 </p>
 
 </div>
 </div>
@@ -1668,6 +1671,38 @@ Functions</h2></td></tr>
           <td></td>
           <td class="paramtype">float&#160;</td>
           <td class="paramname"><em>frequ</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a0aa91ffd5ac8910c861776b6fbd2b09d"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long IMAGE_BASIC_streamrecord </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>streamname</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>NBframes</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>IDname</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -1742,7 +1777,7 @@ Functions</h2></td></tr>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="dir_b6897bfb48a1d12c881045d4349aa702.html">image_basic</a></li><li class="navelem"><a class="el" href="image__basic_8h.html">image_basic.h</a></li>
-    <li class="footer">Generated on Wed Jul 15 2015 15:48:11 for AtmosphericTurbulenceSimul by
+    <li class="footer">Generated on Sat Feb 13 2016 08:38:20 for AtmosphericTurbulenceSimul by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.8 </li>
   </ul>

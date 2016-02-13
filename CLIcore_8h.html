@@ -115,9 +115,9 @@ $(document).ready(function(){initNavTree('CLIcore_8h.html','');});
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;sys/types.h&gt;</code><br />
 <code>#include &lt;semaphore.h&gt;</code><br />
-<code>#include &lt;time.h&gt;</code><br />
 <code>#include &lt;fftw3.h&gt;</code><br />
 <code>#include &lt;gsl/gsl_rng.h&gt;</code><br />
+<code>#include &lt;signal.h&gt;</code><br />
 </div>
 <p><a href="CLIcore_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
@@ -161,6 +161,8 @@ Macros</h2></td></tr>
 <tr class="separator:a6ce45abed084638ca9c884a419acd17f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1282c12402ce1327073d3a945f73bb58"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="CLIcore_8h.html#a1282c12402ce1327073d3a945f73bb58">SHAREDMEMDIR</a>&#160;&#160;&#160;&quot;/tmp&quot;</td></tr>
 <tr class="separator:a1282c12402ce1327073d3a945f73bb58"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a546109fafbf4a13a00455f303243f91e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="CLIcore_8h.html#a546109fafbf4a13a00455f303243f91e">SEMAPHORE_MAX</a>&#160;&#160;&#160;1000</td></tr>
+<tr class="separator:a546109fafbf4a13a00455f303243f91e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0a6b220d813ff622977cf6d7f1f5ffa6"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="CLIcore_8h.html#a0a6b220d813ff622977cf6d7f1f5ffa6">NB_ARG_MAX</a>&#160;&#160;&#160;20</td></tr>
 <tr class="separator:a0a6b220d813ff622977cf6d7f1f5ffa6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a35cd67ba7bb0db8105eb6267467535d7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="CLIcore_8h.html#a35cd67ba7bb0db8105eb6267467535d7">CHAR</a>&#160;&#160;&#160;1</td></tr>
@@ -196,6 +198,9 @@ Functions</h2></td></tr>
 <tr class="separator:acfa3a12412c06fe66437c5f77f066fa0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8b68e72c423d42662e9c37f450ced2df"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="CLIcore_8h.html#a8b68e72c423d42662e9c37f450ced2df">CLI_checkarg_noerrmsg</a> (int argnum, int argtype)</td></tr>
 <tr class="separator:a8b68e72c423d42662e9c37f450ced2df"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4f31a6fd48ee5d4579ae4aaaa3cae285"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="CLIcore_8h.html#a4f31a6fd48ee5d4579ae4aaaa3cae285">sig_handler</a> (int signo)</td></tr>
+<tr class="memdesc:a4f31a6fd48ee5d4579ae4aaaa3cae285"><td class="mdescLeft">&#160;</td><td class="mdescRight">signal catching  <a href="#a4f31a6fd48ee5d4579ae4aaaa3cae285">More...</a><br /></td></tr>
+<tr class="separator:a4f31a6fd48ee5d4579ae4aaaa3cae285"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
@@ -452,6 +457,18 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="a546109fafbf4a13a00455f303243f91e"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define SEMAPHORE_MAX&#160;&#160;&#160;1000</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a1282c12402ce1327073d3a945f73bb58"></a>
 <div class="memitem">
 <div class="memproto">
@@ -556,6 +573,24 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a4f31a6fd48ee5d4579ae4aaaa3cae285"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void sig_handler </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>signo</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>signal catching </p>
 
 </div>
 </div>
@@ -700,7 +735,7 @@ Variables</h2></td></tr>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="CLIcore_8h.html">CLIcore.h</a></li>
-    <li class="footer">Generated on Wed Jul 15 2015 15:48:11 for AtmosphericTurbulenceSimul by
+    <li class="footer">Generated on Sat Feb 13 2016 08:38:19 for AtmosphericTurbulenceSimul by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.8 </li>
   </ul>

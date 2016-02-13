@@ -144,16 +144,12 @@ Data Fields</h2></td></tr>
 <tr class="separator:aeec1ba7287c93dc589e38c4b1479b967"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6a50020081f8e319972497690237fb66"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structIMAGE.html#a6a50020081f8e319972497690237fb66">sem</a></td></tr>
 <tr class="separator:a6a50020081f8e319972497690237fb66"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a834b3af28769972547e952466d8bb559"><td class="memItemLeft" align="right" valign="top">sem_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structIMAGE.html#a834b3af28769972547e952466d8bb559">semptr</a></td></tr>
-<tr class="separator:a834b3af28769972547e952466d8bb559"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aff137290d0abaaa812c25d1e691a0c96"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structIMAGE.html#aff137290d0abaaa812c25d1e691a0c96">sem1</a></td></tr>
-<tr class="separator:aff137290d0abaaa812c25d1e691a0c96"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a11dc5725b81107fc432e8e1f80ca5704"><td class="memItemLeft" align="right" valign="top">sem_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structIMAGE.html#a11dc5725b81107fc432e8e1f80ca5704">semptr1</a></td></tr>
-<tr class="separator:a11dc5725b81107fc432e8e1f80ca5704"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6ae15b91c6c2c32555c3254cd292c6ef"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structIMAGE.html#a6ae15b91c6c2c32555c3254cd292c6ef">semlog</a></td></tr>
-<tr class="separator:a6ae15b91c6c2c32555c3254cd292c6ef"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af1f06c3f32f7534b6c695520be4ec5be"><td class="memItemLeft" align="right" valign="top">sem_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structIMAGE.html#af1f06c3f32f7534b6c695520be4ec5be">semptrlog</a></td></tr>
-<tr class="separator:af1f06c3f32f7534b6c695520be4ec5be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a85b29e7531f0e07a5f68dbea97a14477"><td class="memItemLeft" align="right" valign="top">sem_t **&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structIMAGE.html#a85b29e7531f0e07a5f68dbea97a14477">semptr</a></td></tr>
+<tr class="separator:a85b29e7531f0e07a5f68dbea97a14477"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9862b2c9defbf6a47a982da827048ed1"><td class="memItemLeft" align="right" valign="top">sem_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structIMAGE.html#a9862b2c9defbf6a47a982da827048ed1">semlog</a></td></tr>
+<tr class="separator:a9862b2c9defbf6a47a982da827048ed1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab141d7fe6a4c6c197f0200599f69b1f7"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structIMAGE.html#ab141d7fe6a4c6c197f0200599f69b1f7">name</a> [80]</td></tr>
+<tr class="separator:ab141d7fe6a4c6c197f0200599f69b1f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Field Documentation</h2>
 <a class="anchor" id="a8a451a2074b51df5b761088baf49cc3f"></a>
@@ -288,6 +284,18 @@ Data Fields</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="ab141d7fe6a4c6c197f0200599f69b1f7"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char IMAGE::name[80]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a6a50020081f8e319972497690237fb66"></a>
 <div class="memitem">
 <div class="memproto">
@@ -300,60 +308,24 @@ Data Fields</h2></td></tr>
 
 </div>
 </div>
-<a class="anchor" id="aff137290d0abaaa812c25d1e691a0c96"></a>
+<a class="anchor" id="a9862b2c9defbf6a47a982da827048ed1"></a>
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int IMAGE::sem1</td>
+          <td class="memname">sem_t* IMAGE::semlog</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 </div>
 </div>
-<a class="anchor" id="a6ae15b91c6c2c32555c3254cd292c6ef"></a>
+<a class="anchor" id="a85b29e7531f0e07a5f68dbea97a14477"></a>
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int IMAGE::semlog</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a class="anchor" id="a834b3af28769972547e952466d8bb559"></a>
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">sem_t* IMAGE::semptr</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a class="anchor" id="a11dc5725b81107fc432e8e1f80ca5704"></a>
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">sem_t* IMAGE::semptr1</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a class="anchor" id="af1f06c3f32f7534b6c695520be4ec5be"></a>
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">sem_t* IMAGE::semptrlog</td>
+          <td class="memname">sem_t** IMAGE::semptr</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -405,7 +377,7 @@ Data Fields</h2></td></tr>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="structIMAGE.html">IMAGE</a></li>
-    <li class="footer">Generated on Wed Jul 15 2015 15:48:11 for AtmosphericTurbulenceSimul by
+    <li class="footer">Generated on Sat Feb 13 2016 08:38:20 for AtmosphericTurbulenceSimul by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.8 </li>
   </ul>

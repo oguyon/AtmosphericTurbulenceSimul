@@ -113,6 +113,7 @@ $(document).ready(function(){initNavTree('CLIcore_8c.html','');});
 <code>#include &lt;malloc.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
+<code>#include &lt;pthread.h&gt;</code><br />
 <code>#include &lt;time.h&gt;</code><br />
 <code>#include &lt;math.h&gt;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
@@ -125,6 +126,7 @@ $(document).ready(function(){initNavTree('CLIcore_8c.html','');});
 <code>#include &lt;stdbool.h&gt;</code><br />
 <code>#include &lt;sys/prctl.h&gt;</code><br />
 <code>#include &lt;sched.h&gt;</code><br />
+<code>#include &lt;signal.h&gt;</code><br />
 <code>#include &lt;readline/readline.h&gt;</code><br />
 <code>#include &lt;readline/history.h&gt;</code><br />
 <code>#include &lt;gsl/gsl_rng.h&gt;</code><br />
@@ -172,6 +174,9 @@ Functions</h2></td></tr>
 <tr class="memdesc:afbc465e2fc0350eb1c71c3d11f09d4d7"><td class="mdescLeft">&#160;</td><td class="mdescRight">command help<br />
  <a href="#afbc465e2fc0350eb1c71c3d11f09d4d7">More...</a><br /></td></tr>
 <tr class="separator:afbc465e2fc0350eb1c71c3d11f09d4d7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4f31a6fd48ee5d4579ae4aaaa3cae285"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="CLIcore_8c.html#a4f31a6fd48ee5d4579ae4aaaa3cae285">sig_handler</a> (int signo)</td></tr>
+<tr class="memdesc:a4f31a6fd48ee5d4579ae4aaaa3cae285"><td class="mdescLeft">&#160;</td><td class="mdescRight">signal catching  <a href="#a4f31a6fd48ee5d4579ae4aaaa3cae285">More...</a><br /></td></tr>
+<tr class="separator:a4f31a6fd48ee5d4579ae4aaaa3cae285"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aac3ae2fb745e63e33060d5c0b658f745"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="CLIcore_8c.html#aac3ae2fb745e63e33060d5c0b658f745">printInfo</a> ()</td></tr>
 <tr class="separator:aac3ae2fb745e63e33060d5c0b658f745"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a19cbc71c216503ddc1174753e9de80c4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="CLIcore_8c.html#a19cbc71c216503ddc1174753e9de80c4">helpreadline</a> ()</td></tr>
@@ -225,7 +230,7 @@ Variables</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><dl class="section author"><dt>Author</dt><dd>Olivier Guyon </dd></dl>
-<dl class="section date"><dt>Date</dt><dd>Sept 4, 2014 </dd></dl>
+<dl class="section date"><dt>Date</dt><dd>2015 </dd></dl>
 </div><h2 class="groupheader">Function Documentation</h2>
 <a class="anchor" id="afb065d6c0f7798b65614d2d73654c15d"></a>
 <div class="memitem">
@@ -741,6 +746,24 @@ parsing done with bison and flex </p>
 
 </div>
 </div>
+<a class="anchor" id="a4f31a6fd48ee5d4579ae4aaaa3cae285"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void sig_handler </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>signo</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>signal catching </p>
+
+</div>
+</div>
 <a class="anchor" id="ac22472c4ee36d70ae07159f83fb690d3"></a>
 <div class="memitem">
 <div class="memproto">
@@ -887,7 +910,7 @@ parsing done with bison and flex </p>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="CLIcore_8c.html">CLIcore.c</a></li>
-    <li class="footer">Generated on Wed Jul 15 2015 15:48:11 for AtmosphericTurbulenceSimul by
+    <li class="footer">Generated on Sat Feb 13 2016 08:38:19 for AtmosphericTurbulenceSimul by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.8 </li>
   </ul>

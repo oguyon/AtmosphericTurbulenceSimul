@@ -115,7 +115,6 @@ $(document).ready(function(){initNavTree('AtmosphereModel_8c.html','');});
 <code>#include &lt;malloc.h&gt;</code><br />
 <code>#include &lt;ctype.h&gt;</code><br />
 <code>#include &lt;math.h&gt;</code><br />
-<code>#include &lt;time.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="CLIcore_8h_source.html">CLIcore.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="COREMOD__tools_8h_source.html">COREMOD_tools/COREMOD_tools.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="AtmosphereModel_8h_source.html">AtmosphereModel/AtmosphereModel.h</a>&quot;</code><br />
@@ -180,6 +179,8 @@ Functions</h2></td></tr>
 <tr class="separator:a315893daf042707ca0e6e763ac9eabaf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3e6980995783492f90a76daf5da46e4b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a3e6980995783492f90a76daf5da46e4b">gts7</a> (struct <a class="el" href="structnrlmsise__input.html">nrlmsise_input</a> *<a class="el" href="calc__flex_8c.html#a171692544b8e065853e387755849a433">input</a>, struct <a class="el" href="structnrlmsise__flags.html">nrlmsise_flags</a> *flags, struct <a class="el" href="structnrlmsise__output.html">nrlmsise_output</a> *output)</td></tr>
 <tr class="separator:a3e6980995783492f90a76daf5da46e4b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1cc05adab144b38cea8c948002f26610"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a1cc05adab144b38cea8c948002f26610">AirMixture_N</a> (double lambda, double dens_N2, double dens_O2, double dens_Ar, double dens_H2O, double dens_CO2, double dens_Ne, double dens_He, double dens_CH4, double dens_Kr, double dens_H2, double dens_O3, double dens_N, double dens_O, double dens_H)</td></tr>
+<tr class="separator:a1cc05adab144b38cea8c948002f26610"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af3eaa1718cee9771127f3484d0c3711f"><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#af3eaa1718cee9771127f3484d0c3711f">AtmosphereModel_stdAtmModel_N</a> (float alt, float lambda)</td></tr>
 <tr class="separator:af3eaa1718cee9771127f3484d0c3711f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a75ec2b97989b0403122986484ea0c75e"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a75ec2b97989b0403122986484ea0c75e">AtmosphereModel_H2O_Saturation</a> (double T)</td></tr>
@@ -276,10 +277,6 @@ Variables</h2></td></tr>
 <tr class="separator:a3fb2a5ab95a69242ee81da7f795a5405"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0da8045968e2bdf94ce733bf01042989"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a0da8045968e2bdf94ce733bf01042989">v_TRANSM</a> = 1.0</td></tr>
 <tr class="separator:a0da8045968e2bdf94ce733bf01042989"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab727a06c65df61003dacf1740e507dda"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ab727a06c65df61003dacf1740e507dda">v_LONG1</a></td></tr>
-<tr class="separator:ab727a06c65df61003dacf1740e507dda"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae9d212927dcdf805bfd1a278f0831319"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ae9d212927dcdf805bfd1a278f0831319">v_LONG2</a></td></tr>
-<tr class="separator:ae9d212927dcdf805bfd1a278f0831319"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4d41a7f58e2ffef764319d6618e9f087"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a4d41a7f58e2ffef764319d6618e9f087">RIA_NBpts</a></td></tr>
 <tr class="separator:a4d41a7f58e2ffef764319d6618e9f087"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7417d78a361c42fe1c519c95d026fdaa"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a7417d78a361c42fe1c519c95d026fdaa">RIA_lambda_min</a></td></tr>
@@ -288,6 +285,8 @@ Variables</h2></td></tr>
 <tr class="separator:a66d75ad8869ce6ae827bfaf66baf911f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae4e386cb507673104fd1a55cd4806acd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ae4e386cb507673104fd1a55cd4806acd">initRIA_N2</a> = 0</td></tr>
 <tr class="separator:ae4e386cb507673104fd1a55cd4806acd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ada573d0098adf430ed921209c78af337"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ada573d0098adf430ed921209c78af337">RIA_N2_NBpts</a></td></tr>
+<tr class="separator:ada573d0098adf430ed921209c78af337"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac0f6702b5b9ccf3c462ea8f889da965d"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ac0f6702b5b9ccf3c462ea8f889da965d">RIA_N2_lambda</a></td></tr>
 <tr class="separator:ac0f6702b5b9ccf3c462ea8f889da965d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3e00e7522599e20d317df677cbdb8fb1"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a3e00e7522599e20d317df677cbdb8fb1">RIA_N2_ri</a></td></tr>
@@ -296,6 +295,8 @@ Variables</h2></td></tr>
 <tr class="separator:a510252a195422fec044bd2ce21b0b70e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9960f50186ee1a0eb77a4301baf1409b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a9960f50186ee1a0eb77a4301baf1409b">initRIA_O2</a> = 0</td></tr>
 <tr class="separator:a9960f50186ee1a0eb77a4301baf1409b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adb401b5e0a5599e38ac50ee7ab10c6cd"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#adb401b5e0a5599e38ac50ee7ab10c6cd">RIA_O2_NBpts</a></td></tr>
+<tr class="separator:adb401b5e0a5599e38ac50ee7ab10c6cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aeb27070fcb60c0c5b31753de1d49961b"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aeb27070fcb60c0c5b31753de1d49961b">RIA_O2_lambda</a></td></tr>
 <tr class="separator:aeb27070fcb60c0c5b31753de1d49961b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2ca2349aae5abbafc85d8d39f4fa7c3a"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a2ca2349aae5abbafc85d8d39f4fa7c3a">RIA_O2_ri</a></td></tr>
@@ -304,6 +305,8 @@ Variables</h2></td></tr>
 <tr class="separator:a6b73ac5016ce5dfcf7009f3a65ba4fd0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac701d597d647aee36ce091a03b40d314"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ac701d597d647aee36ce091a03b40d314">initRIA_Ar</a> = 0</td></tr>
 <tr class="separator:ac701d597d647aee36ce091a03b40d314"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a207eb477e9f36b47cc3696c742afef03"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a207eb477e9f36b47cc3696c742afef03">RIA_Ar_NBpts</a></td></tr>
+<tr class="separator:a207eb477e9f36b47cc3696c742afef03"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1adb76dd462ca4cb6af9ed45475fb6dd"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a1adb76dd462ca4cb6af9ed45475fb6dd">RIA_Ar_lambda</a></td></tr>
 <tr class="separator:a1adb76dd462ca4cb6af9ed45475fb6dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a156adac3be69aa425c9285c1504da1b9"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a156adac3be69aa425c9285c1504da1b9">RIA_Ar_ri</a></td></tr>
@@ -312,6 +315,8 @@ Variables</h2></td></tr>
 <tr class="separator:a3b8895eaf832ed455f3fc79575a679e5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa612128356c5aac699db453fef8fc0ba"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aa612128356c5aac699db453fef8fc0ba">initRIA_H2O</a> = 0</td></tr>
 <tr class="separator:aa612128356c5aac699db453fef8fc0ba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a36409b567fa8c57b822cbfa6479cc25d"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a36409b567fa8c57b822cbfa6479cc25d">RIA_H2O_NBpts</a></td></tr>
+<tr class="separator:a36409b567fa8c57b822cbfa6479cc25d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa8069f99faef4edbac149e4f4b173bfd"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aa8069f99faef4edbac149e4f4b173bfd">RIA_H2O_lambda</a></td></tr>
 <tr class="separator:aa8069f99faef4edbac149e4f4b173bfd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a273b30553a1c320e2d6da6bc033b4b2b"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a273b30553a1c320e2d6da6bc033b4b2b">RIA_H2O_ri</a></td></tr>
@@ -320,6 +325,8 @@ Variables</h2></td></tr>
 <tr class="separator:af31f45c7cbb4003018984e61b7b2a26c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afdb7ea134feb6c53c0fec08fa5dda9e3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#afdb7ea134feb6c53c0fec08fa5dda9e3">initRIA_CO2</a> = 0</td></tr>
 <tr class="separator:afdb7ea134feb6c53c0fec08fa5dda9e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5336bb7ac2229aa38464550fe1396d3f"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a5336bb7ac2229aa38464550fe1396d3f">RIA_CO2_NBpts</a></td></tr>
+<tr class="separator:a5336bb7ac2229aa38464550fe1396d3f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a29ebc69ce75a06fbfce38d11a59b6d8a"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a29ebc69ce75a06fbfce38d11a59b6d8a">RIA_CO2_lambda</a></td></tr>
 <tr class="separator:a29ebc69ce75a06fbfce38d11a59b6d8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7a967101ffa532221cdad370e9fea2ac"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a7a967101ffa532221cdad370e9fea2ac">RIA_CO2_ri</a></td></tr>
@@ -328,6 +335,8 @@ Variables</h2></td></tr>
 <tr class="separator:ac527cc3ba32d234582bcd5eabc648d5d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaf9169004d8a135824b79f2f5462775b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aaf9169004d8a135824b79f2f5462775b">initRIA_Ne</a> = 0</td></tr>
 <tr class="separator:aaf9169004d8a135824b79f2f5462775b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ade07c5151ad0dc557125bb478e5f0a83"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ade07c5151ad0dc557125bb478e5f0a83">RIA_Ne_NBpts</a></td></tr>
+<tr class="separator:ade07c5151ad0dc557125bb478e5f0a83"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aee78c7d74cd8484736123604b1a123ae"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aee78c7d74cd8484736123604b1a123ae">RIA_Ne_lambda</a></td></tr>
 <tr class="separator:aee78c7d74cd8484736123604b1a123ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab17c3ff4ae995544f2303466bdd35cd4"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ab17c3ff4ae995544f2303466bdd35cd4">RIA_Ne_ri</a></td></tr>
@@ -336,6 +345,8 @@ Variables</h2></td></tr>
 <tr class="separator:ad2898636c44a340f2ef75e2fd31511eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7ab3892d0e94ace09734e9029d4315b6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a7ab3892d0e94ace09734e9029d4315b6">initRIA_He</a> = 0</td></tr>
 <tr class="separator:a7ab3892d0e94ace09734e9029d4315b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeadbdbff4063934f40d514faff97f92f"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aeadbdbff4063934f40d514faff97f92f">RIA_He_NBpts</a></td></tr>
+<tr class="separator:aeadbdbff4063934f40d514faff97f92f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae41ae7f8a35d2678c851327e3bd95e20"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ae41ae7f8a35d2678c851327e3bd95e20">RIA_He_lambda</a></td></tr>
 <tr class="separator:ae41ae7f8a35d2678c851327e3bd95e20"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa9a3fe5edad0adb1c51956a63dcd575a"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aa9a3fe5edad0adb1c51956a63dcd575a">RIA_He_ri</a></td></tr>
@@ -344,6 +355,8 @@ Variables</h2></td></tr>
 <tr class="separator:a0c5f396db94f37e5e6614c9bf395cf4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a20b4e1d5941be3c5101b7af7a087d3a2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a20b4e1d5941be3c5101b7af7a087d3a2">initRIA_CH4</a> = 0</td></tr>
 <tr class="separator:a20b4e1d5941be3c5101b7af7a087d3a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2a23e47fe284ef72a8361706145db9c2"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a2a23e47fe284ef72a8361706145db9c2">RIA_CH4_NBpts</a></td></tr>
+<tr class="separator:a2a23e47fe284ef72a8361706145db9c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9ed6ce508b7bf45d27502d06064ce7ad"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a9ed6ce508b7bf45d27502d06064ce7ad">RIA_CH4_lambda</a></td></tr>
 <tr class="separator:a9ed6ce508b7bf45d27502d06064ce7ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a02cef9b6e555fbd6489028a6e3898735"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a02cef9b6e555fbd6489028a6e3898735">RIA_CH4_ri</a></td></tr>
@@ -352,6 +365,8 @@ Variables</h2></td></tr>
 <tr class="separator:a127e8005807235d7d54161da8cb6f23f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8a6780550b7ba386d395a0cfa1d5bdb4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a8a6780550b7ba386d395a0cfa1d5bdb4">initRIA_Kr</a> = 0</td></tr>
 <tr class="separator:a8a6780550b7ba386d395a0cfa1d5bdb4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1a56893aab110d1be3f6250e52fe9e1e"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a1a56893aab110d1be3f6250e52fe9e1e">RIA_Kr_NBpts</a></td></tr>
+<tr class="separator:a1a56893aab110d1be3f6250e52fe9e1e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a88e092643aaf768db72f4240e65c5f29"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a88e092643aaf768db72f4240e65c5f29">RIA_Kr_lambda</a></td></tr>
 <tr class="separator:a88e092643aaf768db72f4240e65c5f29"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4af77c209412f3e58cc680fce4ed4360"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a4af77c209412f3e58cc680fce4ed4360">RIA_Kr_ri</a></td></tr>
@@ -360,6 +375,8 @@ Variables</h2></td></tr>
 <tr class="separator:a15bcc1aa63b963a7331ff962c1e7871e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d5527f776976e2a30ef55710892eb85"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a2d5527f776976e2a30ef55710892eb85">initRIA_H2</a> = 0</td></tr>
 <tr class="separator:a2d5527f776976e2a30ef55710892eb85"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a79419641576eddec1ffa29329b78d892"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a79419641576eddec1ffa29329b78d892">RIA_H2_NBpts</a></td></tr>
+<tr class="separator:a79419641576eddec1ffa29329b78d892"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a46d32a8daa036bd31dacc9dc8fd0f393"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a46d32a8daa036bd31dacc9dc8fd0f393">RIA_H2_lambda</a></td></tr>
 <tr class="separator:a46d32a8daa036bd31dacc9dc8fd0f393"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5bd0e8e729f236491706bf79fb8878c7"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a5bd0e8e729f236491706bf79fb8878c7">RIA_H2_ri</a></td></tr>
@@ -368,6 +385,8 @@ Variables</h2></td></tr>
 <tr class="separator:a84eb849d13c5d7d5d9bbb8eb42242567"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3cf086ede1da21b747be07b9152887d6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a3cf086ede1da21b747be07b9152887d6">initRIA_O3</a> = 0</td></tr>
 <tr class="separator:a3cf086ede1da21b747be07b9152887d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a831528b57b5dbdb6ebbccc2777b3c629"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a831528b57b5dbdb6ebbccc2777b3c629">RIA_O3_NBpts</a></td></tr>
+<tr class="separator:a831528b57b5dbdb6ebbccc2777b3c629"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a761f6100c7e5be7e63202c986bb61980"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a761f6100c7e5be7e63202c986bb61980">RIA_O3_lambda</a></td></tr>
 <tr class="separator:a761f6100c7e5be7e63202c986bb61980"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1af430a277f3a643f9cc02e008b8263f"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a1af430a277f3a643f9cc02e008b8263f">RIA_O3_ri</a></td></tr>
@@ -376,6 +395,8 @@ Variables</h2></td></tr>
 <tr class="separator:a76d348287ea40e944bb042b1d56ef3fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a839bba60cc3fec6d6357f649152b6304"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a839bba60cc3fec6d6357f649152b6304">initRIA_N</a> = 0</td></tr>
 <tr class="separator:a839bba60cc3fec6d6357f649152b6304"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae91a29c3e44101bfcdce1722f86910de"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#ae91a29c3e44101bfcdce1722f86910de">RIA_N_NBpts</a></td></tr>
+<tr class="separator:ae91a29c3e44101bfcdce1722f86910de"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6bdfc9c667a63ec86a8f061995950607"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a6bdfc9c667a63ec86a8f061995950607">RIA_N_lambda</a></td></tr>
 <tr class="separator:a6bdfc9c667a63ec86a8f061995950607"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6b83cd55b082663e4be17cf5fef53788"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a6b83cd55b082663e4be17cf5fef53788">RIA_N_ri</a></td></tr>
@@ -384,6 +405,8 @@ Variables</h2></td></tr>
 <tr class="separator:a459e7e9c1c1142374c00da1060c43fc1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa1b80365fcb5a8adee4dfe4228520033"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aa1b80365fcb5a8adee4dfe4228520033">initRIA_O</a> = 0</td></tr>
 <tr class="separator:aa1b80365fcb5a8adee4dfe4228520033"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8d4394d9ed863cbe6f1e1f47035bfd84"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a8d4394d9ed863cbe6f1e1f47035bfd84">RIA_O_NBpts</a></td></tr>
+<tr class="separator:a8d4394d9ed863cbe6f1e1f47035bfd84"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a146cf1bbe9338fac8d14d6d5814679e8"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a146cf1bbe9338fac8d14d6d5814679e8">RIA_O_lambda</a></td></tr>
 <tr class="separator:a146cf1bbe9338fac8d14d6d5814679e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4adfabea7b37a659c2f63408871253f5"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a4adfabea7b37a659c2f63408871253f5">RIA_O_ri</a></td></tr>
@@ -392,6 +415,8 @@ Variables</h2></td></tr>
 <tr class="separator:a35f1af74692ce8d94594aa82c32953ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a73320d74a5d4bf11ed488ceb3c5159de"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a73320d74a5d4bf11ed488ceb3c5159de">initRIA_H</a> = 0</td></tr>
 <tr class="separator:a73320d74a5d4bf11ed488ceb3c5159de"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af49e0507e8b8d3e7c0b134861478cdaa"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#af49e0507e8b8d3e7c0b134861478cdaa">RIA_H_NBpts</a></td></tr>
+<tr class="separator:af49e0507e8b8d3e7c0b134861478cdaa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa15124f3261a04a95bc82cbcbb834e06"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aa15124f3261a04a95bc82cbcbb834e06">RIA_H_lambda</a></td></tr>
 <tr class="separator:aa15124f3261a04a95bc82cbcbb834e06"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aec16b10e821a4ce2e39976a8cd470f2c"><td class="memItemLeft" align="right" valign="top">double *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aec16b10e821a4ce2e39976a8cd470f2c">RIA_H_ri</a></td></tr>
@@ -406,6 +431,34 @@ Variables</h2></td></tr>
 <tr class="separator:afb2f7da184161744be40578e3b9f295f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af31d465b3c5177db2ad0a0db958c42dd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#af31d465b3c5177db2ad0a0db958c42dd">lliprecomp</a> = -1</td></tr>
 <tr class="separator:af31d465b3c5177db2ad0a0db958c42dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a280960b5e44ec93344e21fc1a13e60e7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a280960b5e44ec93344e21fc1a13e60e7">lliprecompN2</a> = -1</td></tr>
+<tr class="separator:a280960b5e44ec93344e21fc1a13e60e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a31ba3c30315946e5f81364836822a4e4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a31ba3c30315946e5f81364836822a4e4">lliprecompO2</a> = -1</td></tr>
+<tr class="separator:a31ba3c30315946e5f81364836822a4e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6d2e6004a7f126b44355617ad9580779"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a6d2e6004a7f126b44355617ad9580779">lliprecompAr</a> = -1</td></tr>
+<tr class="separator:a6d2e6004a7f126b44355617ad9580779"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a53b1a8909b26b5e8bef9538d27d43a95"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a53b1a8909b26b5e8bef9538d27d43a95">lliprecompH2O</a> = -1</td></tr>
+<tr class="separator:a53b1a8909b26b5e8bef9538d27d43a95"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a83b857a1fcbffb821ae0f2e8a26421d4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a83b857a1fcbffb821ae0f2e8a26421d4">lliprecompCO2</a> = -1</td></tr>
+<tr class="separator:a83b857a1fcbffb821ae0f2e8a26421d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a53faa8dc7cb68f4358184e19808a454e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a53faa8dc7cb68f4358184e19808a454e">lliprecompNe</a> = -1</td></tr>
+<tr class="separator:a53faa8dc7cb68f4358184e19808a454e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a43a3c52446c36bf9bd334f6062bf6d32"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a43a3c52446c36bf9bd334f6062bf6d32">lliprecompHe</a> = -1</td></tr>
+<tr class="separator:a43a3c52446c36bf9bd334f6062bf6d32"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a24fd7504876bbb0c036f25d6024d7f57"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a24fd7504876bbb0c036f25d6024d7f57">lliprecompCH4</a> = -1</td></tr>
+<tr class="separator:a24fd7504876bbb0c036f25d6024d7f57"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6e98f042c2a0caccedaab0a2a2651184"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a6e98f042c2a0caccedaab0a2a2651184">lliprecompKr</a> = -1</td></tr>
+<tr class="separator:a6e98f042c2a0caccedaab0a2a2651184"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa32c76138f3ca5093e13026fa678b19b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#aa32c76138f3ca5093e13026fa678b19b">lliprecompH2</a> = -1</td></tr>
+<tr class="separator:aa32c76138f3ca5093e13026fa678b19b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6a198baf69fc81f4ba8a05dade6ca9bd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a6a198baf69fc81f4ba8a05dade6ca9bd">lliprecompO3</a> = -1</td></tr>
+<tr class="separator:a6a198baf69fc81f4ba8a05dade6ca9bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1e15990323b577c28d130fc25c0ff418"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a1e15990323b577c28d130fc25c0ff418">lliprecompO</a> = -1</td></tr>
+<tr class="separator:a1e15990323b577c28d130fc25c0ff418"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2930fb720fb20ad0c4b1f483e338b242"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a2930fb720fb20ad0c4b1f483e338b242">lliprecompN</a> = -1</td></tr>
+<tr class="separator:a2930fb720fb20ad0c4b1f483e338b242"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a82290e88d528016d5d1460d6a6aab550"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a82290e88d528016d5d1460d6a6aab550">lliprecompH</a> = -1</td></tr>
+<tr class="separator:a82290e88d528016d5d1460d6a6aab550"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9a778fbd1234a0e028c01268c7052111"><td class="memItemLeft" align="right" valign="top">static double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a9a778fbd1234a0e028c01268c7052111">gsurf</a></td></tr>
 <tr class="separator:a9a778fbd1234a0e028c01268c7052111"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5a6fce2fc5cae153945fea2c45beeb4f"><td class="memItemLeft" align="right" valign="top">static double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="AtmosphereModel_8c.html#a5a6fce2fc5cae153945fea2c45beeb4f">re</a></td></tr>
@@ -519,6 +572,110 @@ Variables</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a class="anchor" id="a1cc05adab144b38cea8c948002f26610"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">double AirMixture_N </td>
+          <td>(</td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>lambda</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_N2</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_O2</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_Ar</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_H2O</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_CO2</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_Ne</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_He</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_CH4</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_Kr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_H2</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_O3</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_N</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_O</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>dens_H</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a4baf9fd94561674a0dcaa444fd98dd10"></a>
 <div class="memitem">
 <div class="memproto">
@@ -2335,6 +2492,174 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="a6d2e6004a7f126b44355617ad9580779"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompAr = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a24fd7504876bbb0c036f25d6024d7f57"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompCH4 = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a83b857a1fcbffb821ae0f2e8a26421d4"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompCO2 = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a82290e88d528016d5d1460d6a6aab550"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompH = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="aa32c76138f3ca5093e13026fa678b19b"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompH2 = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a53b1a8909b26b5e8bef9538d27d43a95"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompH2O = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a43a3c52446c36bf9bd334f6062bf6d32"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompHe = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a6e98f042c2a0caccedaab0a2a2651184"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompKr = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a2930fb720fb20ad0c4b1f483e338b242"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompN = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a280960b5e44ec93344e21fc1a13e60e7"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompN2 = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a53faa8dc7cb68f4358184e19808a454e"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompNe = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a1e15990323b577c28d130fc25c0ff418"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompO = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a31ba3c30315946e5f81364836822a4e4"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompO2 = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a6a198baf69fc81f4ba8a05dade6ca9bd"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int lliprecompO3 = -1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a90f2ec0e8bf6a8b6972dde3026828773"></a>
 <div class="memitem">
 <div class="memproto">
@@ -2711,6 +3036,18 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="a207eb477e9f36b47cc3696c742afef03"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_Ar_NBpts</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a156adac3be69aa425c9285c1504da1b9"></a>
 <div class="memitem">
 <div class="memproto">
@@ -2741,6 +3078,18 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">double* RIA_CH4_lambda</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a2a23e47fe284ef72a8361706145db9c2"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_CH4_NBpts</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -2783,6 +3132,18 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="a5336bb7ac2229aa38464550fe1396d3f"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_CO2_NBpts</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a7a967101ffa532221cdad370e9fea2ac"></a>
 <div class="memitem">
 <div class="memproto">
@@ -2813,6 +3174,18 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">double* RIA_H2_lambda</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a79419641576eddec1ffa29329b78d892"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_H2_NBpts</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -2855,6 +3228,18 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="a36409b567fa8c57b822cbfa6479cc25d"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_H2O_NBpts</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a273b30553a1c320e2d6da6bc033b4b2b"></a>
 <div class="memitem">
 <div class="memproto">
@@ -2885,6 +3270,18 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">double* RIA_H_lambda</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="af49e0507e8b8d3e7c0b134861478cdaa"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_H_NBpts</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -2927,6 +3324,18 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="aeadbdbff4063934f40d514faff97f92f"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_He_NBpts</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="aa9a3fe5edad0adb1c51956a63dcd575a"></a>
 <div class="memitem">
 <div class="memproto">
@@ -2957,6 +3366,18 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">double* RIA_Kr_lambda</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a1a56893aab110d1be3f6250e52fe9e1e"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_Kr_NBpts</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -3023,6 +3444,18 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="ada573d0098adf430ed921209c78af337"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_N2_NBpts</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a3e00e7522599e20d317df677cbdb8fb1"></a>
 <div class="memitem">
 <div class="memproto">
@@ -3053,6 +3486,18 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">double* RIA_N_lambda</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="ae91a29c3e44101bfcdce1722f86910de"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_N_NBpts</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -3107,6 +3552,18 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="ade07c5151ad0dc557125bb478e5f0a83"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_Ne_NBpts</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="ab17c3ff4ae995544f2303466bdd35cd4"></a>
 <div class="memitem">
 <div class="memproto">
@@ -3137,6 +3594,18 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">double* RIA_O2_lambda</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="adb401b5e0a5599e38ac50ee7ab10c6cd"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_O2_NBpts</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -3179,6 +3648,18 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="a831528b57b5dbdb6ebbccc2777b3c629"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_O3_NBpts</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a1af430a277f3a643f9cc02e008b8263f"></a>
 <div class="memitem">
 <div class="memproto">
@@ -3209,6 +3690,18 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">double* RIA_O_lambda</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a8d4394d9ed863cbe6f1e1f47035bfd84"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long RIA_O_NBpts</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -3489,30 +3982,6 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a class="anchor" id="ab727a06c65df61003dacf1740e507dda"></a>
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">long v_LONG1</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a class="anchor" id="ae9d212927dcdf805bfd1a278f0831319"></a>
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">long v_LONG2</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
 <a class="anchor" id="a0da8045968e2bdf94ce733bf01042989"></a>
 <div class="memitem">
 <div class="memproto">
@@ -3543,7 +4012,7 @@ Variables</h2></td></tr>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="dir_1c87cb8f51632dd952a89d3630337cd5.html">AtmosphereModel</a></li><li class="navelem"><a class="el" href="AtmosphereModel_8c.html">AtmosphereModel.c</a></li>
-    <li class="footer">Generated on Wed Jul 15 2015 15:48:11 for AtmosphericTurbulenceSimul by
+    <li class="footer">Generated on Sat Feb 13 2016 08:38:19 for AtmosphericTurbulenceSimul by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.8 </li>
   </ul>

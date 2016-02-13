@@ -1,8 +1,6 @@
 var searchData=
 [
   ['v_5fabscoeff',['v_ABSCOEFF',['../AtmosphereModel_8c.html#a3fb2a5ab95a69242ee81da7f795a5405',1,'AtmosphereModel.c']]],
-  ['v_5flong1',['v_LONG1',['../AtmosphereModel_8c.html#ab727a06c65df61003dacf1740e507dda',1,'AtmosphereModel.c']]],
-  ['v_5flong2',['v_LONG2',['../AtmosphereModel_8c.html#ae9d212927dcdf805bfd1a278f0831319',1,'AtmosphereModel.c']]],
   ['v_5ftransm',['v_TRANSM',['../AtmosphereModel_8c.html#a0da8045968e2bdf94ce733bf01042989',1,'AtmosphereModel.c']]],
   ['val',['val',['../structCMDARGTOKEN.html#a96839ddcbefc8d1629d9be94a1319bc3',1,'CMDARGTOKEN']]],
   ['val_5fd',['val_d',['../unionYYSTYPE.html#a61bc717a8d5bde0979541eb670984140',1,'YYSTYPE']]],

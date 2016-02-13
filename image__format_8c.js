@@ -36,6 +36,7 @@ var image__format_8c =
     [ "IMAGE_FORMAT_requantize", "image__format_8c.html#ae20670e73acdaaf31aaff004ff1cff05", null ],
     [ "image_writeBMP", "image__format_8c.html#a3110e6e2ed7454ba7a191752d0936168", null ],
     [ "image_writeBMP_auto", "image__format_8c.html#ae37a8ad3f2f06025d1164f472e82f53b", null ],
+    [ "image_writeBMP_auto_cli", "image__format_8c.html#aa38d395174435bf08e8550187844fe60", null ],
     [ "init_image_format", "image__format_8c.html#af80fb7b21245fdc5c038618531bb17de", null ],
     [ "loadCR2", "image__format_8c.html#a9c7074047ce1f099f6a56f79a7d29337", null ],
     [ "loadCR2toFITSRGB", "image__format_8c.html#a356ca45cd785631602a451ac776cff60", null ],

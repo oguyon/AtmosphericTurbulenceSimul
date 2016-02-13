@@ -59,6 +59,8 @@ var image__basic_8c =
     [ "image_basic_streamaverage_cli", "image__basic_8c.html#ae18d859de742c8bf5504b1c8eddb018b", null ],
     [ "IMAGE_BASIC_streamfeed", "image__basic_8c.html#a2cb85fb1b0a43235f5f2febbca8e4299", null ],
     [ "image_basic_streamfeed_cli", "image__basic_8c.html#a9b1ed8ee31683cd5ff08f9e7a3375684", null ],
+    [ "IMAGE_BASIC_streamrecord", "image__basic_8c.html#a0aa91ffd5ac8910c861776b6fbd2b09d", null ],
+    [ "IMAGE_BASIC_streamrecord_cli", "image__basic_8c.html#aaf476f38cc5efc45471ac521acaa86d2", null ],
     [ "init_image_basic", "image__basic_8c.html#a4abcb12d1c88071d57c8259388174da2", null ],
     [ "load_fitsimages", "image__basic_8c.html#a975c26922325656c7ffc97be036fa9b2", null ],
     [ "load_fitsimages_cube", "image__basic_8c.html#a297d775947e563c2b467229047fccd76", null ],

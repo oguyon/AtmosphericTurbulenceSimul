@@ -1,6 +1,7 @@
 var searchData=
 [
   ['sbuffersize',['SBUFFERSIZE',['../COREMOD__arith_8c.html#a856e9c763f542a6a0b78587b2989c159',1,'SBUFFERSIZE():&#160;COREMOD_arith.c'],['../COREMOD__iofits_8c.html#a856e9c763f542a6a0b78587b2989c159',1,'SBUFFERSIZE():&#160;COREMOD_iofits.c'],['../COREMOD__memory_8c.html#a856e9c763f542a6a0b78587b2989c159',1,'SBUFFERSIZE():&#160;COREMOD_memory.c'],['../COREMOD__tools_8c.html#a856e9c763f542a6a0b78587b2989c159',1,'SBUFFERSIZE():&#160;COREMOD_tools.c'],['../fft_8c.html#a856e9c763f542a6a0b78587b2989c159',1,'SBUFFERSIZE():&#160;fft.c'],['../image__basic_8c.html#a856e9c763f542a6a0b78587b2989c159',1,'SBUFFERSIZE():&#160;image_basic.c'],['../WFpropagate_8c.html#a856e9c763f542a6a0b78587b2989c159',1,'SBUFFERSIZE():&#160;WFpropagate.c']]],
+  ['semaphore_5fmax',['SEMAPHORE_MAX',['../CLIcore_8h.html#a546109fafbf4a13a00455f303243f91e',1,'CLIcore.h']]],
   ['sharedmemdir',['SHAREDMEMDIR',['../CLIcore_8h.html#a1282c12402ce1327073d3a945f73bb58',1,'CLIcore.h']]],
   ['sq',['SQ',['../kdtree_8c.html#ac3644f84794a8bfdacf39c4b2c2495fc',1,'kdtree.c']]],
   ['stypesize',['STYPESIZE',['../COREMOD__memory_8c.html#a0eac07b0c4ebaac544936481f2c6e649',1,'COREMOD_memory.c']]],

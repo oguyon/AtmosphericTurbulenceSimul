@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['name',['name',['../structsymrec.html#a13b3ddedd56ed8a393dfd4b266bb81e1',1,'symrec::name()'],['../structMODULE.html#adecbd02b92ae79ddaaff7be512380dea',1,'MODULE::name()'],['../structIMAGE__KEYWORD.html#aa0fef8b5fce4b24d792d0fc01df9dd8a',1,'IMAGE_KEYWORD::name()'],['../structIMAGE__METADATA.html#acf8d6cd7523aacfacb7639e83496a7b8',1,'IMAGE_METADATA::name()'],['../structVARIABLE.html#a40d583ae511f61e22f3ade6f130a7d58',1,'VARIABLE::name()'],['../structMaterialIndex.html#a9a1c2042061f01de2a32002bd779a630',1,'MaterialIndex::name()']]],
+  ['name',['name',['../structsymrec.html#a13b3ddedd56ed8a393dfd4b266bb81e1',1,'symrec::name()'],['../structMODULE.html#adecbd02b92ae79ddaaff7be512380dea',1,'MODULE::name()'],['../structIMAGE__KEYWORD.html#aa0fef8b5fce4b24d792d0fc01df9dd8a',1,'IMAGE_KEYWORD::name()'],['../structIMAGE__METADATA.html#acf8d6cd7523aacfacb7639e83496a7b8',1,'IMAGE_METADATA::name()'],['../structIMAGE.html#ab141d7fe6a4c6c197f0200599f69b1f7',1,'IMAGE::name()'],['../structVARIABLE.html#a40d583ae511f61e22f3ade6f130a7d58',1,'VARIABLE::name()'],['../structMaterialIndex.html#a9a1c2042061f01de2a32002bd779a630',1,'MaterialIndex::name()']]],
   ['naxis',['naxis',['../structIMAGE__METADATA.html#a03a561578b6eab9c6566d5961944fb8e',1,'IMAGE_METADATA']]],
   ['nb_5fcomp_5farray',['NB_comp_array',['../AtmosphereModel_8c.html#a2598e9003789dfb14670e5718b22d6bb',1,'AtmosphereModel.c']]],
   ['nb_5ffftw_5fthreads',['NB_FFTW_THREADS',['../fft_8c.html#abee840ba74ec4a4c170f19dddfbdf2ca',1,'fft.c']]],

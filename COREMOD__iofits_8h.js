@@ -11,5 +11,5 @@ var COREMOD__iofits_8h =
     [ "save_db_fits", "COREMOD__iofits_8h.html#a86665c391740e8f78c2a534ff3f9acb4", null ],
     [ "save_fl_fits", "COREMOD__iofits_8h.html#a74bad39ec9f1a242a3290e3ee4f0284d", null ],
     [ "save_sh_fits", "COREMOD__iofits_8h.html#ae46a7d22f9787c9565629e58a5a041da", null ],
-    [ "saveall_fl_fits", "COREMOD__iofits_8h.html#adbd0eca79249765194c9185109695a33", null ]
+    [ "saveall_fits", "COREMOD__iofits_8h.html#a1b19c9c55edfb2794ec70a65c9f48eb0", null ]
 ];

@@ -23,7 +23,7 @@ var COREMOD__iofits_8c =
     [ "save_sh_fits", "COREMOD__iofits_8c.html#ae46a7d22f9787c9565629e58a5a041da", null ],
     [ "save_sh_fits_cli", "COREMOD__iofits_8c.html#a87b1271ab2cf9b0d06370abdb544b651", null ],
     [ "save_ush_fits", "COREMOD__iofits_8c.html#a3ebba9c8f738ada6d7f2f66ca546e8e6", null ],
-    [ "saveall_fl_fits", "COREMOD__iofits_8c.html#adbd0eca79249765194c9185109695a33", null ],
+    [ "saveall_fits", "COREMOD__iofits_8c.html#a1b19c9c55edfb2794ec70a65c9f48eb0", null ],
     [ "data", "COREMOD__iofits_8c.html#a9842752e03b4de9b4593f1a3b34364ab", null ],
     [ "errormessage", "COREMOD__iofits_8c.html#a5d8f2e60f7f536436d04e2f6e5b4d207", null ],
     [ "FITSIO_status", "COREMOD__iofits_8c.html#a6c2cc8d105d4821fd2f03c00125c9e86", null ]

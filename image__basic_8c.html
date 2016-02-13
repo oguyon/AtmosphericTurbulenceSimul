@@ -115,7 +115,6 @@ $(document).ready(function(){initNavTree('image__basic_8c.html','');});
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
-<code>#include &lt;time.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="CLIcore_8h_source.html">CLIcore.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="00CORE_8h_source.html">00CORE/00CORE.h</a>&quot;</code><br />
@@ -160,6 +159,8 @@ Functions</h2></td></tr>
 <tr class="separator:ae18d859de742c8bf5504b1c8eddb018b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9b1ed8ee31683cd5ff08f9e7a3375684"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="image__basic_8c.html#a9b1ed8ee31683cd5ff08f9e7a3375684">image_basic_streamfeed_cli</a> ()</td></tr>
 <tr class="separator:a9b1ed8ee31683cd5ff08f9e7a3375684"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaf476f38cc5efc45471ac521acaa86d2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="image__basic_8c.html#aaf476f38cc5efc45471ac521acaa86d2">IMAGE_BASIC_streamrecord_cli</a> ()</td></tr>
+<tr class="separator:aaf476f38cc5efc45471ac521acaa86d2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4abcb12d1c88071d57c8259388174da2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="image__basic_8c.html#a4abcb12d1c88071d57c8259388174da2">init_image_basic</a> ()</td></tr>
 <tr class="separator:a4abcb12d1c88071d57c8259388174da2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5334e9b651c7beb57529b356d0f1bbaa"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="image__basic_8c.html#a5334e9b651c7beb57529b356d0f1bbaa">basic_naninf2zero</a> (char *ID_name)</td></tr>
@@ -260,6 +261,8 @@ Functions</h2></td></tr>
 <tr class="separator:a967029e85e9269e656d5509b91e3352d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2cb85fb1b0a43235f5f2febbca8e4299"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="image__basic_8c.html#a2cb85fb1b0a43235f5f2febbca8e4299">IMAGE_BASIC_streamfeed</a> (char *IDname, char *streamname, float frequ)</td></tr>
 <tr class="separator:a2cb85fb1b0a43235f5f2febbca8e4299"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0aa91ffd5ac8910c861776b6fbd2b09d"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="image__basic_8c.html#a0aa91ffd5ac8910c861776b6fbd2b09d">IMAGE_BASIC_streamrecord</a> (char *streamname, long NBframes, char *IDname)</td></tr>
+<tr class="separator:a0aa91ffd5ac8910c861776b6fbd2b09d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
@@ -1922,7 +1925,8 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-<p>coadd frames from image stream output is by default float type mode : 0 : simple average 1 : average + std dev (std dev in "imgstreamrms") 2 : average + std dev -&gt; badpix map for detector calibration ("badpixmap") </p>
+<p>coadd frames from image stream output is by default float type mode : 0 : simple average 1 : average + std dev (std dev in "imgstreamrms") 2 : average + std dev -&gt; badpix map for detector calibration ("badpixmap") 3 : same as 1</p>
+<p>NOTE: averaging will stop when receiving signal SIGUSR1 </p>
 
 </div>
 </div>
@@ -1979,6 +1983,53 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">int image_basic_streamfeed_cli </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a0aa91ffd5ac8910c861776b6fbd2b09d"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long IMAGE_BASIC_streamrecord </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>streamname</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>NBframes</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>IDname</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="aaf476f38cc5efc45471ac521acaa86d2"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int IMAGE_BASIC_streamrecord_cli </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -2076,7 +2127,7 @@ Variables</h2></td></tr>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="dir_b6897bfb48a1d12c881045d4349aa702.html">image_basic</a></li><li class="navelem"><a class="el" href="image__basic_8c.html">image_basic.c</a></li>
-    <li class="footer">Generated on Wed Jul 15 2015 15:48:11 for AtmosphericTurbulenceSimul by
+    <li class="footer">Generated on Sat Feb 13 2016 08:38:20 for AtmosphericTurbulenceSimul by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.8 </li>
   </ul>

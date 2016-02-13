@@ -26,6 +26,7 @@ var CLIcore_8c =
     [ "rl_cb", "CLIcore_8c.html#a8d0617e7616ff9298b4a0dd6c7111983", null ],
     [ "set_default_precision_double", "CLIcore_8c.html#a21cf484ed2d8042a284b20871d0824fc", null ],
     [ "set_default_precision_single", "CLIcore_8c.html#a0b938eaf8680b1a510e8b24caa121a70", null ],
+    [ "sig_handler", "CLIcore_8c.html#a4f31a6fd48ee5d4579ae4aaaa3cae285", null ],
     [ "user_function", "CLIcore_8c.html#ac22472c4ee36d70ae07159f83fb690d3", null ],
     [ "xmalloc", "CLIcore_8c.html#a90dfbfc4af01ed2fa845ad04b5f40ed8", null ],
     [ "calctmpimname", "CLIcore_8c.html#a5f4566d37ec53f74821f22df71a6fb93", null ],

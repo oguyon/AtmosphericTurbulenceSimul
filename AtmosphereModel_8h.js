@@ -5,6 +5,7 @@ var AtmosphereModel_8h =
     [ "nrlmsise_input", "structnrlmsise__input.html", "structnrlmsise__input" ],
     [ "nrlmsise_output", "structnrlmsise__output.html", "structnrlmsise__output" ],
     [ "__inline_double", "AtmosphereModel_8h.html#ad38d2e3fa313d97ec413ff90989d9fdd", null ],
+    [ "AirMixture_N", "AtmosphereModel_8h.html#a1cc05adab144b38cea8c948002f26610", null ],
     [ "AtmosphereModel_build_stdAtmModel", "AtmosphereModel_8h.html#a4baf9fd94561674a0dcaa444fd98dd10", null ],
     [ "AtmosphereModel_Create_from_CONF", "AtmosphereModel_8h.html#a674f05a4c3cb75693d627329efa8a97d", null ],
     [ "AtmosphereModel_H2O_Saturation", "AtmosphereModel_8h.html#a75ec2b97989b0403122986484ea0c75e", null ],

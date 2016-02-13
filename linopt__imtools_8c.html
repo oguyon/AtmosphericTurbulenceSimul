@@ -142,6 +142,8 @@ Functions</h2></td></tr>
 <tr class="separator:a3f9ff7e4020bd1c963d9de5394bf1928"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a53617c18c514a3981e500ca022f05980"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="linopt__imtools_8c.html#a53617c18c514a3981e500ca022f05980">linopt_imtools_image_construct_cli</a> ()</td></tr>
 <tr class="separator:a53617c18c514a3981e500ca022f05980"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a08c893fc2ac060288e6b93bb5ef20d69"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="linopt__imtools_8c.html#a08c893fc2ac060288e6b93bb5ef20d69">linopt_compute_SVDdecomp_cli</a> ()</td></tr>
+<tr class="separator:a08c893fc2ac060288e6b93bb5ef20d69"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a40fb4238fda46cf90235f780cf6e7a50"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="linopt__imtools_8c.html#a40fb4238fda46cf90235f780cf6e7a50">linopt_imtools_image_fitModes_cli</a> ()</td></tr>
 <tr class="separator:a40fb4238fda46cf90235f780cf6e7a50"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afc117916939017260e807f28af155892"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="linopt__imtools_8c.html#afc117916939017260e807f28af155892">init_linopt_imtools</a> ()</td></tr>
@@ -156,6 +158,8 @@ Functions</h2></td></tr>
 <tr class="separator:a5210720c3c4b83c441f59c823b98e96b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abd307da15c19076e8ed40e3a710039c5"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="linopt__imtools_8c.html#abd307da15c19076e8ed40e3a710039c5">linopt_imtools_vec_to_2DImage</a> (char *IDvec_name, char *IDpixindex_name, char *IDpixmult_name, char *ID_name, long xsize, long ysize)</td></tr>
 <tr class="separator:abd307da15c19076e8ed40e3a710039c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a05d2270ec45796862c1c2ae45e3f0778"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="linopt__imtools_8c.html#a05d2270ec45796862c1c2ae45e3f0778">linopt_compute_SVDdecomp</a> (char *IDin_name, char *IDout_name, char *IDcoeff_name)</td></tr>
+<tr class="separator:a05d2270ec45796862c1c2ae45e3f0778"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac60b3e05cadef539dba1b37bb7b5483d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="linopt__imtools_8c.html#ac60b3e05cadef539dba1b37bb7b5483d">linopt_compute_reconstructionMatrix</a> (char *ID_Rmatrix_name, char *ID_Cmatrix_name, double SVDeps, char *ID_VTmatrix_name)</td></tr>
 <tr class="separator:ac60b3e05cadef539dba1b37bb7b5483d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5c77865d99afd50f6797b75981e3f631"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="linopt__imtools_8c.html#a5c77865d99afd50f6797b75981e3f631">linopt_imtools_image_construct</a> (char *IDmodes_name, char *IDcoeff_name, char *ID_name)</td></tr>
@@ -238,6 +242,56 @@ Variables</h2></td></tr>
           <td></td>
           <td>)</td>
           <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a class="anchor" id="a05d2270ec45796862c1c2ae45e3f0778"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long linopt_compute_SVDdecomp </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>IDin_name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>IDout_name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>IDcoeff_name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Write rotation matrix to go from DM modes to eigenmodes</p>
+<p>Compute SVD decomp</p>
+<p>eigen mode index </p>
+
+</div>
+</div>
+<a class="anchor" id="a08c893fc2ac060288e6b93bb5ef20d69"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int linopt_compute_SVDdecomp_cli </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -966,7 +1020,7 @@ Variables</h2></td></tr>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="dir_082a3b8b4397c5d97227e6064a755880.html">linopt_imtools</a></li><li class="navelem"><a class="el" href="linopt__imtools_8c.html">linopt_imtools.c</a></li>
-    <li class="footer">Generated on Wed Jul 15 2015 15:48:11 for AtmosphericTurbulenceSimul by
+    <li class="footer">Generated on Sat Feb 13 2016 08:38:20 for AtmosphericTurbulenceSimul by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.8 </li>
   </ul>
