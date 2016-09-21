@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
-
+#include <sched.h>
 
 #include "CLIcore.h"
 #include "00CORE/00CORE.h"
@@ -63,6 +63,28 @@ int image_basic_resize_cli()
     return 1;
 }
 
+int image_basic_3Dto2D_cli() // collapse first 2 axis into one
+{
+	if(CLI_checkarg(1,4) == 0)
+    {
+		image_basic_3Dto2D(data.cmdargtoken[1].val.string);
+      return 0;
+    }
+  else
+    return 1;
+}
+
+int image_basic_SwapAxis2D_cli() // swap axis of a 2D image
+{
+	if(CLI_checkarg(1,4)+CLI_checkarg(2,3) == 0)
+    {
+		image_basic_SwapAxis2D(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.string);
+      return 0;
+    }
+  else
+    return 1;
+}
+
 int image_basic_add_cli()
 {
   if(CLI_checkarg(1,4)+CLI_checkarg(2,4)+CLI_checkarg(3,3)+CLI_checkarg(4,2)+CLI_checkarg(5,2) == 0)
@@ -85,6 +107,20 @@ int image_basic_contract_cli()
     else
         return 1;
 }
+
+
+int image_basic_contract3D_cli()
+{
+    if(CLI_checkarg(1,4)+CLI_checkarg(2,3)+CLI_checkarg(3,2)+CLI_checkarg(4,2)+CLI_checkarg(5,2) == 0)
+    {
+        basic_contract3D(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.string, data.cmdargtoken[3].val.numl, data.cmdargtoken[4].val.numl, data.cmdargtoken[5].val.numl);
+        return 0;
+    }
+    else
+        return 1;
+}
+
+
 
 int IMAGE_BASIC_get_assym_component_cli()
 {
@@ -195,6 +231,24 @@ int init_image_basic()
     strcpy(data.cmd[data.NBcmd].Ccall,"long basic_resizeim(char *imname_in, char *imname_out, long xsizeout, long ysizeout)");
     data.NBcmd++;
 
+	strcpy(data.cmd[data.NBcmd].key,"im3Dto2D");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = image_basic_3Dto2D_cli;
+    strcpy(data.cmd[data.NBcmd].info,"collapse first 2 axis of 3D image (in place)");
+    strcpy(data.cmd[data.NBcmd].syntax,"<image name>");
+    strcpy(data.cmd[data.NBcmd].example,"im3Dto2D im1");
+    strcpy(data.cmd[data.NBcmd].Ccall,"long image_basic_3Dto2D(char *IDname)");
+    data.NBcmd++;
+
+	strcpy(data.cmd[data.NBcmd].key,"imswapaxis2D");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = image_basic_SwapAxis2D_cli;
+    strcpy(data.cmd[data.NBcmd].info,"Swap axis of a 2D image");
+    strcpy(data.cmd[data.NBcmd].syntax,"<input image> <output image>");
+    strcpy(data.cmd[data.NBcmd].example,"imswapaxis2D im1 im2");
+    strcpy(data.cmd[data.NBcmd].Ccall,"long image_basic_SwapAxis2D(char *IDin_name, char *IDout_name)");
+    data.NBcmd++;
+
     strcpy(data.cmd[data.NBcmd].key,"addim");
     strcpy(data.cmd[data.NBcmd].module,__FILE__);
     data.cmd[data.NBcmd].fp = image_basic_add_cli;
@@ -202,6 +256,15 @@ int init_image_basic()
     strcpy(data.cmd[data.NBcmd].syntax,"<im1> <im2> <outim> <offsetx> <offsety>");
     strcpy(data.cmd[data.NBcmd].example,"addim im1 im2 outim 23 201");
     strcpy(data.cmd[data.NBcmd].Ccall,"long basic_add(char *ID_name1, char *ID_name2, char *ID_name_out, long off1, long off2)");
+    data.NBcmd++;
+
+    strcpy(data.cmd[data.NBcmd].key,"imcontract3D");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = image_basic_contract3D_cli;
+    strcpy(data.cmd[data.NBcmd].info,"image binning (3D)");
+    strcpy(data.cmd[data.NBcmd].syntax,"<inim> <outim> <binx> <biny> <binz>");
+    strcpy(data.cmd[data.NBcmd].example,"imcontracteD im1 outim 4 4 1");
+    strcpy(data.cmd[data.NBcmd].Ccall,"long basic_contract3D(char *ID_name, char *ID_name_out, int n1, int n2, int n3)");
     data.NBcmd++;
 
     strcpy(data.cmd[data.NBcmd].key,"imcontract");
@@ -2711,6 +2774,74 @@ long basic_resizeim(char *imname_in, char *imname_out, long xsizeout, long ysize
 
 
 
+
+
+
+/* ---------------------------------------------------------------------- 
+ * 
+ * turns a 3D image into a 2D image by collapsing first 2 axis
+ * 
+ * 
+ * ---------------------------------------------------------------------- */
+
+
+long image_basic_3Dto2D(char *IDname)
+{
+	long ID;
+	
+	ID = image_ID(IDname);
+	if(data.image[ID].md[0].naxis != 3)
+	{
+		printf("ERROR: image needs to have 3 axis\n");
+	}
+	else
+	{
+		data.image[ID].md[0].size[0] *= data.image[ID].md[0].size[1];
+		data.image[ID].md[0].size[1] =  data.image[ID].md[0].size[2];
+		data.image[ID].md[0].naxis = 2;
+	}
+
+	return(ID);
+}
+
+
+
+
+
+long image_basic_SwapAxis2D(char *IDin_name, char *IDout_name)
+{
+	long IDin;
+	long IDout = -1;
+	long ii, jj;
+	
+	IDin = image_ID(IDin_name);
+	if(data.image[IDin].md[0].naxis != 2)
+	{
+		printf("ERROR: image needs to have 2 axis\n");
+	}
+	else
+	{
+		IDout = create_2Dimage_ID(IDout_name, data.image[IDin].md[0].size[1], data.image[IDin].md[0].size[0]);
+		for(ii=0;ii<data.image[IDin].md[0].size[0];ii++)
+			for(jj=0;jj<data.image[IDin].md[0].size[1];jj++)
+				data.image[IDout].array.F[ii*data.image[IDin].md[0].size[1]+jj] = data.image[IDin].array.F[jj*data.image[IDin].md[0].size[0]+ii];
+	}
+
+	return(IDout);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ---------------------------------------------------------------------- 
  * 
  * turns a list of 2D points into an image by interpolation
@@ -3764,8 +3895,22 @@ long IMAGE_BASIC_streamfeed(char *IDname, char *streamname, float frequ)
     long xsize, ysize, xysize, zsize;
     long k;
     long tdelay;
-    
-    
+    int RT_priority = 95; //any number from 0-99
+    struct sched_param schedpar;
+    int r;
+    int semval;
+    char *ptr0;  
+    char *ptr1;
+    int loopOK;
+    long ii;
+   
+    schedpar.sched_priority = RT_priority;
+    r = seteuid(euid_called); //This goes up to maximum privileges
+    sched_setscheduler(0, SCHED_FIFO, &schedpar); //other option is SCHED_RR, might be faster
+    r = seteuid(euid_real);//Go back to normal privileges
+
+
+
     ID = image_ID(IDname);
     xsize = data.image[ID].md[0].size[0];
     ysize = data.image[ID].md[0].size[1];
@@ -3775,35 +3920,92 @@ long IMAGE_BASIC_streamfeed(char *IDname, char *streamname, float frequ)
 
     printf("frequ = %f Hz\n", frequ);
     printf("tdelay = %ld us\n", tdelay);
-    
+
     IDs = image_ID(streamname);
     if((xsize != data.image[IDs].md[0].size[0])||(ysize != data.image[IDs].md[0].size[1]))
-        {
-            printf("ERROR: images have different x and y sizes");
-            exit(0);
-        }
+    {
+        printf("ERROR: images have different x and y sizes");
+        exit(0);
+    }
     zsize = data.image[ID].md[0].size[2];
 
+    ptr1 = (char*) data.image[IDs].array.F; // destination 
+
+
+
+    if (sigaction(SIGINT, &data.sigact, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGTERM, &data.sigact, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGBUS, &data.sigact, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGSEGV, &data.sigact, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGABRT, &data.sigact, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGHUP, &data.sigact, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGPIPE, &data.sigact, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+
+
     k = 0;
-    while(1)
+    loopOK = 1;
+    while(loopOK == 1)
     {
+        ptr0 = (char*) data.image[ID].array.F;
+        ptr0 += sizeof(float)*xysize*k;
         data.image[IDs].md[0].write = 1;
-        memcpy (data.image[IDs].array.F, data.image[ID].array.F, sizeof(double)*xysize);
+        memcpy ((void*) ptr1, (void*) ptr0, sizeof(float)*xysize);
         if(data.image[IDs].sem > 0)
-            sem_post(data.image[IDs].semptr[0]);
+        {
+            sem_getvalue(data.image[IDs].semptr[0], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[IDs].semptr[0]);
+        }
         data.image[IDs].md[0].write = 0;
         data.image[IDs].md[0].cnt0++;
 
-    //    usleep((long) (10000000.0/frequ));
-        
         usleep ( tdelay );
         k++;
-        if(k>zsize-1)
+        if(k==zsize)
             k = 0;
+    
+        if((data.signal_INT == 1)||(data.signal_TERM == 1)||(data.signal_ABRT==1)||(data.signal_BUS==1)||(data.signal_SEGV==1)||(data.signal_HUP==1)||(data.signal_PIPE==1))
+            loopOK = 0;
     }
 
+
+    data.image[IDs].md[0].write = 1;
+    for(ii=0;ii<xysize;ii++)
+        data.image[IDs].array.F[ii] = 0.0;
+    if(data.image[IDs].sem > 0)
+        {
+            sem_getvalue(data.image[IDs].semptr[0], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[IDs].semptr[0]);
+        }
+        data.image[IDs].md[0].write = 0;
+        data.image[IDs].md[0].cnt0++;
+        
+        
     return(0);
 }
+
 
 
 // works only for floats

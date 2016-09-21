@@ -2,6 +2,7 @@
 #define _ARITH_H
 
 long arith_set_pixel(char *ID_name, double value, long x, long y);
+long arith_set_pixel_1Drange(char *ID_name, double value, long x, long y);
 
 long arith_set_row(char *ID_name, double value, long y);
 
@@ -113,6 +114,7 @@ int arith_image_tanh_inplace(char *ID_name);
 
 
 /* Functions for bison / flex    */ 
+double Ppositive(double a);
 double Ptrunc(double a, double b, double c);
 int arith_image_function_im_im__d_d(char *ID_name, char *ID_out, double (*pt2function)(double));
 int arith_image_function_imd_im__dd_d(char *ID_name, double v0, char *ID_out, double (*pt2function)(double, double));

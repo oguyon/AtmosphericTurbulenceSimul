@@ -88,6 +88,8 @@ long basic_addimages(char *prefix, char *ID_out);
 long basic_averageimages(char *prefix, char *ID_out);
 
 long basic_resizeim(char *imname_in, char *imname_out, long xsizeout, long ysizeout);
+long image_basic_3Dto2D(char *IDname);
+long image_basic_SwapAxis2D(char *IDin_name, char *IDout_name);
 
 long basic_tableto2Dim(char *fname, float xmin, float xmax, float ymin, float ymax, long xsize, long ysize, char *ID_name, float convsize);
 

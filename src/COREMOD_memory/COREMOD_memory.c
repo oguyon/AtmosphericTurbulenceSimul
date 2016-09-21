@@ -7,6 +7,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/file.h>
 #include <sys/mman.h>
 #include <signal.h> 
@@ -20,11 +21,14 @@
 #include <unistd.h> // for close
 
 
+
+
+
 #ifdef __MACH__
 #include <mach/mach_time.h>
 #define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 0
-int clock_gettime(int clk_id, struct timespec *t){
+static int clock_gettime(int clk_id, struct timespec *t){
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
     uint64_t time;
@@ -78,7 +82,7 @@ int listim_scr_wcol;
 extern DATA data;
 
 
-char errmsg[SBUFFERSIZE];
+char errmsg_memory[SBUFFERSIZE];
 
 
 
@@ -296,6 +300,8 @@ int create_image_shared_cli() // default precision
             break;
         }
         free(imsize);
+        printf("Creating 10 semaphores\n");
+        COREMOD_MEMORY_image_set_createsem(data.cmdargtoken[1].val.string, 10);
     }
     else
         return 1;
@@ -551,6 +557,16 @@ int COREMOD_MEMORY_image_set_sempost_cli()
     else
         return 1;
 }
+
+int COREMOD_MEMORY_image_set_sempost_loop_cli()
+{
+    if(CLI_checkarg(1,4)+CLI_checkarg(2,2)+CLI_checkarg(3,2)==0)
+        COREMOD_MEMORY_image_set_sempost_loop(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.numl, data.cmdargtoken[3].val.numl);
+    else
+        return 1;
+}
+
+
 
 int COREMOD_MEMORY_image_set_semwait_cli()
 {
@@ -938,10 +954,19 @@ int init_COREMOD_memory()
     strcpy(data.cmd[data.NBcmd].key,"imsetsempost");
     strcpy(data.cmd[data.NBcmd].module,__FILE__);
     data.cmd[data.NBcmd].fp = COREMOD_MEMORY_image_set_sempost_cli;
-    strcpy(data.cmd[data.NBcmd].info,"post image semaphore");
-    strcpy(data.cmd[data.NBcmd].syntax,"<image>");
-    strcpy(data.cmd[data.NBcmd].example,"imsetsempost im1");
-    strcpy(data.cmd[data.NBcmd].Ccall,"long COREMOD_MEMORY_image_set_sempost(char *IDname)");
+    strcpy(data.cmd[data.NBcmd].info,"post image semaphore. If sem index = -1, post all semaphores");
+    strcpy(data.cmd[data.NBcmd].syntax,"<image> <sem index>");
+    strcpy(data.cmd[data.NBcmd].example,"imsetsempost im1 2");
+    strcpy(data.cmd[data.NBcmd].Ccall,"long COREMOD_MEMORY_image_set_sempost(char *IDname, long index)");
+    data.NBcmd++;
+
+    strcpy(data.cmd[data.NBcmd].key,"imsetsempostl");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = COREMOD_MEMORY_image_set_sempost_loop_cli;
+    strcpy(data.cmd[data.NBcmd].info,"post image semaphore loop. If sem index = -1, post all semaphores");
+    strcpy(data.cmd[data.NBcmd].syntax,"<image> <sem index> <time interval [us]>");
+    strcpy(data.cmd[data.NBcmd].example,"imsetsempost im1 2");
+    strcpy(data.cmd[data.NBcmd].Ccall,"long COREMOD_MEMORY_image_set_sempost(char *IDname, long index, long dtus)");
     data.NBcmd++;
 
     strcpy(data.cmd[data.NBcmd].key,"imsetsemwait");
@@ -1510,7 +1535,7 @@ long create_image_ID(char *name, long naxis, long *size, int atype, int shared, 
     //	printf("NBkw = %ld\n", NBkw);
 
     ID = -1;
-    if(image_ID(name)==-1)
+    if(image_ID(name) == -1)
     {
         # ifdef _OPENMP
         #pragma omp atomic
@@ -1576,7 +1601,7 @@ long create_image_ID(char *name, long naxis, long *size, int atype, int shared, 
             result = lseek(SM_fd, sharedsize-1, SEEK_SET);
             if (result == -1) {
                 close(SM_fd);
-                perror("Error calling lseek() to 'stretch' the file");
+                printERROR(__FILE__,__func__,__LINE__,"Error calling lseek() to 'stretch' the file");
                 exit(0);
             }
 
@@ -1826,6 +1851,9 @@ long create_image_ID(char *name, long naxis, long *size, int atype, int shared, 
         data.image[ID].md[0].cnt0 = 0;
         data.image[ID].md[0].cnt1 = 0;
         data.image[ID].md[0].nelement = nelement;
+    
+		if(shared==1)
+			COREMOD_MEMORY_image_set_createsem(name, 10);
     }
     else
     {
@@ -1850,6 +1878,7 @@ long create_image_ID(char *name, long naxis, long *size, int atype, int shared, 
             {
                 fprintf(stderr,"%c[%d;%dm ERROR: [ %s %s %d ] %c[%d;m\n", (char) 27, 1, 31, __FILE__, __func__, __LINE__, (char) 27, 0);
                 fprintf(stderr,"%c[%d;%dm Pre-existing image \"%s\" has wrong size %c[%d;m\n", (char) 27, 1, 31,name, (char) 27, 0);
+                fprintf(stderr,"Axis %ld :  %ld  %ld\n", i, data.image[ID].md[0].size[i], size[i]);
                 exit(0);
             }
     }
@@ -1867,6 +1896,8 @@ long create_image_ID(char *name, long naxis, long *size, int atype, int shared, 
             strcpy(data.image[ID].kw[kw].comment, comment);
           }
         */
+
+	
 
 
     if(MEM_MONITOR == 1)
@@ -2109,7 +2140,7 @@ long read_sharedmem_image(char *name)
 
 
     sprintf(SM_fname, "%s/%s.im.shm", SHAREDMEMDIR, name);
-    printf("Importing mmap file \"%s\"\n",SM_fname);
+   // printf("Importing mmap file \"%s\"\n",SM_fname);
 
 
     SM_fd = open(SM_fname, O_RDWR);
@@ -2117,7 +2148,7 @@ long read_sharedmem_image(char *name)
     {
         data.image[ID].used = 0;
         ID = -1;
-        printf("Cannot import file - continuing\n");
+        printf("Cannot import shared memory file %s \n", name);
     }
     else
     {
@@ -2237,7 +2268,8 @@ long read_sharedmem_image(char *name)
         sOK = 1;
         while(sOK==1)
         {
-            sprintf(sname, "%s_sem%02ld", name, snb);
+            //printf("name = %s\n", data.image[ID].md[0].name);
+            sprintf(sname, "%s_sem%02ld", data.image[ID].md[0].name, snb);
             if((stest = sem_open(sname, 0, 0644, 0))== SEM_FAILED)
                 sOK = 0;
             else
@@ -2252,13 +2284,13 @@ long read_sharedmem_image(char *name)
         data.image[ID].semptr = (sem_t**) malloc(sizeof(sem_t*)*data.image[ID].sem);
         for(s=0; s<snb; s++)
         {
-            sprintf(sname, "%s_sem%02ld", name, s);
+            sprintf(sname, "%s_sem%02ld", data.image[ID].md[0].name, s);
             if ((data.image[ID].semptr[s] = sem_open(sname, 0, 0644, 0))== SEM_FAILED) {
                 printf("ERROR: could not open semaphore %s\n", sname);
             }
         }
         
-        sprintf(sname, "%s_semlog", name);
+        sprintf(sname, "%s_semlog", data.image[ID].md[0].name);
         if ((data.image[ID].semlog = sem_open(sname, 0, 0644, 0))== SEM_FAILED) {
                 printf("ERROR: could not open semaphore %s\n", sname);
             }
@@ -2465,6 +2497,8 @@ long copy_image_ID(char *name, char *newname, int shared)
     int newim = 0;
     long s;
     char errstr[200];
+    int semval;
+
 
     ID = image_ID(name);
     if(ID==-1)
@@ -2536,32 +2570,41 @@ long copy_image_ID(char *name, char *newname, int shared)
     data.image[IDout].md[0].write = 1;
 
     if(atype==CHAR)
-        memcpy (data.image[IDout].array.C,data.image[ID].array.C, sizeof(char)*nelement);
+        memcpy (data.image[IDout].array.C, data.image[ID].array.C, sizeof(char)*nelement);
 
     if(atype==INT)
-        memcpy (data.image[IDout].array.I,data.image[ID].array.I, sizeof(int)*nelement);
+        memcpy (data.image[IDout].array.I, data.image[ID].array.I, sizeof(int)*nelement);
 
     if(atype==FLOAT)
-        memcpy (data.image[IDout].array.F,data.image[ID].array.F, sizeof(float)*nelement);
+        memcpy (data.image[IDout].array.F, data.image[ID].array.F, sizeof(float)*nelement);
 
     if(atype==DOUBLE)
-        memcpy (data.image[IDout].array.D,data.image[ID].array.D, sizeof(double)*nelement);
+        memcpy (data.image[IDout].array.D, data.image[ID].array.D, sizeof(double)*nelement);
 
     if(atype==COMPLEX_FLOAT)
-        memcpy (data.image[IDout].array.CF,data.image[ID].array.CF, sizeof(float)*2*nelement);
+        memcpy (data.image[IDout].array.CF, data.image[ID].array.CF, sizeof(float)*2*nelement);
 
     if(atype==COMPLEX_DOUBLE)
-        memcpy (data.image[IDout].array.CD,data.image[ID].array.CD, sizeof(double)*2*nelement);
+        memcpy (data.image[IDout].array.CD, data.image[ID].array.CD, sizeof(double)*2*nelement);
 
     if(atype==USHORT)
         memcpy (data.image[IDout].array.U, data.image[ID].array.U, sizeof(double)*nelement);
 
     for(s=0;s<data.image[IDout].sem; s++)
-        sem_post(data.image[IDout].semptr[s]);
-
+    {
+        sem_getvalue(data.image[IDout].semptr[s], &semval);
+        if(semval<SEMAPHORE_MAXVAL)
+            sem_post(data.image[IDout].semptr[s]);
+    }
+    
     if(data.image[IDout].semlog!=NULL)
-        sem_post(data.image[IDout].semlog);
-
+    {
+        sem_getvalue(data.image[IDout].semlog, &semval);
+        if(semval<SEMAPHORE_MAXVAL)
+            sem_post(data.image[IDout].semlog);
+    }
+    
+    COREMOD_MEMORY_image_set_sempost_byID(IDout, -1);
     data.image[IDout].md[0].write = 0;
     data.image[IDout].md[0].cnt0++;
 
@@ -2902,6 +2945,9 @@ int list_image_ID_ofp(FILE *fo)
 
 
     clock_gettime(CLOCK_REALTIME, &timenow);
+	fprintf(fo, "time:  %ld.%09ld\n", timenow.tv_sec % 60, timenow.tv_nsec);
+ 
+    
 
     fprintf(fo, "\n");
     fprintf(fo, "INDEX    NAME         SIZE                    TYPE        SIZE  [percent]    LAST ACCESS\n");
@@ -3052,10 +3098,10 @@ int list_image_ID_file(char *fname)
     fp = fopen(fname,"w");
     if(fp == NULL)
     {
-        n = snprintf(errmsg,SBUFFERSIZE,"Cannot create file %s",fname);
+        n = snprintf(errmsg_memory,SBUFFERSIZE,"Cannot create file %s",fname);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        printERROR(__FILE__,__func__,__LINE__,errmsg_memory);
         exit(0);
     }
 
@@ -3218,11 +3264,11 @@ int mk_complex_from_reim(char *re_name, char *im_name, char *out_name, int share
     }
     else
     {
-        n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
+        n = snprintf(errmsg_memory,SBUFFERSIZE,"Wrong image type(s)\n");
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
 
-        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        printERROR(__FILE__,__func__,__LINE__,errmsg_memory);
         exit(0);
     }
     // Note: openMP doesn't help here
@@ -3346,11 +3392,11 @@ int mk_complex_from_amph(char *am_name, char *ph_name, char *out_name, int share
     }
     else
     {
-        n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
+        n = snprintf(errmsg_memory,SBUFFERSIZE,"Wrong image type(s)\n");
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
 
-        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        printERROR(__FILE__,__func__,__LINE__,errmsg_memory);
         exit(0);
     }
 
@@ -3395,6 +3441,11 @@ int mk_reim_from_complex(char *in_name, char *re_name, char *im_name, int shared
 # ifdef _OPENMP
         }
 # endif
+		if(sharedmem==1)
+		{
+			COREMOD_MEMORY_image_set_sempost_byID(IDre, -1);
+			COREMOD_MEMORY_image_set_sempost_byID(IDim, -1);
+        }
         data.image[IDre].md[0].cnt0++;
         data.image[IDim].md[0].cnt0++;
         data.image[IDre].md[0].write = 0;
@@ -3419,6 +3470,11 @@ int mk_reim_from_complex(char *in_name, char *re_name, char *im_name, int shared
 # ifdef _OPENMP
         }
 # endif
+		if(sharedmem==1)
+		{
+			COREMOD_MEMORY_image_set_sempost_byID(IDre, -1);
+			COREMOD_MEMORY_image_set_sempost_byID(IDim, -1);
+        }
         data.image[IDre].md[0].cnt0++;
         data.image[IDim].md[0].cnt0++;
         data.image[IDre].md[0].write = 0;
@@ -3427,17 +3483,20 @@ int mk_reim_from_complex(char *in_name, char *re_name, char *im_name, int shared
     }
     else
     {
-        n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
+        n = snprintf(errmsg_memory,SBUFFERSIZE,"Wrong image type(s)\n");
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
 
-        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        printERROR(__FILE__,__func__,__LINE__,errmsg_memory);
         exit(0);
     }
 
 
     return(0);
 }
+
+
+
 
 int mk_amph_from_complex(char *in_name, char *am_name, char *ph_name, int sharedmem)
 {
@@ -3462,8 +3521,8 @@ int mk_amph_from_complex(char *in_name, char *am_name, char *ph_name, int shared
 
     if(atype==COMPLEX_FLOAT) // single precision
     {
-        IDam = create_image_ID(am_name,naxis,naxes,FLOAT, sharedmem, data.NBKEWORD_DFT);
-        IDph = create_image_ID(ph_name,naxis,naxes,FLOAT, sharedmem, data.NBKEWORD_DFT);
+        IDam = create_image_ID(am_name, naxis, naxes, FLOAT, sharedmem, data.NBKEWORD_DFT);
+        IDph = create_image_ID(ph_name, naxis, naxes, FLOAT, sharedmem, data.NBKEWORD_DFT);
         data.image[IDam].md[0].write = 1;
         data.image[IDph].md[0].write = 1;
 # ifdef _OPENMP
@@ -3481,6 +3540,11 @@ int mk_amph_from_complex(char *in_name, char *am_name, char *ph_name, int shared
 # ifdef _OPENMP
         }
 # endif
+		if(sharedmem==1)
+		{
+			COREMOD_MEMORY_image_set_sempost_byID(IDam, -1);
+			COREMOD_MEMORY_image_set_sempost_byID(IDph, -1);
+        }
         data.image[IDam].md[0].cnt0++;
         data.image[IDph].md[0].cnt0++;
         data.image[IDam].md[0].write = 0;
@@ -3507,6 +3571,11 @@ int mk_amph_from_complex(char *in_name, char *am_name, char *ph_name, int shared
 # ifdef _OPENMP
         }
 # endif
+		if(sharedmem==1)
+		{
+			COREMOD_MEMORY_image_set_sempost_byID(IDam, -1);
+			COREMOD_MEMORY_image_set_sempost_byID(IDph, -1);
+        }
         data.image[IDam].md[0].cnt0++;
         data.image[IDph].md[0].cnt0++;
         data.image[IDam].md[0].write = 0;
@@ -3514,15 +3583,18 @@ int mk_amph_from_complex(char *in_name, char *am_name, char *ph_name, int shared
     }
     else
     {
-        n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
+        n = snprintf(errmsg_memory,SBUFFERSIZE,"Wrong image type(s)\n");
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        printERROR(__FILE__,__func__,__LINE__,errmsg_memory);
         exit(0);
     }
 
     return(0);
 }
+
+
+
 
 int mk_reim_from_amph(char *am_name, char *ph_name, char *re_out_name, char *im_out_name, int sharedmem)
 {
@@ -3633,11 +3705,11 @@ int rotate_cube(char *ID_name, char *ID_out_name, int orientation)
 
     if(data.image[ID].md[0].naxis!=3)
     {
-        n = snprintf(errmsg,SBUFFERSIZE,"Wrong naxis : %ld - should be 3\n",data.image[ID].md[0].naxis);
+        n = snprintf(errmsg_memory,SBUFFERSIZE,"Wrong naxis : %ld - should be 3\n",data.image[ID].md[0].naxis);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
 
-        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        printERROR(__FILE__,__func__,__LINE__,errmsg_memory);
         exit(0);
     }
     xsize = data.image[ID].md[0].size[0];
@@ -3696,11 +3768,11 @@ int rotate_cube(char *ID_name, char *ID_out_name, int orientation)
     }
     else
     {
-        n = snprintf(errmsg,SBUFFERSIZE,"Wrong image type(s)\n");
+        n = snprintf(errmsg_memory,SBUFFERSIZE,"Wrong image type(s)\n");
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
 
-        printERROR(__FILE__,__func__,__LINE__,errmsg);
+        printERROR(__FILE__,__func__,__LINE__,errmsg_memory);
         exit(0);
     }
 
@@ -3815,7 +3887,9 @@ long COREMOD_MEMORY_cp2shm(char *IDname, char *IDshmname)
     char *ptr1;
     char *ptr2;
     long k;
-
+	int axis;
+	int shmOK;
+	
 
     ID = image_ID(IDname);
     naxis = data.image[ID].md[0].naxis;
@@ -3826,12 +3900,37 @@ long COREMOD_MEMORY_cp2shm(char *IDname, char *IDshmname)
     for(k=0; k<naxis; k++)
         sizearray[k] = data.image[ID].md[0].size[k];
 
-
-    IDshm = create_image_ID(IDshmname, naxis, sizearray, atype, 1, 0);
+	shmOK = 1;
+	IDshm = read_sharedmem_image(IDshmname);
+	if(IDshm!=-1)
+	{
+		// verify type and size
+		if(data.image[ID].md[0].naxis!=data.image[IDshm].md[0].naxis)
+			shmOK = 0;
+		if(shmOK==1)
+			{
+				for(axis=0;axis<data.image[IDshm].md[0].naxis;axis++)
+					if(data.image[ID].md[0].size[axis]!=data.image[IDshm].md[0].size[axis])
+						shmOK = 0;
+			}
+		if(data.image[ID].md[0].atype!=data.image[IDshm].md[0].atype)
+			shmOK = 0;
+	
+		if(shmOK==0)
+			{
+				delete_image_ID(IDshmname);
+				IDshm = -1;
+			}
+	}
+	
+	if(IDshm==-1)
+		IDshm = create_image_ID(IDshmname, naxis, sizearray, atype, 1, 0);
     free(sizearray);
 
     //data.image[IDshm].md[0].nelement = data.image[ID].md[0].nelement;
     //printf("======= %ld %ld ============\n", data.image[ID].md[0].nelement, data.image[IDshm].md[0].nelement);
+
+	data.image[IDshm].md[0].write = 1;
 
     switch (atype) {
     case FLOAT :
@@ -3853,6 +3952,9 @@ long COREMOD_MEMORY_cp2shm(char *IDname, char *IDshmname)
         printf("data type not supported\n");
         break;
     }
+    COREMOD_MEMORY_image_set_sempost_byID(IDshm, -1);
+	data.image[IDshm].md[0].cnt0++;
+	data.image[IDshm].md[0].write = 0;
 
     return(0);
 }
@@ -4017,32 +4119,114 @@ long COREMOD_MEMORY_image_set_sempost(char *IDname, long index)
     long ID;
     long s;
     int semval;
-    
-    
+
+
     ID = image_ID(IDname);
 
     if(ID==-1)
         ID = read_sharedmem_image(IDname);
-        
+
     if(index<0)
+    {
+        for(s=0; s<data.image[ID].sem; s++)
         {
-            for(s=0; s<data.image[ID].sem; s++)
-            {
-                sem_getvalue(data.image[ID].semptr[s], &semval);
-                if(semval<SEMAPHORE_MAX)
-                    sem_post(data.image[ID].semptr[s]);
-            }
+            sem_getvalue(data.image[ID].semptr[s], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[ID].semptr[s]);
         }
+    }
     else
+    {
+        if(index>data.image[ID].sem-1)
+            printf("ERROR: image %s semaphore # %ld does no exist\n", IDname, index);
+        else
         {
-            if(index>data.image[ID].sem-1)
-                printf("ERROR: image %s semaphore # %ld does no exist\n", IDname, index);
-    else
-            sem_post(data.image[ID].semptr[index]);
+            sem_getvalue(data.image[ID].semptr[index], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[ID].semptr[index]);
         }
+    }
 
     return(ID);
 }
+
+
+// if index < 0, post all semaphores
+long COREMOD_MEMORY_image_set_sempost_byID(long ID, long index)
+{
+    long s;
+    int semval;
+
+    if(index<0)
+    {
+        for(s=0; s<data.image[ID].sem; s++)
+        {
+            sem_getvalue(data.image[ID].semptr[s], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[ID].semptr[s]);
+        }
+    }
+    else
+    {
+        if(index>data.image[ID].sem-1)
+            printf("ERROR: image ID %ld semaphore # %ld does no exist\n", ID, index);
+        else
+        {
+            sem_getvalue(data.image[ID].semptr[index], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[ID].semptr[index]);
+        }
+    }
+
+    return(ID);
+}
+
+
+
+
+// if index < 0, post all semaphores
+
+long COREMOD_MEMORY_image_set_sempost_loop(char *IDname, long index, long dtus)
+{
+    long ID;
+    long s;
+    int semval;
+
+
+    ID = image_ID(IDname);
+
+    if(ID==-1)
+        ID = read_sharedmem_image(IDname);
+
+
+	while(1)
+	{
+    if(index<0)
+    {
+        for(s=0; s<data.image[ID].sem; s++)
+        {
+            sem_getvalue(data.image[ID].semptr[s], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[ID].semptr[s]);
+        }
+    }
+    else
+    {
+        if(index>data.image[ID].sem-1)
+            printf("ERROR: image %s semaphore # %ld does no exist\n", IDname, index);
+        else
+        {
+            sem_getvalue(data.image[ID].semptr[index], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[ID].semptr[index]);
+        }
+    }
+    sleep(dtus);
+	}
+    return(ID);
+}
+
+
 
 long COREMOD_MEMORY_image_set_semwait(char *IDname, long index)
 {
@@ -4190,15 +4374,16 @@ long COREMOD_MEMORY_image_set_semflush(char *IDname, long index)
         else
         {
             s = index;
-                sem_getvalue(data.image[ID].semptr[s], &semval);
-                for(i=0; i<semval; i++)
-                    sem_trywait(data.image[ID].semptr[s]);
+            sem_getvalue(data.image[ID].semptr[s], &semval);
+            for(i=0; i<semval; i++)
+                sem_trywait(data.image[ID].semptr[s]);
 
         }
     }
 
     return(ID);
 }
+
 
 
 
@@ -4215,6 +4400,7 @@ long COREMOD_MEMORY_image_streamupdateloop(char *IDinname, char *IDoutname, long
     char *ptr0; // source
     char *ptr1; // dest
     long framesize;
+    int semval;
 
     printf("Creating image stream ...\n");
     fflush(stdout);
@@ -4276,7 +4462,11 @@ long COREMOD_MEMORY_image_streamupdateloop(char *IDinname, char *IDoutname, long
         ptr0 = ptr0s + kk*framesize;
         data.image[IDout].md[0].write = 1;
         memcpy((void *) ptr1, (void *) ptr0, framesize);
-        sem_post(data.image[IDout].semptr[0]);
+        
+        sem_getvalue(data.image[IDout].semptr[0], &semval);
+        if(semval<SEMAPHORE_MAXVAL)
+            sem_post(data.image[IDout].semptr[0]);
+
         data.image[IDout].md[0].cnt0++;
         data.image[IDout].md[0].write = 0;
 
@@ -4579,6 +4769,8 @@ long COREMOD_MEMORY_image_NETWORKreceive(int port, int mode)
     char fname[200];
     long NBslices;
     int socketOpen = 1; // 0 if socket is closed
+    int semval;
+    int semnb;
 
     imgmd = (IMAGE_METADATA*) malloc(sizeof(IMAGE_METADATA));
 
@@ -4800,8 +4992,12 @@ long COREMOD_MEMORY_image_NETWORKreceive(int port, int mode)
                 else
                      memcpy(ptr0, buff, framesize);
                 data.image[ID].md[0].cnt0++;
-                if(data.image[ID].sem > 0)
-                    sem_post(data.image[ID].semptr[0]);
+                for(semnb=0;semnb<data.image[ID].sem ; semnb++)
+                {
+                    sem_getvalue(data.image[ID].semptr[semnb], &semval);
+                    if(semval<SEMAPHORE_MAXVAL)
+                        sem_post(data.image[ID].semptr[semnb]);
+                }
             }
         if((data.signal_INT == 1)||(data.signal_TERM == 1)||(data.signal_ABRT==1)||(data.signal_BUS==1)||(data.signal_SEGV==1)||(data.signal_HUP==1)||(data.signal_PIPE==1))
             socketOpen = 0;
@@ -4881,7 +5077,7 @@ long COREMOD_MEMORY_PixMapDecode_U(char *inputstream_name, long xsizeim, long ys
     sizearray[0] = xsizeim;
     sizearray[1] = ysizeim;
     IDout = create_image_ID(IDout_name, 2, sizearray, data.image[IDin].md[0].atype, 1, 0);
-    COREMOD_MEMORY_image_set_createsem(IDout_name, 4);
+    COREMOD_MEMORY_image_set_createsem(IDout_name, 7); // create 7 semaphores
     IDout_pixslice = create_image_ID("outpixsl", 2, sizearray, USHORT, 0, 0);
 
     NBslice = data.image[IDin].md[0].size[2];
@@ -4893,7 +5089,7 @@ long COREMOD_MEMORY_PixMapDecode_U(char *inputstream_name, long xsizeim, long ys
     nbpixslice = (long*) malloc(sizeof(long)*NBslice);
     if((fp=fopen(NBpix_fname,"r"))==NULL)
     {
-        printf("ERROR : cannor open file \"%s\"\n", NBpix_fname);
+        printf("ERROR : cannot open file \"%s\"\n", NBpix_fname);
         exit(0);
     }
 
@@ -4980,10 +5176,8 @@ long COREMOD_MEMORY_PixMapDecode_U(char *inputstream_name, long xsizeim, long ys
             if(slice>oldslice+1)
                 slice = oldslice+1;
 
-
             if(oldslice==NBslice-1)
                 slice = 0;
-
 
             //   clock_gettime(CLOCK_REALTIME, &tarray[slice]);
             //  dtarray[slice] = 1.0*tarray[slice].tv_sec + 1.0e-9*tarray[slice].tv_nsec;
@@ -4999,7 +5193,26 @@ long COREMOD_MEMORY_PixMapDecode_U(char *inputstream_name, long xsizeim, long ys
 
             if(slice==NBslice-1)   //if(slice<oldslice)
             {
-                sem_post(data.image[IDout].semptr[0]);
+                sem_getvalue(data.image[IDout].semptr[0], &semval);
+                if(semval<SEMAPHORE_MAXVAL)
+                    sem_post(data.image[IDout].semptr[0]);
+
+                sem_getvalue(data.image[IDout].semptr[1], &semval);
+                if(semval<SEMAPHORE_MAXVAL)
+                    sem_post(data.image[IDout].semptr[1]);
+
+                sem_getvalue(data.image[IDout].semptr[4], &semval);
+                if(semval<SEMAPHORE_MAXVAL)
+                    sem_post(data.image[IDout].semptr[4]);
+
+                sem_getvalue(data.image[IDout].semptr[5], &semval);
+                if(semval<SEMAPHORE_MAXVAL)
+                    sem_post(data.image[IDout].semptr[5]);
+
+                sem_getvalue(data.image[IDout].semlog, &semval);
+                if(semval<SEMAPHORE_MAXVAL)
+                    sem_post(data.image[IDout].semlog);
+             
                 data.image[IDout].md[0].cnt0 ++;
 
                 //     printf("[[ Timimg [us] :   ");
@@ -5014,7 +5227,15 @@ long COREMOD_MEMORY_PixMapDecode_U(char *inputstream_name, long xsizeim, long ys
             }
 
             data.image[IDout].md[0].cnt1 = slice;
-            sem_post(data.image[IDout].semptr[1]);
+            
+            sem_getvalue(data.image[IDout].semptr[2], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[IDout].semptr[2]);
+            
+            sem_getvalue(data.image[IDout].semptr[3], &semval);
+            if(semval<SEMAPHORE_MAXVAL)
+                sem_post(data.image[IDout].semptr[3]);
+            
             data.image[IDout].md[0].write = 0;
 
             oldslice = slice;
@@ -5070,7 +5291,7 @@ LOGSHIM_CONF* COREMOD_MEMORY_logshim_create_SHMconf(char *logshimname)
     result = lseek(SM_fd, sharedsize-1, SEEK_SET);
     if (result == -1) {
         close(SM_fd);
-        perror("Error calling lseek() to 'stretch' the file");
+        printERROR(__FILE__,__func__,__LINE__,"Error calling lseek() to 'stretch' the file");
         exit(0);
     }
 
@@ -5261,7 +5482,8 @@ long COREMOD_MEMORY_sharedMem_2Dim_log(char *IDname, long zsize, char *logdir, c
     char iname[200];
     time_t t;
     struct tm *uttime;
-    struct timespec *thetime = (struct timespec *)malloc(sizeof(struct timespec));
+    //struct timespec *thetime = (struct timespec *)malloc(sizeof(struct timespec));
+    struct timespec timenow;
     long kw;
 
     long IDlogdata;
@@ -5405,9 +5627,18 @@ long COREMOD_MEMORY_sharedMem_2Dim_log(char *IDname, long zsize, char *logdir, c
             /// measure time
             t = time(NULL);
             uttime = gmtime(&t);
-            clock_gettime(CLOCK_REALTIME, thetime);
-            sprintf(fname,"!%s/%s_%02d:%02d:%02d.%09ld.fits", logdir, IDname, uttime->tm_hour, uttime->tm_min, uttime->tm_sec, thetime->tv_nsec);
-            sprintf(fname_asciilog,"%s/%s_%02d:%02d:%02d.%09ld.txt", logdir, IDname, uttime->tm_hour, uttime->tm_min, uttime->tm_sec, thetime->tv_nsec);
+            //clock_gettime(CLOCK_REALTIME, thetime);
+            
+			clock_gettime(CLOCK_REALTIME, &timenow);
+/*
+   struct timespec timenow;
+   clock_gettime(CLOCK_REALTIME, &timenow);
+	fprintf(fo, "time:  %ld.%09ld\n", timenow.tv_sec % 60, timenow.tv_nsec);
+  */          
+            sprintf(fname,"!%s/%s_%02d:%02d:%02ld.%09ld.fits", logdir, IDname, uttime->tm_hour, uttime->tm_min, timenow.tv_sec % 60, timenow.tv_nsec);
+   //        sprintf(fname, "!%s/%s_%02d:%02d:%02d.%09ld.fits", logdir, IDname, uttime->tm_hour, uttime->tm_min, (long)thetime->tv_sec, (long) (thetime->tv_nsec));
+
+            sprintf(fname_asciilog,"%s/%s_%02d:%02d:%02ld.%09ld.txt", logdir, IDname, uttime->tm_hour, uttime->tm_min, timenow.tv_sec % 60, timenow.tv_nsec);
         }
 
         if(logshimconf[0].on == 1)
@@ -5417,7 +5648,8 @@ long COREMOD_MEMORY_sharedMem_2Dim_log(char *IDname, long zsize, char *logdir, c
                 /// measure time
                 t = time(NULL);
                 uttime = gmtime(&t);
-                clock_gettime(CLOCK_REALTIME, thetime);
+                //clock_gettime(CLOCK_REALTIME, thetime);
+				clock_gettime(CLOCK_REALTIME, &timenow);
 
                 if(index==0)
                     fp = fopen(fname_asciilog, "w");
@@ -5462,7 +5694,7 @@ long COREMOD_MEMORY_sharedMem_2Dim_log(char *IDname, long zsize, char *logdir, c
 
                 memcpy((void *) ptr1, (void *) ptr0, framesize);
 
-                fprintf(fp, "%02d:%02d:%02d.%09ld ", uttime->tm_hour, uttime->tm_min, uttime->tm_sec, thetime->tv_nsec);
+                fprintf(fp, "%02d:%02d:%02ld.%09ld ", uttime->tm_hour, uttime->tm_min, timenow.tv_sec % 60, timenow.tv_nsec);
 
                 if(IDlogdata!=-1)
                 {

@@ -5,6 +5,8 @@
 \begin{DoxyCompactItemize}
 \item 
 struct \hyperlink{structLOGSHIM__CONF}{L\+O\+G\+S\+H\+I\+M\+\_\+\+C\+O\+N\+F}
+\item 
+struct \hyperlink{structTCP__BUFFER__METADATA}{T\+C\+P\+\_\+\+B\+U\+F\+F\+E\+R\+\_\+\+M\+E\+T\+A\+D\+A\+T\+A}
 \end{DoxyCompactItemize}
 \subsection*{Macros}
 \begin{DoxyCompactItemize}
@@ -64,6 +66,8 @@ long \hyperlink{COREMOD__memory_8h_a516310c1ed7abf7ee18e5a2652d82f31}{image\+\_\
 \item 
 long \hyperlink{COREMOD__memory_8h_ae13cdc5ea97db49718480c11051b02f8}{image\+\_\+read\+\_\+keyword\+\_\+\+L} (char $\ast$I\+Dname, char $\ast$kname, long $\ast$val)
 \item 
+long \hyperlink{COREMOD__memory_8h_afcb49d8a50d70f506ed1e3431ea741e2}{read\+\_\+sharedmem\+\_\+image\+\_\+size} (char $\ast$name, char $\ast$fname)
+\item 
 long \hyperlink{COREMOD__memory_8h_aa344e4c7481b275005bd6872679ba7cd}{read\+\_\+sharedmem\+\_\+image} (char $\ast$name)
 \item 
 long \hyperlink{COREMOD__memory_8h_a7eec0c8861702a5212dc4b5414d607a7}{create\+\_\+1\+Dimage\+\_\+\+I\+D} (char $\ast$I\+D\+\_\+name, long xsize)
@@ -100,17 +104,17 @@ int \hyperlink{COREMOD__memory_8h_a9642102344572848460f4583b5f73840}{list\+\_\+v
 \item 
 long \hyperlink{COREMOD__memory_8h_aebc4d41137ec292a6d13f1e0f3869bc6}{chname\+\_\+image\+\_\+\+I\+D} (char $\ast$I\+D\+\_\+name, char $\ast$new\+\_\+name)
 \item 
-int \hyperlink{COREMOD__memory_8h_aafbd5873a03ce5d1d4705ea4875df0fc}{mk\+\_\+complex\+\_\+from\+\_\+reim} (char $\ast$re\+\_\+name, char $\ast$im\+\_\+name, char $\ast$out\+\_\+name)
+int \hyperlink{COREMOD__memory_8h_aa47b6d9e3673e1421afda31e5c38ff4b}{mk\+\_\+complex\+\_\+from\+\_\+reim} (char $\ast$re\+\_\+name, char $\ast$im\+\_\+name, char $\ast$out\+\_\+name, int sharedmem)
 \item 
-int \hyperlink{COREMOD__memory_8h_a31f84c57451f2e98e681227ebcf3c52f}{mk\+\_\+complex\+\_\+from\+\_\+amph} (char $\ast$am\+\_\+name, char $\ast$ph\+\_\+name, char $\ast$out\+\_\+name)
+int \hyperlink{COREMOD__memory_8h_a68b7fea47ee49ab7e7eb9d48115c55d9}{mk\+\_\+complex\+\_\+from\+\_\+amph} (char $\ast$am\+\_\+name, char $\ast$ph\+\_\+name, char $\ast$out\+\_\+name, int sharedmem)
 \item 
-int \hyperlink{COREMOD__memory_8h_ac81b64002327f9903084ce3013a00c43}{mk\+\_\+reim\+\_\+from\+\_\+complex} (char $\ast$in\+\_\+name, char $\ast$re\+\_\+name, char $\ast$im\+\_\+name)
+int \hyperlink{COREMOD__memory_8h_ad56d9ffc4bdbbdfd49968180c7ad0417}{mk\+\_\+reim\+\_\+from\+\_\+complex} (char $\ast$in\+\_\+name, char $\ast$re\+\_\+name, char $\ast$im\+\_\+name, int sharedmem)
 \item 
-int \hyperlink{COREMOD__memory_8h_a3e2b56c1d8b1d3dfc650a9df14be60e3}{mk\+\_\+amph\+\_\+from\+\_\+complex} (char $\ast$in\+\_\+name, char $\ast$am\+\_\+name, char $\ast$ph\+\_\+name)
+int \hyperlink{COREMOD__memory_8h_af8562749744be6b0af7a0344596a5bc9}{mk\+\_\+amph\+\_\+from\+\_\+complex} (char $\ast$in\+\_\+name, char $\ast$am\+\_\+name, char $\ast$ph\+\_\+name, int sharedmem)
 \item 
-int \hyperlink{COREMOD__memory_8h_a8b34c85f16734ceec12e2a59398e0291}{mk\+\_\+reim\+\_\+from\+\_\+amph} (char $\ast$am\+\_\+name, char $\ast$ph\+\_\+name, char $\ast$re\+\_\+out\+\_\+name, char $\ast$im\+\_\+out\+\_\+name)
+int \hyperlink{COREMOD__memory_8h_aa0fd84bff74fff27a4f14ba188c15417}{mk\+\_\+reim\+\_\+from\+\_\+amph} (char $\ast$am\+\_\+name, char $\ast$ph\+\_\+name, char $\ast$re\+\_\+out\+\_\+name, char $\ast$im\+\_\+out\+\_\+name, int sharedmem)
 \item 
-int \hyperlink{COREMOD__memory_8h_a5a1d8e27d5f9b583db6d04e18c1e2b49}{mk\+\_\+amph\+\_\+from\+\_\+reim} (char $\ast$re\+\_\+name, char $\ast$im\+\_\+name, char $\ast$am\+\_\+out\+\_\+name, char $\ast$ph\+\_\+out\+\_\+name)
+int \hyperlink{COREMOD__memory_8h_aa89cd70e322e446c58dc0eb73ddf1a0d}{mk\+\_\+amph\+\_\+from\+\_\+reim} (char $\ast$re\+\_\+name, char $\ast$im\+\_\+name, char $\ast$am\+\_\+out\+\_\+name, char $\ast$ph\+\_\+out\+\_\+name, int sharedmem)
 \item 
 int \hyperlink{COREMOD__memory_8h_af73d65191bfcbdcb58026a0824055d9b}{clearall} ()
 \item 
@@ -132,23 +136,25 @@ long \hyperlink{COREMOD__memory_8h_ad1f16fc180010e7412b3711c0b95334f}{C\+O\+R\+E
 \item 
 long \hyperlink{COREMOD__memory_8h_acf381ae5e26676878dbc296f7ff42ddc}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+cnt1} (char $\ast$I\+Dname, int cnt1)
 \item 
-long \hyperlink{COREMOD__memory_8h_aa9234a32623bef57dec5366a36fba715}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem} (char $\ast$I\+Dname)
+long \hyperlink{COREMOD__memory_8h_a3b28a7b4a404c93b1d7871f146fc9b35}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem} (char $\ast$I\+Dname, long N\+Bsem)
 \item 
-long \hyperlink{COREMOD__memory_8h_a3ffb95f61b127915041b6e8663efd00a}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost} (char $\ast$I\+Dname)
+long \hyperlink{COREMOD__memory_8h_a4b485f14016f2425083df84f07b81235}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost} (char $\ast$I\+Dname, long index)
 \item 
-long \hyperlink{COREMOD__memory_8h_a52354e4cb18c81e026c1cb5756becebb}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait} (char $\ast$I\+Dname)
+long \hyperlink{COREMOD__memory_8h_a011c7ec1282f60818e4021a63b91931b}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait} (char $\ast$I\+Dname, long index)
 \item 
 long \hyperlink{COREMOD__memory_8h_a1b4b8135f1a24212048a83d6153b2d39}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait\+\_\+\+O\+R\+\_\+\+I\+Darray} (long $\ast$I\+Darray, long N\+B\+\_\+\+I\+D)
-\begin{DoxyCompactList}\small\item\em Wait for multiple semaphores \mbox{[}O\+R\mbox{]}. \end{DoxyCompactList}\item 
+\begin{DoxyCompactList}\small\item\em Wait for multiple images semaphores \mbox{[}O\+R\mbox{]}, only works for sem0 only. \end{DoxyCompactList}\item 
 long \hyperlink{COREMOD__memory_8h_a6fdbf9d15c38ab7e17cba7491027299e}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush\+\_\+\+I\+Darray} (long $\ast$I\+Darray, long N\+B\+\_\+\+I\+D)
 \begin{DoxyCompactList}\small\item\em flush multiple semaphores \end{DoxyCompactList}\item 
-long \hyperlink{COREMOD__memory_8h_adb3be222ee04cb10c6e8d0e1c95767a6}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush} (char $\ast$I\+Dname)
+long \hyperlink{COREMOD__memory_8h_a94fc071fd8ce67e15124e22d6fc84cf2}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush} (char $\ast$I\+Dname, long index)
 \begin{DoxyCompactList}\small\item\em set semaphore value to 0 \end{DoxyCompactList}\item 
 long \hyperlink{COREMOD__memory_8h_ad7182d838047ce0188dd0ff058616c89}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+streamupdateloop} (char $\ast$I\+Dinname, char $\ast$I\+Doutname, long usperiod)
 \begin{DoxyCompactList}\small\item\em takes a 3\+Dimage (circular buffer) and writes slices to a 2\+D image with time interval specified in us \end{DoxyCompactList}\item 
 long \hyperlink{COREMOD__memory_8h_af670c0ea50a508f81c8c517c7dd8842c}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+\+N\+E\+T\+W\+O\+R\+Ktransmit} (char $\ast$I\+Dname, char $\ast$I\+Paddr, int port, int mode)
 \item 
 long \hyperlink{COREMOD__memory_8h_a60a96faec50771cfb6908cfc8a688a97}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+\+N\+E\+T\+W\+O\+R\+Kreceive} (int port, int mode)
+\item 
+long \hyperlink{COREMOD__memory_8h_ada019e7ed61c40d945b0793d91485d1e}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+Pix\+Map\+Decode\+\_\+\+U} (char $\ast$inputstream\+\_\+name, long xsizeim, long ysizeim, char $\ast$N\+Bpix\+\_\+fname, char $\ast$I\+Dmap\+\_\+name, char $\ast$I\+Dout\+\_\+name, char $\ast$I\+Dout\+\_\+pixslice\+\_\+fname)
 \item 
 int \hyperlink{COREMOD__memory_8h_ad24826fedf9cf7a046f177e9db5eb956}{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+logshim\+\_\+printstatus} (char $\ast$I\+Dname)
 \item 
@@ -308,20 +314,22 @@ continuously transmits 2\+D image through T\+C\+P link mode is not currently use
 \item[{int}]{cnt1}
 \end{DoxyParamCaption}
 )}}\label{COREMOD__memory_8h_acf381ae5e26676878dbc296f7ff42ddc}
-\hypertarget{COREMOD__memory_8h_aa9234a32623bef57dec5366a36fba715}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem}}
+\hypertarget{COREMOD__memory_8h_a3b28a7b4a404c93b1d7871f146fc9b35}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem}}
 \index{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem}]{\setlength{\rightskip}{0pt plus 5cm}long C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+createsem (
 \begin{DoxyParamCaption}
-\item[{char $\ast$}]{I\+Dname}
+\item[{char $\ast$}]{I\+Dname, }
+\item[{long}]{N\+Bsem}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_aa9234a32623bef57dec5366a36fba715}
-\hypertarget{COREMOD__memory_8h_adb3be222ee04cb10c6e8d0e1c95767a6}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush}}
+)}}\label{COREMOD__memory_8h_a3b28a7b4a404c93b1d7871f146fc9b35}
+\hypertarget{COREMOD__memory_8h_a94fc071fd8ce67e15124e22d6fc84cf2}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush}}
 \index{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush}]{\setlength{\rightskip}{0pt plus 5cm}long C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semflush (
 \begin{DoxyParamCaption}
-\item[{char $\ast$}]{I\+Dname}
+\item[{char $\ast$}]{I\+Dname, }
+\item[{long}]{index}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_adb3be222ee04cb10c6e8d0e1c95767a6}
+)}}\label{COREMOD__memory_8h_a94fc071fd8ce67e15124e22d6fc84cf2}
 
 
 set semaphore value to 0 
@@ -338,20 +346,22 @@ set semaphore value to 0
 
 flush multiple semaphores 
 
-\hypertarget{COREMOD__memory_8h_a3ffb95f61b127915041b6e8663efd00a}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost}}
+\hypertarget{COREMOD__memory_8h_a4b485f14016f2425083df84f07b81235}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost}}
 \index{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost}]{\setlength{\rightskip}{0pt plus 5cm}long C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+sempost (
 \begin{DoxyParamCaption}
-\item[{char $\ast$}]{I\+Dname}
+\item[{char $\ast$}]{I\+Dname, }
+\item[{long}]{index}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_a3ffb95f61b127915041b6e8663efd00a}
-\hypertarget{COREMOD__memory_8h_a52354e4cb18c81e026c1cb5756becebb}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait}}
+)}}\label{COREMOD__memory_8h_a4b485f14016f2425083df84f07b81235}
+\hypertarget{COREMOD__memory_8h_a011c7ec1282f60818e4021a63b91931b}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait}}
 \index{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait}]{\setlength{\rightskip}{0pt plus 5cm}long C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait (
 \begin{DoxyParamCaption}
-\item[{char $\ast$}]{I\+Dname}
+\item[{char $\ast$}]{I\+Dname, }
+\item[{long}]{index}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_a52354e4cb18c81e026c1cb5756becebb}
+)}}\label{COREMOD__memory_8h_a011c7ec1282f60818e4021a63b91931b}
 \hypertarget{COREMOD__memory_8h_a1b4b8135f1a24212048a83d6153b2d39}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait\+\_\+\+O\+R\+\_\+\+I\+Darray@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait\+\_\+\+O\+R\+\_\+\+I\+Darray}}
 \index{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait\+\_\+\+O\+R\+\_\+\+I\+Darray@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait\+\_\+\+O\+R\+\_\+\+I\+Darray}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait\+\_\+\+O\+R\+\_\+\+I\+Darray}]{\setlength{\rightskip}{0pt plus 5cm}long C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+semwait\+\_\+\+O\+R\+\_\+\+I\+Darray (
@@ -362,7 +372,7 @@ flush multiple semaphores
 )}}\label{COREMOD__memory_8h_a1b4b8135f1a24212048a83d6153b2d39}
 
 
-Wait for multiple semaphores \mbox{[}O\+R\mbox{]}. 
+Wait for multiple images semaphores \mbox{[}O\+R\mbox{]}, only works for sem0 only. 
 
 \hypertarget{COREMOD__memory_8h_ade9043029643589ae77f00d8f3986553}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+status@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+status}}
 \index{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+status@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+image\+\_\+set\+\_\+status}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
@@ -408,6 +418,19 @@ takes a 3\+Dimage (circular buffer) and writes slices to a 2\+D image with time 
 \item[{int}]{setv}
 \end{DoxyParamCaption}
 )}}\label{COREMOD__memory_8h_afac1d9b074c339f07b6119ebda2c61d9}
+\hypertarget{COREMOD__memory_8h_ada019e7ed61c40d945b0793d91485d1e}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+Pix\+Map\+Decode\+\_\+\+U@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+Pix\+Map\+Decode\+\_\+\+U}}
+\index{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+Pix\+Map\+Decode\+\_\+\+U@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+Pix\+Map\+Decode\+\_\+\+U}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
+\subsubsection[{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+Pix\+Map\+Decode\+\_\+\+U}]{\setlength{\rightskip}{0pt plus 5cm}long C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+Pix\+Map\+Decode\+\_\+\+U (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{inputstream\+\_\+name, }
+\item[{long}]{xsizeim, }
+\item[{long}]{ysizeim, }
+\item[{char $\ast$}]{N\+Bpix\+\_\+fname, }
+\item[{char $\ast$}]{I\+Dmap\+\_\+name, }
+\item[{char $\ast$}]{I\+Dout\+\_\+name, }
+\item[{char $\ast$}]{I\+Dout\+\_\+pixslice\+\_\+fname}
+\end{DoxyParamCaption}
+)}}\label{COREMOD__memory_8h_ada019e7ed61c40d945b0793d91485d1e}
 \hypertarget{COREMOD__memory_8h_ae04f0d4c991dc4beb0b1199c8231392a}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+shared\+Mem\+\_\+2\+Dim\+\_\+log@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+shared\+Mem\+\_\+2\+Dim\+\_\+log}}
 \index{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+shared\+Mem\+\_\+2\+Dim\+\_\+log@{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+shared\+Mem\+\_\+2\+Dim\+\_\+log}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+shared\+Mem\+\_\+2\+Dim\+\_\+log}]{\setlength{\rightskip}{0pt plus 5cm}long C\+O\+R\+E\+M\+O\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+shared\+Mem\+\_\+2\+Dim\+\_\+log (
@@ -418,7 +441,7 @@ takes a 3\+Dimage (circular buffer) and writes slices to a 2\+D image with time 
 \item[{char $\ast$}]{I\+Dlogdata\+\_\+name}
 \end{DoxyParamCaption}
 )}}\label{COREMOD__memory_8h_ae04f0d4c991dc4beb0b1199c8231392a}
-logs a shared memory stream onto disk
+logs a shared memory stream onto disk uses semlog semaphore
 
 uses data cube buffer to store frames if an image name logdata exists (should ideally be in shared mem), then this will be included in the timing txt file create the 2 buffers
 
@@ -676,62 +699,68 @@ string \hypertarget{COREMOD__memory_8h_a522d41cb8c1210c034746b0d9b69cfbf}{\index
 \item[{char $\ast$}]{termttyname}
 \end{DoxyParamCaption}
 )}}\label{COREMOD__memory_8h_a3d84758675153186eb5a24b2e8b6f7e0}
-\hypertarget{COREMOD__memory_8h_a3e2b56c1d8b1d3dfc650a9df14be60e3}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+amph\+\_\+from\+\_\+complex@{mk\+\_\+amph\+\_\+from\+\_\+complex}}
+\hypertarget{COREMOD__memory_8h_af8562749744be6b0af7a0344596a5bc9}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+amph\+\_\+from\+\_\+complex@{mk\+\_\+amph\+\_\+from\+\_\+complex}}
 \index{mk\+\_\+amph\+\_\+from\+\_\+complex@{mk\+\_\+amph\+\_\+from\+\_\+complex}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{mk\+\_\+amph\+\_\+from\+\_\+complex}]{\setlength{\rightskip}{0pt plus 5cm}int mk\+\_\+amph\+\_\+from\+\_\+complex (
 \begin{DoxyParamCaption}
 \item[{char $\ast$}]{in\+\_\+name, }
 \item[{char $\ast$}]{am\+\_\+name, }
-\item[{char $\ast$}]{ph\+\_\+name}
+\item[{char $\ast$}]{ph\+\_\+name, }
+\item[{int}]{sharedmem}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_a3e2b56c1d8b1d3dfc650a9df14be60e3}
-\hypertarget{COREMOD__memory_8h_a5a1d8e27d5f9b583db6d04e18c1e2b49}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+amph\+\_\+from\+\_\+reim@{mk\+\_\+amph\+\_\+from\+\_\+reim}}
+)}}\label{COREMOD__memory_8h_af8562749744be6b0af7a0344596a5bc9}
+\hypertarget{COREMOD__memory_8h_aa89cd70e322e446c58dc0eb73ddf1a0d}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+amph\+\_\+from\+\_\+reim@{mk\+\_\+amph\+\_\+from\+\_\+reim}}
 \index{mk\+\_\+amph\+\_\+from\+\_\+reim@{mk\+\_\+amph\+\_\+from\+\_\+reim}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{mk\+\_\+amph\+\_\+from\+\_\+reim}]{\setlength{\rightskip}{0pt plus 5cm}int mk\+\_\+amph\+\_\+from\+\_\+reim (
 \begin{DoxyParamCaption}
 \item[{char $\ast$}]{re\+\_\+name, }
 \item[{char $\ast$}]{im\+\_\+name, }
 \item[{char $\ast$}]{am\+\_\+out\+\_\+name, }
-\item[{char $\ast$}]{ph\+\_\+out\+\_\+name}
+\item[{char $\ast$}]{ph\+\_\+out\+\_\+name, }
+\item[{int}]{sharedmem}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_a5a1d8e27d5f9b583db6d04e18c1e2b49}
-\hypertarget{COREMOD__memory_8h_a31f84c57451f2e98e681227ebcf3c52f}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+complex\+\_\+from\+\_\+amph@{mk\+\_\+complex\+\_\+from\+\_\+amph}}
+)}}\label{COREMOD__memory_8h_aa89cd70e322e446c58dc0eb73ddf1a0d}
+\hypertarget{COREMOD__memory_8h_a68b7fea47ee49ab7e7eb9d48115c55d9}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+complex\+\_\+from\+\_\+amph@{mk\+\_\+complex\+\_\+from\+\_\+amph}}
 \index{mk\+\_\+complex\+\_\+from\+\_\+amph@{mk\+\_\+complex\+\_\+from\+\_\+amph}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{mk\+\_\+complex\+\_\+from\+\_\+amph}]{\setlength{\rightskip}{0pt plus 5cm}int mk\+\_\+complex\+\_\+from\+\_\+amph (
 \begin{DoxyParamCaption}
 \item[{char $\ast$}]{am\+\_\+name, }
 \item[{char $\ast$}]{ph\+\_\+name, }
-\item[{char $\ast$}]{out\+\_\+name}
+\item[{char $\ast$}]{out\+\_\+name, }
+\item[{int}]{sharedmem}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_a31f84c57451f2e98e681227ebcf3c52f}
-\hypertarget{COREMOD__memory_8h_aafbd5873a03ce5d1d4705ea4875df0fc}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+complex\+\_\+from\+\_\+reim@{mk\+\_\+complex\+\_\+from\+\_\+reim}}
+)}}\label{COREMOD__memory_8h_a68b7fea47ee49ab7e7eb9d48115c55d9}
+\hypertarget{COREMOD__memory_8h_aa47b6d9e3673e1421afda31e5c38ff4b}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+complex\+\_\+from\+\_\+reim@{mk\+\_\+complex\+\_\+from\+\_\+reim}}
 \index{mk\+\_\+complex\+\_\+from\+\_\+reim@{mk\+\_\+complex\+\_\+from\+\_\+reim}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{mk\+\_\+complex\+\_\+from\+\_\+reim}]{\setlength{\rightskip}{0pt plus 5cm}int mk\+\_\+complex\+\_\+from\+\_\+reim (
 \begin{DoxyParamCaption}
 \item[{char $\ast$}]{re\+\_\+name, }
 \item[{char $\ast$}]{im\+\_\+name, }
-\item[{char $\ast$}]{out\+\_\+name}
+\item[{char $\ast$}]{out\+\_\+name, }
+\item[{int}]{sharedmem}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_aafbd5873a03ce5d1d4705ea4875df0fc}
-\hypertarget{COREMOD__memory_8h_a8b34c85f16734ceec12e2a59398e0291}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+reim\+\_\+from\+\_\+amph@{mk\+\_\+reim\+\_\+from\+\_\+amph}}
+)}}\label{COREMOD__memory_8h_aa47b6d9e3673e1421afda31e5c38ff4b}
+\hypertarget{COREMOD__memory_8h_aa0fd84bff74fff27a4f14ba188c15417}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+reim\+\_\+from\+\_\+amph@{mk\+\_\+reim\+\_\+from\+\_\+amph}}
 \index{mk\+\_\+reim\+\_\+from\+\_\+amph@{mk\+\_\+reim\+\_\+from\+\_\+amph}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{mk\+\_\+reim\+\_\+from\+\_\+amph}]{\setlength{\rightskip}{0pt plus 5cm}int mk\+\_\+reim\+\_\+from\+\_\+amph (
 \begin{DoxyParamCaption}
 \item[{char $\ast$}]{am\+\_\+name, }
 \item[{char $\ast$}]{ph\+\_\+name, }
 \item[{char $\ast$}]{re\+\_\+out\+\_\+name, }
-\item[{char $\ast$}]{im\+\_\+out\+\_\+name}
+\item[{char $\ast$}]{im\+\_\+out\+\_\+name, }
+\item[{int}]{sharedmem}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_a8b34c85f16734ceec12e2a59398e0291}
-\hypertarget{COREMOD__memory_8h_ac81b64002327f9903084ce3013a00c43}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+reim\+\_\+from\+\_\+complex@{mk\+\_\+reim\+\_\+from\+\_\+complex}}
+)}}\label{COREMOD__memory_8h_aa0fd84bff74fff27a4f14ba188c15417}
+\hypertarget{COREMOD__memory_8h_ad56d9ffc4bdbbdfd49968180c7ad0417}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!mk\+\_\+reim\+\_\+from\+\_\+complex@{mk\+\_\+reim\+\_\+from\+\_\+complex}}
 \index{mk\+\_\+reim\+\_\+from\+\_\+complex@{mk\+\_\+reim\+\_\+from\+\_\+complex}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{mk\+\_\+reim\+\_\+from\+\_\+complex}]{\setlength{\rightskip}{0pt plus 5cm}int mk\+\_\+reim\+\_\+from\+\_\+complex (
 \begin{DoxyParamCaption}
 \item[{char $\ast$}]{in\+\_\+name, }
 \item[{char $\ast$}]{re\+\_\+name, }
-\item[{char $\ast$}]{im\+\_\+name}
+\item[{char $\ast$}]{im\+\_\+name, }
+\item[{int}]{sharedmem}
 \end{DoxyParamCaption}
-)}}\label{COREMOD__memory_8h_ac81b64002327f9903084ce3013a00c43}
+)}}\label{COREMOD__memory_8h_ad56d9ffc4bdbbdfd49968180c7ad0417}
 \hypertarget{COREMOD__memory_8h_a41918c8ae161a6a6134242a29f05fb83}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!next\+\_\+avail\+\_\+image\+\_\+\+I\+D@{next\+\_\+avail\+\_\+image\+\_\+\+I\+D}}
 \index{next\+\_\+avail\+\_\+image\+\_\+\+I\+D@{next\+\_\+avail\+\_\+image\+\_\+\+I\+D}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{next\+\_\+avail\+\_\+image\+\_\+\+I\+D}]{\setlength{\rightskip}{0pt plus 5cm}long next\+\_\+avail\+\_\+image\+\_\+\+I\+D (
@@ -753,6 +782,14 @@ string \hypertarget{COREMOD__memory_8h_a522d41cb8c1210c034746b0d9b69cfbf}{\index
 \item[{char $\ast$}]{name}
 \end{DoxyParamCaption}
 )}}\label{COREMOD__memory_8h_aa344e4c7481b275005bd6872679ba7cd}
+\hypertarget{COREMOD__memory_8h_afcb49d8a50d70f506ed1e3431ea741e2}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!read\+\_\+sharedmem\+\_\+image\+\_\+size@{read\+\_\+sharedmem\+\_\+image\+\_\+size}}
+\index{read\+\_\+sharedmem\+\_\+image\+\_\+size@{read\+\_\+sharedmem\+\_\+image\+\_\+size}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
+\subsubsection[{read\+\_\+sharedmem\+\_\+image\+\_\+size}]{\setlength{\rightskip}{0pt plus 5cm}long read\+\_\+sharedmem\+\_\+image\+\_\+size (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{name, }
+\item[{char $\ast$}]{fname}
+\end{DoxyParamCaption}
+)}}\label{COREMOD__memory_8h_afcb49d8a50d70f506ed1e3431ea741e2}
 \hypertarget{COREMOD__memory_8h_a59cde259a5445bc61fdcdc12b5d6c9c6}{\index{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}!rotate\+\_\+cube@{rotate\+\_\+cube}}
 \index{rotate\+\_\+cube@{rotate\+\_\+cube}!C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h@{C\+O\+R\+E\+M\+O\+D\+\_\+memory.\+h}}
 \subsubsection[{rotate\+\_\+cube}]{\setlength{\rightskip}{0pt plus 5cm}int rotate\+\_\+cube (

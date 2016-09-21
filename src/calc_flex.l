@@ -119,6 +119,13 @@ return TKFUNC_d_d;
 }
 
 
+"posi(" {
+if(data.Debug>0){printf("Found function %s\n", yytext);} 
+yylval.fnctptr = Ppositive;
+return TKFUNC_d_d; 
+}
+
+
 
 
 "atan2(" {

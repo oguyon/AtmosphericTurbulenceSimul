@@ -6,6 +6,7 @@
 {\ttfamily \#include $<$malloc.\+h$>$}\\*
 {\ttfamily \#include $<$stdio.\+h$>$}\\*
 {\ttfamily \#include $<$stdlib.\+h$>$}\\*
+{\ttfamily \#include $<$pthread.\+h$>$}\\*
 {\ttfamily \#include $<$time.\+h$>$}\\*
 {\ttfamily \#include $<$math.\+h$>$}\\*
 {\ttfamily \#include $<$errno.\+h$>$}\\*
@@ -18,6 +19,7 @@
 {\ttfamily \#include $<$stdbool.\+h$>$}\\*
 {\ttfamily \#include $<$sys/prctl.\+h$>$}\\*
 {\ttfamily \#include $<$sched.\+h$>$}\\*
+{\ttfamily \#include $<$signal.\+h$>$}\\*
 {\ttfamily \#include $<$readline/readline.\+h$>$}\\*
 {\ttfamily \#include $<$readline/history.\+h$>$}\\*
 {\ttfamily \#include $<$gsl/gsl\+\_\+rng.\+h$>$}\\*
@@ -63,6 +65,8 @@ int \hyperlink{CLIcore_8c_ac04d84f0adab6c17029809ab2b7fd628}{list\+\_\+commands\
 int \hyperlink{CLIcore_8c_afbc465e2fc0350eb1c71c3d11f09d4d7}{help\+\_\+command} (char $\ast$cmdkey)
 \begin{DoxyCompactList}\small\item\em command help~\newline
 \end{DoxyCompactList}\item 
+void \hyperlink{CLIcore_8c_a4f31a6fd48ee5d4579ae4aaaa3cae285}{sig\+\_\+handler} (int signo)
+\begin{DoxyCompactList}\small\item\em signal catching \end{DoxyCompactList}\item 
 int \hyperlink{CLIcore_8c_aac3ae2fb745e63e33060d5c0b658f745}{print\+Info} ()
 \item 
 int \hyperlink{CLIcore_8c_a19cbc71c216503ddc1174753e9de80c4}{helpreadline} ()
@@ -118,7 +122,7 @@ int \hyperlink{CLIcore_8c_a970d70bbebe50d747e96c95a5c5024a3}{C\+L\+Imatch\+Mode}
 Olivier Guyon 
 \end{DoxyAuthor}
 \begin{DoxyDate}{Date}
-Sept 4, 2014 
+2015 
 \end{DoxyDate}
 
 
@@ -340,6 +344,17 @@ Readline callback.
 {}
 \end{DoxyParamCaption}
 )}}\label{CLIcore_8c_a0b938eaf8680b1a510e8b24caa121a70}
+\hypertarget{CLIcore_8c_a4f31a6fd48ee5d4579ae4aaaa3cae285}{\index{C\+L\+Icore.\+c@{C\+L\+Icore.\+c}!sig\+\_\+handler@{sig\+\_\+handler}}
+\index{sig\+\_\+handler@{sig\+\_\+handler}!C\+L\+Icore.\+c@{C\+L\+Icore.\+c}}
+\subsubsection[{sig\+\_\+handler}]{\setlength{\rightskip}{0pt plus 5cm}void sig\+\_\+handler (
+\begin{DoxyParamCaption}
+\item[{int}]{signo}
+\end{DoxyParamCaption}
+)}}\label{CLIcore_8c_a4f31a6fd48ee5d4579ae4aaaa3cae285}
+
+
+signal catching 
+
 \hypertarget{CLIcore_8c_ac22472c4ee36d70ae07159f83fb690d3}{\index{C\+L\+Icore.\+c@{C\+L\+Icore.\+c}!user\+\_\+function@{user\+\_\+function}}
 \index{user\+\_\+function@{user\+\_\+function}!C\+L\+Icore.\+c@{C\+L\+Icore.\+c}}
 \subsubsection[{user\+\_\+function}]{\setlength{\rightskip}{0pt plus 5cm}int user\+\_\+function (

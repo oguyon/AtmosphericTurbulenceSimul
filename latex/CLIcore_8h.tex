@@ -6,9 +6,9 @@
 {\ttfamily \#include $<$stdlib.\+h$>$}\\*
 {\ttfamily \#include $<$sys/types.\+h$>$}\\*
 {\ttfamily \#include $<$semaphore.\+h$>$}\\*
-{\ttfamily \#include $<$time.\+h$>$}\\*
 {\ttfamily \#include $<$fftw3.\+h$>$}\\*
 {\ttfamily \#include $<$gsl/gsl\+\_\+rng.\+h$>$}\\*
+{\ttfamily \#include $<$signal.\+h$>$}\\*
 \subsection*{Data Structures}
 \begin{DoxyCompactItemize}
 \item 
@@ -49,6 +49,8 @@ struct \hyperlink{structDATA}{D\+A\+T\+A}
 \item 
 \#define \hyperlink{CLIcore_8h_a1282c12402ce1327073d3a945f73bb58}{S\+H\+A\+R\+E\+D\+M\+E\+M\+D\+I\+R}~\char`\"{}/tmp\char`\"{}
 \item 
+\#define \hyperlink{CLIcore_8h_a546109fafbf4a13a00455f303243f91e}{S\+E\+M\+A\+P\+H\+O\+R\+E\+\_\+\+M\+A\+X}~1000
+\item 
 \#define \hyperlink{CLIcore_8h_a0a6b220d813ff622977cf6d7f1f5ffa6}{N\+B\+\_\+\+A\+R\+G\+\_\+\+M\+A\+X}~20
 \item 
 \#define \hyperlink{CLIcore_8h_a35cd67ba7bb0db8105eb6267467535d7}{C\+H\+A\+R}~1
@@ -83,7 +85,9 @@ struct \hyperlink{structDATA}{D\+A\+T\+A}
 int \hyperlink{CLIcore_8h_acfa3a12412c06fe66437c5f77f066fa0}{C\+L\+I\+\_\+checkarg} (int argnum, int argtype)
 \item 
 int \hyperlink{CLIcore_8h_a8b68e72c423d42662e9c37f450ced2df}{C\+L\+I\+\_\+checkarg\+\_\+noerrmsg} (int argnum, int argtype)
-\end{DoxyCompactItemize}
+\item 
+void \hyperlink{CLIcore_8h_a4f31a6fd48ee5d4579ae4aaaa3cae285}{sig\+\_\+handler} (int signo)
+\begin{DoxyCompactList}\small\item\em signal catching \end{DoxyCompactList}\end{DoxyCompactItemize}
 \subsection*{Variables}
 \begin{DoxyCompactItemize}
 \item 
@@ -173,6 +177,9 @@ int \hyperlink{CLIcore_8h_aadfaed58c87f621d2863f9f598db072e}{T\+Y\+P\+E\+S\+I\+Z
 \hypertarget{CLIcore_8h_a598a3330b3c21701223ee0ca14316eca}{\index{C\+L\+Icore.\+h@{C\+L\+Icore.\+h}!P\+I@{P\+I}}
 \index{P\+I@{P\+I}!C\+L\+Icore.\+h@{C\+L\+Icore.\+h}}
 \subsubsection[{P\+I}]{\setlength{\rightskip}{0pt plus 5cm}\#define P\+I~3.\+14159265358979323846264338328}}\label{CLIcore_8h_a598a3330b3c21701223ee0ca14316eca}
+\hypertarget{CLIcore_8h_a546109fafbf4a13a00455f303243f91e}{\index{C\+L\+Icore.\+h@{C\+L\+Icore.\+h}!S\+E\+M\+A\+P\+H\+O\+R\+E\+\_\+\+M\+A\+X@{S\+E\+M\+A\+P\+H\+O\+R\+E\+\_\+\+M\+A\+X}}
+\index{S\+E\+M\+A\+P\+H\+O\+R\+E\+\_\+\+M\+A\+X@{S\+E\+M\+A\+P\+H\+O\+R\+E\+\_\+\+M\+A\+X}!C\+L\+Icore.\+h@{C\+L\+Icore.\+h}}
+\subsubsection[{S\+E\+M\+A\+P\+H\+O\+R\+E\+\_\+\+M\+A\+X}]{\setlength{\rightskip}{0pt plus 5cm}\#define S\+E\+M\+A\+P\+H\+O\+R\+E\+\_\+\+M\+A\+X~1000}}\label{CLIcore_8h_a546109fafbf4a13a00455f303243f91e}
 \hypertarget{CLIcore_8h_a1282c12402ce1327073d3a945f73bb58}{\index{C\+L\+Icore.\+h@{C\+L\+Icore.\+h}!S\+H\+A\+R\+E\+D\+M\+E\+M\+D\+I\+R@{S\+H\+A\+R\+E\+D\+M\+E\+M\+D\+I\+R}}
 \index{S\+H\+A\+R\+E\+D\+M\+E\+M\+D\+I\+R@{S\+H\+A\+R\+E\+D\+M\+E\+M\+D\+I\+R}!C\+L\+Icore.\+h@{C\+L\+Icore.\+h}}
 \subsubsection[{S\+H\+A\+R\+E\+D\+M\+E\+M\+D\+I\+R}]{\setlength{\rightskip}{0pt plus 5cm}\#define S\+H\+A\+R\+E\+D\+M\+E\+M\+D\+I\+R~\char`\"{}/tmp\char`\"{}}}\label{CLIcore_8h_a1282c12402ce1327073d3a945f73bb58}
@@ -212,6 +219,17 @@ Size of array C\+L\+I\+C\+O\+R\+E\+V\+A\+R\+R\+A\+Y.
 \item[{int}]{argtype}
 \end{DoxyParamCaption}
 )}}\label{CLIcore_8h_a8b68e72c423d42662e9c37f450ced2df}
+\hypertarget{CLIcore_8h_a4f31a6fd48ee5d4579ae4aaaa3cae285}{\index{C\+L\+Icore.\+h@{C\+L\+Icore.\+h}!sig\+\_\+handler@{sig\+\_\+handler}}
+\index{sig\+\_\+handler@{sig\+\_\+handler}!C\+L\+Icore.\+h@{C\+L\+Icore.\+h}}
+\subsubsection[{sig\+\_\+handler}]{\setlength{\rightskip}{0pt plus 5cm}void sig\+\_\+handler (
+\begin{DoxyParamCaption}
+\item[{int}]{signo}
+\end{DoxyParamCaption}
+)}}\label{CLIcore_8h_a4f31a6fd48ee5d4579ae4aaaa3cae285}
+
+
+signal catching 
+
 
 
 \subsection{Variable Documentation}

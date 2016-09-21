@@ -16,6 +16,10 @@ long \hyperlink{linopt__imtools_8h_abd307da15c19076e8ed40e3a710039c5}{linopt\+\_
 \item 
 long \hyperlink{linopt__imtools_8h_a5c77865d99afd50f6797b75981e3f631}{linopt\+\_\+imtools\+\_\+image\+\_\+construct} (char $\ast$I\+Dmodes\+\_\+name, char $\ast$I\+Dcoeff\+\_\+name, char $\ast$I\+D\+\_\+name)
 \item 
+long \hyperlink{linopt__imtools_8h_a05d2270ec45796862c1c2ae45e3f0778}{linopt\+\_\+compute\+\_\+\+S\+V\+Ddecomp} (char $\ast$I\+Din\+\_\+name, char $\ast$I\+Dout\+\_\+name, char $\ast$I\+Dcoeff\+\_\+name)
+\item 
+int \hyperlink{linopt__imtools_8h_ac60b3e05cadef539dba1b37bb7b5483d}{linopt\+\_\+compute\+\_\+reconstruction\+Matrix} (char $\ast$I\+D\+\_\+\+Rmatrix\+\_\+name, char $\ast$I\+D\+\_\+\+Cmatrix\+\_\+name, double S\+V\+Deps, char $\ast$I\+D\+\_\+\+V\+Tmatrix\+\_\+name)
+\item 
 long \hyperlink{linopt__imtools_8h_ae0bc3ec8013ca3a2ad5e36330c5eadee}{linopt\+\_\+imtools\+\_\+image\+\_\+fit\+Modes} (char $\ast$I\+D\+\_\+name, char $\ast$I\+Dmodes\+\_\+name, char $\ast$I\+Dmask\+\_\+name, double S\+V\+Deps, char $\ast$I\+Dcoeff\+\_\+name, int reuse)
 \item 
 double \hyperlink{linopt__imtools_8h_a48c12aade18afab7a24b629249e0c803}{linopt\+\_\+imtools\+\_\+match\+\_\+slow} (char $\ast$I\+D\+\_\+name, char $\ast$I\+Dref\+\_\+name, char $\ast$I\+Dmask\+\_\+name, char $\ast$I\+Dsol\+\_\+name, char $\ast$I\+Dout\+\_\+name)
@@ -25,7 +29,30 @@ double \hyperlink{linopt__imtools_8h_a7f305bde72fc1d2d4430bae0893f7bf0}{linopt\+
 
 
 \subsection{Function Documentation}
-\hypertarget{linopt__imtools_8h_a5c77865d99afd50f6797b75981e3f631}{\index{linopt\+\_\+imtools.\+h@{linopt\+\_\+imtools.\+h}!linopt\+\_\+imtools\+\_\+image\+\_\+construct@{linopt\+\_\+imtools\+\_\+image\+\_\+construct}}
+\hypertarget{linopt__imtools_8h_ac60b3e05cadef539dba1b37bb7b5483d}{\index{linopt\+\_\+imtools.\+h@{linopt\+\_\+imtools.\+h}!linopt\+\_\+compute\+\_\+reconstruction\+Matrix@{linopt\+\_\+compute\+\_\+reconstruction\+Matrix}}
+\index{linopt\+\_\+compute\+\_\+reconstruction\+Matrix@{linopt\+\_\+compute\+\_\+reconstruction\+Matrix}!linopt\+\_\+imtools.\+h@{linopt\+\_\+imtools.\+h}}
+\subsubsection[{linopt\+\_\+compute\+\_\+reconstruction\+Matrix}]{\setlength{\rightskip}{0pt plus 5cm}int linopt\+\_\+compute\+\_\+reconstruction\+Matrix (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+D\+\_\+\+Rmatrix\+\_\+name, }
+\item[{char $\ast$}]{I\+D\+\_\+\+Cmatrix\+\_\+name, }
+\item[{double}]{S\+V\+Deps, }
+\item[{char $\ast$}]{I\+D\+\_\+\+V\+Tmatrix\+\_\+name}
+\end{DoxyParamCaption}
+)}}\label{linopt__imtools_8h_ac60b3e05cadef539dba1b37bb7b5483d}
+\hypertarget{linopt__imtools_8h_a05d2270ec45796862c1c2ae45e3f0778}{\index{linopt\+\_\+imtools.\+h@{linopt\+\_\+imtools.\+h}!linopt\+\_\+compute\+\_\+\+S\+V\+Ddecomp@{linopt\+\_\+compute\+\_\+\+S\+V\+Ddecomp}}
+\index{linopt\+\_\+compute\+\_\+\+S\+V\+Ddecomp@{linopt\+\_\+compute\+\_\+\+S\+V\+Ddecomp}!linopt\+\_\+imtools.\+h@{linopt\+\_\+imtools.\+h}}
+\subsubsection[{linopt\+\_\+compute\+\_\+\+S\+V\+Ddecomp}]{\setlength{\rightskip}{0pt plus 5cm}long linopt\+\_\+compute\+\_\+\+S\+V\+Ddecomp (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{I\+Din\+\_\+name, }
+\item[{char $\ast$}]{I\+Dout\+\_\+name, }
+\item[{char $\ast$}]{I\+Dcoeff\+\_\+name}
+\end{DoxyParamCaption}
+)}}\label{linopt__imtools_8h_a05d2270ec45796862c1c2ae45e3f0778}
+Write rotation matrix to go from D\+M modes to eigenmodes
+
+Compute S\+V\+D decomp
+
+eigen mode index \hypertarget{linopt__imtools_8h_a5c77865d99afd50f6797b75981e3f631}{\index{linopt\+\_\+imtools.\+h@{linopt\+\_\+imtools.\+h}!linopt\+\_\+imtools\+\_\+image\+\_\+construct@{linopt\+\_\+imtools\+\_\+image\+\_\+construct}}
 \index{linopt\+\_\+imtools\+\_\+image\+\_\+construct@{linopt\+\_\+imtools\+\_\+image\+\_\+construct}!linopt\+\_\+imtools.\+h@{linopt\+\_\+imtools.\+h}}
 \subsubsection[{linopt\+\_\+imtools\+\_\+image\+\_\+construct}]{\setlength{\rightskip}{0pt plus 5cm}long linopt\+\_\+imtools\+\_\+image\+\_\+construct (
 \begin{DoxyParamCaption}

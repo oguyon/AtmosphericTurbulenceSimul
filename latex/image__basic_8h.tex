@@ -99,6 +99,8 @@ double \hyperlink{image__basic_8h_a3fb460e6fc2f1785eba9098e65c22af2}{basic\+\_\+
 long \hyperlink{image__basic_8h_a967029e85e9269e656d5509b91e3352d}{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamaverage} (char $\ast$I\+Dname, long N\+Bcoadd, char $\ast$I\+Doutname, int mode)
 \item 
 long \hyperlink{image__basic_8h_a2cb85fb1b0a43235f5f2febbca8e4299}{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamfeed} (char $\ast$I\+Dname, char $\ast$streamname, float frequ)
+\item 
+long \hyperlink{image__basic_8h_a0aa91ffd5ac8910c861776b6fbd2b09d}{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamrecord} (char $\ast$streamname, long N\+Bframes, char $\ast$I\+Dname)
 \end{DoxyCompactItemize}
 
 
@@ -507,7 +509,9 @@ long \hyperlink{image__basic_8h_a2cb85fb1b0a43235f5f2febbca8e4299}{I\+M\+A\+G\+E
 \item[{int}]{mode}
 \end{DoxyParamCaption}
 )}}\label{image__basic_8h_a967029e85e9269e656d5509b91e3352d}
-coadd frames from image stream output is by default float type mode \+: 0 \+: simple average 1 \+: average + std dev (std dev in \char`\"{}imgstreamrms\char`\"{}) 2 \+: average + std dev -\/$>$ badpix map for detector calibration (\char`\"{}badpixmap\char`\"{}) \hypertarget{image__basic_8h_a2cb85fb1b0a43235f5f2febbca8e4299}{\index{image\+\_\+basic.\+h@{image\+\_\+basic.\+h}!I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamfeed@{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamfeed}}
+coadd frames from image stream output is by default float type mode \+: 0 \+: simple average 1 \+: average + std dev (std dev in \char`\"{}imgstreamrms\char`\"{}) 2 \+: average + std dev -\/$>$ badpix map for detector calibration (\char`\"{}badpixmap\char`\"{}) 3 \+: same as 1
+
+N\+O\+T\+E\+: averaging will stop when receiving signal S\+I\+G\+U\+S\+R1 \hypertarget{image__basic_8h_a2cb85fb1b0a43235f5f2febbca8e4299}{\index{image\+\_\+basic.\+h@{image\+\_\+basic.\+h}!I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamfeed@{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamfeed}}
 \index{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamfeed@{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamfeed}!image\+\_\+basic.\+h@{image\+\_\+basic.\+h}}
 \subsubsection[{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamfeed}]{\setlength{\rightskip}{0pt plus 5cm}long I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamfeed (
 \begin{DoxyParamCaption}
@@ -516,6 +520,15 @@ coadd frames from image stream output is by default float type mode \+: 0 \+: si
 \item[{float}]{frequ}
 \end{DoxyParamCaption}
 )}}\label{image__basic_8h_a2cb85fb1b0a43235f5f2febbca8e4299}
+\hypertarget{image__basic_8h_a0aa91ffd5ac8910c861776b6fbd2b09d}{\index{image\+\_\+basic.\+h@{image\+\_\+basic.\+h}!I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamrecord@{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamrecord}}
+\index{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamrecord@{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamrecord}!image\+\_\+basic.\+h@{image\+\_\+basic.\+h}}
+\subsubsection[{I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamrecord}]{\setlength{\rightskip}{0pt plus 5cm}long I\+M\+A\+G\+E\+\_\+\+B\+A\+S\+I\+C\+\_\+streamrecord (
+\begin{DoxyParamCaption}
+\item[{char $\ast$}]{streamname, }
+\item[{long}]{N\+Bframes, }
+\item[{char $\ast$}]{I\+Dname}
+\end{DoxyParamCaption}
+)}}\label{image__basic_8h_a0aa91ffd5ac8910c861776b6fbd2b09d}
 \hypertarget{image__basic_8h_a4abcb12d1c88071d57c8259388174da2}{\index{image\+\_\+basic.\+h@{image\+\_\+basic.\+h}!init\+\_\+image\+\_\+basic@{init\+\_\+image\+\_\+basic}}
 \index{init\+\_\+image\+\_\+basic@{init\+\_\+image\+\_\+basic}!image\+\_\+basic.\+h@{image\+\_\+basic.\+h}}
 \subsubsection[{init\+\_\+image\+\_\+basic}]{\setlength{\rightskip}{0pt plus 5cm}int init\+\_\+image\+\_\+basic (

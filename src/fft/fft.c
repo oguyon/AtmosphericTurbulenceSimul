@@ -9,7 +9,7 @@
 #include <mach/mach_time.h>
 #define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 0
-int clock_gettime(int clk_id, struct timespec *t){
+static int clock_gettime(int clk_id, struct timespec *t){
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
     uint64_t time;
@@ -95,6 +95,29 @@ int fft_permut_cli()
 
 
 //int do2dfft(char *in_name, char *out_name);
+
+int fft_do1dfft_cli()
+{
+    if(CLI_checkarg(1,4)+CLI_checkarg(2,3)==0)
+    {
+        do1dfft(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.string);
+        return 0;
+    }
+    else
+        return 1;
+}
+
+int fft_do1drfft_cli()
+{
+    if(CLI_checkarg(1,4)+CLI_checkarg(2,3)==0)
+    {
+        do1drfft(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.string);
+        return 0;
+    }
+    else
+        return 1;
+}
+
 
 int fft_do2dfft_cli()
 {
@@ -187,7 +210,27 @@ int init_fft()
     strcpy(data.cmd[data.NBcmd].example,"fofft in out");
     strcpy(data.cmd[data.NBcmd].Ccall,"int do2dfft(char *in_name, char *out_name)");
     data.NBcmd++;
-   
+
+    
+    strcpy(data.cmd[data.NBcmd].key,"do1Dfft");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = fft_do1dfft_cli;
+    strcpy(data.cmd[data.NBcmd].info,"perform 1D complex->complex FFT");
+    strcpy(data.cmd[data.NBcmd].syntax,"<input> <output>");
+    strcpy(data.cmd[data.NBcmd].example,"do1dfft in out");
+    strcpy(data.cmd[data.NBcmd].Ccall,"int do1dfft(char *in_name, char *out_name)");
+    data.NBcmd++;
+     
+       
+    strcpy(data.cmd[data.NBcmd].key,"do1Drfft");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = fft_do1drfft_cli;
+    strcpy(data.cmd[data.NBcmd].info,"perform 1D real->complex FFT");
+    strcpy(data.cmd[data.NBcmd].syntax,"<input> <output>");
+    strcpy(data.cmd[data.NBcmd].example,"do1drfft in out");
+    strcpy(data.cmd[data.NBcmd].Ccall,"int do1drfft(char *in_name, char *out_name)");
+    data.NBcmd++;
+     
 
     strcpy(data.cmd[data.NBcmd].key,"permut");
     strcpy(data.cmd[data.NBcmd].module,__FILE__);
@@ -787,7 +830,7 @@ int array_index(long size)
 
 
 
-/* 1d complex fft */
+/* 1d complex -> complex fft */
 int do1dfft(char *in_name, char *out_name)
 {
     int *naxes;
@@ -797,6 +840,9 @@ int do1dfft(char *in_name, char *out_name)
     long i;
     int OK=0;
     fftwf_plan plan;
+	long jj;
+	fftwf_complex *inptr, *outptr;
+	
 
     IDin=image_ID(in_name);
     naxis=data.image[IDin].md[0].naxis;
@@ -833,16 +879,28 @@ int do1dfft(char *in_name, char *out_name)
         if((naxes[1]==1)&&(array_index(naxes[0])!=100))
         {
             OK=1;
-            plan = fftwf_plan_dft_1d(naxes[0], (fftwf_complex*) data.image[IDin].array.CF, (fftwf_complex*) data.image[IDout].array.CF, -1,FFTWOPTMODE);
+            inptr = (fftwf_complex*) data.image[IDin].array.CF;
+            outptr = (fftwf_complex*) data.image[IDout].array.CF;
+            plan = fftwf_plan_dft_1d(naxes[0], inptr, outptr, -1,FFTWOPTMODE);
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
         else
         {
             OK=1;
-            plan = fftwf_plan_dft_1d(naxes[0], (fftwf_complex*) data.image[IDin].array.CF, (fftwf_complex*) data.image[IDout].array.CF, -1,FFTWOPTMODE);
-            fftwf_execute(plan);
+            inptr = (fftwf_complex*) malloc(sizeof(fftwf_complex)*naxes[0]);
+            outptr = (fftwf_complex*) malloc(sizeof(fftwf_complex)*naxes[0]);
+            plan = fftwf_plan_dft_1d(naxes[0], inptr, outptr, -1,FFTWOPTMODE);
+            
+            for(jj=0;jj<naxes[1];jj++)
+            {
+				memcpy((char*) inptr, (char*) data.image[IDin].array.CF + sizeof(fftwf_complex)*jj*naxes[0], sizeof(fftwf_complex)*naxes[0]);
+				fftwf_execute(plan);
+				memcpy((char*) data.image[IDout].array.CF + sizeof(complex_float)*jj*naxes[0], outptr, sizeof(fftwf_complex)*naxes[0]);
+			}
             fftwf_destroy_plan(plan);
+            free(inptr);
+            free(outptr);
         }
     }
 
@@ -857,45 +915,51 @@ int do1dfft(char *in_name, char *out_name)
 }
 
 
-/* 1d complex fft */
+
+/* 1d real -> complex fft */
 int do1drfft(char *in_name, char *out_name)
 {
     int *naxes;
     long *naxesl;
-    long *naxestmp;
+    long *naxesout;
     long naxis;
     long IDin,IDout,IDtmp;
     long i;
     int OK=0;
     long ii,jj;
     fftwf_plan plan;
-
+	fftwf_complex *outptr;
+	float *inptr;
+	
     char ffttmpname[SBUFFERSIZE];
     int n;
 
-    IDin=image_ID(in_name);
-    naxis=data.image[IDin].md[0].naxis;
+    IDin = image_ID(in_name);
+    naxis = data.image[IDin].md[0].naxis;
     naxes = (int *) malloc(naxis*sizeof(int));
     naxesl = (long *) malloc(naxis*sizeof(long));
-    naxestmp = (long *) malloc(naxis*sizeof(long));
+    naxesout = (long *) malloc(naxis*sizeof(long));
 
     for (i=0; i<naxis; i++)
     {
         naxesl[i]= (long) data.image[IDin].md[0].size[i];
         naxes[i]= (int) data.image[IDin].md[0].size[i];
-        naxestmp[i]=data.image[IDin].md[0].size[i];
+        naxesout[i]=data.image[IDin].md[0].size[i];
         if(i==0)
-            naxestmp[i]=data.image[IDin].md[0].size[i]/2+1;
+            {
+				naxesout[i] = data.image[IDin].md[0].size[i]/2+1;
+			//	naxesl[i] = data.image[IDin].md[0].size[i]/2+1;
+			}
     }
 
 
     n = snprintf(ffttmpname,SBUFFERSIZE,"_ffttmpname_%d",(int) getpid());
     if(n >= SBUFFERSIZE)
         printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-    IDtmp = create_image_ID(ffttmpname, naxis, naxestmp, CDtype, data.SHARED_DFT, data.NBKEWORD_DFT);
+   // IDtmp = create_image_ID(ffttmpname, naxis, naxestmp, CDtype, data.SHARED_DFT, data.NBKEWORD_DFT);
 
 
-    IDout = create_image_ID(out_name, naxis, naxesl, CDtype, data.SHARED_DFT, data.NBKEWORD_DFT);
+    IDout = create_image_ID(out_name, naxis, naxesout, CDtype, data.SHARED_DFT, data.NBKEWORD_DFT);
 
     if(naxis==2)
     {
@@ -908,13 +972,28 @@ int do1drfft(char *in_name, char *out_name)
         }
         else
         {
-            OK=1;
+/*            OK=1;
             plan = fftwf_plan_dft_r2c_1d(naxes[0], data.image[IDin].array.F, (fftwf_complex*) data.image[IDout].array.CF, FFTWOPTMODE);
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
+*/
+            OK=1;
+            inptr = (float*) malloc(sizeof(float)*naxes[0]);
+            outptr = (fftwf_complex*) malloc(sizeof(fftwf_complex)*naxes[0]);
+            plan = fftwf_plan_dft_r2c_1d(naxes[0], inptr, outptr, FFTWOPTMODE);
+            
+            for(jj=0;jj<naxes[1];jj++)
+            {
+				memcpy((char*) inptr, (char*) data.image[IDin].array.F + sizeof(float)*jj*naxes[0], sizeof(float)*naxes[0]);
+				fftwf_execute(plan);
+				memcpy((char*) data.image[IDout].array.CF + sizeof(complex_float)*jj*naxesout[0], outptr, sizeof(fftwf_complex)*naxesout[0]);
+			}
+            fftwf_destroy_plan(plan);
+            free(inptr);
+            free(outptr);
         }
 
-        for(ii=0; ii<naxes[0]/2+1; ii++)
+       /* for(ii=0; ii<naxes[0]/2+1; ii++)
             for(jj=0; jj<naxes[1]; jj++)
             {
                 data.image[IDout].array.CF[jj*naxes[0]+ii] = data.image[IDtmp].array.CF[jj*naxestmp[0]+ii];
@@ -930,6 +1009,7 @@ int do1drfft(char *in_name, char *out_name)
                 data.image[IDout].array.CF[jj*naxes[0]+(naxes[0]-ii)].im = -data.image[IDtmp].array.CF[(naxes[1]-jj)*naxestmp[0]+ii].im;
             }
         }
+        */
     }
 
     if(OK==0)
@@ -938,11 +1018,13 @@ int do1drfft(char *in_name, char *out_name)
     }
     free(naxes);
     free(naxesl);
-    free(naxestmp);
-    delete_image_ID(ffttmpname);
+    free(naxesout);
+   // delete_image_ID(ffttmpname);
 
     return(0);
 }
+
+
 
 /* 1d inverse complex fft */
 int do1dffti(char *in_name, char *out_name)
@@ -2130,6 +2212,7 @@ long fft_DFTinsertFPM( char *pupin_name, char *fpmz_name, double zfactor, char *
                 data.image[IDpupin_mask].array.F[ii] = 0.0;
         }
 
+//		save_fits("_pupinmask", "!test_pupinmask0.fits");//TEST
 
 
         IDfpmz = image_ID(fpmz_name);
@@ -2254,6 +2337,8 @@ long fft_DFTinsertFPM( char *pupin_name, char *fpmz_name, double zfactor, char *
          }*/
 
         fft_DFT( "_foc0", "_fpmzmask", "_pupout2D", "_pupinmask", zfactor, 1, 0);
+
+	//	save_fits("_pupinmask", "!test_pupinmask.fits");//TEST
 
         IDout2D = image_ID("_pupout2D");
         for(ii=0; ii<xsize*ysize; ii++)

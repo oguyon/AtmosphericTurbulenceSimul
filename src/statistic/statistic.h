@@ -18,6 +18,8 @@ double better_poisson(double mu);
 
 double fast_poisson(double mu);
 
-int put_poisson_noise(char *ID_in_name, char *ID_out_name);
+long put_poisson_noise(char *ID_in_name, char *ID_out_name);
+
+long put_gauss_noise(char *ID_in_name, char *ID_out_name, double ampl);
 
 #endif

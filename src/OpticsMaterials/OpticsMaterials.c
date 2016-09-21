@@ -135,7 +135,7 @@ double OPTICSMATERIALS_n(int material, double lambda)
     double CaF2_B3 = 4.35181;
     double CaF2_C3 = 38.46;
 
- 
+	double sma1, smb1, sma2, smb2, sma3, smb3;
 
     // PMGI
     double pmgi_n[1000];
@@ -1322,8 +1322,15 @@ double OPTICSMATERIALS_n(int material, double lambda)
     // 20 C, 101325 Pa, 0.4 - 0.8um
     case 5 : // N2
         //		n = 1.0 + 1e-8*(8736.28 + 2398095.2 / (128.7 - 1.0/(lambdaum*lambdaum)));
-        n = 1.0 + 63.8623e-6 + (30212.83e-6*lambdaum*lambdaum)/(144*lambdaum*lambdaum-1); // 0C ,1 atm, ref 1
-
+//        n = 1.0 + 63.8623e-6 + (30212.83e-6*lambdaum*lambdaum)/(144*lambdaum*lambdaum-1); // 0C, 1 atm
+			sma1 = 9.30052e-5;
+			smb1 = 0.0951983;
+			sma2 = 5.74577e-05;
+			smb2 = 0.0264892;
+			sma3 = 0.000143257;
+			smb3 = 0.0687966;
+		n = 1.0 + (sma1*lambdaum*lambdaum)/(lambdaum*lambdaum - smb1*smb1) + (sma2*lambdaum*lambdaum)/(lambdaum*lambdaum - smb2*smb2) + (sma3*lambdaum*lambdaum)/(lambdaum*lambdaum -smb3*smb3); // Guyon 2016
+ 
         // convert to STP (0 C) - for ref2
         //LL = (n*n-1)/(n*n+2);
         //LL *= 293.15/273.15;

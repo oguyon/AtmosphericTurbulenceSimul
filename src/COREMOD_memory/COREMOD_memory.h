@@ -109,6 +109,8 @@ long copy_image_ID(char *name, char *newname, int shared);
 
 long create_variable_ID(char *name, double value);
 
+int list_image_ID_ncurses();
+
 int list_image_ID_ofp(FILE *fo);
 
 int list_image_ID_ofp_simple(FILE *fo);
@@ -155,7 +157,11 @@ long COREMOD_MEMORY_image_set_cnt1(char *IDname, int cnt1);
 
 long COREMOD_MEMORY_image_set_createsem(char *IDname, long NBsem);
 long COREMOD_MEMORY_image_set_sempost(char *IDname, long index);
+long COREMOD_MEMORY_image_set_sempost_byID(long ID, long index);
+
+long COREMOD_MEMORY_image_set_sempost_loop(char *IDname, long index, long dtus);
 long COREMOD_MEMORY_image_set_semwait(char *IDname, long index);
+void *waitforsemID(void *ID);
 long COREMOD_MEMORY_image_set_semwait_OR_IDarray(long *IDarray, long NB_ID);
 long COREMOD_MEMORY_image_set_semflush_IDarray(long *IDarray, long NB_ID);
 long COREMOD_MEMORY_image_set_semflush(char *IDname, long index);

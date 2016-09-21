@@ -12,7 +12,7 @@
 
 extern DATA data;
 
-char errormessage[SBUFFERSIZE];
+char errormessage_iofits[SBUFFERSIZE];
 
 
 
@@ -32,8 +32,9 @@ int images_to_cube(char *img_name, long nbframes, char *cube_name);
 // function CLI_checkarg used to check arguments
 // 1: float
 // 2: long
-// 3: string
+// 3: string, not existing image
 // 4: existing image
+// 5: string 
 //
 
 int load_fits_cli()
@@ -58,6 +59,7 @@ int save_fl_fits_cli()
   }
   return 0;
 }
+
 
 int save_db_fits_cli()
 {
@@ -203,9 +205,9 @@ int init_COREMOD_iofits()
   strcpy(data.cmd[data.NBcmd].key,"imgs2cube");
   strcpy(data.cmd[data.NBcmd].module,__FILE__);
   data.cmd[data.NBcmd].fp = images_to_cube_cli;
-  strcpy(data.cmd[data.NBcmd].info,"combine individual images into cube");
+  strcpy(data.cmd[data.NBcmd].info,"combine individual images into cube, image name is prefix followed by 5 digits");
   strcpy(data.cmd[data.NBcmd].syntax,"<input image format> <max index> <output cube>");
-  strcpy(data.cmd[data.NBcmd].example,"imgs2cube im_ imc");
+  strcpy(data.cmd[data.NBcmd].example,"imgs2cube im_ 100 imc");
   strcpy(data.cmd[data.NBcmd].Ccall,"int images_to_cube(char *img_name, long nbframes, char *cube_name)");
   data.NBcmd++;
 
@@ -249,7 +251,7 @@ int check_FITSIO_status(const char *cfile, const char *cfunc, long cline, int pr
     {
         if(print==1)
         {
-            fits_get_errstatus(FITSIO_status,errstr);
+            fits_get_errstatus(FITSIO_status, errstr);
             fprintf(stderr,"%c[%d;%dmFITSIO error %d [%s, %s, %ld]: %s%c[%d;m\n\a",(char) 27, 1, 31, FITSIO_status, cfile, cfunc, cline, errstr, (char) 27, 0);
         }
         Ferr = FITSIO_status;
@@ -291,10 +293,10 @@ int is_fits_file(char *file_name)
     }
     if(check_FITSIO_status(__FILE__,__func__,__LINE__,1)==1)
     {
-        n = snprintf(errormessage,SBUFFERSIZE,"Error in function is_fits_file(%s)",file_name);
+        n = snprintf(errormessage_iofits,SBUFFERSIZE,"Error in function is_fits_file(%s)",file_name);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-        printERROR(__FILE__,__func__,__LINE__,errormessage);
+        printERROR(__FILE__,__func__,__LINE__,errormessage_iofits);
         //      fprintf(stderr,"%c[%d;%dm Error in function is_fits_file for file \"%s\" %c[%d;m\n", (char) 27, 1, 31, file_name, (char) 27, 0);
     }
 
@@ -314,10 +316,10 @@ int read_keyword(char* file_name, char* KEYWORD, char* content)
     {
         if (fits_read_keyword(fptr,KEYWORD, str1, comment, &FITSIO_status))
         {
-            n = snprintf(errormessage,SBUFFERSIZE,"Keyword \"%s\" does not exist in file \"%s\"",KEYWORD,file_name);
+            n = snprintf(errormessage_iofits,SBUFFERSIZE,"Keyword \"%s\" does not exist in file \"%s\"",KEYWORD,file_name);
             if(n >= SBUFFERSIZE)
                 printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-            printERROR(__FILE__,__func__,__LINE__,errormessage);
+            printERROR(__FILE__,__func__,__LINE__,errormessage_iofits);
 
             //	  printf("%c[%d;%dm Keyword \"%s\" does not exist in file \"%s\" %c[%d;m\n", (char) 27, 1, 31, KEYWORD,file_name, (char) 27, 0);
             exists = 1;
@@ -332,10 +334,10 @@ int read_keyword(char* file_name, char* KEYWORD, char* content)
     }
     if(check_FITSIO_status(__FILE__,__func__,__LINE__,0)==1)
     {
-        n = snprintf(errormessage,SBUFFERSIZE,"Error reading keyword \"%s\" in file \"%s\"",KEYWORD,file_name);
+        n = snprintf(errormessage_iofits,SBUFFERSIZE,"Error reading keyword \"%s\" in file \"%s\"",KEYWORD,file_name);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-        printERROR(__FILE__,__func__,__LINE__,errormessage);
+        printERROR(__FILE__,__func__,__LINE__,errormessage_iofits);
         //      fprintf(stderr,"%c[%d;%dm Error reading keyword \"%s\" in file \"%s\" %c[%d;m\n", (char) 27, 1, 31, KEYWORD,file_name, (char) 27, 0);
     }
 
@@ -427,12 +429,13 @@ long load_fits(char *file_name, char ID_name[400], int errcode)
     naxes[1] = 0;
     naxes[2] = 0;
 
+
     if (fits_open_file(&fptr,file_name, READONLY, &FITSIO_status))
     {
-        if(check_FITSIO_status(__FILE__,__func__,__LINE__,1) != 0)
-        {
-            if(errcode!=0)
-            {
+		 if(errcode!=0)
+		 {
+			 if(check_FITSIO_status(__FILE__,__func__,__LINE__,1) != 0)
+			{
                 fprintf(stderr, "%c[%d;%dm Error while calling \"fits_open_file\" %c[%d;m\n", (char) 27, 1, 31, (char) 27, 0);
                 fprintf(stderr, "%c[%d;%dm within load_fits ( %s, %s ) %c[%d;m\n", (char) 27, 1, 31, ID_name, file_name, (char) 27, 0);
                 fprintf(stderr, "%c[%d;%dm Printing Cfits image buffer content: %c[%d;m\n", (char) 27, 1, 31, (char) 27, 0);
@@ -440,16 +443,16 @@ long load_fits(char *file_name, char ID_name[400], int errcode)
                 if(errcode>1)
                     exit(0);
             }
-        }
+			}
         LOAD_FITS_ERROR = 1;
         ID = -1;
     }
     else
     {
         fits_read_key(fptr, TLONG, "NAXIS", &naxis, comment, &FITSIO_status);
-        if(check_FITSIO_status(__FILE__,__func__,__LINE__,1) != 0)
-        {
-            if(errcode!=0)
+       if(errcode!=0)
+            {
+				 if(check_FITSIO_status(__FILE__,__func__,__LINE__,1) != 0)
             {
                 fprintf(stderr, "%c[%d;%dm Error while calling \"fits_read_key\" NAXIS %c[%d;m\n", (char) 27, 1, 31, (char) 27, 0);
                 fprintf(stderr, "%c[%d;%dm within load_fits ( %s, %s ) %c[%d;m\n", (char) 27, 1, 31, ID_name, file_name, (char) 27, 0);
@@ -766,10 +769,10 @@ int save_db_fits(char *ID_name, char *file_name)
 
     if((data.overwrite == 1)&&(file_name[0]!='!')&&(file_exists(file_name)==1))
     {
-        n = snprintf(errormessage,SBUFFERSIZE,"automatic overwrite on file \"%s\"\n",file_name);
+        n = snprintf(errormessage_iofits,SBUFFERSIZE,"automatic overwrite on file \"%s\"\n",file_name);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-        printWARNING(__FILE__,__func__,__LINE__,errormessage);
+        printWARNING(__FILE__,__func__,__LINE__,errormessage_iofits);
         n = snprintf(file_name1,SBUFFERSIZE,"!%s",file_name);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
@@ -914,12 +917,12 @@ int save_fl_fits(char *ID_name, char *file_name)
     char file_name1[SBUFFERSIZE];
     int n;
 
-    if((data.overwrite == 1)&&(file_name[0]!='!')&&(file_exists(file_name)==1))
+    if((data.overwrite == 1) && (file_name[0]!='!') && (file_exists(file_name)==1))
     {
-        n = snprintf(errormessage,SBUFFERSIZE,"automatic overwrite on file \"%s\"\n",file_name);
+        n = snprintf(errormessage_iofits,SBUFFERSIZE,"automatic overwrite on file \"%s\"\n",file_name);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-        printWARNING(__FILE__,__func__,__LINE__,errormessage);
+        printWARNING(__FILE__,__func__,__LINE__,errormessage_iofits);
         //	printf("WARNING: automatic overwrite on file \"%s\"\n",file_name);
         n = snprintf(file_name1,SBUFFERSIZE,"!%s",file_name);
         if(n >= SBUFFERSIZE)
@@ -993,11 +996,12 @@ int save_fl_fits(char *ID_name, char *file_name)
             exit(0);
             break;
         }
-
+		
+		FITSIO_status = 0;
         fits_create_file(&fptr, file_name1, &FITSIO_status);
-        if(check_FITSIO_status(__FILE__,__func__,__LINE__,1)!=0)
+        if(check_FITSIO_status(__FILE__, __func__, __LINE__, 1) != 0)
         {
-            fprintf(stderr,"%c[%d;%dm Error while calling \"fits_create_file\" with filename \"%s\" %c[%d;m\n", (char) 27, 1, 31,file_name1, (char) 27, 0);
+            fprintf(stderr,"%c[%d;%dm Error while calling \"fits_create_file\" with filename \"%s\" %c[%d;m\n", (char) 27, 1, 31, file_name1, (char) 27, 0);
             if(file_exists(file_name1)==1)
             {
                 fprintf(stderr,"%c[%d;%dm File \"%s\" already exists. Make sure you remove this file before attempting to write file with identical name. %c[%d;m\n", (char) 27, 1, 31,file_name1, (char) 27, 0);
@@ -1074,10 +1078,10 @@ int save_sh_fits(char *ID_name, char *file_name)
 
     if((data.overwrite == 1)&&(file_name[0]!='!')&&(file_exists(file_name)==1))
     {
-        n = snprintf(errormessage,SBUFFERSIZE,"automatic overwrite on file \"%s\"\n",file_name);
+        n = snprintf(errormessage_iofits,SBUFFERSIZE,"automatic overwrite on file \"%s\"\n",file_name);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-        printWARNING(__FILE__,__func__,__LINE__,errormessage);
+        printWARNING(__FILE__,__func__,__LINE__,errormessage_iofits);
         //	printf("WARNING: automatic overwrite on file \"%s\"\n",file_name);
         n = snprintf(file_name1,SBUFFERSIZE,"!%s",file_name);
         if(n >= SBUFFERSIZE)
@@ -1228,10 +1232,10 @@ int save_ush_fits(char *ID_name, char *file_name)
 
     if((data.overwrite == 1)&&(file_name[0]!='!')&&(file_exists(file_name)==1))
     {
-        n = snprintf(errormessage,SBUFFERSIZE,"automatic overwrite on file \"%s\"\n",file_name);
+        n = snprintf(errormessage_iofits,SBUFFERSIZE,"automatic overwrite on file \"%s\"\n",file_name);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-        printWARNING(__FILE__,__func__,__LINE__,errormessage);
+        printWARNING(__FILE__,__func__,__LINE__,errormessage_iofits);
         //	printf("WARNING: automatic overwrite on file \"%s\"\n",file_name);
         n = snprintf(file_name1,SBUFFERSIZE,"!%s",file_name);
         if(n >= SBUFFERSIZE)
@@ -1481,10 +1485,10 @@ int images_to_cube(char *img_name, long nbframes, char *cube_name)
     ID1 = image_ID(imname);
     if(ID1==-1)
     {
-        n = snprintf(errormessage,SBUFFERSIZE,"Image \"%s\" does not exist",imname);
+        n = snprintf(errormessage_iofits,SBUFFERSIZE,"Image \"%s\" does not exist",imname);
         if(n >= SBUFFERSIZE)
             printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-        printERROR(__FILE__,__func__,__LINE__,errormessage);
+        printERROR(__FILE__,__func__,__LINE__,errormessage_iofits);
         exit(0);
     }
     naxes[0] = data.image[ID1].md[0].size[0];
@@ -1509,10 +1513,10 @@ int images_to_cube(char *img_name, long nbframes, char *cube_name)
         ID1 = image_ID(imname);
         if(ID1==-1)
         {
-            n = snprintf(errormessage,SBUFFERSIZE,"Image \"%s\" does not exist - skipping",imname);
+            n = snprintf(errormessage_iofits,SBUFFERSIZE,"Image \"%s\" does not exist - skipping",imname);
             if(n >= SBUFFERSIZE)
                 printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
-            printERROR(__FILE__,__func__,__LINE__,errormessage);
+            printERROR(__FILE__,__func__,__LINE__,errormessage_iofits);
         }
         else
         {

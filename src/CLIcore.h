@@ -19,14 +19,14 @@
 #define SZ_CLICOREVARRAY 1000
 
 /// important directories and info
-pid_t CLIPID;
-char DocDir[200];		// location of documentation
-char SrcDir[200];		// location of source
-char BuildFile[200];	// file name for source
-char BuildDate[200];
-char BuildTime[200];
+extern pid_t CLIPID;
+extern char DocDir[200];		// location of documentation
+extern char SrcDir[200];		// location of source
+extern char BuildFile[200];	// file name for source
+extern char BuildDate[200];
+extern char BuildTime[200];
 
-int C_ERRNO;			// C errno (from errno.h)
+extern int C_ERRNO;			// C errno (from errno.h)
 
 /* #define DEBUG */
 #define CFITSEXIT  printf("Program abnormally terminated, File \"%s\", line %d\n", __FILE__, __LINE__);exit(0)
@@ -46,13 +46,14 @@ int C_ERRNO;			// C errno (from errno.h)
 
 
 #define SEMAPHORE_MAX       1000
+#define SEMAPHORE_MAXVAL    10 // maximum value for a semaphore
 #define NB_ARG_MAX                 20
 
 
 //Need to install process with setuid.  Then, so you aren't running privileged all the time do this:
-uid_t euid_real;
-uid_t euid_called;
-uid_t suid;
+extern uid_t euid_real;
+extern uid_t euid_called;
+extern uid_t suid;
 
 
 
@@ -149,7 +150,7 @@ typedef struct
 #define USHORT 7
 #define LONG 8
 
-int TYPESIZE[9];
+extern int TYPESIZE[9];
 
 
 //typedef float PRECISION;

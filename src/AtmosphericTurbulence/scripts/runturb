@@ -1,7 +1,152 @@
 #!/bin/bash
 
-execname="AtmosphericTurbulenceSimul"
 
+# number of arguments to script
+NBARGS=1
+
+
+execname="Cfits"
+
+
+## OPTIONAL : refractive index / absorption coefficients files (RIA files)
+RIAfile_dir="/data/WORK/2014-AtmTurb/RefractiveIndices"
+RIAfile_N2="${RIAfile_dir}/R300000/RIA_N2.dat"
+RIAfile_O2="${RIAfile_dir}/R300000/RIA_O2.dat"
+RIAfile_Ar="${RIAfile_dir}/R30000/RIA_Ar.dat"
+RIAfile_H2O="${RIAfile_dir}/R300000/RIA_H2O.dat"
+RIAfile_CO2="${RIAfile_dir}/R300000/RIA_CO2.dat"
+RIAfile_Ne="${RIAfile_dir}/R30000/RIA_Ne.dat"
+RIAfile_He="${RIAfile_dir}/R30000/RIA_He.dat"
+RIAfile_CH4="${RIAfile_dir}/R300000/RIA_CH4.dat"
+RIAfile_Kr="${RIAfile_dir}/R30000/RIA_Kr.dat"
+RIAfile_H2="${RIAfile_dir}/R30000/RIA_H2.dat"
+RIAfile_O3="${RIAfile_dir}/R300000/RIA_O3.dat"
+
+
+
+# ======================= PROCESS NAME =================================
+pname=`echo "$0" | sed "s/\.\///g"`
+echo "pname = $pname"
+
+
+
+
+
+
+printHELP ()
+{
+echo
+echo "------------------------------------------------------------------------"
+echo   "$(tput bold) $pname :  ATMOSPHERIC TURBULENCE SCRIPT $(tput sgr0)"
+echo " "
+echo " Edit script to set atmosphere and turbulence parameters"
+echo " Execute script without to compute atmospheric wavefronts"
+echo ""
+echo " $(tput bold)USAGE:$(tput sgr0)"
+echo "      $0 [-h] <slambdaum>"
+echo ""
+echo " $(tput bold)OPTIONS:$(tput sgr0)"
+echo "     $(tput bold)-h$(tput sgr0)          help"
+echo ""
+echo " $(tput bold)INPUT:$(tput sgr0)"
+echo "          slambdaum       Wavelength [um]"
+echo ""
+echo "------------------------------------------------------------------------"
+echo "     $(tput bold)                OVERVIEW $(tput sgr0)"
+echo ""
+echo "Main steps are: "
+echo "   Build atmospheric composition/density model"
+echo "      function call: AtmosphereModel_Create_from_CONF(CONFFILE)"
+echo "      INPUT: "
+echo "           ./RefractiveIndices/RIA_xx.dat, where xx = N2, O2, Ar, H2O, CO2, Ne, He, CH4, Kr, H2, O3, N, O, H"
+echo "           (if RIA file does not exist, uses Sellmeier equations in module OpticsMaterials)"
+echo "      OUTPUT:"
+echo "          atm.txt               :  atmospheric vertical composition/density profile"
+echo "          RindexSite.txt        : refractive index at site, as a function of wavelength (lambda[um] rindex abs)"
+echo ""
+echo "          refractpath_0550.txt  : geometric light ray path at  550 nm "
+echo "          refractpath_0550.txt  : geometric light ray path at 1650 nm "
+echo "              columns: "
+echo "                1:h0              altitude above sea level"
+echo "                2:x0              x coordinate"
+echo "                3:y0              y coordinate (aligned with altitude vector at sea level"
+echo "                4:alpha           ray angle [rad]"
+echo "                5:alpha-Zangle    atm refraction: ray angle - Zenith angle [rad]"
+echo "                6:alpha-Zangle    atm refraction: ray angle - Zenith angle [arcsec]"
+echo "                7:offset          atm refraction geometric shear [m]"
+echo "------------------------------------------------------------------------"
+}
+
+
+
+# ================= OPTIONS =============================
+while getopts :h FLAG; do
+  case $FLAG in
+    h)  #show help
+      printHELP
+      exit
+      ;;
+    \?) #unrecognized option - show help
+      echo -e \\n"Option -${BOLD}$OPTARG${NORM} not allowed."
+      printHELP
+      ;;
+  esac
+done
+
+shift $((OPTIND-1))  
+
+
+
+
+
+
+if [ "$1" = "help" ] || [ "$#" -ne $NBARGS ]; then
+if [ "$#" -ne $NBARGS ]; then
+    echo "$(tput setaf 1)$(tput bold) Illegal number of parameters ($NBARGS params required, $# entered) $(tput sgr0)"
+fi
+printHELP
+        exit
+fi
+
+
+
+
+
+
+function linkRIA {
+if [ -f "RefractiveIndices/RIA_$2.dat" ]
+then
+echo "[$(tput setaf 2)$(tput bold)   OK   $(tput sgr0)] File $(tput bold)RefractiveIndices/RIA_$2.dat$(tput sgr0) already present"
+else
+if [ -f $1 ]
+  then
+    echo "[$(tput setaf 2)$(tput bold)   OK   $(tput sgr0)] File $(tput bold)$1$(tput sgr0) linked"
+	ln -s $1 $PWD/RefractiveIndices/RIA_$2.dat
+   else
+    echo "[$(tput setaf 5)$(tput bold) FAILED $(tput sgr0)] WARNING: File $(tput bold)$1$(tput sgr0) not found"
+fi
+fi
+}
+
+
+mkdir -p RefractiveIndices
+linkRIA ${RIAfile_N2} N2
+linkRIA ${RIAfile_O2} O2
+linkRIA ${RIAfile_Ar} Ar
+linkRIA ${RIAfile_H2O} H2O
+linkRIA ${RIAfile_CO2} CO2
+linkRIA ${RIAfile_Ne} Ne
+linkRIA ${RIAfile_He} He
+linkRIA ${RIAfile_CH4} CH4
+linkRIA ${RIAfile_Kr} Kr
+linkRIA ${RIAfile_H2} H2
+linkRIA ${RIAfile_O3} O3
+
+
+
+
+
+slambdaum="$1"
 
 #turbprofcase="HVmed"
 # choose a pre-defined turbulence profile model
@@ -86,11 +231,11 @@ SITE_PRESS=0.6                           # [atm] = [101325 Pa]
 # the total precipitable water will be computed 
 
 # Method 3: specify relatice humidity and total precipitable water
-# the precipitable water scale height will be adjusted automatically
+# the precipitable water scale height will be adjusted automaticallyq
 
 SITE_H2O_METHOD=1                       # Method chosen to input water vapor content
 SITE_RH=30.0                            # site relative humidity [%]
-SITE_TPW=1.0                            # Site total precitipable water [mm] (only takes into account PW above SITE_ALT)
+SITE_TPW=0.01                            # Site total precitipable water [mm] (only takes into account PW above SITE_ALT)
 SITE_PW_SCALEH=2000.0                   # water vapor relative concentration scale height [m]
 
 # IMPORTANT NOTE: 
@@ -113,7 +258,7 @@ SHM_OUTPUT=0                              # shared memory output (phase only)
 # 
 
 MAKE_SWAVEFRONT=1                   # 1 if the high fidelity wavefront series needs to be made
-SLAMBDA=1.600                       # wavelength for high fidelity simulation [micron]
+SLAMBDA=1.600                       # wavelength for high fidelity simulation [micron] - DEFAULT VALUE
 SWF_WRITE2DISK=1                    # if writing to disk
 WFoutdir="WFout"
 mkdir -p $WFoutdir
@@ -131,7 +276,7 @@ SHM_SOUTPUTM=2                      # output shared memory phase unit. 0:rad, 1:
 
 # pixel size, scale -----------------------------------------------
 WFsize=512                          # pixel size of output images
-PUPIL_SCALE=0.01                    # pupil scale - m per pixel 
+PUPIL_SCALE=0.02                    # pupil scale - m per pixel 
 
 
 
@@ -155,7 +300,7 @@ REALTIMEFACTOR=1.0                  # time dilatation factor for realtime mode (
 # The realtime mode is typically used when output is shared memory for another real-time program
 
 WFTIME_STEP=0.001                   # time step in seconds between wavefront frames
-TIME_SPAN=0.1                       # time span for one continuous WF cube file 
+TIME_SPAN=1.0                       # time span for one continuous WF cube file 
 NB_TSPAN=100000000                  # total number of consecutive wavefront cubes to compute
 SIMTDELAY=0                         # additional time delay [us] between frames (used to limit CPU load)
 # NOTE:
@@ -181,8 +326,8 @@ MASTER_SIZE=4096                    # size in pixel of master turbulence screens
 
 # ------------ WAVEFRONT AMPLITUDE -------------------------------------------
 
-WAVEFRONT_AMPLITUDE=1               # 1 if Wavefront amplitude is computed in addition to phase
-FRESNEL_PROPAGATION=1               # 1 if diffraction propagation between layers (ignored if WAVEFRONT_AMPLITUDE = 0)
+WAVEFRONT_AMPLITUDE=0               # 1 if Wavefront amplitude is computed in addition to phase
+FRESNEL_PROPAGATION=0               # 1 if diffraction propagation between layers (ignored if WAVEFRONT_AMPLITUDE = 0)
 FRESNEL_PROPAGATION_BIN=1000.0      # vertical distance within which layers will be binned together prior to diffraction propagation [m]
 
 
@@ -200,15 +345,15 @@ FRESNEL_PROPAGATION_BIN=1000.0      # vertical distance within which layers will
 
 
 TURBULENCE_SEEING=0.6 
-echo "# altitude(m)   relativeCN2     speed(m/s)      direction(rad)   outerscale[m]	innerscale[m]" > turbul.prof
+echo "# altitude(m)   relativeCN2     speed(m/s)      direction(rad)   outerscale[m]	innerscale[m]	sigmawsp[m/s]	windOuterScale[m]" > turbul.prof
 echo "" >> turbul.prof
-echo "4215		5.32		6.5		1.47	2.0		0.01" >> turbul.prof
-echo "4230		1.47		6.55		1.57	20.0		0.01" >> turbul.prof
-echo "4349		1.08		6.6		1.67	20.0		0.01" >> turbul.prof
-echo "5007		2.11		6.7		1.77	20.0		0.01" >> turbul.prof
-echo "12000		1.83		22.0		3.1	30.0		0.02" >> turbul.prof
-echo "16200		1.48		9.5		3.2	40.0		0.03" >> turbul.prof
-echo "23701		0.697		5.6		3.3	40.0		1.0" >> turbul.prof
+echo " 4215     5.32        6.5     1.47     2.0        0.01    1.0     10.0" >> turbul.prof
+echo " 4230     1.47        6.55    1.57    20.0        0.01    4.0     20.0" >> turbul.prof
+echo " 4349     1.08        6.6     1.67    20.0        0.01    4.0     50.0" >> turbul.prof
+echo " 5007     2.11        6.7     1.77    20.0        0.01    3.0     80.0" >> turbul.prof
+echo "12000     1.83       22.0     3.1     30.0        0.02    3.0     80.0" >> turbul.prof
+echo "16200     1.48        9.5     3.2     40.0        0.03    3.0     80.0" >> turbul.prof
+echo "23701     0.697       5.6     3.3     40.0        1.0     2.0     80.0" >> turbul.prof
 
 
 
@@ -308,7 +453,7 @@ printf "\n\n" >> $conffilename
 
 $execname << EOF
 #mkatmospheremodel $conffilename
-mkwfs
+mkwfs ${slambdaum}
 exit
 EOF
 

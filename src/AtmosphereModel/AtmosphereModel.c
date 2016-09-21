@@ -230,8 +230,8 @@ int lliprecompH = -1; // if >=0, use this index in array
 
 int AtmosphereModel_Create_from_CONF_cli()
 {
-    if(CLI_checkarg(1,3)==0)
-        AtmosphereModel_Create_from_CONF(data.cmdargtoken[1].val.string);
+    if(CLI_checkarg(1,3)+CLI_checkarg(2,1)==0)
+        AtmosphereModel_Create_from_CONF(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.numf);
     else
         return 1;
 
@@ -276,9 +276,9 @@ int init_AtmosphereModel()
     strcpy(data.cmd[data.NBcmd].module,__FILE__);
     data.cmd[data.NBcmd].fp = AtmosphereModel_Create_from_CONF_cli;
     strcpy(data.cmd[data.NBcmd].info,"make Earth atmosphere model");
-    strcpy(data.cmd[data.NBcmd].syntax,"<conf file>");
-    strcpy(data.cmd[data.NBcmd].example,"mkatmospheremodel");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int AtmosphereModel_Create_from_CONF(char *CONFFILE)");
+    strcpy(data.cmd[data.NBcmd].syntax,"<conf file> <wavelength>");
+    strcpy(data.cmd[data.NBcmd].example,"mkatmospheremodel conf.txt 0.5e-6");
+    strcpy(data.cmd[data.NBcmd].Ccall,"int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda)");
     data.NBcmd++;
 
 
@@ -2593,7 +2593,9 @@ void gts7(struct nrlmsise_input *input, struct nrlmsise_flags *flags, struct nrl
 
 
 // densities in [cm-3]
-
+//
+// This routine assumes Z=1
+//
 double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_Ar, double dens_H2O, double dens_CO2, double dens_Ne, double dens_He, double dens_CH4, double dens_Kr, double dens_H2, double dens_O3, double dens_N, double dens_O, double dens_H)
 {
     long i;
@@ -2608,8 +2610,62 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
     double n;
     long llistep;
     int llidir, lliOK;
+	float alpha;
 
-        // N2
+
+	// compressibility factors at STP
+	
+	
+	double ZN2 = 0.99971;
+	// 1.013 bar and 15 °C
+	// ref: http://encyclopedia.airliquide.com
+	
+	double ZO2 = 0.99924;
+	// 1.013 bar and 15 °C
+	// ref: http://encyclopedia.airliquide.com
+	
+	double ZAr = 0.99925;
+	// 1.013 bar and 15 °C
+	// ref: http://encyclopedia.airliquide.com
+	
+	double ZH2O = 1.0; // TO BE UPDATED
+	
+	double ZCO2 = 0.99435;
+	// 1.013 bar and 15 °C
+	// ref: http://encyclopedia.airliquide.com
+	
+	double ZNe = 1.0005;
+	// 1.013 bar and 15 °C
+	// ref: http://encyclopedia.airliquide.com
+	
+	double ZHe = 1.0005;
+	// 1.013 bar and 15 °C
+	// ref: http://encyclopedia.airliquide.com
+	
+	double ZCH4 = 0.99802;
+	// 1.013 bar and 15 °C
+	// ref: http://encyclopedia.airliquide.com
+	
+	double ZKr = 0.99768;
+	// 1.013 bar and 15 °C
+	// ref: http://encyclopedia.airliquide.com	
+	
+	double ZH2 =  1.0006; 
+	// 1.013 bar and 15 °C
+	// ref: http://encyclopedia.airliquide.com
+	
+	double ZO3 = 1.0; // TO BE UPDATED
+	
+	double ZN = 1.0; // TO BE UPDATED
+	
+	double ZO = 1.0; // TO BE UPDATED
+	
+	double ZH = 1.0; // TO BE UPDATED
+	
+	
+
+    
+    // N2
     if(initRIA_N2==1)
     {
         lli = lliprecompN2;
@@ -2628,9 +2684,10 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
                     lli += llidir*llistep;
                 llidir = -llidir;
             }
-        
+        alpha = (lambda-RIA_N2_lambda[lli])/(RIA_N2_lambda[lli+1]-RIA_N2_lambda[lli]);
+    //    printf("%d   alpha = %f \n", llidir, alpha);
         lliprecompN2 = lli;
-        n = RIA_N2_ri[lli];
+        n = (1.0-alpha)*RIA_N2_ri[lli] + alpha*RIA_N2_ri[lli+1];
         abscoeff = RIA_N2_abs[lli];
     }
     else
@@ -2639,7 +2696,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLN2 = (n*n-1)/(n*n+2);
-    tmpc = dens_N2/(LoschmidtConstant/1e6);
+    tmpc = dens_N2/(LoschmidtConstant/1e6/ZN2);
     LLN2 *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_N2;
@@ -2665,10 +2722,10 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
                     lli += llidir*llistep;
                 llidir = -llidir;
             }
-        
+        alpha = (lambda-RIA_O2_lambda[lli])/(RIA_O2_lambda[lli+1]-RIA_O2_lambda[lli]);
         lliprecompO2 = lli;
-        n = RIA_O2_ri[lli];
-        abscoeff = RIA_O2_abs[lli];
+        n = (1.0-alpha)*RIA_O2_ri[lli] + alpha*RIA_O2_ri[lli+1];
+        abscoeff = (1.0-alpha)*RIA_O2_abs[lli] + alpha*RIA_O2_abs[lli+1];
     }
     else
     {
@@ -2676,7 +2733,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLO2 = (n*n-1)/(n*n+2);
-    tmpc = dens_O2/(LoschmidtConstant/1e6);
+    tmpc = dens_O2/(LoschmidtConstant/1e6/ZO2);
     LLO2 *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_O2;
@@ -2712,7 +2769,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLAr = (n*n-1)/(n*n+2);
-    tmpc = dens_Ar/(LoschmidtConstant/1e6);
+    tmpc = dens_Ar/(LoschmidtConstant/1e6/ZAr);
     LLAr *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_Ar;
@@ -2749,7 +2806,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLH2O = (n*n-1)/(n*n+2);
-    tmpc = dens_H2O/(LoschmidtConstant/1e6);
+    tmpc = dens_H2O/(LoschmidtConstant/1e6/ZH2O);
     LLH2O *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_H2O;
@@ -2786,7 +2843,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLCO2 = (n*n-1)/(n*n+2);
-    tmpc = dens_CO2/(LoschmidtConstant/1e6);
+    tmpc = dens_CO2/(LoschmidtConstant/1e6/ZCO2);
     LLCO2 *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_CO2;
@@ -2823,7 +2880,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLNe = (n*n-1)/(n*n+2);
-    tmpc = dens_Ne/(LoschmidtConstant/1e6);
+    tmpc = dens_Ne/(LoschmidtConstant/1e6/ZNe);
     LLNe *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_Ne;
@@ -2860,7 +2917,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLHe = (n*n-1)/(n*n+2);
-    tmpc = dens_He/(LoschmidtConstant/1e6);
+    tmpc = dens_He/(LoschmidtConstant/1e6/ZHe);
     LLHe *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_He;
@@ -2898,7 +2955,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLCH4 = (n*n-1)/(n*n+2);
-    tmpc = dens_CH4/(LoschmidtConstant/1e6);
+    tmpc = dens_CH4/(LoschmidtConstant/1e6/ZCH4);
     LLCH4 *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_CH4;
@@ -2936,7 +2993,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLKr = (n*n-1)/(n*n+2);
-    tmpc = dens_Kr/(LoschmidtConstant/1e6);
+    tmpc = dens_Kr/(LoschmidtConstant/1e6/ZKr);
     LLKr *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_Kr;
@@ -2974,7 +3031,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLH2 = (n*n-1)/(n*n+2);
-    tmpc = dens_H2/(LoschmidtConstant/1e6);
+    tmpc = dens_H2/(LoschmidtConstant/1e6/ZH2);
     LLH2 *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_H2;
@@ -3013,7 +3070,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLO3 = (n*n-1)/(n*n+2);
-    tmpc = dens_O3/(LoschmidtConstant/1e6);
+    tmpc = dens_O3/(LoschmidtConstant/1e6/ZO3);
     LLO3 *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_O3;
@@ -3052,7 +3109,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLN = (n*n-1)/(n*n+2);
-    tmpc = dens_N/(LoschmidtConstant/1e6);
+    tmpc = dens_N/(LoschmidtConstant/1e6/ZN);
     LLN *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_N;
@@ -3091,7 +3148,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLO = (n*n-1)/(n*n+2);
-    tmpc = dens_O/(LoschmidtConstant/1e6);
+    tmpc = dens_O/(LoschmidtConstant/1e6/ZO);
     LLO *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_O;
@@ -3130,7 +3187,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
         abscoeff = 0.0;
     }
     LLH = (n*n-1)/(n*n+2);
-    tmpc = dens_H/(LoschmidtConstant/1e6);
+    tmpc = dens_H/(LoschmidtConstant/1e6/ZH);
     LLH *= tmpc;
     v_ABSCOEFF += tmpc*abscoeff;
     denstotal += dens_H;
@@ -3152,7 +3209,7 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
 // computes N = (n-1)
 // absorption coefficient stored in v_ABSCOEFF variable
 //
-float AtmosphereModel_stdAtmModel_N(float alt, float lambda)
+float AtmosphereModel_stdAtmModel_N(float alt, float lambda, int mode)
 {
     float dens;
     float val;
@@ -3176,6 +3233,7 @@ float AtmosphereModel_stdAtmModel_N(float alt, float lambda)
     int llidir, lliOK;
 
 
+
     i = (long) (alt/10.0);
     if(i>9998)
         i = 9999;
@@ -3187,35 +3245,71 @@ float AtmosphereModel_stdAtmModel_N(float alt, float lambda)
     if(ifrac>1.0)
         ifrac = 1.0;
 
-
     // densities [cm-3]
-    dens_N2 = ((1.0-ifrac)*densN2[i]+ifrac*densN2[i+1]);
-    dens_O2 = ((1.0-ifrac)*densO2[i]+ifrac*densO2[i+1]);
-    dens_Ar = ((1.0-ifrac)*densAr[i]+ifrac*densAr[i+1]);
-    dens_H2O = ((1.0-ifrac)*densH2O[i]+ifrac*densH2O[i+1]);
-    dens_CO2 = ((1.0-ifrac)*densCO2[i]+ifrac*densCO2[i+1]);
-    dens_Ne = ((1.0-ifrac)*densNe[i]+ifrac*densNe[i+1]);
-    dens_He = ((1.0-ifrac)*densHe[i]+ifrac*densHe[i+1]);
-    dens_CH4 = ((1.0-ifrac)*densCH4[i]+ifrac*densCH4[i+1]);
-    dens_Kr = ((1.0-ifrac)*densKr[i]+ifrac*densKr[i+1]);
-    dens_H2 = ((1.0-ifrac)*densH2[i]+ifrac*densH2[i+1]);
-    dens_O3 = ((1.0-ifrac)*densO3[i]+ifrac*densO3[i+1]);
-    dens_N = ((1.0-ifrac)*densN[i]+ifrac*densN[i+1]);
-    dens_O = ((1.0-ifrac)*densO[i]+ifrac*densO[i+1]);
-    dens_H = ((1.0-ifrac)*densH[i]+ifrac*densH[i+1]);
+	denstotal = 0.0;
+	
+    dens_N2 = ((1.0-ifrac)*densN2[i] + ifrac*densN2[i+1]);
+    denstotal += dens_N2;
+    
+    dens_O2 = ((1.0-ifrac)*densO2[i] + ifrac*densO2[i+1]);
+	denstotal += dens_O2;
+	
+    dens_Ar = ((1.0-ifrac)*densAr[i] + ifrac*densAr[i+1]);
+	denstotal += dens_Ar;
 
+    dens_H2O = ((1.0-ifrac)*densH2O[i] + ifrac*densH2O[i+1]);
+	denstotal += dens_H2O;
 
-    denstotal = 0.0;
+    dens_CO2 = ((1.0-ifrac)*densCO2[i] + ifrac*densCO2[i+1]);
+	denstotal += dens_CO2;
+
+    dens_Ne = ((1.0-ifrac)*densNe[i] + ifrac*densNe[i+1]);
+	denstotal += dens_Ne;
+
+    dens_He = ((1.0-ifrac)*densHe[i] + ifrac*densHe[i+1]);
+	denstotal += dens_He;
+
+    dens_CH4 = ((1.0-ifrac)*densCH4[i] + ifrac*densCH4[i+1]);
+	denstotal += dens_CH4;
+
+    dens_Kr = ((1.0-ifrac)*densKr[i] + ifrac*densKr[i+1]);
+	denstotal += dens_Kr;
+
+    dens_H2 = ((1.0-ifrac)*densH2[i] + ifrac*densH2[i+1]);
+	denstotal += dens_H2;
+
+    dens_O3 = ((1.0-ifrac)*densO3[i] + ifrac*densO3[i+1]);
+	denstotal += dens_O3;
+
+    dens_N = ((1.0-ifrac)*densN[i] + ifrac*densN[i+1]);
+	denstotal += dens_N;
+
+    dens_O = ((1.0-ifrac)*densO[i] + ifrac*densO[i+1]);
+	denstotal += dens_O;
+
+    dens_H = ((1.0-ifrac)*densH[i] + ifrac*densH[i+1]);
+	denstotal += dens_H;
+
     v_ABSCOEFF = 0.0;
 
-   
+
+
     val = AirMixture_N(lambda, dens_N2, dens_O2, dens_Ar, dens_H2O, dens_CO2, dens_Ne, dens_He, dens_CH4, dens_Kr, dens_H2, dens_O3, dens_N, dens_O, dens_H);
 
+	if(mode==1) // testing
+		{
+			printf("\n");
+			printf("alt = %f m\n", alt);
+			printf("i = %ld\n", i);
+			printf("\n");
+			printf("     N2  =  %5.3f\n", dens_N2*1.0e6/LoschmidtConstant);
+			printf("     O2  =  %5.3f\n", dens_O2*1.0e6/LoschmidtConstant);
+			printf("\n");
+			printf("denstotal = %g    %g\n", denstotal, denstotal*1.0e6/LoschmidtConstant); // TEST
+			printf("\n");	
+		}
+    
     // Use N2 to compute lli
-
-
-
-
 
     return(val);
 }
@@ -3293,7 +3387,7 @@ int AtmosphereModel_save_stdAtmModel(char *fname)
     
     for (i=0; i<10000; i++)
     {
-        fprintf(fp, "%6.0f   %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g  %.8g   %.8g    %8.3lf   %12.10lf  %.5f\n", 10.0*i, denstot[i], densN2[i], densO2[i], densAr[i], densH2O[i], densCO2[i], densNe[i], densHe[i], densCH4[i], densKr[i], densH2[i], densO3[i], densN[i], densO[i], densH[i],  density[i], temperature[i], pressure[i], RH[i]);
+        fprintf(fp, "%6.0f   %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g  %15.8g   %15.8g    %8.3lf   %12.10lf  %7.5f\n", 10.0*i, denstot[i], densN2[i], densO2[i], densAr[i], densH2O[i], densCO2[i], densNe[i], densHe[i], densCH4[i], densKr[i], densH2[i], densO3[i], densN[i], densO[i], densH[i],  density[i], temperature[i], pressure[i], RH[i]);
     }
     fclose(fp);
 
@@ -3377,8 +3471,8 @@ int AtmosphereModel_build_stdAtmModel(char *fname)
     densNe[i] = output[i].d[2] * 2.328e-5;
     denstot[i] = output[i].d[0]+output[i].d[1]+output[i].d[2]+output[i].d[3]+output[i].d[4]+output[i].d[6]+output[i].d[7]+output[i].d[8]+densNe[i];
     pressure[i] = denstot[i]*1.0e6/LoschmidtConstant * (output[i].t[1]/273.15);
-    printf("Temperature = %f\n", output[i].t[1]);
-    printf("Pressure = %f\n", pressure[i]);
+    printf("Temperature at site altitude (%12f m) = %8f K\n", SiteAlt, output[i].t[1]);
+    printf("Pressure at site altitude    (%12f m) = %8f atm\n", SiteAlt, pressure[i]);
 
     
 
@@ -3415,6 +3509,7 @@ int AtmosphereModel_build_stdAtmModel(char *fname)
     for (i=0; i<10000; i++)
     {
         h = 10.0*i + deltah;  // 10 m step
+        input[i].alt = 0.001*h;
         gtd7(&input[i], &flags, &output[i]);
         fprintf(fp, "%6.0f %12f %12f %12f %12f %12f %12f %12f %.8g %5f\n", input[i].alt*1000.0, output[i].d[2], output[i].d[3], output[i].d[4], output[i].d[6], output[i].d[0], output[i].d[1]+output[i].d[8], output[i].d[7], output[i].d[5], output[i].t[1]);
 
@@ -3773,8 +3868,9 @@ int AtmosphereModel_load_stdAtmModel(char *fname)
 /// read configuration file and create atmosphere model
 
 
-int AtmosphereModel_Create_from_CONF(char *CONFFILE)
+int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda)
 {
+	char command[200];
     char KEYWORD[200];
     char CONTENT[200];
     double n, lambda;
@@ -3786,47 +3882,47 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
 
 
     strcpy(KEYWORD,"ZENITH_ANGLE");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     ZenithAngle = atof(CONTENT);
 
 
     strcpy(KEYWORD,"TIME_DAY_OF_YEAR");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     TimeDayOfYear = atoi(CONTENT);
 
     strcpy(KEYWORD,"TIME_LOCAL_SOLAR_TIME");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     TimeLocalSolarTime= atoi(CONTENT);
 
 
     strcpy(KEYWORD,"SITE_LATITUDE");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SiteLat = atof(CONTENT);
 
     strcpy(KEYWORD,"SITE_LONGITUDE");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SiteLong = atof(CONTENT);
 
 
     strcpy(KEYWORD,"SITE_ALT");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SiteAlt = atof(CONTENT);
 
 
 
     // temperature at site
     strcpy(KEYWORD,"SITE_TP_AUTO");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SiteTPauto = atoi(CONTENT);
 
     // temperature at site
     strcpy(KEYWORD,"SITE_TEMP");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SiteTemp = atof(CONTENT);
 
     // pressure at site
     strcpy(KEYWORD,"SITE_PRESS");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SitePress = atof(CONTENT);
 
 
@@ -3835,26 +3931,28 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
 
 
     strcpy(KEYWORD,"CO2_PPM");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     CO2_ppm = atof(CONTENT);
 
 
     // water
     strcpy(KEYWORD,"SITE_H2O_METHOD");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SiteH2OMethod = atoi(CONTENT);
 
     strcpy(KEYWORD,"SITE_TPW");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SiteTPW = atof(CONTENT);
 
     strcpy(KEYWORD,"SITE_RH");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SiteRH = atof(CONTENT);
 
     strcpy(KEYWORD,"SITE_PW_SCALEH");
-    read_config_parameter(CONFFILE,KEYWORD,CONTENT);
+    read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     SitePWSH = atof(CONTENT);
+
+
 
     printf("Reading Refractive Index and Abs for N2\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_N2.dat")==1)
@@ -3866,8 +3964,6 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
         ATMOSPHEREMODEL_loadRIA("./RefractiveIndices/RIA_N2.dat", RIA_N2_lambda, RIA_N2_ri, RIA_N2_abs);
         initRIA_N2 = 1;
     }
-
-
 
     printf("Reading Refractive Index and Abs for O2\n");
     if(ATMOSPHEREMODEL_loadRIA_readsize("./RefractiveIndices/RIA_O2.dat")==1)
@@ -4026,7 +4122,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
     fp  = fopen("RindexSite.txt", "w");
     for(lambda=0.2e-6; lambda<2.0e-6; lambda*=1.0+1e-6)
     {
-        n = 1.0 + AtmosphereModel_stdAtmModel_N(SiteAlt, lambda);
+        n = 1.0 + AtmosphereModel_stdAtmModel_N(SiteAlt, lambda, 0);
         fprintf(fp, "%.8g %.14f %.14f\n", lambda, n, v_ABSCOEFF);
         //  printf("%g %.10f\n", lambda, n);
     }
@@ -4057,10 +4153,16 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE)
 
 
 
-    AtmosphereModel_RefractionPath(0.6e-6, ZenithAngle, 1);
-    r = system("cp refractpath.txt refractpath1.txt");
-    AtmosphereModel_RefractionPath(1.6e-6, ZenithAngle, 1);
-    r = system("cp refractpath.txt refractpath2.txt");
+
+	
+
+    AtmosphereModel_RefractionPath(0.55e-6, ZenithAngle, 1);
+    r = system("mv refractpath.txt refractpath_0550.txt");
+    
+    
+    AtmosphereModel_RefractionPath(lambda, ZenithAngle, 1);
+	sprintf(command, "mv refractpath.txt refractpath_%04ld.txt", (long) (1e9*slambda));
+    r = system(command);
 
 
 
@@ -4142,7 +4244,7 @@ double AtmosphereModel_RefractionPath(double lambda, double Zangle, int WritePat
         alpha = Zangle0;
         h0 = SiteAlt;
         alpha1 = 0.0;
-        n0 = 1.0 + AtmosphereModel_stdAtmModel_N(h0, lambda);
+        n0 = 1.0 + AtmosphereModel_stdAtmModel_N(h0, lambda, 0);
 
         if(WritePath)
             fp = fopen("refractpath.txt", "w");
@@ -4155,7 +4257,7 @@ double AtmosphereModel_RefractionPath(double lambda, double Zangle, int WritePat
             y1 = y0 + lstep*cos(alpha);
 
             h1 = sqrt( x1*x1 + (y1+SiteAlt+Re)*(y1+SiteAlt+Re)) - Re;
-            n1 = 1.0 + AtmosphereModel_stdAtmModel_N(h1, lambda);
+            n1 = 1.0 + AtmosphereModel_stdAtmModel_N(h1, lambda, 0);
 
             alphae = atan2(x1, y1+SiteAlt+Re);
             flux *= exp(-lstep*v_ABSCOEFF);
@@ -4172,7 +4274,7 @@ double AtmosphereModel_RefractionPath(double lambda, double Zangle, int WritePat
 
             pathl += lstep;
             if(WritePath)
-                fprintf(fp, "%f     %f  %f     %f  %g    %g   %g\n", h0, x0, y0, alpha, alpha-Zangle, (alpha-Zangle)/M_PI*180.0*3600.0, (y0-SiteAlt)*tan(Zangle)-x0 );
+                fprintf(fp, "%10.3f %10.3f %10.3f  %12.9f  %20g    %20g   %20g\n", h0, x0, y0, alpha, alpha-Zangle, (alpha-Zangle)/M_PI*180.0*3600.0, y0*tan(Zangle)-x0 );
         }
         if(WritePath)
             fclose(fp);
@@ -4183,7 +4285,7 @@ double AtmosphereModel_RefractionPath(double lambda, double Zangle, int WritePat
         errV = fabs(offsetangle/M_PI*180.0*3600.0);
         iter++;
     }
-    printf("%10.6f um   %12.10f     Atmospheric Refraction = %10.6f arcsec   ", lambda*1e6, 1.0+AtmosphereModel_stdAtmModel_N(SiteAlt, lambda), (Zangle-Zangle0)/M_PI*180.0*3600.0);
+    printf("%10.6f um   %12.10f     Atmospheric Refraction = %10.6f arcsec   ", lambda*1e6, 1.0+AtmosphereModel_stdAtmModel_N(SiteAlt, lambda, 0), (Zangle-Zangle0)/M_PI*180.0*3600.0);
     printf("TRANSMISSION = %lf\n", flux);
     v_TRANSM = flux;
 

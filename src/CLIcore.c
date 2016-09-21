@@ -4,13 +4,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+
+#define _GNU_SOURCE
+#include <unistd.h>
+
 //#include <pthread_np.h>
 
 #ifdef __MACH__
 #include <mach/mach_time.h>
 #define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 0
-int clock_gettime(int clk_id, struct timespec *t){
+static int clock_gettime(int clk_id, struct timespec *t){
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
     uint64_t time;
@@ -22,7 +26,7 @@ int clock_gettime(int clk_id, struct timespec *t){
     return 0;
 }
 #else
-#include <time.h>
+#include <sys/time.h>
 #endif
 
 
@@ -78,6 +82,23 @@ int clock_gettime(int clk_id, struct timespec *t){
 /*-----------------------------------------
 *       Globals
 */
+
+pid_t CLIPID;
+char DocDir[200]; // location of documentation
+char SrcDir[200]; // location of source
+char BuildFile[200]; // file name for source
+char BuildDate[200];
+char BuildTime[200];
+
+uid_t euid_real;
+uid_t euid_called;
+uid_t suid;
+
+int TYPESIZE[9];
+
+int C_ERRNO;
+
+
 
 
 
@@ -550,7 +571,7 @@ int main(int argc, char *argv[])
 
     int initstartup = 0; /// becomes 1 after startup
 
-
+	int blockCLIinput = 0;
 
 
     strcpy(data.processname, argv[0]);
@@ -754,17 +775,17 @@ int main(int argc, char *argv[])
 
         while(CLIexecuteCMDready == 0)
         {
-            FD_ZERO(&cli_fdin_set);
+            FD_ZERO(&cli_fdin_set);  // Initializes the file descriptor set cli_fdin_set to have zero bits for all file descriptors. 
             if(data.fifoON==1)
-                FD_SET(fifofd, &cli_fdin_set);
-            FD_SET(fileno(stdin), &cli_fdin_set);
+                FD_SET(fifofd, &cli_fdin_set);  // Sets the bit for the file descriptor fifofd in the file descriptor set cli_fdin_set. 
+            FD_SET(fileno(stdin), &cli_fdin_set);  // Sets the bit for the file descriptor fifofd in the file descriptor set cli_fdin_set. 
 
             n = select(fdmax+1, &cli_fdin_set, NULL, NULL, NULL);
 
             if (!n)
                 continue;
             if (n == -1) {
-                if(errno==EINTR)
+                if(errno==EINTR) // no command received
                     {
                         continue;
                     }
@@ -775,11 +796,8 @@ int main(int argc, char *argv[])
                 }
             }
 
-
-            if (FD_ISSET(fileno(stdin), &cli_fdin_set)) {
-                rl_callback_read_char();
-            }
-
+			blockCLIinput = 0;
+            
             if(data.fifoON==1)
             {
                 if (FD_ISSET(fifofd, &cli_fdin_set)) {
@@ -807,8 +825,16 @@ int main(int argc, char *argv[])
                             break;
                         }
                     }
+					blockCLIinput = 1;
                 }
             }
+           
+           
+            if(blockCLIinput == 0)
+				if (FD_ISSET(fileno(stdin), &cli_fdin_set)) {
+					rl_callback_read_char();
+				}
+            
         }
         CLIexecuteCMDready = 0;
 
@@ -953,8 +979,8 @@ void main_init()
   /* initialization of the data structure 
    */
   data.quiet           = 1;
-  data.NB_MAX_IMAGE    = 100;
-  data.NB_MAX_VARIABLE = 100;
+  data.NB_MAX_IMAGE    = 5000;
+  data.NB_MAX_VARIABLE = 5000;
   data.INVRANDMAX      = 1.0/RAND_MAX;
   
 
