@@ -572,6 +572,9 @@ int main(int argc, char *argv[])
     int initstartup = 0; /// becomes 1 after startup
 
 	int blockCLIinput = 0;
+	int CLIinit1 = 0;
+	
+	
 
 
     strcpy(data.processname, argv[0]);
@@ -768,18 +771,20 @@ int main(int argc, char *argv[])
             }
         initstartup = 1;
 
+
         // -------------------------------------------------------------
         //                 get user input
         // -------------------------------------------------------------
+		FD_ZERO(&cli_fdin_set);  // Initializes the file descriptor set cli_fdin_set to have zero bits for all file descriptors. 
+        if(data.fifoON==1)
+            FD_SET(fifofd, &cli_fdin_set);  // Sets the bit for the file descriptor fifofd in the file descriptor set cli_fdin_set. 
+        FD_SET(fileno(stdin), &cli_fdin_set);  // Sets the bit for the file descriptor fifofd in the file descriptor set cli_fdin_set. 
 
 
+		
+		
         while(CLIexecuteCMDready == 0)
         {
-            FD_ZERO(&cli_fdin_set);  // Initializes the file descriptor set cli_fdin_set to have zero bits for all file descriptors. 
-            if(data.fifoON==1)
-                FD_SET(fifofd, &cli_fdin_set);  // Sets the bit for the file descriptor fifofd in the file descriptor set cli_fdin_set. 
-            FD_SET(fileno(stdin), &cli_fdin_set);  // Sets the bit for the file descriptor fifofd in the file descriptor set cli_fdin_set. 
-
             n = select(fdmax+1, &cli_fdin_set, NULL, NULL, NULL);
 
             if (!n)
@@ -834,13 +839,13 @@ int main(int argc, char *argv[])
 				if (FD_ISSET(fileno(stdin), &cli_fdin_set)) {
 					rl_callback_read_char();
 				}
-            
         }
         CLIexecuteCMDready = 0;
 
         if(data.CMDexecuted==0)
             printf("Command not found, or command with no effect\n");
     }
+    
 
     return(0);
 }
