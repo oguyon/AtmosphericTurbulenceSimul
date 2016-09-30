@@ -16,6 +16,10 @@ AtmosphericTurbulenceSimul_LDADD =
 
 
 
+SUBDIRS += cudacomp
+AtmosphericTurbulenceSimul_LDADD += cudacomp/libcudacomp.la
+AtmosphericTurbulenceSimul_CPPFLAGS += -I@abs_top_srcdir@/src/cudacomp
+
 SUBDIRS += AtmosphericTurbulence
 AtmosphericTurbulenceSimul_LDADD += AtmosphericTurbulence/libatmosphericturbulence.la
 AtmosphericTurbulenceSimul_CPPFLAGS += -I@abs_top_srcdir@/src/AtmosphericTurbulence

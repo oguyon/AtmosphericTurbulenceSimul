@@ -4,6 +4,7 @@ extern DATA data;
 
 int init_modules()
 {
+  init_cudacomp();
   init_AtmosphericTurbulence();
   init_AtmosphereModel();
   init_psf();

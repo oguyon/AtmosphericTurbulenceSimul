@@ -3,7 +3,7 @@
 #
 
 m4_define([PROGNAME], AtmosphericTurbulenceSimul)
-m4_define([PVERSION], 1.2.04)
+m4_define([PVERSION], 1.2.06)
 
 AC_INIT([PROGNAME], [PVERSION], [oliv.guyon@gmail.com], [PROGNAME])
 
@@ -355,7 +355,7 @@ LIBS="$LIBS -lpthread"
 #	LIBS="$LIBS -lcuda -lcudart -lcufft"
 #fi
 
-AC_CONFIG_FILES(Makefile src/Makefile src/00CORE/Makefile src/COREMOD_tools/Makefile src/COREMOD_memory/Makefile src/COREMOD_iofits/Makefile src/COREMOD_arith/Makefile src/info/Makefile src/fft/Makefile src/statistic/Makefile src/linopt_imtools/Makefile src/image_gen/Makefile src/kdtree/Makefile src/image_filter/Makefile src/image_basic/Makefile src/WFpropagate/Makefile src/OpticsMaterials/Makefile src/image_format/Makefile src/psf/Makefile src/AtmosphereModel/Makefile src/AtmosphericTurbulence/Makefile )
+AC_CONFIG_FILES(Makefile src/Makefile src/00CORE/Makefile src/COREMOD_tools/Makefile src/COREMOD_memory/Makefile src/COREMOD_iofits/Makefile src/COREMOD_arith/Makefile src/info/Makefile src/fft/Makefile src/statistic/Makefile src/linopt_imtools/Makefile src/image_gen/Makefile src/kdtree/Makefile src/image_filter/Makefile src/image_basic/Makefile src/WFpropagate/Makefile src/OpticsMaterials/Makefile src/image_format/Makefile src/psf/Makefile src/AtmosphereModel/Makefile src/AtmosphericTurbulence/Makefile src/cudacomp/Makefile )
 
 
 AC_OUTPUT

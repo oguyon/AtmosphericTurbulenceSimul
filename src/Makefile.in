@@ -112,7 +112,7 @@ am_AtmosphericTurbulenceSimul_OBJECTS =  \
 	AtmosphericTurbulenceSimul-calc_flex.$(OBJEXT)
 AtmosphericTurbulenceSimul_OBJECTS =  \
 	$(am_AtmosphericTurbulenceSimul_OBJECTS)
-AtmosphericTurbulenceSimul_DEPENDENCIES =  \
+AtmosphericTurbulenceSimul_DEPENDENCIES = cudacomp/libcudacomp.la \
 	AtmosphericTurbulence/libatmosphericturbulence.la \
 	AtmosphereModel/libatmospheremodel.la psf/libpsf.la \
 	image_format/libimageformat.la \
@@ -380,6 +380,7 @@ AtmosphericTurbulenceSimul_CPPFLAGS = -I@abs_top_srcdir@/src \
 	-DCONFIGDIR=\"@abs_top_srcdir@/config\" \
 	-DSOURCEDIR=\"@abs_top_srcdir@/src\" \
 	-DABSSRCTOPDIR=\"@abs_top_srcdir@\" -fopenmp \
+	-I@abs_top_srcdir@/src/cudacomp \
 	-I@abs_top_srcdir@/src/AtmosphericTurbulence \
 	-I@abs_top_srcdir@/src/AtmosphereModel \
 	-I@abs_top_srcdir@/src/psf -I@abs_top_srcdir@/src/image_format \
@@ -401,11 +402,12 @@ AM_YFLAGS = -d
 AM_LFLAGS = -i
 noinst_HEADERS = calc.h
 BUILT_SOURCES = calc_bison.h
-SUBDIRS = AtmosphericTurbulence AtmosphereModel psf image_format \
-	OpticsMaterials WFpropagate image_basic image_filter kdtree \
-	image_gen linopt_imtools statistic fft info COREMOD_arith \
-	COREMOD_iofits COREMOD_memory COREMOD_tools 00CORE
-AtmosphericTurbulenceSimul_LDADD =  \
+SUBDIRS = cudacomp AtmosphericTurbulence AtmosphereModel psf \
+	image_format OpticsMaterials WFpropagate image_basic \
+	image_filter kdtree image_gen linopt_imtools statistic fft \
+	info COREMOD_arith COREMOD_iofits COREMOD_memory COREMOD_tools \
+	00CORE
+AtmosphericTurbulenceSimul_LDADD = cudacomp/libcudacomp.la \
 	AtmosphericTurbulence/libatmosphericturbulence.la \
 	AtmosphereModel/libatmospheremodel.la psf/libpsf.la \
 	image_format/libimageformat.la \

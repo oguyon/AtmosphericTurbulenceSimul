@@ -20,6 +20,7 @@ long basic_extract(char *ID_in_name, char *ID_out_name, long n1, long n2, long n
 int basic_trunc_circ(char *ID_name, float f1);
 
 long basic_expand(char *ID_name, char *ID_name_out, int n1, int n2);
+long basic_expand3D(char *ID_name, char *ID_name_out, int n1, int n2, int n3);
 
 long basic_zoom2(char *ID_name, char *ID_name_out);
 

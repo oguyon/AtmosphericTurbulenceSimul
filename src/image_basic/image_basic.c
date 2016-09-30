@@ -52,6 +52,31 @@ char errmsg[SBUFFERSIZE];
 // 4: existing image
 //
 
+
+
+int image_basic_expand_cli()
+{
+  if(CLI_checkarg(1,4)+CLI_checkarg(2,3)+CLI_checkarg(3,2)+CLI_checkarg(4,2) == 0)
+    {
+      basic_expand(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.string, data.cmdargtoken[3].val.numl, data.cmdargtoken[4].val.numl);
+      return 0;
+    }
+  else
+    return 1;
+}
+
+int image_basic_expand3D_cli()
+{
+  if(CLI_checkarg(1,4)+CLI_checkarg(2,3)+CLI_checkarg(3,2)+CLI_checkarg(4,2)+CLI_checkarg(5,2) == 0)
+    {
+      basic_expand3D(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.string, data.cmdargtoken[3].val.numl, data.cmdargtoken[4].val.numl, data.cmdargtoken[5].val.numl);
+      return 0;
+    }
+  else
+    return 1;
+}
+
+
 int image_basic_resize_cli()
 {
   if(CLI_checkarg(1,4)+CLI_checkarg(2,3)+CLI_checkarg(3,2)+CLI_checkarg(4,2) == 0)
@@ -221,6 +246,23 @@ int init_image_basic()
     data.NBmodule++;
 
 
+    strcpy(data.cmd[data.NBcmd].key,"imexpand");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = image_basic_expand_cli;
+    strcpy(data.cmd[data.NBcmd].info,"expand 2D image");
+    strcpy(data.cmd[data.NBcmd].syntax,"<image in> <output image> <x factor> <y factor>");
+    strcpy(data.cmd[data.NBcmd].example,"imexpand im1 im2 2 2");
+    strcpy(data.cmd[data.NBcmd].Ccall,"long basic_expand(char *ID_name, char *ID_name_out, int n1, int n2)");
+    data.NBcmd++;
+    
+    strcpy(data.cmd[data.NBcmd].key,"imexpand3D");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = image_basic_expand3D_cli;
+    strcpy(data.cmd[data.NBcmd].info,"expand 3D image");
+    strcpy(data.cmd[data.NBcmd].syntax,"<image in> <output image> <x factor> <y factor> <z factor>");
+    strcpy(data.cmd[data.NBcmd].example,"imexpand3D im1 im2 2 2 2");
+    strcpy(data.cmd[data.NBcmd].Ccall,"long basic_expand3D(char *ID_name, char *ID_name_out, int n1, int n2, int n3)");
+    data.NBcmd++;
 
     strcpy(data.cmd[data.NBcmd].key,"resizeim");
     strcpy(data.cmd[data.NBcmd].module,__FILE__);
@@ -698,6 +740,45 @@ long basic_expand(char *ID_name, char *ID_name_out, int n1, int n2)
                     data.image[ID_out].array.F[(jj*n2+j)*naxes_out[0]+ii*n1+i] = data.image[ID].array.F[jj*naxes[0]+ii];
     return(ID_out);
 }
+
+
+/* expand image by factor n1 along x axis and n2 along y axis */
+long basic_expand3D(char *ID_name, char *ID_name_out, int n1, int n2, int n3)
+{
+    long ID;
+    long ID_out; /* ID for the output image */
+    long ii, jj, kk;
+    long naxes[3], naxes_out[3];
+    int i, j, k;
+
+    ID = image_ID(ID_name);
+
+    naxes[0] = data.image[ID].md[0].size[0];
+    naxes[1] = data.image[ID].md[0].size[1];
+	if(data.image[ID].md[0].naxis==3)
+		naxes[2] = data.image[ID].md[0].size[2];
+	else
+		naxes[2] = 1;
+    naxes_out[0] = naxes[0] * n1;
+    naxes_out[1] = naxes[1] * n2;
+    naxes_out[2] = naxes[2] * n3;
+    
+    printf(" %ld %ld %ld -> %ld %ld %ld\n", naxes[0], naxes[1], naxes[2], naxes_out[0], naxes_out[1], naxes_out[2]);
+    
+    ID_out = create_3Dimage_ID(ID_name_out, naxes_out[0], naxes_out[1], naxes_out[2]);
+	list_image_ID();
+
+	for (kk = 0; kk < naxes[2]; kk++)
+	    for (jj = 0; jj < naxes[1]; jj++)
+			for (ii = 0; ii < naxes[0]; ii++)
+				for (i = 0; i < n1; i++)
+					for (j = 0; j < n2; j++)
+						for (k = 0; k < n3; k++)
+							data.image[ID_out].array.F[(kk*n3+k)*naxes_out[0]*naxes_out[1] + (jj*n2+j)*naxes_out[0] + ii*n1+i] = data.image[ID].array.F[kk*naxes[0]*naxes[1]+jj*naxes[0]+ii];
+    return(ID_out);
+}
+
+
 
 long basic_zoom2(char *ID_name, char *ID_name_out)
 {
