@@ -19,7 +19,7 @@
 #include "statistic/statistic.h"
 #include "linopt_imtools/linopt_imtools.h"
 #include "info/info.h"
-  
+#include "image_filter/image_filter.h"
 #include "kdtree/kdtree.h"
 
 

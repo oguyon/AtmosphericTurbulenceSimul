@@ -2062,7 +2062,7 @@ int arith_image_function_2_1(char *ID_name1, char *ID_name2, char *ID_out, doubl
   int atype1,atype2;
   long i;
   int n;
-  char errmsg[200];
+  char errmsg[SBUFFERSIZE];
 
   ID1 = image_ID(ID_name1);
   ID2 = image_ID(ID_name2);
@@ -2111,7 +2111,7 @@ int arith_image_function_2_1(char *ID_name1, char *ID_name2, char *ID_out, doubl
   nelement = nelement1;
   if(nelement1!=nelement2)
     {
-      n = snprintf(errmsg,SBUFFERSIZE,"images %s and %s have different number of elements ( %ld %ld )\n",ID_name1,ID_name2,nelement1,nelement2);
+      n = snprintf(errmsg, SBUFFERSIZE, "images %s and %s have different number of elements ( %ld %ld )\n", ID_name1, ID_name2, nelement1, nelement2);
       if(n >= SBUFFERSIZE) 
 	printERROR(__FILE__,__func__,__LINE__,"Attempted to write string buffer with too many characters");
       printERROR(__FILE__,__func__,__LINE__,errmsg);

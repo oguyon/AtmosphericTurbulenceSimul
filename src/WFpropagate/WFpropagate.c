@@ -9,6 +9,7 @@
 #include "CLIcore.h"
 #include "COREMOD_memory/COREMOD_memory.h"
 #include "COREMOD_arith/COREMOD_arith.h"
+#include "COREMOD_iofits/COREMOD_iofits.h"
 
 #include "fft/fft.h"
 #include "image_gen/image_gen.h"
@@ -395,7 +396,7 @@ long WFpropagate_run() // custom function
   maskpos = (double*) malloc(sizeof(double)*NBmask);
 
 
-  load_fits("pa1a_post2.fits", "pa1a");
+  load_fits("pa1a_post2.fits", "pa1a", 1);
   execute_arith("refpup=pa1a*pa1a");
   tot0 = arith_image_total("refpup");
 
@@ -403,13 +404,13 @@ long WFpropagate_run() // custom function
   save_fl_fits("mask0", "!mask0.fits");
   maskpos[0] = -1.35;
 
-  load_fits("mask_i100_o5.fits", "mask1");
+  load_fits("mask_i100_o5.fits", "mask1", 1);
   maskpos[1] = 0.0;
 
-  load_fits("mask_i40_o5.fits", "mask2");
+  load_fits("mask_i40_o5.fits", "mask2", 1);
   maskpos[2] = 0.08;
 
-  load_fits("mask_o5_r48.fits", "mask3");
+  load_fits("mask_o5_r48.fits", "mask3", 1);
   maskpos[3] = 0.14;
 
   execute_arith("refpup1=refpup*mask0*mask1*mask2*mask3");

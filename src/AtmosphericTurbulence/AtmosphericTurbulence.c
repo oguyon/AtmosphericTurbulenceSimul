@@ -4054,23 +4054,23 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 	printf("Compute reconstruction matrix\n");
 	fflush(stdout);
 
-	use_magma = 0;
+	
 	#ifdef HAVE_MAGMA
-	use_magma = 1;
-	#endif
-	//use_magma = 0;
-	
-	if(use_magma==1)
 		CUDACOMP_magma_compute_SVDpseudoInverse("PFmatD", "PFmatC", SVDeps, 100000, "PF_VTmat");
-	else
+	#else
 		linopt_compute_SVDpseudoInverse("PFmatD", "PFmatC", SVDeps, 100000, "PF_VTmat");
-	
+	#endif
 	
 	if(0){
 		save_fits("PFmatD", "!test_PFmatD.fits");
 		save_fits("PFmatC", "!test_PFmatC.fits");
 		save_fits("PF_VTmat", "!test_PF_VTmat.fits");
+			#ifdef HAVE_MAGMA
 		CUDACOMP_magma_compute_SVDpseudoInverse("PFmatD", "PFmatC_magma", SVDeps, 100000, "PF_VTmat_magma");
+		#else
+		linopt_compute_SVDpseudoInverse("PFmatD", "PFmatC_magma", SVDeps, 100000, "PF_VTmat_magma");
+		#endif
+		
 		list_image_ID();
 		save_fits("PFmatC_magma", "!test_PFmatC_magma.fits");
 		save_fits("PF_VTmat_magma", "!test_PF_VTmat_magma.fits");	

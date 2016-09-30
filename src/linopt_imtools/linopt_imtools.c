@@ -46,7 +46,7 @@ static int clock_gettime(int clk_id, struct timespec *t){
 #include "statistic/statistic.h"
 #include "info/info.h"
 #include "linopt_imtools/linopt_imtools.h"
-
+#include "cudacomp/cudacomp.h"
 
 extern DATA data;
 
@@ -416,14 +416,10 @@ long linopt_compute_linRM_from_inout(char *IDinput_name, char *IDinmask_name, ch
 
 	// compute pokeM pseudo-inverse
    	#ifdef HAVE_MAGMA
-	use_magma = 1;
-	#endif
-	
-	if(use_magma==1)
 		CUDACOMP_magma_compute_SVDpseudoInverse("pokeM", "pokeMinv", SVDeps, insize, "VTmat");
-	else
+	#else
         linopt_compute_SVDpseudoInverse("pokeM", "pokeMinv", SVDeps, insize, "VTmat");
-        
+     #endif   
         
 	list_image_ID();
 	save_fits("pokeMinv", "!pokeMinv.fits");
@@ -1522,15 +1518,12 @@ long linopt_imtools_image_fitModes(char *ID_name, char *IDmodes_name, char *IDma
         linopt_imtools_mask_to_pixtable(IDmask_name, "_fm_pixind", "_fm_pixmul");
         linopt_imtools_Image_to_vec(IDmodes_name, "_fm_pixind", "_fm_pixmul", "_fm_respm");
    
-        	#ifdef HAVE_MAGMA
-	use_magma = 1;
-	#endif
 
-	if(use_magma==1)
+	#ifdef HAVE_MAGMA
 		CUDACOMP_magma_compute_SVDpseudoInverse("_fm_respm", "_fm_recm", SVDeps, 10000, "_fm_vtmat");
-	else
+	#else
         linopt_compute_SVDpseudoInverse("_fm_respm", "_fm_recm", SVDeps, 10000, "_fm_vtmat");
-   
+   #endif
     }
 
     

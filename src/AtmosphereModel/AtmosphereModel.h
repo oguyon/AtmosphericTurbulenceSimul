@@ -243,6 +243,8 @@ void ghp7 (struct nrlmsise_input *input, \
 #endif
 
 
+int init_AtmosphereModel();
+
 
 
 #endif

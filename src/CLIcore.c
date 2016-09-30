@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <string.h>
 #include <CLIcore.h>
 #include <malloc.h>
@@ -5,7 +7,6 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-#define _GNU_SOURCE
 #include <unistd.h>
 
 //#include <pthread_np.h>
@@ -69,7 +70,9 @@ static int clock_gettime(int clk_id, struct timespec *t){
 
 
 
- 
+extern int yy_scan_string(const char *);
+extern int yylex_destroy (void );
+
 
 
 /**

@@ -3,6 +3,9 @@
 
 
 
+int init_COREMOD_tools();
+
+
 int COREMOD_TOOLS_mvProcCPUset(char *csetname);
 
 int create_counter_file(char *fname, long NBpts);

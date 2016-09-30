@@ -1,6 +1,12 @@
 #ifndef _LINOPTIMTOOLS_H
 #define _LINOPTIMTOOLS_H
 
+
+
+
+int init_linopt_imtools();
+
+
 long linopt_compute_linRM_from_inout(char *IDinput_name, char *IDinmask_name, char *IDoutput_name, char *IDRM_name);
 
 // creating modal basis

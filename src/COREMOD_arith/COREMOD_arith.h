@@ -1,6 +1,11 @@
 #ifndef _ARITH_H
 #define _ARITH_H
 
+
+int init_COREMOD_arith();
+
+
+
 long arith_set_pixel(char *ID_name, double value, long x, long y);
 long arith_set_pixel_1Drange(char *ID_name, double value, long x, long y);
 
@@ -245,7 +250,7 @@ int arith_image_trunc_inplace_byID(long IDname, double f1, double f2);
 int arith_image_trunc(char *ID_name, double f1, double f2, char *ID_out);
 int arith_image_trunc_inplace(char *ID_name, double f1, double f2);
 
-
+long arith_make_slopexy(char *ID_name, long l1,long l2, double sx, double sy);
 
 
 

@@ -1,6 +1,10 @@
 #ifndef _STATISTIC_H
 #define _STATISTIC_H
 
+
+int init_statistic();
+
+
 double ran1();
 /* uniform distribution from 0 to 1 */
 

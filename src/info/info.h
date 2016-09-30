@@ -2,6 +2,10 @@
 #define INFO_H
 
 
+int init_info();
+
+
+
 int kbdhit(void);
 
 int print_header(char *str, char c);

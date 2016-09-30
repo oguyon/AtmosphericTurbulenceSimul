@@ -1,6 +1,11 @@
 #ifndef _IOFITS_H
 #define _IOFITS_H
 
+
+int init_COREMOD_iofits();
+
+
+
 int file_exists(char *file_name);
 
 int is_fits_file(char *file_name);

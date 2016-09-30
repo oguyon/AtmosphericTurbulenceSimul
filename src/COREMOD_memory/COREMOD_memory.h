@@ -38,10 +38,11 @@ typedef struct
 
 
 
+int init_COREMOD_memory();
+
+
+
 int memory_monitor(char *termttyname);
-
-
-
 
 
 long compute_nb_image();

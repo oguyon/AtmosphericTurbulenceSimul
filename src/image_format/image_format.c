@@ -5,10 +5,12 @@
 #include <sys/file.h>
 
 #include "CLIcore.h"
+#include "00CORE/00CORE.h"
 #include "COREMOD_memory/COREMOD_memory.h"
 #include "COREMOD_arith/COREMOD_arith.h"
 #include "COREMOD_tools/COREMOD_tools.h"
 #include "COREMOD_iofits/COREMOD_iofits.h"
+#include "statistic/statistic.h"
 
 #include "image_format/image_format.h"
 
@@ -2173,7 +2175,7 @@ int CR2tomov()
 		  array[j] = maxlevel[j1];
 		}
 	      
-	      quick_sort(array,2*boxsize+1);
+	      quick_sort_double(array, 2*boxsize+1);
 	      
 	      value = 0.0;
 	      valuecnt = 0.0;
