@@ -2,6 +2,28 @@
 
 extern DATA data;
 
+#include "cudacomp/cudacomp.h";
+#include "AtmosphericTurbulence/AtmosphericTurbulence.h";
+#include "AtmosphereModel/AtmosphereModel.h";
+#include "psf/psf.h";
+#include "image_format/image_format.h";
+#include "OpticsMaterials/OpticsMaterials.h";
+#include "WFpropagate/WFpropagate.h";
+#include "image_basic/image_basic.h";
+#include "image_filter/image_filter.h";
+#include "kdtree/kdtree.h";
+#include "image_gen/image_gen.h";
+#include "linopt_imtools/linopt_imtools.h";
+#include "statistic/statistic.h";
+#include "fft/fft.h";
+#include "info/info.h";
+#include "COREMOD_arith/COREMOD_arith.h";
+#include "COREMOD_iofits/COREMOD_iofits.h";
+#include "COREMOD_memory/COREMOD_memory.h";
+#include "COREMOD_tools/COREMOD_tools.h";
+#include "00CORE/00CORE.h";
+
+
 int init_modules()
 {
   init_cudacomp();

@@ -561,12 +561,13 @@ char *yytext;
 #include "calc_bison.h"
 
 #include "CLIcore.h"
+#include "COREMOD_memory/COREMOD_memory.h"
 #include "COREMOD_arith/COREMOD_arith.h"
 #include "info/info.h"
 extern DATA data;
 
 long i;
-#line 570 "calc_flex.c"
+#line 571 "calc_flex.c"
 
 #define INITIAL 0
 
@@ -780,10 +781,10 @@ YY_DECL
 		}
 
 	{
-#line 25 "calc_flex.l"
+#line 26 "calc_flex.l"
 
 
-#line 787 "calc_flex.c"
+#line 788 "calc_flex.c"
 
 	while ( 1 )		/* loops until end-of-file is reached */
 		{
@@ -842,7 +843,7 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 27 "calc_flex.l"
+#line 28 "calc_flex.l"
 { 
 yylval.val_l = atol(yytext); 
 if(data.Debug>0){printf("Found long number %s -> %ld\n", yytext, yylval.val_l);} 
@@ -851,7 +852,7 @@ return TKNUMl;
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 33 "calc_flex.l"
+#line 34 "calc_flex.l"
 { 
 yylval.val_d = atof(yytext); 
 if(data.Debug>0){printf("Found float number %s -> %f\n", yytext, yylval.val_d);} 
@@ -860,7 +861,7 @@ return TKNUMd;
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 43 "calc_flex.l"
+#line 44 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = sin;
@@ -869,7 +870,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 49 "calc_flex.l"
+#line 50 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = cos;
@@ -878,7 +879,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 55 "calc_flex.l"
+#line 56 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = exp;
@@ -887,7 +888,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 61 "calc_flex.l"
+#line 62 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = log;
@@ -896,7 +897,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 67 "calc_flex.l"
+#line 68 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = log10;
@@ -905,7 +906,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 73 "calc_flex.l"
+#line 74 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = tan;
@@ -914,7 +915,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 79 "calc_flex.l"
+#line 80 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = atan;
@@ -923,7 +924,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 85 "calc_flex.l"
+#line 86 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = sqrt;
@@ -932,7 +933,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 91 "calc_flex.l"
+#line 92 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = cbrt;
@@ -941,7 +942,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 97 "calc_flex.l"
+#line 98 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = ceil;
@@ -950,7 +951,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 103 "calc_flex.l"
+#line 104 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = floor;
@@ -959,7 +960,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 109 "calc_flex.l"
+#line 110 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = asin;
@@ -968,7 +969,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 115 "calc_flex.l"
+#line 116 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = acos;
@@ -977,7 +978,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 122 "calc_flex.l"
+#line 123 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = Ppositive;
@@ -986,7 +987,7 @@ return TKFUNC_d_d;
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 131 "calc_flex.l"
+#line 132 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = atan2;
@@ -995,7 +996,7 @@ return TKFUNC_dd_d;
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 138 "calc_flex.l"
+#line 139 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = Ptrunc;
@@ -1004,7 +1005,7 @@ return TKFUNC_ddd_d;
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 148 "calc_flex.l"
+#line 149 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = arith_image_total;
@@ -1013,7 +1014,7 @@ return TKFUNC_im_d;
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 154 "calc_flex.l"
+#line 155 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = arith_image_min;
@@ -1022,7 +1023,7 @@ return TKFUNC_im_d;
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 160 "calc_flex.l"
+#line 161 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = arith_image_max;
@@ -1031,7 +1032,7 @@ return TKFUNC_im_d;
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 166 "calc_flex.l"
+#line 167 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = arith_image_mean;
@@ -1040,7 +1041,7 @@ return TKFUNC_im_d;
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 176 "calc_flex.l"
+#line 177 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found function %s\n", yytext);} 
 yylval.fnctptr = img_percentile;
@@ -1049,7 +1050,7 @@ return TKFUNC_imd_d;
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 184 "calc_flex.l"
+#line 185 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found string %s\n", yytext);}
 yylval.string = strdup(yytext);
@@ -1074,7 +1075,7 @@ data.cmdindex = -1;
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 207 "calc_flex.l"
+#line 208 "calc_flex.l"
 { 
 if(data.Debug>0){printf("Found operator %s\n", yytext);} 
 return ((int) yytext[0]); 
@@ -1082,7 +1083,7 @@ return ((int) yytext[0]);
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 212 "calc_flex.l"
+#line 213 "calc_flex.l"
 { 
 if(data.Debug>0){printf("Found parenthese %s\n", yytext);} 
 return ((int) yytext[0]); 
@@ -1090,7 +1091,7 @@ return ((int) yytext[0]);
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 217 "calc_flex.l"
+#line 218 "calc_flex.l"
 {
 if(data.Debug>0){printf("Found coma %s\n", yytext);} 
 return ((int) yytext[0]); 
@@ -1098,7 +1099,7 @@ return ((int) yytext[0]);
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 223 "calc_flex.l"
+#line 224 "calc_flex.l"
 { 
 if(data.Debug>0){printf("Found equal %s\n", yytext);} 
 return ((int) yytext[0]); 
@@ -1106,26 +1107,26 @@ return ((int) yytext[0]);
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 229 "calc_flex.l"
+#line 230 "calc_flex.l"
 /* eat up whitespace */
 	YY_BREAK
 case 30:
 /* rule 30 can match eol */
 YY_RULE_SETUP
-#line 231 "calc_flex.l"
+#line 232 "calc_flex.l"
 {return ((int) yytext[0]);}
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 233 "calc_flex.l"
+#line 234 "calc_flex.l"
 printf("Unrecognized character: %s\n", yytext);
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 234 "calc_flex.l"
+#line 235 "calc_flex.l"
 ECHO;
 	YY_BREAK
-#line 1129 "calc_flex.c"
+#line 1130 "calc_flex.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2120,7 +2121,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 233 "calc_flex.l"
+#line 234 "calc_flex.l"
 
 
 

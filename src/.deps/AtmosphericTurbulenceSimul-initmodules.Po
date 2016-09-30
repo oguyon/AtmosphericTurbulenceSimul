@@ -46,7 +46,16 @@ AtmosphericTurbulenceSimul-initmodules.o: initmodules.c \
  /usr/include/x86_64-linux-gnu/bits/sigcontext.h \
  /usr/include/x86_64-linux-gnu/bits/sigstack.h \
  /usr/include/x86_64-linux-gnu/sys/ucontext.h \
- /usr/include/x86_64-linux-gnu/bits/sigthread.h
+ /usr/include/x86_64-linux-gnu/bits/sigthread.h cudacomp/cudacomp.h \
+ AtmosphericTurbulence/AtmosphericTurbulence.h \
+ AtmosphereModel/AtmosphereModel.h psf/psf.h image_format/image_format.h \
+ OpticsMaterials/OpticsMaterials.h WFpropagate/WFpropagate.h \
+ image_basic/image_basic.h image_filter/image_filter.h kdtree/kdtree.h \
+ image_gen/image_gen.h linopt_imtools/linopt_imtools.h \
+ statistic/statistic.h fft/fft.h info/info.h \
+ COREMOD_arith/COREMOD_arith.h COREMOD_iofits/COREMOD_iofits.h \
+ COREMOD_memory/COREMOD_memory.h COREMOD_tools/COREMOD_tools.h \
+ 00CORE/00CORE.h
 
 /usr/include/stdc-predef.h:
 
@@ -179,3 +188,43 @@ CLIcore.h:
 /usr/include/x86_64-linux-gnu/sys/ucontext.h:
 
 /usr/include/x86_64-linux-gnu/bits/sigthread.h:
+
+cudacomp/cudacomp.h:
+
+AtmosphericTurbulence/AtmosphericTurbulence.h:
+
+AtmosphereModel/AtmosphereModel.h:
+
+psf/psf.h:
+
+image_format/image_format.h:
+
+OpticsMaterials/OpticsMaterials.h:
+
+WFpropagate/WFpropagate.h:
+
+image_basic/image_basic.h:
+
+image_filter/image_filter.h:
+
+kdtree/kdtree.h:
+
+image_gen/image_gen.h:
+
+linopt_imtools/linopt_imtools.h:
+
+statistic/statistic.h:
+
+fft/fft.h:
+
+info/info.h:
+
+COREMOD_arith/COREMOD_arith.h:
+
+COREMOD_iofits/COREMOD_iofits.h:
+
+COREMOD_memory/COREMOD_memory.h:
+
+COREMOD_tools/COREMOD_tools.h:
+
+00CORE/00CORE.h:
