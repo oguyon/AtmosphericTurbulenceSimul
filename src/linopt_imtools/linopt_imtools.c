@@ -1700,6 +1700,8 @@ double linopt_imtools_match_slow(char *ID_name, char *IDref_name, char *IDmask_n
     //  printf("Input params : %s %s %s\n",ID_name,IDref_name,IDsol_name);
 
 
+	params[0] = 0.0;
+
 
     ID = image_ID(ID_name);
     naxes[0] = data.image[ID].md[0].size[0];
@@ -1922,85 +1924,86 @@ double linopt_imtools_match_slow(char *ID_name, char *IDref_name, char *IDmask_n
 
 double linopt_imtools_match(char *ID_name, char *IDref_name, char *IDmask_name, char *IDsol_name, char *IDout_name)
 {
-  gsl_multifit_linear_workspace *work;
-  size_t n, p;
-  long ID, IDref, IDmask, IDsol, IDout;
-  long naxes[3];
-  long i, j, k, ii;
-  gsl_matrix *X;
-  gsl_vector *y; // measurements
-  gsl_vector *c;
-  gsl_vector *w;
-  gsl_matrix *cov;
-  double chisq;
+    gsl_multifit_linear_workspace *work;
+    size_t n, p;
+    long ID, IDref, IDmask, IDsol, IDout;
+    long naxes[3];
+    long i, j, k, ii;
+    gsl_matrix *X;
+    gsl_vector *y; // measurements
+    gsl_vector *c;
+    gsl_vector *w;
+    gsl_matrix *cov;
+    double chisq;
 
-  ID = image_ID(ID_name);
-  naxes[0] = data.image[ID].md[0].size[0];
-  naxes[1] = data.image[ID].md[0].size[1];
-  n = naxes[0]*naxes[1];
-  IDmask = image_ID(IDmask_name);
-  IDref = image_ID(IDref_name);
-  p = data.image[IDref].md[0].size[2];
+    ID = image_ID(ID_name);
+    naxes[0] = data.image[ID].md[0].size[0];
+    naxes[1] = data.image[ID].md[0].size[1];
+    n = naxes[0]*naxes[1];
+    IDmask = image_ID(IDmask_name);
+    IDref = image_ID(IDref_name);
+    p = data.image[IDref].md[0].size[2];
 
-  // some verification
-  if(IDref==-1)
-    printERROR(__FILE__,__func__,__LINE__,"input ref missing\n");
-  if(IDmask==-1)
-    printERROR(__FILE__,__func__,__LINE__,"input mask missing\n");
-  if(data.image[IDmask].md[0].size[0] != data.image[ID].md[0].size[0])
-    printERROR(__FILE__,__func__,__LINE__,"mask size[0] is wrong\n");
-  if(data.image[IDmask].md[0].size[1] != data.image[ID].md[0].size[1])
-    printERROR(__FILE__,__func__,__LINE__,"mask size[1] is wrong\n");
+    // some verification
+    if(IDref==-1)
+        printERROR(__FILE__,__func__,__LINE__,"input ref missing\n");
+    if(IDmask==-1)
+        printERROR(__FILE__,__func__,__LINE__,"input mask missing\n");
+    if(data.image[IDmask].md[0].size[0] != data.image[ID].md[0].size[0])
+        printERROR(__FILE__,__func__,__LINE__,"mask size[0] is wrong\n");
+    if(data.image[IDmask].md[0].size[1] != data.image[ID].md[0].size[1])
+        printERROR(__FILE__,__func__,__LINE__,"mask size[1] is wrong\n");
 
 
-  printf("n,p = %ld %ld\n", (long) n, (long) p);
-  fflush(stdout);
+    printf("n,p = %ld %ld\n", (long) n, (long) p);
+    fflush(stdout);
 
-  y = gsl_vector_alloc (n); // measurements
-  for(i=0;i<n;i++)
-    gsl_vector_set(y, i, data.image[ID].array.F[i]);
+    y = gsl_vector_alloc (n); // measurements
+    for(i=0; i<n; i++)
+        gsl_vector_set(y, i, data.image[ID].array.F[i]);
 
-  w = gsl_vector_alloc (n); 
-  for(i=0;i<n;i++)
-    gsl_vector_set(w, i, data.image[IDmask].array.F[i]);
+    w = gsl_vector_alloc (n);
+    for(i=0; i<n; i++)
+        gsl_vector_set(w, i, data.image[IDmask].array.F[i]);
 
-  X = gsl_matrix_alloc (n, p);
-  for(i=0;i<n;i++)
-    for(j=0;j<p;j++)
-      gsl_matrix_set(X, i, j, data.image[IDref].array.F[j*n+i]);
-  c = gsl_vector_alloc (p); // solution (coefficients)
-  cov = gsl_matrix_alloc (p, p);
+    X = gsl_matrix_alloc (n, p);
+    for(i=0; i<n; i++)
+        for(j=0; j<p; j++)
+            gsl_matrix_set(X, i, j, data.image[IDref].array.F[j*n+i]);
+    c = gsl_vector_alloc (p); // solution (coefficients)
+    cov = gsl_matrix_alloc (p, p);
 
-  work = gsl_multifit_linear_alloc (n, p);
+    work = gsl_multifit_linear_alloc (n, p);
 
-  printf("-");
-  fflush(stdout);
-  gsl_multifit_wlinear (X, w, y, c, cov, &chisq, work);
-  printf("-");
-  fflush(stdout);
+    printf("-");
+    fflush(stdout);
+    gsl_multifit_wlinear (X, w, y, c, cov, &chisq, work);
+    printf("-");
+    fflush(stdout);
 
-  IDsol = create_2Dimage_ID(IDsol_name, p, 1);
-  for(i=0;i<p;i++)
-    data.image[IDsol].array.F[i] = gsl_vector_get(c, i);
+    IDsol = create_2Dimage_ID(IDsol_name, p, 1);
+    for(i=0; i<p; i++)
+        data.image[IDsol].array.F[i] = gsl_vector_get(c, i);
 
-  gsl_multifit_linear_free (work);
-  gsl_vector_free (y); 
-  gsl_vector_free (w); 
-  gsl_matrix_free (X);
-  gsl_vector_free (c);
-  gsl_matrix_free (cov);
+    gsl_multifit_linear_free (work);
+    gsl_vector_free (y);
+    gsl_vector_free (w);
+    gsl_matrix_free (X);
+    gsl_vector_free (c);
+    gsl_matrix_free (cov);
 
-  printf(" . ");
-  fflush(stdout);
+    printf(" . ");
+    fflush(stdout);
 
-  // compute residual
-  IDout = create_2Dimage_ID(IDout_name, naxes[0], naxes[1]);
-  for(ii=0;ii<naxes[0]*naxes[1];ii++)
-    data.image[IDout].array.F[ii] = 0.0;
-  for (k=0;k<p;k++)
-    for(ii=0;ii<naxes[0]*naxes[1];ii++)
-      data.image[IDout].array.F[ii] += data.image[IDsol].array.F[k]*data.image[IDref].array.F[naxes[0]*naxes[1]*k+ii];  
+    // compute residual
+    IDout = create_2Dimage_ID(IDout_name, naxes[0], naxes[1]);
+    for(ii=0; ii<naxes[0]*naxes[1]; ii++)
+        data.image[IDout].array.F[ii] = 0.0;
+    for (k=0; k<p; k++)
+        for(ii=0; ii<naxes[0]*naxes[1]; ii++)
+            data.image[IDout].array.F[ii] += data.image[IDsol].array.F[k]*data.image[IDref].array.F[naxes[0]*naxes[1]*k+ii];
 
-  return(chisq);
+    return(chisq);
 }
+
 

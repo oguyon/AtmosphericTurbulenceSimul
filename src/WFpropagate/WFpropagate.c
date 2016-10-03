@@ -419,6 +419,7 @@ long WFpropagate_run() // custom function
   fp = fopen("result.txt","w");
   fclose(fp);
 
+	x = 0.0;
   // for(x = 0.08; x< 0.3; x+= 0.01)
   // {
   //maskpos[3] = x;

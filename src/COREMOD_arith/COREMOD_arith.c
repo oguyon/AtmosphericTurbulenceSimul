@@ -320,11 +320,6 @@ long arith_set_pixel_1Drange(char *ID_name, double value, long x, long y)
     long ii, iistart, iiend;
     
     
-     list_image_ID();
-    printf("%ld -> %ld\n", iistart, iiend);
-    fflush(stdout);
-    
-    
     ID = image_ID(ID_name);
     atype = data.image[ID].md[0].atype;
     naxes[0] = data.image[ID].md[0].size[0];
@@ -342,7 +337,9 @@ long arith_set_pixel_1Drange(char *ID_name, double value, long x, long y)
     if(iiend>=naxes[0]*naxes[1])
         iiend = naxes[0]*naxes[1];
          
-        
+          list_image_ID();
+    printf("%ld -> %ld\n", iistart, iiend);
+    fflush(stdout);   
   
     data.image[ID].md[0].write = 1;
     if(atype == FLOAT)

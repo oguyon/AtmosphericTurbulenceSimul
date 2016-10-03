@@ -71,7 +71,7 @@ int OPTICSMATERIALS_code(char *name)
 
 char* OPTICSMATERIALS_name(int code)
 {
-    char *name;
+    char *name = "\n";
     int OK = -1;
     int i;
     
@@ -80,7 +80,7 @@ char* OPTICSMATERIALS_name(int code)
         printf("Material code %d -> name = \"%s\" \n",  MatCode[i].code, MatCode[i].name);
         OK = 1;
         return MatCode[i].name;
-    }
+		}
     }
  
     if(OK < 0)

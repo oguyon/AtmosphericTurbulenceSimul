@@ -479,7 +479,7 @@ int basic_lmax_im(char *ID_name, char *out_name)
     naxes[0] = data.image[IDin].md[0].size[0];
     naxes[1] = data.image[IDin].md[0].size[1];
 
-    IDout=create_2Dimage_ID(out_name,naxes[0],1);
+    IDout = create_2Dimage_ID(out_name,naxes[0],1);
 
     for (ii = 0; ii < naxes[0]; ii++)
         data.image[IDout].array.F[ii] = data.image[IDin].array.F[ii];
@@ -931,9 +931,9 @@ long basic_contract3D(char *ID_name, char *ID_name_out, int n1, int n2, int n3)
 
 long basic_average_column(char *ID_name, char *IDout_name)
 {
-    long IDout;
+    long IDout = -1;
 
-
+	// TO BE WRITTEN
 
     return(IDout);
 }
@@ -3744,7 +3744,7 @@ double basic_measure_transl( char *ID_name1, char *ID_name2, long tmax)
 long IMAGE_BASIC_streamaverage(char *IDname, long NBcoadd, char *IDoutname, int mode)
 {
     long ID;
-    long cnt;
+    long cnt = 0;
     long k;
     long xsize, ysize;
     long IDcube;

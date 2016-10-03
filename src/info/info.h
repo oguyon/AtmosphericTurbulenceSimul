@@ -33,6 +33,8 @@ double rms_dev(char *ID_name);
 
 int info_image_stats(char *ID_name, char *options);
 
+long info_cubestats(char *ID_name, char *IDmask_name, char *outfname);
+
 double img_min(char *ID_name);
 
 double img_max(char *ID_name);

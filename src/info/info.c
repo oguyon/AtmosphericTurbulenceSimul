@@ -111,6 +111,19 @@ int info_image_stats_cli()
 }
 
 
+int info_cubestats_cli()
+{
+  if(CLI_checkarg(1,4)+CLI_checkarg(2,4)+CLI_checkarg(3,3)==0)
+    {
+      info_cubestats(data.cmdargtoken[1].val.string, data.cmdargtoken[2].val.string, data.cmdargtoken[3].val.string);
+      return 0;
+    }
+  else
+    return 1;
+}
+
+
+
 int info_image_statsf_cli()
 {
   if(CLI_checkarg(1,4)==0)
@@ -126,51 +139,61 @@ int info_image_statsf_cli()
 
 int init_info()
 {
-  strcpy(data.module[data.NBmodule].name, __FILE__);
-  strcpy(data.module[data.NBmodule].info, "image information and statistics");
-  data.NBmodule++;
-
-  
-  strcpy(data.cmd[data.NBcmd].key,"imgmon");
-  strcpy(data.cmd[data.NBcmd].module,__FILE__);
-  data.cmd[data.NBcmd].fp = info_image_monitor_cli;
-  strcpy(data.cmd[data.NBcmd].info,"image monitor");
-  strcpy(data.cmd[data.NBcmd].syntax,"<image> <frequ>");
-  strcpy(data.cmd[data.NBcmd].example,"imgmon im1 30");
-  strcpy(data.cmd[data.NBcmd].Ccall,"int info_image_monitor(char *ID_name, double frequ)");
-  data.NBcmd++;
+    strcpy(data.module[data.NBmodule].name, __FILE__);
+    strcpy(data.module[data.NBmodule].info, "image information and statistics");
+    data.NBmodule++;
 
 
-  strcpy(data.cmd[data.NBcmd].key,"profile");
-  strcpy(data.cmd[data.NBcmd].module,__FILE__);
-  data.cmd[data.NBcmd].fp = info_profile_cli;
-  strcpy(data.cmd[data.NBcmd].info,"radial profile");
-  strcpy(data.cmd[data.NBcmd].syntax,"<image> <output file> <xcenter> <ycenter> <step> <Nbstep>");
-  strcpy(data.cmd[data.NBcmd].example,"profile psf psf.prof 256 256 1.0 100");
-  strcpy(data.cmd[data.NBcmd].Ccall,"int profile(char *ID_name, char *outfile, double xcenter, double ycenter, double step, long nb_step)");
-  data.NBcmd++;
-
-  strcpy(data.cmd[data.NBcmd].key,"imstats");
-  strcpy(data.cmd[data.NBcmd].module,__FILE__);
-  data.cmd[data.NBcmd].fp = info_image_stats_cli;
-  strcpy(data.cmd[data.NBcmd].info,"image stats");
-  strcpy(data.cmd[data.NBcmd].syntax,"<image>");
-  strcpy(data.cmd[data.NBcmd].example,"imgstats im1");
-  strcpy(data.cmd[data.NBcmd].Ccall,"int info_image_stats(char *ID_name, \"\")");
-  data.NBcmd++;
-
-  strcpy(data.cmd[data.NBcmd].key,"imstatsf");
-  strcpy(data.cmd[data.NBcmd].module,__FILE__);
-  data.cmd[data.NBcmd].fp = info_image_statsf_cli;
-  strcpy(data.cmd[data.NBcmd].info,"image stats with file output");
-  strcpy(data.cmd[data.NBcmd].syntax,"<image>");
-  strcpy(data.cmd[data.NBcmd].example,"imgstatsf im1");
-  strcpy(data.cmd[data.NBcmd].Ccall,"int info_image_stats(char *ID_name, \"fileout\")");
-  data.NBcmd++;
+    strcpy(data.cmd[data.NBcmd].key,"imgmon");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = info_image_monitor_cli;
+    strcpy(data.cmd[data.NBcmd].info,"image monitor");
+    strcpy(data.cmd[data.NBcmd].syntax,"<image> <frequ>");
+    strcpy(data.cmd[data.NBcmd].example,"imgmon im1 30");
+    strcpy(data.cmd[data.NBcmd].Ccall,"int info_image_monitor(char *ID_name, double frequ)");
+    data.NBcmd++;
 
 
-  return 0;
+    strcpy(data.cmd[data.NBcmd].key,"profile");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = info_profile_cli;
+    strcpy(data.cmd[data.NBcmd].info,"radial profile");
+    strcpy(data.cmd[data.NBcmd].syntax,"<image> <output file> <xcenter> <ycenter> <step> <Nbstep>");
+    strcpy(data.cmd[data.NBcmd].example,"profile psf psf.prof 256 256 1.0 100");
+    strcpy(data.cmd[data.NBcmd].Ccall,"int profile(char *ID_name, char *outfile, double xcenter, double ycenter, double step, long nb_step)");
+    data.NBcmd++;
+
+    strcpy(data.cmd[data.NBcmd].key,"imstats");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = info_image_stats_cli;
+    strcpy(data.cmd[data.NBcmd].info,"image stats");
+    strcpy(data.cmd[data.NBcmd].syntax,"<image>");
+    strcpy(data.cmd[data.NBcmd].example,"imgstats im1");
+    strcpy(data.cmd[data.NBcmd].Ccall,"int info_image_stats(char *ID_name, \"\")");
+    data.NBcmd++;
+
+    strcpy(data.cmd[data.NBcmd].key,"cubestats");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = info_cubestats_cli;
+    strcpy(data.cmd[data.NBcmd].info,"image cube stats");
+    strcpy(data.cmd[data.NBcmd].syntax,"<3Dimage> <mask> <output file>");
+    strcpy(data.cmd[data.NBcmd].example,"cubestats imc immask imc_stats.txt");
+    strcpy(data.cmd[data.NBcmd].Ccall,"long info_cubestats(char *ID_name, char *IDmask_name, char *outfname)");
+    data.NBcmd++;
+
+    strcpy(data.cmd[data.NBcmd].key,"imstatsf");
+    strcpy(data.cmd[data.NBcmd].module,__FILE__);
+    data.cmd[data.NBcmd].fp = info_image_statsf_cli;
+    strcpy(data.cmd[data.NBcmd].info,"image stats with file output");
+    strcpy(data.cmd[data.NBcmd].syntax,"<image>");
+    strcpy(data.cmd[data.NBcmd].example,"imgstatsf im1");
+    strcpy(data.cmd[data.NBcmd].Ccall,"int info_image_stats(char *ID_name, \"fileout\")");
+    data.NBcmd++;
+
+
+    return 0;
 }
+
 
 
 
@@ -710,6 +733,7 @@ float img_percentile_float(char *ID_name, float p)
     return(value);
 }
 
+
 double img_percentile_double(char *ID_name, double p)
 {
     int ID;
@@ -741,6 +765,7 @@ double img_percentile_double(char *ID_name, double p)
 
     return(value);
 }
+
 
 double img_percentile(char *ID_name, double p)
 {
@@ -1145,6 +1170,113 @@ int info_image_stats(char *ID_name, char *options)
 }
 
 
+// mask pixel values are 0 or 1
+// prints:
+//		index
+//		min
+//		max
+//		total
+//		average
+//		tot power
+//		RMS
+long info_cubestats(char *ID_name, char *IDmask_name, char *outfname)
+{
+	long ID, IDm;
+	long ii, jj, kk;
+	float min, max, tot, tot2;
+	long xysize;
+	FILE *fp;
+	int init = 0;
+	float mtot;
+	float val;
+
+	int COMPUTE_CORR = 1;
+	long kcmax = 100;
+	double valn1, valn2, v1, v2, valxp, vcorr;
+	long k1, k2, kc;
+	
+	ID = image_ID(ID_name);
+	if(data.image[ID].md[0].naxis != 3)
+		{
+			printf("ERROR: info_cubestats requires 3D image\n");
+			exit(0);
+		}
+	
+	IDm = image_ID(IDmask_name);
+	
+	
+	xysize = data.image[ID].md[0].size[0]*data.image[ID].md[0].size[1];
+	
+	mtot = 0.0;
+	for(ii=0;ii<xysize;ii++)
+		mtot += data.image[IDm].array.F[ii];
+	
+	
+	fp = fopen(outfname, "w");
+	for(kk=0; kk<data.image[ID].md[0].size[2]; kk++)
+	{
+		init = 0;
+		tot = 0.0;
+		tot2 = 0.0;
+		for(ii=0;ii<xysize;ii++)
+			{
+				if(data.image[IDm].array.F[ii]>0.5)
+				{
+					val = data.image[ID].array.F[kk*xysize+ii];
+					if(init==0)
+					{
+						init = 1;
+						min = val;
+						max = val;
+					}
+					if(val>max)
+						max = val;
+					if(val<min)
+						min = val;
+					tot += val;
+					tot2 += val*val;
+				}
+			}
+		fprintf(fp, "%5ld  %20f  %20f  %20f  %20f  %20f  %20f\n", kk, min, max, tot, tot/mtot, tot2, sqrt((tot2-tot*tot/mtot)/mtot));
+	}
+	fclose(fp);
+    
+    
+    if(COMPUTE_CORR == 1)
+    {
+		fp = fopen("corr.txt", "w");
+		for(kc=1; kc<kcmax; kc++)
+		{
+			vcorr = 0.0;
+			for(kk=0; kk<data.image[ID].md[0].size[2]-kc; kk++)
+				{
+					k1 = kk;
+					k2 = kk+kc;
+					valn1 = 0.0;
+					valn2 = 0.0;
+					valxp = 0.0;
+					for(ii=0;ii<xysize;ii++)
+						{
+							if(data.image[IDm].array.F[ii]>0.5)
+								{
+									v1 = data.image[ID].array.F[k1*xysize+ii];
+									v2 = data.image[ID].array.F[k2*xysize+ii];
+									valn1 += v1*v1;
+									valn2 += v2*v2;
+									valxp += v1*v2;
+								}
+						}
+					vcorr += valxp/sqrt(valn1*valn2);
+				}
+			vcorr /= data.image[ID].md[0].size[2]-kc;
+			fprintf(fp, "%3ld   %g\n", kc, vcorr);
+		}
+		fclose(fp);
+	}
+    
+	
+	return(ID);
+}
 
 
 
