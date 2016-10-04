@@ -23,6 +23,7 @@ int save_fl_fits(char *ID_name, char *file_name);
 int save_db_fits(char *ID_name, char *file_name);
 int save_sh_fits(char *ID_name, char *file_name);
 int save_fits(char *ID_name, char *file_name);
+int save_fits_atomic(char *ID_name, char *file_name);
 int break_cube(char *ID_name);
 int images_to_cube(char *img_name, long nbframes, char *cube_name);
 
@@ -94,6 +95,7 @@ int save_sh_fits_cli()
   
   return 0;
 }
+
 
 int save_fits_cli()
 {
@@ -1400,6 +1402,42 @@ int save_fits(char *ID_name, char *file_name)
             save_sh_fits(ID_name, file_name);
             break;
         }
+    }
+
+    return 0;
+}
+
+
+
+
+int save_fits_atomic(char *ID_name, char *file_name)
+{
+    long ID;
+    int atype;
+    char fnametmp[1000];
+	char command[2000];
+	
+    ID = image_ID(ID_name);
+
+	sprintf(fnametmp, "!_savefits_atomic_%s.tmp.fits", ID_name);
+
+    if (ID!=-1)
+    {
+        atype = data.image[ID].md[0].atype;
+        switch(atype) {
+        case FLOAT:
+            save_fl_fits(ID_name, fnametmp);
+            break;
+        case DOUBLE:
+            save_db_fits(ID_name, fnametmp);
+            break;
+        case USHORT:
+            save_sh_fits(ID_name, fnametmp);
+            break;
+        }
+		
+		sprintf("mv %s %s", fnametmp, file_name);
+		system(command);
     }
 
     return 0;

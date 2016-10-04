@@ -31,7 +31,7 @@ echo "pname = $pname"
 
 
 
-
+NBlayers=20 # default
 
 printHELP ()
 {
@@ -46,8 +46,12 @@ echo " $(tput bold)USAGE:$(tput sgr0)"
 echo "      $0 [-h] <slambdaum>"
 echo ""
 echo " $(tput bold)OPTIONS:$(tput sgr0)"
-echo "     $(tput bold)-h$(tput sgr0)          help"
-echo ""
+echo "     $(tput bold)-h$(tput sgr0)             help"
+echo "     $(tput bold)-N$(tput sgr0)             Number of layer"
+echo "     $(tput bold)-T$(tput sgr0)  <case>     Adopt turbulence profile case"
+echo "                            HVbad : Hufnager-Valley, 20m/s, 1.30 arcsec seeing"
+echo "                            HVmed : Hufnager-Valley, 20m/s, 0.65 arcsec seeing"
+echo "                            HVgood: Hufnager-Valley, 10m/s, 0.40 arcsec seeing"
 echo " $(tput bold)INPUT:$(tput sgr0)"
 echo "          slambdaum       Wavelength [um]"
 echo ""
@@ -80,12 +84,19 @@ echo "------------------------------------------------------------------------"
 
 
 # ================= OPTIONS =============================
-while getopts :h FLAG; do
+while getopts :hT:N: FLAG; do
   case $FLAG in
     h)  #show help
       printHELP
       exit
       ;;
+    T) # set loop name
+    turbprofcase=$OPTARG
+    echo "ADOPTING TURBULENCE PROFILE CASE = $turbprofcase"
+    ;;
+    N) # number of layers
+	NBlayers=$OPTARG
+    ;;
     \?) #unrecognized option - show help
       echo -e \\n"Option -${BOLD}$OPTARG${NORM} not allowed."
       printHELP
@@ -344,6 +355,8 @@ FRESNEL_PROPAGATION_BIN=1000.0      # vertical distance within which layers will
 # ====================================================================================================
 
 
+# default atmospheric turbulence profile 
+
 TURBULENCE_SEEING=0.6 
 echo "# altitude(m)   relativeCN2     speed(m/s)      direction(rad)   outerscale[m]	innerscale[m]	sigmawsp[m/s]	windOuterScale[m]" > turbul.prof
 echo "" >> turbul.prof
@@ -357,12 +370,11 @@ echo "23701     0.697       5.6     3.3     40.0        1.0     2.0     80.0" >>
 
 
 
-./mkHVturbprof
 
 
 if [ "$turbprofcase" = "HVbad" ]; then
 # HV model, bad seeing 1.3", 20 m/s 
-./mkHVturbprof 20.0 0.087 $SITE_ALT
+./mkHVturbprof 20.0 0.087 $SITE_ALT $NBlayers
 TURBULENCE_SEEING=$( cat conf_turb.txt )
 mv turbHV.prof turbul.prof
 fi
@@ -370,7 +382,7 @@ fi
 
 if [ "$turbprofcase" = "HVmed" ]; then
 # HV model, median seeing 0.65" , 20 m/s
-./mkHVturbprof 20.0 0.175 $SITE_ALT
+./mkHVturbprof 20.0 0.175 $SITE_ALT $NBlayers
 TURBULENCE_SEEING=$( cat conf_turb.txt )
 mv turbHV.prof turbul.prof
 fi
@@ -378,10 +390,13 @@ fi
 
 if [ "$turbprofcase" = "HVgood" ]; then
 # HV model, good seeing 0.4", 20 m/s
-./mkHVturbprof 20.0 0.284 $SITE_ALT
+./mkHVturbprof 20.0 0.284 $SITE_ALT $NBlayers
 TURBULENCE_SEEING=$( cat conf_turb.txt )
 mv turbHV.prof turbul.prof
 fi
+
+
+
 
 
 # WRITE CONFIGURATION FILE

@@ -40,7 +40,9 @@ static int clock_gettime(int clk_id, struct timespec *t){
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#ifndef __MACH__
 #include <sys/prctl.h>
+#endif
 #include <sched.h>
 #include <signal.h>
 
@@ -636,12 +638,13 @@ int main(int argc, char *argv[])
 
     // to take advantage of kernel priority:
     // owner=root mode=4755
-
+    
+    #ifndef __MACH__
     getresuid(&euid_real, &euid_called, &suid);
 
     //This sets it to the privileges of the normal user
     r = seteuid(euid_real);
-
+	#endif
 
 
 
@@ -1463,9 +1466,11 @@ int command_line( int argc, char **argv)
 
         case 'p':
             schedpar.sched_priority = atoi(optarg);
+            #ifndef __MACH__
             r = seteuid(euid_called); //This goes up to maximum privileges
             sched_setscheduler(0, SCHED_FIFO, &schedpar); //other option is SCHED_RR, might be faster
             r = seteuid(euid_real);//Go back to normal privileges
+            #endif
             break;
 
         case 'f':

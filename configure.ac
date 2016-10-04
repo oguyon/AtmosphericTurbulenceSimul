@@ -3,7 +3,7 @@
 #
 
 m4_define([PROGNAME], AtmosphericTurbulenceSimul)
-m4_define([PVERSION], 1.2.06)
+m4_define([PVERSION], 1.2.07)
 
 AC_INIT([PROGNAME], [PVERSION], [oliv.guyon@gmail.com], [PROGNAME])
 

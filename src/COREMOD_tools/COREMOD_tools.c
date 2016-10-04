@@ -8,7 +8,7 @@
 #include <mach/mach_time.h>long AOloopControl_ComputeOpenLoopModes(long loop)
 #define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 0
-static int clock_gettime(int clk_id, struct timespec *t){
+static int clock_gettime(int clk_id, struct mach_timespec *t){
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
     uint64_t time;
@@ -969,7 +969,10 @@ long COREMOD_TOOLS_statusStat(char *IDstat_name, long indexmax)
         data.image[IDout].array.L[st] = 0;
 
     schedpar.sched_priority = RT_priority;
+    #ifndef __MACH__
     sched_setscheduler(0, SCHED_FIFO, &schedpar);
+	#endif
+
 
     printf("Measuring status distribution \n");
     fflush(stdout);

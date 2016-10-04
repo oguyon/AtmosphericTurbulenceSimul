@@ -1,0 +1,87 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <meta name="author" content="Olivier Guyon" />
+  <title>Atmospheric Turbulence Simulation</title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <link rel="stylesheet" href="/home/olivier/.css/pandoc.css" type="text/css" />
+</head>
+<body>
+<div id="header">
+<h1 class="title">Atmospheric Turbulence Simulation</h1>
+<h2 class="author">Olivier Guyon</h2>
+<h3 class="date">Oct 2016</h3>
+</div>
+<div id="TOC">
+<ul>
+<li><a href="#overview"><span class="toc-section-number">1</span> Overview</a><ul>
+<li><a href="#scope"><span class="toc-section-number">1.1</span> Scope</a></li>
+<li><a href="#usage"><span class="toc-section-number">1.2</span> Usage</a></li>
+</ul></li>
+<li><a href="#quick-start"><span class="toc-section-number">2</span> Quick Start</a></li>
+<li><a href="#refractive-index"><span class="toc-section-number">3</span> Refractive index</a></li>
+</ul>
+</div>
+<div id="overview" class="section level1">
+<h1><span class="header-section-number">1</span> Overview</h1>
+<div id="scope" class="section level2">
+<h2><span class="header-section-number">1.1</span> Scope</h2>
+<p>Atmospheric Turbulence Simulation</p>
+<ul>
+<li>Multi-layer simulation</li>
+<li>Uses Fresnel propagation engine between optical elements</li>
+<li>Computes phase, amplitude</li>
+<li>Accurate treatment of chromatic effects</li>
+<li>FITS files output</li>
+</ul>
+</div>
+<div id="usage" class="section level2">
+<h2><span class="header-section-number">1.2</span> Usage</h2>
+<p>Scripts to run the software are located within the source code directory:</p>
+<pre><code>./AtmosphericTurbulenceSimul/src/AtmosphericTurbulence/scripts/</code></pre>
+<p>The scripts can be linked to your working directory by executing the following command:</p>
+<pre><code>ln -s $PWD/syncscripts /myworkdirectory/syncscripts</code></pre>
+<p>Then, execute in your work directory:</p>
+<pre><code>./syncscripts</code></pre>
+<p>This will install all required scripts in workdirectory.</p>
+<p>Code is composed of a several layers (from high to low) :</p>
+<table>
+<colgroup>
+<col width="26%" />
+<col width="73%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Script</th>
+<th align="center">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><strong>runturb</strong></td>
+<td align="center">Top level script</td>
+</tr>
+<tr class="even">
+<td align="left"><strong>mkHVturbprof</strong></td>
+<td align="center">Create Hufnager-Valley turbulence profile</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="quick-start" class="section level1">
+<h1><span class="header-section-number">2</span> Quick Start</h1>
+<p>Execute main script with -h option for help:</p>
+<pre><code>./runturb -h</code></pre>
+<p>The script takes a single argument, the wavelength [micron] :</p>
+<pre><code>./runturb 1.65</code></pre>
+</div>
+<div id="refractive-index" class="section level1">
+<h1><span class="header-section-number">3</span> Refractive index</h1>
+<p>By default, Sellmeier equations are used to compute atmosphere refractive index. You can also edit the runturb script to point to the location of &quot;RIA file&quot; (Refractive Index Absorption). See file for details.</p>
+</div>
+</body>
+</html>
