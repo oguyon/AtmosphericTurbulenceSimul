@@ -28,7 +28,7 @@
 #include <mach/mach_time.h>
 #define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 0
-static int clock_gettime(int clk_id, struct timespec *t){
+static int clock_gettime(int clk_id, struct mach_timespec *t){
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
     uint64_t time;
@@ -5507,7 +5507,7 @@ long COREMOD_MEMORY_sharedMem_2Dim_log(char *IDname, long zsize, char *logdir, c
     FILE *fp;
     char fname_asciilog[200];
 
-    pthread_t thread_savefits = (pthread_t) 0;
+    pthread_t thread_savefits; 
     int tOK = 0;
     int iret_savefits;
     //	char tmessage[500];
@@ -5756,7 +5756,7 @@ long COREMOD_MEMORY_sharedMem_2Dim_log(char *IDname, long zsize, char *logdir, c
             {
                 //           printf("WAITING FOR SAVE THREAD TO COMPLETE ...");
                 //          fflush(stdout);
-                pthread_join(thread_savefits, (void**)&thread_savefits);
+                pthread_join(thread_savefits, NULL); //(void**)&thread_savefits);
                 //          printf("OK\n");
                 //          fflush(stdout);
             }

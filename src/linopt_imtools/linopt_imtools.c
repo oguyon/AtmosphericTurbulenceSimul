@@ -21,7 +21,7 @@
 #include <mach/mach_time.h>
 #define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 0
-static int clock_gettime(int clk_id, struct timespec *t){
+static int clock_gettime(int clk_id, struct mach_timespec *t){
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
     uint64_t time;
@@ -1701,7 +1701,7 @@ double linopt_imtools_match_slow(char *ID_name, char *IDref_name, char *IDmask_n
 
     //  printf("Input params : %s %s %s\n",ID_name,IDref_name,IDsol_name);
 
-
+	params = (double*) malloc(sizeof(double)*1);
 	params[0] = 0.0;
 
 
@@ -1906,6 +1906,8 @@ double linopt_imtools_match_slow(char *ID_name, char *IDref_name, char *IDmask_n
     polycoeff2 = NULL;
     free(tarray);
     tarray = NULL;
+    
+    free (params);
 
     return((double) val);
 }

@@ -201,26 +201,26 @@ TURBULENCE_SEEING=0.6                     # Zenith seeing at the reference wavel
 TURBULENCE_PROF_FILE="turbul.prof"        # File name for turbulence vertical profile
 
 
-ZENITH_ANGLE=0.5                          # zenith angle [rad] - prior to atmospheric refraction
+ZENITH_ANGLE="0.5"                        # zenith angle [rad] - prior to atmospheric refraction
 
 # wavefronts can be computed for multiple directions in a consistent way
 # to compute multiple directions, launch the program with different values of these 2 parameters (in different directories)
-SOURCE_XPOS=0.0                           # source X position offset [rad]
-SOURCE_YPOS=0.0                           # source Y position offset [rad]
+SOURCE_XPOS="0.0"                         # source X position offset [rad]
+SOURCE_YPOS="0.0"                         # source Y position offset [rad]
 
 
-TIME_DAY_OF_YEAR=150                      # day of year [0-365]
-TIME_LOCAL_SOLAR_TIME=0.0                 # local solar time [hr]
+TIME_DAY_OF_YEAR="150"                    # day of year [0-365]
+TIME_LOCAL_SOLAR_TIME="0.0"               # local solar time [hr]
 
 
 
-SITE_ALT=4200                             # Site altitude from sea level [m]
-SITE_LATITUDE=50.0                        # Site latitude [deg]
-SITE_LONGITUDE=-155.5                     # Site longitude [deg]
+SITE_ALT="4200"                           # Site altitude from sea level [m]
+SITE_LATITUDE="50.0"                      # Site latitude [deg]
+SITE_LONGITUDE="-155.5"                   # Site longitude [deg]
 
 
 # CO2
-CO2_PPM=400.0                             # ground level CO2 concentration [ppm]
+CO2_PPM="400.0"                           # ground level CO2 concentration [ppm]
 
 
 
@@ -228,8 +228,8 @@ CO2_PPM=400.0                             # ground level CO2 concentration [ppm]
 # if SITE_TP_AUTO = 1, adopt default temperature and pressure computed from site location and time
 SITE_TP_AUTO=1
 # otherwise, force following values
-SITE_TEMP=273.15                         # [K]
-SITE_PRESS=0.6                           # [atm] = [101325 Pa]
+SITE_TEMP="273.15"                       # [K]
+SITE_PRESS="0.6"                         # [atm] = [101325 Pa]
 
 
 # ------------ Water vapor -------------------------------------
@@ -245,9 +245,9 @@ SITE_PRESS=0.6                           # [atm] = [101325 Pa]
 # the precipitable water scale height will be adjusted automaticallyq
 
 SITE_H2O_METHOD=1                       # Method chosen to input water vapor content
-SITE_RH=30.0                            # site relative humidity [%]
-SITE_TPW=0.01                            # Site total precitipable water [mm] (only takes into account PW above SITE_ALT)
-SITE_PW_SCALEH=2000.0                   # water vapor relative concentration scale height [m]
+SITE_RH="30.0"                          # site relative humidity [%]
+SITE_TPW="0.01"                          # Site total precitipable water [mm] (only takes into account PW above SITE_ALT)
+SITE_PW_SCALEH="2000.0"                 # water vapor relative concentration scale height [m]
 
 # IMPORTANT NOTE: 
 # software will issue an error if the input parameters yield RH>100% at any altitude above site
@@ -269,7 +269,7 @@ SHM_OUTPUT=0                              # shared memory output (phase only)
 # 
 
 MAKE_SWAVEFRONT=1                   # 1 if the high fidelity wavefront series needs to be made
-SLAMBDA=1.600                       # wavelength for high fidelity simulation [micron] - DEFAULT VALUE
+SLAMBDA="1.600"                     # wavelength for high fidelity simulation [micron] - DEFAULT VALUE
 SWF_WRITE2DISK=1                    # if writing to disk
 WFoutdir="WFout"
 mkdir -p $WFoutdir
@@ -287,7 +287,7 @@ SHM_SOUTPUTM=2                      # output shared memory phase unit. 0:rad, 1:
 
 # pixel size, scale -----------------------------------------------
 WFsize=512                          # pixel size of output images
-PUPIL_SCALE=0.02                    # pupil scale - m per pixel 
+PUPIL_SCALE="0.02"                  # pupil scale - m per pixel 
 
 
 
@@ -302,7 +302,7 @@ PUPIL_SCALE=0.02                    # pupil scale - m per pixel
 # ------------- TIMING ---------------------------------------
 
 REALTIME=0                          # 1 if simulation is real time
-REALTIMEFACTOR=1.0                  # time dilatation factor for realtime mode (<1.0 to slow down turbulence)
+REALTIMEFACTOR="1.0"                # time dilatation factor for realtime mode (<1.0 to slow down turbulence)
 # if realtime flag = 0, compute wavefront according to time step specified below (WFTIME_STEP): physical time in the simulation is incremented by WFTIME_STEP between each wavefront computation
 # if realtime flat = 1, use computer clock as physical time in the simulation, multiplied by REALTIMEFACTOR
 # for example, REALTIME=1 and REALTIMEFACTOR=1.0 computes turbulence at real time speed
@@ -310,9 +310,9 @@ REALTIMEFACTOR=1.0                  # time dilatation factor for realtime mode (
 # note that if REALTIME=1, multiple instances of the program are syncronized 
 # The realtime mode is typically used when output is shared memory for another real-time program
 
-WFTIME_STEP=0.001                   # time step in seconds between wavefront frames
-TIME_SPAN=1.0                       # time span for one continuous WF cube file 
-NB_TSPAN=100000000                  # total number of consecutive wavefront cubes to compute
+WFTIME_STEP="0.001"                 # time step in seconds between wavefront frames
+TIME_SPAN="1.0"                     # time span for one continuous WF cube file 
+NB_TSPAN="100000000"                # total number of consecutive wavefront cubes to compute
 SIMTDELAY=0                         # additional time delay [us] between frames (used to limit CPU load)
 # NOTE:
 # The total simulation time will be NB_TSPAN x TIME_SPAN
@@ -337,9 +337,9 @@ MASTER_SIZE=4096                    # size in pixel of master turbulence screens
 
 # ------------ WAVEFRONT AMPLITUDE -------------------------------------------
 
-WAVEFRONT_AMPLITUDE=0               # 1 if Wavefront amplitude is computed in addition to phase
-FRESNEL_PROPAGATION=0               # 1 if diffraction propagation between layers (ignored if WAVEFRONT_AMPLITUDE = 0)
-FRESNEL_PROPAGATION_BIN=1000.0      # vertical distance within which layers will be binned together prior to diffraction propagation [m]
+WAVEFRONT_AMPLITUDE=1               # 1 if Wavefront amplitude is computed in addition to phase
+FRESNEL_PROPAGATION=1               # 1 if diffraction propagation between layers (ignored if WAVEFRONT_AMPLITUDE = 0)
+FRESNEL_PROPAGATION_BIN="1000.0"    # vertical distance within which layers will be binned together prior to diffraction propagation [m]
 
 
 
@@ -461,7 +461,7 @@ printf "WF_RAW_SIZE               %20d  # size of the raw wavefronts used intern
 printf "MASTER_SIZE               %20d  # size in pixel of master turbulence screens - names should be t<n>_<MASTER_SIZE>\n" $MASTER_SIZE >> $conffilename
 printf "WAVEFRONT_AMPLITUDE       %20d  # 1 if Wavefront amplitude is computed in addition to phase\n" $WAVEFRONT_AMPLITUDE >> $conffilename
 printf "FRESNEL_PROPAGATION       %20d  # 1 if diffraction propagation between layers (ignored if WAVEFRONT_AMPLITUDE = 0)\n" $FRESNEL_PROPAGATION >> $conffilename
-printf "FRESNEL_PROPAGATION_BIN   %20d  # vertical distance within which layers will be binned together prior to diffraction propagation [m]\n" >> $conffilename
+printf "FRESNEL_PROPAGATION_BIN   %20f  # vertical distance within which layers will be binned together prior to diffraction propagation [m]\n" $FRESNEL_PROPAGATION_BIN >> $conffilename
 printf "\n\n" >> $conffilename
 
 

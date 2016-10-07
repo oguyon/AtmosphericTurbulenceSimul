@@ -15,7 +15,7 @@
 #include <mach/mach_time.h>
 #define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 0
-static int clock_gettime(int clk_id, struct timespec *t){
+static int clock_gettime(int clk_id, struct mach_timespec *t){
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
     uint64_t time;

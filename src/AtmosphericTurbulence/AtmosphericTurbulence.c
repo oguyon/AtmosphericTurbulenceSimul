@@ -1316,8 +1316,6 @@ int AtmosphericTurbulence_ReadConf()
     read_config_parameter(CONFFILE, KEYWORD, CONTENT);
     CONF_FRESNEL_PROPAGATION_BIN = atof(CONTENT);
 
-
-
     // ------------ POSTPROCESSING --------------
  
 
@@ -2014,12 +2012,13 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum)
         for(i=0; i<NBSLAYERS-1; i++)
         {
             value = SLAYER_ALT[i+1]-SLAYER_ALT[i];
-            if(value<minaltd)
+            if(value < minaltd)
             {
-                minaltd=value;
+                minaltd = value;
                 index = i;
             }
         }
+        printf("minimumum distance between layers: %.2f m  (%ld %ld)   (CONF_FRESNEL_PROPAGATION_BIN = %.2f)\n", minaltd, i, i+1, CONF_FRESNEL_PROPAGATION_BIN);
         if((minaltd>CONF_FRESNEL_PROPAGATION_BIN)||(NBSLAYERS==1))
         {
             OK=1;
@@ -2027,7 +2026,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum)
         else
         {
             /* group SLAYERs i and i+1 */
-            printf("Group slayers %ld and %ld\n",index,index+1);
+            printf("Group slayers %ld and %ld\n", index, index+1);
             SLAYER_ALT[index] = (SLAYER_CN2[index]*SLAYER_ALT[index]+SLAYER_CN2[index+1]*SLAYER_ALT[index+1])/(SLAYER_CN2[index]+SLAYER_CN2[index+1]);
             SLAYER_CN2[index] = SLAYER_CN2[index] + SLAYER_CN2[index+1];
             for(i=index+1; i<NBSLAYERS-1; i++)
@@ -2040,7 +2039,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum)
     }
     for(i=0; i<NBSLAYERS; i++)
     {
-        printf("Super layer %ld  alt: %f  CN2: %g\n",i,SLAYER_ALT[i],SLAYER_CN2[i]);
+        printf("Super layer %ld  alt: %f  CN2: %g\n", i, SLAYER_ALT[i], SLAYER_CN2[i]);
     }
 
     NB_alt_bin_sep = NBSLAYERS-1;
@@ -2048,10 +2047,11 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum)
     for(i=0; i<NB_alt_bin_sep; i++)
     {
         alt_bin_sep[i] = 0.5*(SLAYER_ALT[i]+SLAYER_ALT[i+1]);
-        printf("Altitude bin separation %ld is %f\n",i,alt_bin_sep[i]);
+        printf("Super layer %ld Altitude threshhold : %.2f m\n", i, alt_bin_sep[i]);
     }
 
     free(SLAYER_CN2);
+
 
     super_layer_index = (long*) malloc(NBLAYERS*sizeof(long));
     for(layer=0; layer<NBLAYERS; layer++)
