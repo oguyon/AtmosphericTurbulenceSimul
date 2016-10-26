@@ -32,6 +32,7 @@ echo "pname = $pname"
 
 
 NBlayers=20 # default
+PRECISION="0" #default 0: single
 
 printHELP ()
 {
@@ -43,11 +44,12 @@ echo " Edit script to set atmosphere and turbulence parameters"
 echo " Execute script without to compute atmospheric wavefronts"
 echo ""
 echo " $(tput bold)USAGE:$(tput sgr0)"
-echo "      $0 [-h] <slambdaum>"
+echo "      $0 [-hNdT] <slambdaum>"
 echo ""
 echo " $(tput bold)OPTIONS:$(tput sgr0)"
 echo "     $(tput bold)-h$(tput sgr0)             help"
 echo "     $(tput bold)-N$(tput sgr0)             Number of layer"
+echo "     $(tput bold)-d$(tput sgr0)             double precision (default: single)"
 echo "     $(tput bold)-T$(tput sgr0)  <case>     Adopt turbulence profile case"
 echo "                            HVbad : Hufnager-Valley, 20m/s, 1.30 arcsec seeing"
 echo "                            HVmed : Hufnager-Valley, 20m/s, 0.65 arcsec seeing"
@@ -84,7 +86,7 @@ echo "------------------------------------------------------------------------"
 
 
 # ================= OPTIONS =============================
-while getopts :hT:N: FLAG; do
+while getopts :hT:dN: FLAG; do
   case $FLAG in
     h)  #show help
       printHELP
@@ -93,6 +95,9 @@ while getopts :hT:N: FLAG; do
     T) # set loop name
     turbprofcase=$OPTARG
     echo "ADOPTING TURBULENCE PROFILE CASE = $turbprofcase"
+    ;;
+    d) # double precision
+	PRECISION="1" 
     ;;
     N) # number of layers
 	NBlayers=$OPTARG
@@ -311,7 +316,7 @@ REALTIMEFACTOR="1.0"                # time dilatation factor for realtime mode (
 # The realtime mode is typically used when output is shared memory for another real-time program
 
 WFTIME_STEP="0.001"                 # time step in seconds between wavefront frames
-TIME_SPAN="1.0"                     # time span for one continuous WF cube file 
+TIME_SPAN="0.1"                     # time span for one continuous WF cube file 
 NB_TSPAN="100000000"                # total number of consecutive wavefront cubes to compute
 SIMTDELAY=0                         # additional time delay [us] between frames (used to limit CPU load)
 # NOTE:
@@ -468,7 +473,7 @@ printf "\n\n" >> $conffilename
 
 $execname << EOF
 #mkatmospheremodel $conffilename
-mkwfs ${slambdaum}
+mkwfs ${slambdaum} ${PRECISION}
 exit
 EOF
 

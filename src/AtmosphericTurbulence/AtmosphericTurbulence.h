@@ -8,7 +8,7 @@ int AtmosphericTurbulence_change_configuration_file(char *fname);
 
 long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float sigmawind, float Lwind, long size, char *IDout_name);
 
-int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, float outerscale, float innerscale);
+int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, float outerscale, float innerscale, long WFprecision);
 
 int make_master_turbulence_screen_pow(char *ID_name1, char *ID_name2, long size, float power);
 
@@ -20,7 +20,7 @@ int contract_wavefront_cube(char *ina_file, char *inp_file, char *outa_file, cha
 
 int contract_wavefront_cube_phaseonly(char *inp_file, char *outp_file, int factor);
 
-int make_AtmosphericTurbulence_wavefront_series(float slambdaum);
+int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecision);
 
 int measure_wavefront_series(float factor);
  

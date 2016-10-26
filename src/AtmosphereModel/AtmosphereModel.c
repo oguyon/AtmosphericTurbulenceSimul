@@ -4161,7 +4161,7 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda)
     
     
     AtmosphereModel_RefractionPath(lambda, ZenithAngle, 1);
-	sprintf(command, "mv refractpath.txt refractpath_%04ld.txt", (long) (1e9*slambda));
+	sprintf(command, "mv refractpath.txt refractpath_%04ld.txt", (long) (1e9*slambda+0.5));
     r = system(command);
 
 
