@@ -4,8 +4,8 @@
 # number of arguments to script
 NBARGS=1
 
-
-execname="Cfits"
+# link to executable - change as needed
+execname="AtmosphericTurbulenceSimul"
 
 
 ## OPTIONAL : refractive index / absorption coefficients files (RIA files)
