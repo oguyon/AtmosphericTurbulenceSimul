@@ -84,6 +84,25 @@ echo "------------------------------------------------------------------------"
 }
 
 
+EXITSTATUS=0
+
+
+function cmdexists()
+{
+  command -v "$1" >/dev/null 2>&1
+}
+
+
+function checkCommand {
+if cmdexists $1; then
+    echo "[$(tput setaf 2)$(tput bold)   OK   $(tput sgr0)] Command $(tput bold)$1$(tput sgr0) found"
+else
+    echo "[$(tput setaf 1)$(tput bold) FAILED $(tput sgr0)] Command $(tput bold)$1$(tput sgr0) not installed.  Aborting."; EXITSTATUS=1;
+fi
+
+}
+
+
 
 # ================= OPTIONS =============================
 while getopts :hT:dN: FLAG; do
@@ -114,6 +133,11 @@ shift $((OPTIND-1))
 
 
 
+# ============================= CHECK IF COMMAND EXISTS ==========================
+
+checkCommand $execname
+
+
 
 
 if [ "$1" = "help" ] || [ "$#" -ne $NBARGS ]; then
@@ -124,6 +148,17 @@ printHELP
         exit
 fi
 
+
+
+
+if [ $EXITSTATUS -eq 1 ]; then
+echo ""
+echo "$(tput setaf 1)$(tput bold) REQUIRED FILES, COMMANDS NOT FOUND: EXITING $(tput sgr0)"
+echo ""
+exit
+else
+echo ""
+fi
 
 
 
