@@ -1566,7 +1566,6 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
     double x;
     long i0,i1;
     double iimf, jjmf, iifrac, jjfrac, value_re, value_im;
-    long iim1, jjm1;
     double pha;
 
     int r;
@@ -1601,6 +1600,28 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
     long WSPEEDsize;
     double WSPEEDpixscale;
     long vKwindsize;
+
+
+	int BICUBIC = 0; // 0 if bilinear
+	double a00, a01, a02, a03;
+	double a10, a11, a12, a13;
+	double a20, a21, a22, a23;
+	double a30, a31, a32, a33;
+	double p00, p01, p02, p03;
+	double p10, p11, p12, p13;
+	double p20, p21, p22, p23;
+	double p30, p31, p32, p33;
+	long iim0, iim1, iim2, iim3, jjm0, jjm1, jjm2, jjm3;
+	double x2, x3, y, y2, y3;
+	
+	FILE *fpxypos;
+
+
+
+
+
+
+
 
 
 
@@ -2531,8 +2552,11 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 
     printf("WAVEFRONT_AMPLITUDE = %d\n", CONF_WAVEFRONT_AMPLITUDE);
 
+	fpxypos = fopen("xypos.log", "w");
+    fclose(fpxypos);
 
-
+	fpxypos = fopen("xypos3.log", "w");
+    fclose(fpxypos);
 
     for(tspan=start_tspan; tspan<CONF_NB_TSPAN; tspan++)
     {
@@ -2740,13 +2764,16 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 //				printf("STEP 002\n");
                 //				fflush(stdout);
 
-                if(WFprecision == 0)
+                if(WFprecision == 0) // floating point precision
                 {
-                    for(ii=0; ii<naxes[0]; ii++)
-                        for(jj=0; jj<naxes[1]; jj++)
+                   if(BICUBIC==0)                
+                   {
+					   // bilinear interpolation
+						for(ii=0; ii<naxes[0]; ii++)
+						for(jj=0; jj<naxes[1]; jj++)
                         {
-                            iimf = fmod((xpos[layer]+ii),1.0*naxes_MASTER[0]);
-                            jjmf = fmod((ypos[layer]+jj),1.0*naxes_MASTER[1]);
+                            iimf = fmod((xpos[layer]+ii), 1.0*naxes_MASTER[0]);
+                            jjmf = fmod((ypos[layer]+jj), 1.0*naxes_MASTER[1]);
                             iim = (long) (iimf);
                             jjm = (long) (jjmf);
                             iifrac = iimf-iim;
@@ -2776,14 +2803,124 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 data.image[ID_array2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
                             }
                         }
-                }
-                else
-                {
-                    for(ii=0; ii<naxes[0]; ii++)
+                   
+						//fpxypos = fopen("xypos.log", "a");
+						//fprintf(fpxypos, "%5ld %4ld    %10.8f %10.8f      %5ld %10.8f %5ld %10.8f    %10.8f %10.8f  %.18g        %.18g   %.18g   %.18g   %.18g\n", vindex, layer, xpos[layer], ypos[layer], iim, iifrac, jjm, jjfrac, 1.0*iim+iifrac, 1.0*jjm+jjfrac, value, data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1], data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1]);
+						//fclose(fpxypos);
+					}
+					else 
+					{
+						// bicubic interpolation
+						for(ii=0; ii<naxes[0]; ii++)
                         for(jj=0; jj<naxes[1]; jj++)
                         {
-                            iimf = fmod((xpos[layer]+ii),1.0*naxes_MASTER[0]);
-                            jjmf = fmod((ypos[layer]+jj),1.0*naxes_MASTER[1]);
+                            iimf = fmod((xpos[layer]+ii), 1.0*naxes_MASTER[0]);
+                            jjmf = fmod((ypos[layer]+jj), 1.0*naxes_MASTER[1]);
+							
+							iim = (long) (iimf);
+                            jjm = (long) (jjmf);
+							
+							x = iimf-iim;
+                            y = jjmf-jjm;
+                            
+                            
+                            iim0 = iim - 1;
+                            iim1 = iim;
+                            iim2 = iim + 1;
+                            iim3 = iim + 2;
+							if(iim1>CONF_MASTER_SIZE-1)
+								iim1 -= CONF_MASTER_SIZE;
+							if(iim2>CONF_MASTER_SIZE-1)
+								iim2 -= CONF_MASTER_SIZE;
+							if(iim3>CONF_MASTER_SIZE-1)
+								iim3 -= CONF_MASTER_SIZE;
+							if(iim0<0)
+								iim0 += CONF_MASTER_SIZE;
+								
+                            jjm0 = jjm - 1;
+                            jjm1 = jjm;
+                            jjm2 = jjm + 1;
+                            jjm3 = jjm + 2;
+							if(jjm1>CONF_MASTER_SIZE-1)
+								iim1 -= CONF_MASTER_SIZE;
+							if(jjm2>CONF_MASTER_SIZE-1)
+								jjm2 -= CONF_MASTER_SIZE;
+							if(jjm3>CONF_MASTER_SIZE-1)
+								jjm3 -= CONF_MASTER_SIZE;
+							if(jjm0<0)
+								jjm0 += CONF_MASTER_SIZE;
+					
+							p00 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim0];
+							p01 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim0];
+							p02 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim0];
+							p03 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim0];
+
+							p10 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim1];
+							p11 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
+							p12 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim1];
+							p13 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim1];
+
+							p20 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim2];
+							p21 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim2];
+							p22 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim2];
+							p23 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim2];
+
+							p30 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim3];
+							p31 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim3];
+							p32 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim3];
+							p33 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim3];
+							
+							
+							a00 = p11;
+							a01 = -.5*p10 + .5*p12;
+							a02 = p10 - 2.5*p11 + 2*p12 - .5*p13;
+							a03 = -.5*p10 + 1.5*p11 - 1.5*p12 + .5*p13;
+							a10 = -.5*p01 + .5*p21;
+							a11 = .25*p00 - .25*p02 - .25*p20 + .25*p22;
+							a12 = -.5*p00 + 1.25*p01 - p02 + .25*p03 + .5*p20 - 1.25*p21 + p22 - .25*p23;
+							a13 = .25*p00 - .75*p01 + .75*p02 - .25*p03 - .25*p20 + .75*p21 - .75*p22 + .25*p23;
+							a20 = p01 - 2.5*p11 + 2*p21 - .5*p31;
+							a21 = -.5*p00 + .5*p02 + 1.25*p10 - 1.25*p12 - p20 + p22 + .25*p30 - .25*p32;
+							a22 = p00 - 2.5*p01 + 2*p02 - .5*p03 - 2.5*p10 + 6.25*p11 - 5*p12 + 1.25*p13 + 2*p20 - 5*p21 + 4*p22 - p23 - .5*p30 + 1.25*p31 - p32 + .25*p33;
+							a23 = -.5*p00 + 1.5*p01 - 1.5*p02 + .5*p03 + 1.25*p10 - 3.75*p11 + 3.75*p12 - 1.25*p13 - p20 + 3*p21 - 3*p22 + p23 + .25*p30 - .75*p31 + .75*p32 - .25*p33;
+							a30 = -.5*p01 + 1.5*p11 - 1.5*p21 + .5*p31;
+							a31 = .25*p00 - .25*p02 - .75*p10 + .75*p12 + .75*p20 - .75*p22 - .25*p30 + .25*p32;
+							a32 = -.5*p00 + 1.25*p01 - p02 + .25*p03 + 1.5*p10 - 3.75*p11 + 3*p12 - .75*p13 - 1.5*p20 + 3.75*p21 - 3*p22 + .75*p23 + .5*p30 - 1.25*p31 + p32 - .25*p33;
+							a33 = .25*p00 - .75*p01 + .75*p02 - .25*p03 - .75*p10 + 2.25*p11 - 2.25*p12 + .75*p13 + .75*p20 - 2.25*p21 + 2.25*p22 - .75*p23 - .25*p30 + .75*p31 - .75*p32 + .25*p33;
+							
+							x2 = x*x;
+							x3 = x2*x;
+							y2 = y*y;
+							y3 = y2*y;
+							
+							value = (a00 + a01 * y + a02 * y2 + a03 * y3) + (a10 + a11 * y + a12 * y2 + a13 * y3) * x + (a20 + a21 * y + a22 * y2 + a23 * y3) * x2 + (a30 + a31 * y + a32 * y2 + a33 * y3) * x3;							
+						}
+					
+						data.image[ID_array1].array.F[jj*naxes[0]+ii] += value;
+						if(CONF_WAVEFRONT_AMPLITUDE==1)
+                        {
+                            re = data.image[ID_array2].array.CF[jj*naxes[0]+ii].re;
+                            im = data.image[ID_array2].array.CF[jj*naxes[0]+ii].im;
+                            data.image[ID_array2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+                            data.image[ID_array2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+                        }
+					
+						//fpxypos = fopen("xypos3.log", "a");
+						//fprintf(fpxypos, "%5ld %4ld    %10.8f %10.8f      %5ld %10.8f %5ld %10.8f    %10.8f %10.8f  %.18g        %.18g   %.18g   %.18g   %.18g\n", vindex, layer, xpos[layer], ypos[layer], iim, x, jjm, y, 1.0*iim+x, 1.0*jjm+y, value, data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1], data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1]);
+						//fclose(fpxypos);
+					}
+					
+                }
+                else // double precision
+                {
+                   if(BICUBIC==0)                
+                   {
+					   // bilinear interpolation
+					   for(ii=0; ii<naxes[0]; ii++)
+                       for(jj=0; jj<naxes[1]; jj++)
+                        {
+                            iimf = fmod((xpos[layer]+ii), 1.0*naxes_MASTER[0]);
+                            jjmf = fmod((ypos[layer]+jj), 1.0*naxes_MASTER[1]);
                             iim = (long) (iimf);
                             jjm = (long) (jjmf);
                             iifrac = iimf-iim;
@@ -2813,10 +2950,108 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 data.image[ID_array2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
                             }
                         }
+					}
+					else
+					{
+						// bicubic interpolation
+						for(ii=0; ii<naxes[0]; ii++)
+                        for(jj=0; jj<naxes[1]; jj++)
+                        {
+                            iimf = fmod((xpos[layer]+ii), 1.0*naxes_MASTER[0]);
+                            jjmf = fmod((ypos[layer]+jj), 1.0*naxes_MASTER[1]);
+							
+							iim = (long) (iimf);
+                            jjm = (long) (jjmf);
+							
+							x = iimf-iim;
+                            y = jjmf-jjm;
+                            
+                            
+                            iim0 = iim - 1;
+                            iim1 = iim;
+                            iim2 = iim + 1;
+                            iim3 = iim + 2;
+							if(iim1>CONF_MASTER_SIZE-1)
+								iim1 -= CONF_MASTER_SIZE;
+							if(iim2>CONF_MASTER_SIZE-1)
+								iim2 -= CONF_MASTER_SIZE;
+							if(iim3>CONF_MASTER_SIZE-1)
+								iim3 -= CONF_MASTER_SIZE;
+							if(iim0<0)
+								iim0 += CONF_MASTER_SIZE;
+								
+                            jjm0 = jjm - 1;
+                            jjm1 = jjm;
+                            jjm2 = jjm + 1;
+                            jjm3 = jjm + 2;
+							if(jjm1>CONF_MASTER_SIZE-1)
+								iim1 -= CONF_MASTER_SIZE;
+							if(jjm2>CONF_MASTER_SIZE-1)
+								jjm2 -= CONF_MASTER_SIZE;
+							if(jjm3>CONF_MASTER_SIZE-1)
+								jjm3 -= CONF_MASTER_SIZE;
+							if(jjm0<0)
+								jjm0 += CONF_MASTER_SIZE;
+					
+							p00 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim0];
+							p01 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim0];
+							p02 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim0];
+							p03 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim0];
+
+							p10 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim1];
+							p11 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
+							p12 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim1];
+							p13 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim1];
+
+							p20 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim2];
+							p21 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim2];
+							p22 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim2];
+							p23 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim2];
+
+							p30 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim3];
+							p31 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim3];
+							p32 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim3];
+							p33 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim3];
+							
+							
+							a00 = p11;
+							a01 = -.5*p10 + .5*p12;
+							a02 = p10 - 2.5*p11 + 2*p12 - .5*p13;
+							a03 = -.5*p10 + 1.5*p11 - 1.5*p12 + .5*p13;
+							a10 = -.5*p01 + .5*p21;
+							a11 = .25*p00 - .25*p02 - .25*p20 + .25*p22;
+							a12 = -.5*p00 + 1.25*p01 - p02 + .25*p03 + .5*p20 - 1.25*p21 + p22 - .25*p23;
+							a13 = .25*p00 - .75*p01 + .75*p02 - .25*p03 - .25*p20 + .75*p21 - .75*p22 + .25*p23;
+							a20 = p01 - 2.5*p11 + 2*p21 - .5*p31;
+							a21 = -.5*p00 + .5*p02 + 1.25*p10 - 1.25*p12 - p20 + p22 + .25*p30 - .25*p32;
+							a22 = p00 - 2.5*p01 + 2*p02 - .5*p03 - 2.5*p10 + 6.25*p11 - 5*p12 + 1.25*p13 + 2*p20 - 5*p21 + 4*p22 - p23 - .5*p30 + 1.25*p31 - p32 + .25*p33;
+							a23 = -.5*p00 + 1.5*p01 - 1.5*p02 + .5*p03 + 1.25*p10 - 3.75*p11 + 3.75*p12 - 1.25*p13 - p20 + 3*p21 - 3*p22 + p23 + .25*p30 - .75*p31 + .75*p32 - .25*p33;
+							a30 = -.5*p01 + 1.5*p11 - 1.5*p21 + .5*p31;
+							a31 = .25*p00 - .25*p02 - .75*p10 + .75*p12 + .75*p20 - .75*p22 - .25*p30 + .25*p32;
+							a32 = -.5*p00 + 1.25*p01 - p02 + .25*p03 + 1.5*p10 - 3.75*p11 + 3*p12 - .75*p13 - 1.5*p20 + 3.75*p21 - 3*p22 + .75*p23 + .5*p30 - 1.25*p31 + p32 - .25*p33;
+							a33 = .25*p00 - .75*p01 + .75*p02 - .25*p03 - .75*p10 + 2.25*p11 - 2.25*p12 + .75*p13 + .75*p20 - 2.25*p21 + 2.25*p22 - .75*p23 - .25*p30 + .75*p31 - .75*p32 + .25*p33;
+							
+							x2 = x*x;
+							x3 = x2*x;
+							y2 = y*y;
+							y3 = y2*y;
+							
+							value = (a00 + a01 * y + a02 * y2 + a03 * y3) + (a10 + a11 * y + a12 * y2 + a13 * y3) * x + (a20 + a21 * y + a22 * y2 + a23 * y3) * x2 + (a30 + a31 * y + a32 * y2 + a33 * y3) * x3;							
+						}
+					
+						data.image[ID_array1].array.D[jj*naxes[0]+ii] += value;
+						if(CONF_WAVEFRONT_AMPLITUDE==1)
+                        {
+                            re = data.image[ID_array2].array.CD[jj*naxes[0]+ii].re;
+                            im = data.image[ID_array2].array.CD[jj*naxes[0]+ii].im;
+                            data.image[ID_array2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+                            data.image[ID_array2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+                        }
+					}
                 }
 
-                //				printf("STEP 003\n");
-                //				fflush(stdout);
+
+
 
 
                 /* make swavefront */
@@ -2824,11 +3059,13 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 {
                     if(WFprecision == 0)
                     {
-                        for(ii=0; ii<naxes[0]; ii++)
+						if(BICUBIC==0)
+						{   
+							for(ii=0; ii<naxes[0]; ii++)
                             for(jj=0; jj<naxes[1]; jj++)
                             {
-                                iimf = fmod((xpos[layer]+ii),1.0*naxes_MASTER[0]);
-                                jjmf = fmod((ypos[layer]+jj),1.0*naxes_MASTER[1]);
+                                iimf = fmod((xpos[layer]+ii), 1.0*naxes_MASTER[0]);
+                                jjmf = fmod((ypos[layer]+jj), 1.0*naxes_MASTER[1]);
                                 iim = (long) (iimf);
                                 jjm = (long) (jjmf);
                                 iifrac = iimf-iim;
@@ -2861,14 +3098,118 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                     data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
                                 }
                             }
+						}
+						else
+						{
+							// bicubic interpolation
+							for(ii=0; ii<naxes[0]; ii++)
+							for(jj=0; jj<naxes[1]; jj++)
+							{
+                            iimf = fmod((xpos[layer]+ii), 1.0*naxes_MASTER[0]);
+                            jjmf = fmod((ypos[layer]+jj), 1.0*naxes_MASTER[1]);
+							
+							iim = (long) (iimf);
+                            jjm = (long) (jjmf);
+							
+							x = iimf-iim;
+                            y = jjmf-jjm;
+                            
+                            
+                            iim0 = iim - 1;
+                            iim1 = iim;
+                            iim2 = iim + 1;
+                            iim3 = iim + 2;
+							if(iim1>CONF_MASTER_SIZE-1)
+								iim1 -= CONF_MASTER_SIZE;
+							if(iim2>CONF_MASTER_SIZE-1)
+								iim2 -= CONF_MASTER_SIZE;
+							if(iim3>CONF_MASTER_SIZE-1)
+								iim3 -= CONF_MASTER_SIZE;
+							if(iim0<0)
+								iim0 += CONF_MASTER_SIZE;
+								
+                            jjm0 = jjm - 1;
+                            jjm1 = jjm;
+                            jjm2 = jjm + 1;
+                            jjm3 = jjm + 2;
+							if(jjm1>CONF_MASTER_SIZE-1)
+								iim1 -= CONF_MASTER_SIZE;
+							if(jjm2>CONF_MASTER_SIZE-1)
+								jjm2 -= CONF_MASTER_SIZE;
+							if(jjm3>CONF_MASTER_SIZE-1)
+								jjm3 -= CONF_MASTER_SIZE;
+							if(jjm0<0)
+								jjm0 += CONF_MASTER_SIZE;
+					
+							p00 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim0];
+							p01 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim0];
+							p02 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim0];
+							p03 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim0];
+
+							p10 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim1];
+							p11 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
+							p12 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim1];
+							p13 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim1];
+
+							p20 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim2];
+							p21 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim2];
+							p22 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim2];
+							p23 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim2];
+
+							p30 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim3];
+							p31 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim3];
+							p32 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim3];
+							p33 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim3];
+							
+							
+							a00 = p11;
+							a01 = -.5*p10 + .5*p12;
+							a02 = p10 - 2.5*p11 + 2*p12 - .5*p13;
+							a03 = -.5*p10 + 1.5*p11 - 1.5*p12 + .5*p13;
+							a10 = -.5*p01 + .5*p21;
+							a11 = .25*p00 - .25*p02 - .25*p20 + .25*p22;
+							a12 = -.5*p00 + 1.25*p01 - p02 + .25*p03 + .5*p20 - 1.25*p21 + p22 - .25*p23;
+							a13 = .25*p00 - .75*p01 + .75*p02 - .25*p03 - .25*p20 + .75*p21 - .75*p22 + .25*p23;
+							a20 = p01 - 2.5*p11 + 2*p21 - .5*p31;
+							a21 = -.5*p00 + .5*p02 + 1.25*p10 - 1.25*p12 - p20 + p22 + .25*p30 - .25*p32;
+							a22 = p00 - 2.5*p01 + 2*p02 - .5*p03 - 2.5*p10 + 6.25*p11 - 5*p12 + 1.25*p13 + 2*p20 - 5*p21 + 4*p22 - p23 - .5*p30 + 1.25*p31 - p32 + .25*p33;
+							a23 = -.5*p00 + 1.5*p01 - 1.5*p02 + .5*p03 + 1.25*p10 - 3.75*p11 + 3.75*p12 - 1.25*p13 - p20 + 3*p21 - 3*p22 + p23 + .25*p30 - .75*p31 + .75*p32 - .25*p33;
+							a30 = -.5*p01 + 1.5*p11 - 1.5*p21 + .5*p31;
+							a31 = .25*p00 - .25*p02 - .75*p10 + .75*p12 + .75*p20 - .75*p22 - .25*p30 + .25*p32;
+							a32 = -.5*p00 + 1.25*p01 - p02 + .25*p03 + 1.5*p10 - 3.75*p11 + 3*p12 - .75*p13 - 1.5*p20 + 3.75*p21 - 3*p22 + .75*p23 + .5*p30 - 1.25*p31 + p32 - .25*p33;
+							a33 = .25*p00 - .75*p01 + .75*p02 - .25*p03 - .75*p10 + 2.25*p11 - 2.25*p12 + .75*p13 + .75*p20 - 2.25*p21 + 2.25*p22 - .75*p23 - .25*p30 + .75*p31 - .75*p32 + .25*p33;
+							
+							x2 = x*x;
+							x3 = x2*x;
+							y2 = y*y;
+							y3 = y2*y;
+							
+							value = (a00 + a01 * y + a02 * y2 + a03 * y3) + (a10 + a11 * y + a12 * y2 + a13 * y3) * x + (a20 + a21 * y + a22 * y2 + a23 * y3) * x2 + (a30 + a31 * y + a32 * y2 + a33 * y3) * x3;							
+						
+						
+							value *= Scoeff;  // multiplicative coeff to go from ref lambda to science lambda
+						
+							data.image[ID_sarray1].array.F[jj*naxes[0]+ii] += value;
+						
+							if(CONF_WAVEFRONT_AMPLITUDE==1)
+							{
+								re = data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].re;
+								im = data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].im;
+								data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+								data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+							}
+							}
+						}
                     }
-                    else
+                    else // double precision
                     {
-                        for(ii=0; ii<naxes[0]; ii++)
+						if(BICUBIC==0)
+						{   
+							for(ii=0; ii<naxes[0]; ii++)
                             for(jj=0; jj<naxes[1]; jj++)
                             {
-                                iimf = fmod((xpos[layer]+ii),1.0*naxes_MASTER[0]);
-                                jjmf = fmod((ypos[layer]+jj),1.0*naxes_MASTER[1]);
+                                iimf = fmod((xpos[layer]+ii), 1.0*naxes_MASTER[0]);
+                                jjmf = fmod((ypos[layer]+jj), 1.0*naxes_MASTER[1]);
                                 iim = (long) (iimf);
                                 jjm = (long) (jjmf);
                                 iifrac = iimf-iim;
@@ -2901,6 +3242,108 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                     data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
                                 }
                             }
+                        }
+                        else
+                        {
+							// bicubic interpolation
+							for(ii=0; ii<naxes[0]; ii++)
+							for(jj=0; jj<naxes[1]; jj++)
+							{
+                            iimf = fmod((xpos[layer]+ii), 1.0*naxes_MASTER[0]);
+                            jjmf = fmod((ypos[layer]+jj), 1.0*naxes_MASTER[1]);
+							
+							iim = (long) (iimf);
+                            jjm = (long) (jjmf);
+							
+							x = iimf-iim;
+                            y = jjmf-jjm;
+                            
+                            
+                            iim0 = iim - 1;
+                            iim1 = iim;
+                            iim2 = iim + 1;
+                            iim3 = iim + 2;
+							if(iim1>CONF_MASTER_SIZE-1)
+								iim1 -= CONF_MASTER_SIZE;
+							if(iim2>CONF_MASTER_SIZE-1)
+								iim2 -= CONF_MASTER_SIZE;
+							if(iim3>CONF_MASTER_SIZE-1)
+								iim3 -= CONF_MASTER_SIZE;
+							if(iim0<0)
+								iim0 += CONF_MASTER_SIZE;
+								
+                            jjm0 = jjm - 1;
+                            jjm1 = jjm;
+                            jjm2 = jjm + 1;
+                            jjm3 = jjm + 2;
+							if(jjm1>CONF_MASTER_SIZE-1)
+								iim1 -= CONF_MASTER_SIZE;
+							if(jjm2>CONF_MASTER_SIZE-1)
+								jjm2 -= CONF_MASTER_SIZE;
+							if(jjm3>CONF_MASTER_SIZE-1)
+								jjm3 -= CONF_MASTER_SIZE;
+							if(jjm0<0)
+								jjm0 += CONF_MASTER_SIZE;
+					
+							p00 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim0];
+							p01 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim0];
+							p02 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim0];
+							p03 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim0];
+
+							p10 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim1];
+							p11 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
+							p12 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim1];
+							p13 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim1];
+
+							p20 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim2];
+							p21 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim2];
+							p22 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim2];
+							p23 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim2];
+
+							p30 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim3];
+							p31 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim3];
+							p32 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim3];
+							p33 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim3];
+							
+							
+							a00 = p11;
+							a01 = -.5*p10 + .5*p12;
+							a02 = p10 - 2.5*p11 + 2*p12 - .5*p13;
+							a03 = -.5*p10 + 1.5*p11 - 1.5*p12 + .5*p13;
+							a10 = -.5*p01 + .5*p21;
+							a11 = .25*p00 - .25*p02 - .25*p20 + .25*p22;
+							a12 = -.5*p00 + 1.25*p01 - p02 + .25*p03 + .5*p20 - 1.25*p21 + p22 - .25*p23;
+							a13 = .25*p00 - .75*p01 + .75*p02 - .25*p03 - .25*p20 + .75*p21 - .75*p22 + .25*p23;
+							a20 = p01 - 2.5*p11 + 2*p21 - .5*p31;
+							a21 = -.5*p00 + .5*p02 + 1.25*p10 - 1.25*p12 - p20 + p22 + .25*p30 - .25*p32;
+							a22 = p00 - 2.5*p01 + 2*p02 - .5*p03 - 2.5*p10 + 6.25*p11 - 5*p12 + 1.25*p13 + 2*p20 - 5*p21 + 4*p22 - p23 - .5*p30 + 1.25*p31 - p32 + .25*p33;
+							a23 = -.5*p00 + 1.5*p01 - 1.5*p02 + .5*p03 + 1.25*p10 - 3.75*p11 + 3.75*p12 - 1.25*p13 - p20 + 3*p21 - 3*p22 + p23 + .25*p30 - .75*p31 + .75*p32 - .25*p33;
+							a30 = -.5*p01 + 1.5*p11 - 1.5*p21 + .5*p31;
+							a31 = .25*p00 - .25*p02 - .75*p10 + .75*p12 + .75*p20 - .75*p22 - .25*p30 + .25*p32;
+							a32 = -.5*p00 + 1.25*p01 - p02 + .25*p03 + 1.5*p10 - 3.75*p11 + 3*p12 - .75*p13 - 1.5*p20 + 3.75*p21 - 3*p22 + .75*p23 + .5*p30 - 1.25*p31 + p32 - .25*p33;
+							a33 = .25*p00 - .75*p01 + .75*p02 - .25*p03 - .75*p10 + 2.25*p11 - 2.25*p12 + .75*p13 + .75*p20 - 2.25*p21 + 2.25*p22 - .75*p23 - .25*p30 + .75*p31 - .75*p32 + .25*p33;
+							
+							x2 = x*x;
+							x3 = x2*x;
+							y2 = y*y;
+							y3 = y2*y;
+							
+							value = (a00 + a01 * y + a02 * y2 + a03 * y3) + (a10 + a11 * y + a12 * y2 + a13 * y3) * x + (a20 + a21 * y + a22 * y2 + a23 * y3) * x2 + (a30 + a31 * y + a32 * y2 + a33 * y3) * x3;							
+						
+						
+							value *= Scoeff;  // multiplicative coeff to go from ref lambda to science lambda
+						
+							data.image[ID_sarray1].array.D[jj*naxes[0]+ii] += value;
+						
+							if(CONF_WAVEFRONT_AMPLITUDE==1)
+							{
+								re = data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].re;
+								im = data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].im;
+								data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+								data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+							}
+							}
+						}
                     }
                 }
 
