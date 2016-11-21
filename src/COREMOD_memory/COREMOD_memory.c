@@ -2473,9 +2473,9 @@ long create_3Dimage_ID(char *ID_name, long xsize, long ysize, long zsize)
     naxes[2]=zsize;
 
     if(data.precision == 0)
-        ID = create_image_ID(ID_name,naxis,naxes,3, data.SHARED_DFT, data.NBKEWORD_DFT); // single precision
+        ID = create_image_ID(ID_name,naxis,naxes, 3, data.SHARED_DFT, data.NBKEWORD_DFT); // single precision
     if(data.precision == 1)
-        ID = create_image_ID(ID_name,naxis,naxes,4, data.SHARED_DFT, data.NBKEWORD_DFT); // double precision
+        ID = create_image_ID(ID_name,naxis,naxes, 4, data.SHARED_DFT, data.NBKEWORD_DFT); // double precision
 
     return(ID);
 }

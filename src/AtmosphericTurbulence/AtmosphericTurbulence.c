@@ -4,7 +4,7 @@
 #include <malloc.h>
 #include <ctype.h>
 #include <math.h>
-
+#include <assert.h>
 
 #ifdef __MACH__
 #include <mach/mach_time.h>
@@ -1602,7 +1602,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
     long vKwindsize;
 
 
-	int BICUBIC = 0; // 0 if bilinear
+	int BICUBIC = 1; // 0 if bilinear
 	double a00, a01, a02, a03;
 	double a10, a11, a12, a13;
 	double a20, a21, a22, a23;
@@ -2632,8 +2632,6 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 }
             }
 
-
-
             usleep(CONF_SIMTDELAY);
 
 
@@ -2643,6 +2641,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 COREMOD_MEMORY_image_set_semwait(CONF_WAITSEMIMNAME, 0);
                 printf("Done\n");
             }
+
 
             clock_gettime(CLOCK_REALTIME, &tnow);
             tnowdouble = 1.0*tnow.tv_sec + 1.0e-9*tnow.tv_nsec;
@@ -2662,8 +2661,6 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 Nlambda = AtmosphereModel_stdAtmModel_N(LAYER_ALT[layer], CONF_LAMBDA, 0);
                 Nslambda = AtmosphereModel_stdAtmModel_N(LAYER_ALT[layer], SLAMBDA, 0);
                 Scoeff =  CONF_LAMBDA/SLAMBDA * Nslambda/Nlambda; // multiplicative coefficient to go from reference lambda phase to science lambda phase
-
-
 
 
                 if(layer!=NBLAYERS-1)
@@ -2693,8 +2690,6 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                         }
                     }
                 }
-
-
 
 
                 // layer_scale = (SODIUM_ALT-LAYER_ALT[layer])/SODIUM_ALT;
@@ -2759,14 +2754,11 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 xrefm = xref-naxes_MASTER[0];
                 yrefm = yref-naxes_MASTER[1];
 
+
                 /* make wavefront */
-
-                //				printf("STEP 002\n");
-                //				fflush(stdout);
-
                 if(WFprecision == 0) // floating point precision
                 {
-                   if(BICUBIC==0)                
+                   if(BICUBIC==0)            
                    {
 					   // bilinear interpolation
 						for(ii=0; ii<naxes[0]; ii++)
@@ -2849,7 +2841,25 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 								jjm3 -= CONF_MASTER_SIZE;
 							if(jjm0<0)
 								jjm0 += CONF_MASTER_SIZE;
-					
+							
+							/*assert(iim0>=0);
+							assert(iim1>=0);
+							assert(iim2>=0);
+							assert(iim3>=0);
+							assert(iim0<CONF_MASTER_SIZE);
+							assert(iim1<CONF_MASTER_SIZE);
+							assert(iim2<CONF_MASTER_SIZE);
+							assert(iim3<CONF_MASTER_SIZE);
+							assert(jjm0>=0);
+							assert(jjm1>=0);
+							assert(jjm2>=0);
+							assert(jjm3>=0);
+							assert(jjm0<CONF_MASTER_SIZE);
+							assert(jjm1<CONF_MASTER_SIZE);
+							assert(jjm2<CONF_MASTER_SIZE);
+							assert(jjm3<CONF_MASTER_SIZE);
+							*/
+							
 							p00 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim0];
 							p01 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim0];
 							p02 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim0];
@@ -2894,20 +2904,22 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 							y3 = y2*y;
 							
 							value = (a00 + a01 * y + a02 * y2 + a03 * y3) + (a10 + a11 * y + a12 * y2 + a13 * y3) * x + (a20 + a21 * y + a22 * y2 + a23 * y3) * x2 + (a30 + a31 * y + a32 * y2 + a33 * y3) * x3;							
-						}
-					
-						data.image[ID_array1].array.F[jj*naxes[0]+ii] += value;
-						if(CONF_WAVEFRONT_AMPLITUDE==1)
-                        {
-                            re = data.image[ID_array2].array.CF[jj*naxes[0]+ii].re;
-                            im = data.image[ID_array2].array.CF[jj*naxes[0]+ii].im;
-                            data.image[ID_array2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-                            data.image[ID_array2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
-                        }
-					
+						
+						
+							data.image[ID_array1].array.F[jj*naxes[0]+ii] += value;
+							if(CONF_WAVEFRONT_AMPLITUDE==1)
+                            {
+                                re = data.image[ID_array2].array.CF[jj*naxes[0]+ii].re;
+                                im = data.image[ID_array2].array.CF[jj*naxes[0]+ii].im;
+                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+                            }
+
+						
 						//fpxypos = fopen("xypos3.log", "a");
 						//fprintf(fpxypos, "%5ld %4ld    %10.8f %10.8f      %5ld %10.8f %5ld %10.8f    %10.8f %10.8f  %.18g        %.18g   %.18g   %.18g   %.18g\n", vindex, layer, xpos[layer], ypos[layer], iim, x, jjm, y, 1.0*iim+x, 1.0*jjm+y, value, data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1], data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1]);
 						//fclose(fpxypos);
+						}
 					}
 					
                 }
@@ -2992,7 +3004,24 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 								jjm3 -= CONF_MASTER_SIZE;
 							if(jjm0<0)
 								jjm0 += CONF_MASTER_SIZE;
-					
+
+							/*assert(iim0>=0);
+							assert(iim1>=0);
+							assert(iim2>=0);
+							assert(iim3>=0);
+							assert(iim0<CONF_MASTER_SIZE);
+							assert(iim1<CONF_MASTER_SIZE);
+							assert(iim2<CONF_MASTER_SIZE);
+							assert(iim3<CONF_MASTER_SIZE);
+							assert(jjm0>=0);
+							assert(jjm1>=0);
+							assert(jjm2>=0);
+							assert(jjm3>=0);
+							assert(jjm0<CONF_MASTER_SIZE);
+							assert(jjm1<CONF_MASTER_SIZE);
+							assert(jjm2<CONF_MASTER_SIZE);
+							assert(jjm3<CONF_MASTER_SIZE);
+					*/
 							p00 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim0];
 							p01 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim0];
 							p02 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim0];
@@ -3037,20 +3066,19 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 							y3 = y2*y;
 							
 							value = (a00 + a01 * y + a02 * y2 + a03 * y3) + (a10 + a11 * y + a12 * y2 + a13 * y3) * x + (a20 + a21 * y + a22 * y2 + a23 * y3) * x2 + (a30 + a31 * y + a32 * y2 + a33 * y3) * x3;							
-						}
+						
 					
-						data.image[ID_array1].array.D[jj*naxes[0]+ii] += value;
-						if(CONF_WAVEFRONT_AMPLITUDE==1)
-                        {
-                            re = data.image[ID_array2].array.CD[jj*naxes[0]+ii].re;
-                            im = data.image[ID_array2].array.CD[jj*naxes[0]+ii].im;
-                            data.image[ID_array2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-                            data.image[ID_array2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
-                        }
+							data.image[ID_array1].array.D[jj*naxes[0]+ii] += value;
+							if(CONF_WAVEFRONT_AMPLITUDE==1)
+							{
+								re = data.image[ID_array2].array.CD[jj*naxes[0]+ii].re;
+								im = data.image[ID_array2].array.CD[jj*naxes[0]+ii].im;
+								data.image[ID_array2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+								data.image[ID_array2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+							}
+						}
 					}
                 }
-
-
 
 
 
@@ -3140,7 +3168,24 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 								jjm3 -= CONF_MASTER_SIZE;
 							if(jjm0<0)
 								jjm0 += CONF_MASTER_SIZE;
-					
+
+							/*assert(iim0>=0);
+							assert(iim1>=0);
+							assert(iim2>=0);
+							assert(iim3>=0);
+							assert(iim0<CONF_MASTER_SIZE);
+							assert(iim1<CONF_MASTER_SIZE);
+							assert(iim2<CONF_MASTER_SIZE);
+							assert(iim3<CONF_MASTER_SIZE);
+							assert(jjm0>=0);
+							assert(jjm1>=0);
+							assert(jjm2>=0);
+							assert(jjm3>=0);
+							assert(jjm0<CONF_MASTER_SIZE);
+							assert(jjm1<CONF_MASTER_SIZE);
+							assert(jjm2<CONF_MASTER_SIZE);
+							assert(jjm3<CONF_MASTER_SIZE);
+					*/
 							p00 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim0];
 							p01 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim0];
 							p02 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim0];
@@ -3284,6 +3329,25 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 								jjm3 -= CONF_MASTER_SIZE;
 							if(jjm0<0)
 								jjm0 += CONF_MASTER_SIZE;
+
+							/*assert(iim0>=0);
+							assert(iim1>=0);
+							assert(iim2>=0);
+							assert(iim3>=0);
+							assert(iim0<CONF_MASTER_SIZE);
+							assert(iim1<CONF_MASTER_SIZE);
+							assert(iim2<CONF_MASTER_SIZE);
+							assert(iim3<CONF_MASTER_SIZE);
+							assert(jjm0>=0);
+							assert(jjm1>=0);
+							assert(jjm2>=0);
+							assert(jjm3>=0);
+							assert(jjm0<CONF_MASTER_SIZE);
+							assert(jjm1<CONF_MASTER_SIZE);
+							assert(jjm2<CONF_MASTER_SIZE);
+							assert(jjm3<CONF_MASTER_SIZE);
+							*/
+
 					
 							p00 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim0];
 							p01 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim0];
@@ -3346,13 +3410,9 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 						}
                     }
                 }
-
-
-                //				printf("STEP 004\n");
-                //				fflush(stdout);
-
-
             }
+           
+            
             
 
             // REFERENCE LAMBDA
@@ -3415,8 +3475,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     }
             }
 			
-			
-		
+
 
 
 
@@ -3457,7 +3516,6 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     }
                 }
             }
-
 
 
 
@@ -4288,8 +4346,6 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
         }
 
 
-
-
         if(CONF_WFOUTPUT==1) // WRITE REFERENCE LAMBDA
         {
             sprintf(fname1,"!%s%08ld.%09ld.pha.fits", CONF_WF_FILE_PREFIX, tspan, (long) (1.0e12*SLAMBDA+0.5));
@@ -4346,7 +4402,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
             printf("\n");
             fflush(stdout);
         }
-
+        
     }
 
     delete_image_ID("array1");

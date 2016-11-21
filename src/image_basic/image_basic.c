@@ -3789,6 +3789,8 @@ long IMAGE_BASIC_streamaverage(char *IDname, long NBcoadd, char *IDoutname, int 
     int createim;
     long offset;
 
+	int semindex = 4;
+
     ID = image_ID(IDname);
     xsize = data.image[ID].md[0].size[0];
     ysize = data.image[ID].md[0].size[1];
@@ -3828,7 +3830,7 @@ long IMAGE_BASIC_streamaverage(char *IDname, long NBcoadd, char *IDoutname, int 
 
 
     if(data.image[ID].sem>0) // drive semaphore to zero
-        while(sem_trywait(data.image[ID].semptr[0])==0) {}
+        while(sem_trywait(data.image[ID].semptr[semindex])==0) {}
 
     printf("\n\n");
     k = 0;
@@ -3849,7 +3851,7 @@ long IMAGE_BASIC_streamaverage(char *IDname, long NBcoadd, char *IDoutname, int 
         else
         {
             printf("[sem]...");
-            sem_wait(data.image[ID].semptr[0]);
+            sem_wait(data.image[ID].semptr[semindex]);
         }
 
         if(data.image[ID].md[0].naxis == 3)

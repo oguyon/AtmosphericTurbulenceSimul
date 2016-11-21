@@ -3173,16 +3173,9 @@ int CUDACOMP_extractModesLoop(char *in_stream, char *intot_stream, char *IDmodes
             semr = sem_timedwait(data.image[IDin].semptr[insem], &ts);
 
 
-            if(iter == 0)
-            {
-                printf("driving semaphore to zero ... ");
-                fflush(stdout);
-                sem_getvalue(data.image[IDin].semptr[2], &semval);
-                for(scnt=0; scnt<semval; scnt++)
-                    sem_trywait(data.image[IDin].semptr[2]);
-                printf("done\n");
-                fflush(stdout);
-            }
+			// drive semaphore to zero
+             while(sem_trywait(data.image[IDin].semptr[insem])==0) {}
+                     
         }
 		}
 		else // compute response of reference immediately
