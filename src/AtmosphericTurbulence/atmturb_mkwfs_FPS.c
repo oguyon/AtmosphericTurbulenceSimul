@@ -65,7 +65,10 @@ static MILK_HOT errno_t fpsexec(void)
         wavel *= 1e-3f;
     }
 
-    make_AtmosphericTurbulence_wavefront_series(wavel, (long) param_precision);
+    if (make_AtmosphericTurbulence_wavefront_series(wavel, (long) param_precision) != 0)
+    {
+        return RETURN_FAILURE;
+    }
 
     return RETURN_SUCCESS;
 }

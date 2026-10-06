@@ -35,6 +35,49 @@ typedef struct
 } atmturb_wfs_context_t;
 
 /**
+ * atmturb_wfs_load_default_layers - Load built-in 7-layer atmospheric turbulence profile
+ * @ctx: Pointer to simulation context.
+ *
+ * Return: 0 on success.
+ */
+static int atmturb_wfs_load_default_layers(atmturb_wfs_context_t *ctx)
+{
+    static const double def_alt[7] = {4215.0, 4230.0, 4349.0, 5007.0, 12000.0, 16200.0, 23701.0};
+    static const double def_cn2[7] = {5.32,   1.47,   1.08,   2.11,   1.83,    1.48,    0.697};
+    static const double def_spd[7] = {6.5,    6.55,   6.6,    6.7,   22.0,     9.5,     5.6};
+    static const double def_dir[7] = {1.47,   1.57,   1.67,   1.77,   3.10,    3.20,    3.30};
+
+    long count = 7;
+    ctx->nblayers = count;
+    ctx->alt = malloc(sizeof(double) * count);
+    ctx->cn2 = malloc(sizeof(double) * count);
+    ctx->spd = malloc(sizeof(double) * count);
+    ctx->dir = malloc(sizeof(double) * count);
+    ctx->outerscale = malloc(sizeof(double) * count);
+    ctx->innerscale = malloc(sizeof(double) * count);
+    ctx->sigmawspeed = malloc(sizeof(double) * count);
+    ctx->lwind = malloc(sizeof(double) * count);
+    ctx->xpos = calloc(count, sizeof(double));
+    ctx->ypos = calloc(count, sizeof(double));
+    ctx->vxpix = malloc(sizeof(double) * count);
+    ctx->vypix = malloc(sizeof(double) * count);
+    ctx->id_tm = malloc(sizeof(long) * count);
+
+    for (long k = 0; k < count; k++)
+    {
+        ctx->alt[k] = def_alt[k];
+        ctx->cn2[k] = def_cn2[k];
+        ctx->spd[k] = def_spd[k];
+        ctx->dir[k] = def_dir[k];
+        ctx->outerscale[k] = 50.0;
+        ctx->innerscale[k] = 0.01;
+        ctx->sigmawspeed[k] = 0.0;
+        ctx->lwind[k] = 500.0;
+    }
+    return 0;
+}
+
+/**
  * atmturb_wfs_read_layers - Read atmospheric profile file and allocate layer parameters
  * @fname: Path to turbulence profile text file.
  * @ctx: Pointer to simulation context.
@@ -46,6 +89,12 @@ static int atmturb_wfs_read_layers(const char *fname, atmturb_wfs_context_t *ctx
     FILE *fp = fopen(fname, "r");
     if (fp == NULL)
     {
+        if (strcmp(fname, "turbul.prof") == 0)
+        {
+            printf("[milkatmturb] Notice: Profile \"%s\" not found, using built-in 7-layer profile.\n",
+                   fname);
+            return atmturb_wfs_load_default_layers(ctx);
+        }
         printf("ERROR: cannot open profile \"%s\"\n", fname);
         return -1;
     }
@@ -268,7 +317,10 @@ static void atmturb_wfs_dispatch_render(const atmturb_wfs_context_t *ctx, long p
  */
 int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecision)
 {
-    AtmosphericTurbulence_ReadConf();
+    if (AtmosphericTurbulence_ReadConf() != 0)
+    {
+        return -1;
+    }
 
     atmturb_wfs_context_t ctx;
     if (atmturb_wfs_read_layers(CONF_TURBULENCE_PROF_FILE, &ctx) != 0)

@@ -7,6 +7,7 @@
  * @brief   Atmospheric turbulence configuration file reading and air state equations
  */
 
+#include <unistd.h>
 #include "AtmosphericTurbulence.h"
 #include "atmturb_types.h"
 
@@ -332,12 +333,116 @@ static void atmturb_read_conf_modes(void)
 }
 
 /**
+ * atmturb_write_default_profile - Create standard 7-layer turbulence profile
+ * @fname: Path to output profile file.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+static int atmturb_write_default_profile(const char *fname)
+{
+    FILE *fp = fopen(fname, "w");
+    if (fp == NULL)
+    {
+        return -1;
+    }
+
+    fprintf(fp, "# altitude(m)   relativeCN2     speed(m/s)      direction(rad)\n\n");
+    fprintf(fp, " 4215     5.32        6.5     1.47\n");
+    fprintf(fp, " 4230     1.47        6.55    1.57\n");
+    fprintf(fp, " 4349     1.08        6.6     1.67\n");
+    fprintf(fp, " 5007     2.11        6.7     1.77\n");
+    fprintf(fp, "12000     1.83       22.0     3.10\n");
+    fprintf(fp, "16200     1.48        9.5     3.20\n");
+    fprintf(fp, "23701     0.697       5.6     3.30\n");
+    fclose(fp);
+
+    printf("[milkatmturb] Created default atmospheric profile \"%s\"\n", fname);
+    return 0;
+}
+
+/**
+ * atmturb_write_default_config - Create standard default simulation configuration
+ * @fname: Path to output configuration file.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+static int atmturb_write_default_config(const char *fname)
+{
+    FILE *fp = fopen(fname, "w");
+    if (fp == NULL)
+    {
+        return -1;
+    }
+
+    fprintf(fp, "# Atmospheric Turbulence Simulation Default Configuration\n\n");
+    fprintf(fp, "TURBULENCE_REF_WAVEL      0.500000\n");
+    fprintf(fp, "TURBULENCE_SEEING         0.600000\n");
+    fprintf(fp, "TURBULENCE_PROF_FILE      turbul.prof\n");
+    fprintf(fp, "ZENITH_ANGLE              0.0\n");
+    fprintf(fp, "SOURCE_XPOS               0.0\n");
+    fprintf(fp, "SOURCE_YPOS               0.0\n");
+    fprintf(fp, "WFOUTPUT                  1\n");
+    fprintf(fp, "WF_FILE_PREFIX            wf\n");
+    fprintf(fp, "SHM_OUTPUT                1\n");
+    fprintf(fp, "MAKE_SWAVEFRONT           0\n");
+    fprintf(fp, "SLAMBDA                   1.650000\n");
+    fprintf(fp, "SWF_WRITE2DISK            0\n");
+    fprintf(fp, "SWF_FILE_PREFIX           swf\n");
+    fprintf(fp, "SHM_SOUTPUT               0\n");
+    fprintf(fp, "SHM_SPREFIX               shmswf\n");
+    fprintf(fp, "SHM_SOUTPUTM              0\n");
+    fprintf(fp, "WFsize                    256\n");
+    fprintf(fp, "PUPIL_SCALE               0.040000\n");
+    fprintf(fp, "REALTIME                  0\n");
+    fprintf(fp, "REALTIMEFACTOR            1.0\n");
+    fprintf(fp, "WFTIME_STEP               0.001000\n");
+    fprintf(fp, "TIME_SPAN                 0.050000\n");
+    fprintf(fp, "NB_TSPAN                  1\n");
+    fprintf(fp, "SIMTDELAY                 0\n");
+    fprintf(fp, "WAITFORSEM                0\n");
+    fprintf(fp, "WAITSEMIMNAME             wfsimwait\n");
+    fprintf(fp, "SKIP_EXISTING             0\n");
+    fprintf(fp, "WF_RAW_SIZE               256\n");
+    fprintf(fp, "MASTER_SIZE               2048\n");
+    fprintf(fp, "WAVEFRONT_AMPLITUDE       0\n");
+    fprintf(fp, "FRESNEL_PROPAGATION       0\n");
+    fprintf(fp, "FRESNEL_PROPAGATION_BIN   100.0\n");
+    fclose(fp);
+
+    printf("[milkatmturb] Created default simulation configuration \"%s\"\n", fname);
+    if (access("turbul.prof", R_OK) != 0)
+    {
+        atmturb_write_default_profile("turbul.prof");
+    }
+    return 0;
+}
+
+/**
  * AtmosphericTurbulence_ReadConf - Read full simulation configuration from CONFFILE
  *
- * Return: 0 on success.
+ * Return: 0 on success, -1 on failure.
  */
 int AtmosphericTurbulence_ReadConf(void)
 {
+    if (access(CONFFILE, R_OK) != 0)
+    {
+        if (strcmp(CONFFILE, "WFsim.conf") == 0)
+        {
+            printf("[milkatmturb] Notice: \"%s\" not found in working directory.\n", CONFFILE);
+            if (atmturb_write_default_config(CONFFILE) != 0)
+            {
+                printf("[milkatmturb] Warning: could not write \"%s\", using built-in defaults.\n",
+                       CONFFILE);
+                return 0;
+            }
+        }
+        else
+        {
+            printf("ERROR: Configuration file \"%s\" not found.\n", CONFFILE);
+            return -1;
+        }
+    }
+
     atmturb_read_conf_turbulence();
     atmturb_read_conf_output();
     atmturb_read_conf_timing();

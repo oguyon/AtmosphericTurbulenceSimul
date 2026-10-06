@@ -7,6 +7,7 @@
  * @brief   Atmospheric model configuration file parser and builder
  */
 
+#include <unistd.h>
 #include "CLIcore.h"
 #include "COREMOD_tools/COREMOD_tools.h"
 #include "AtmosphereModel.h"
@@ -142,6 +143,12 @@ static void atmmod_write_site_dispersion(const char *fname)
  */
 int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda)
 {
+    if (access(CONFFILE, R_OK) != 0)
+    {
+        printf("ERROR: Configuration file \"%s\" not found.\n", CONFFILE);
+        return -1;
+    }
+
     atmmod_read_site_config(CONFFILE);
     atmmod_load_all_species_tables();
 

@@ -31,6 +31,7 @@ const struct MaterialIndex MatCode[] = {
     {     "He",   8 },
     {     "H2",   9 },
     {   "H2Og",  10 },
+    {    "H2O",  10 },
     {    "CO2",  11 },
     {     "Ne",  12 },
     {      "O",  13 },
@@ -54,10 +55,14 @@ int init_OpticsMaterials(void)
  * OPTICSMATERIALS_code - Lookup numeric material identifier by name
  * @name: Name of the optical material
  *
- * Return: Integer material code, or exits on error.
+ * Return: Integer material code, or -1 if not recognized.
  */
 int OPTICSMATERIALS_code(char *name)
 {
+    if (name == NULL)
+    {
+        return -1;
+    }
     for (int i = 0; MatCode[i].name != NULL; i++)
     {
         if (strcmp(name, MatCode[i].name) == 0)
@@ -66,15 +71,14 @@ int OPTICSMATERIALS_code(char *name)
         }
     }
 
-    fprintf(stderr, "ERROR: Material name \"%s\" not recognized\n", name);
-    exit(EXIT_FAILURE);
+    return -1;
 }
 
 /**
  * OPTICSMATERIALS_name - Lookup material name string by numeric code
  * @code: Integer material code
  *
- * Return: String name of the optical material, or exits on error.
+ * Return: String name of the optical material, or NULL if not recognized.
  */
 char *OPTICSMATERIALS_name(int code)
 {
@@ -86,8 +90,7 @@ char *OPTICSMATERIALS_name(int code)
         }
     }
 
-    fprintf(stderr, "ERROR: Material code \"%d\" not recognized\n", code);
-    exit(EXIT_FAILURE);
+    return NULL;
 }
 
 /**
@@ -101,6 +104,11 @@ char *OPTICSMATERIALS_name(int code)
  */
 double OPTICSMATERIALS_n(int material, double lambda)
 {
+    if (material < 0)
+    {
+        return 1.0;
+    }
+
     double lambdaum = lambda * 1.0e6;
     double lambdanm = lambda * 1.0e9;
     double lambdaa  = lambdanm * 10.0;
