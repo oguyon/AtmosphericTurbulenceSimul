@@ -317,9 +317,12 @@ static void atmturb_wfs_dispatch_render(const atmturb_wfs_context_t *ctx, long p
  */
 int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecision)
 {
-    if (AtmosphericTurbulence_ReadConf() != 0)
+    if (CONFFILE[0] != '\0')
     {
-        return -1;
+        if (AtmosphericTurbulence_ReadConf() != 0)
+        {
+            return -1;
+        }
     }
 
     atmturb_wfs_context_t ctx;
@@ -333,8 +336,11 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
     long nbframes = (long)(CONF_TIME_SPAN / CONF_WFTIME_STEP + 0.5);
     long pup_size = CONF_WFsize;
 
-    imageID IDout_pha = create_3Dimage_ID("outarraypha", pup_size, pup_size, nbframes);
-    imageID IDout_amp = create_3Dimage_ID("outarrayamp", pup_size, pup_size, nbframes);
+    const char *pha_name = (CONF_WF_PHASE_NAME[0] != '\0') ? CONF_WF_PHASE_NAME : "outarraypha";
+    const char *amp_name = (CONF_WF_AMPL_NAME[0] != '\0') ? CONF_WF_AMPL_NAME : "outarrayamp";
+
+    imageID IDout_pha = create_3Dimage_ID(pha_name, pup_size, pup_size, nbframes);
+    imageID IDout_amp = create_3Dimage_ID(amp_name, pup_size, pup_size, nbframes);
     imageID IDout_spha = create_3Dimage_ID("outsarraypha", pup_size, pup_size, nbframes);
     imageID IDout_samp = create_3Dimage_ID("outsarrayamp", pup_size, pup_size, nbframes);
 
@@ -356,8 +362,11 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 
     if (CONF_WFOUTPUT)
     {
-        save_fl_fits("outarraypha", "outarraypha.fits");
-        save_fl_fits("outarrayamp", "outarrayamp.fits");
+        char fname_pha[200], fname_amp[200];
+        snprintf(fname_pha, sizeof(fname_pha), "%s.fits", pha_name);
+        snprintf(fname_amp, sizeof(fname_amp), "%s.fits", amp_name);
+        save_fl_fits(pha_name, fname_pha);
+        save_fl_fits(amp_name, fname_amp);
     }
     if (CONF_SWF_WRITE2DISK)
     {

@@ -20,7 +20,7 @@ double C_ls = 2.686777447e25;      // Loschmidt constant [m-3]
 double rhocoeff = 1.0;
 
 // Configuration defaults and state
-char CONFFILE[200] = "WFsim.conf";
+char CONFFILE[200] = "";
 
 float CONF_LAMBDA = 0.5e-6f;
 float CONF_SEEING = 0.8f;
@@ -31,6 +31,8 @@ float CONF_SOURCE_Ypos = 0.0f;
 
 int CONF_WFOUTPUT = 1;
 char CONF_WF_FILE_PREFIX[200] = "wf";
+char CONF_WF_PHASE_NAME[100] = "outarraypha";
+char CONF_WF_AMPL_NAME[100]  = "outarrayamp";
 int CONF_SHM_OUTPUT = 0;
 
 int CONF_MAKE_SWAVEFRONT = 0;
@@ -424,6 +426,11 @@ static int atmturb_write_default_config(const char *fname)
  */
 int AtmosphericTurbulence_ReadConf(void)
 {
+    if (CONFFILE[0] == '\0')
+    {
+        return 0;
+    }
+
     if (access(CONFFILE, R_OK) != 0)
     {
         if (strcmp(CONFFILE, "WFsim.conf") == 0)
