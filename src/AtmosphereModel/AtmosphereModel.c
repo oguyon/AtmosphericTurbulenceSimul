@@ -60,32 +60,12 @@ double v_ABSCOEFF = 0.0;
 double v_TRANSM = 1.0;
 
 /**
- * AtmosphereModel_Create_from_CONF_cli - CLI wrapper for configuration builder
- *
- * Return: 0 on success, 1 on argument error.
- */
-static int AtmosphereModel_Create_from_CONF_cli(void)
-{
-    if (CLI_checkarg(1, 3) + CLI_checkarg(2, 1) == 0)
-    {
-        AtmosphereModel_Create_from_CONF(data.cmdargtoken[1].val.string,
-                                         data.cmdargtoken[2].val.numf);
-        return 0;
-    }
-    return 1;
-}
-
-/**
  * init_AtmosphereModel - Initialize module and allocate profile arrays
  *
  * Return: 0 on success.
  */
 int init_AtmosphereModel(void)
 {
-    strcpy(data.module[data.NBmodule].name, __FILE__);
-    strcpy(data.module[data.NBmodule].info, "Atmosphere Model");
-    data.NBmodule++;
-
     if (initAtmosphereModel == 0)
     {
         denstot = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
@@ -111,12 +91,6 @@ int init_AtmosphereModel(void)
 
         initAtmosphereModel = 1;
     }
-
-    RegisterCLIcommand("mkatmospheremodel", __FILE__, AtmosphereModel_Create_from_CONF_cli,
-                       "make Earth atmosphere model",
-                       "<conf file> <wavelength>",
-                       "mkatmospheremodel conf.txt 0.5e-6",
-                       "int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda)");
 
     return 0;
 }

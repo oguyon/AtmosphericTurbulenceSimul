@@ -70,7 +70,7 @@ milk-cli > exitCLI
    ```bash
    cd /path/to/milk
    cmake -B _build -DCMAKE_BUILD_TYPE=Release
-   cmake --build _build --target milkatmturb milk-fpsexec-atmturb-mkwfs milk-fpsexec-atmturb-mkhvturb -j
+   cmake --build _build --target milkatmturb milk-fpsexec-atmturb-mkwfs milk-fpsexec-atmturb-mkhvturb milk-fpsexec-atmturb-mkmastert milk-fpsexec-atmturb-mkvonkarman milk-fpsexec-wfprop-fresnel -j
    ```
 
 3. **Install to system**:
@@ -115,6 +115,55 @@ milk-fpsexec-atmturb-mkwfs exec 1650.0 0 WFsim.conf
 | 0 | `.slambda` | `FLOAT32` | `1650.0` | Science wavelength [$\text{nm}$ or $\mu\text{m}$] |
 | 1 | `.precision`| `INT32` | `0` | Precision mode (`0` = single precision `float`, `1` = `double`) |
 | - | `.conffile` | `FILENAME`| `WFsim.conf` | Simulation configuration file |
+
+#### `milk-fpsexec-atmturb-mkmastert` — Generate Master Turbulence Screens
+Generates a pair of normalized master phase screens in the Fourier domain with outer and inner scale filtering.
+
+```bash
+# Syntax: milk-fpsexec-atmturb-mkmastert exec <size> <outerscale> <innerscale> <precision> <screen0> <screen1>
+milk-fpsexec-atmturb-mkmastert exec 2048 50.0 1.0 0 scr0 scr1
+```
+
+| Positional Arg | Keyword | Type | Default | Description |
+| :---: | :--- | :--- | :--- | :--- |
+| 0 | `.size` | `INT32` | `2048` | Screen grid dimension [pixels] |
+| 1 | `.outerscale` | `FLOAT32` | `100.0` | Outer scale in grid units [pixels] |
+| 2 | `.innerscale` | `FLOAT32` | `1.0` | Inner scale in grid units [pixels] |
+| 3 | `.precision` | `INT32` | `0` | Precision mode (`0` = single, `1` = double) |
+| 4 | `.screen0` | `STREAMNAME` | `turbm00_p0` | Output screen 0 image name |
+| 5 | `.screen1` | `STREAMNAME` | `turbm00_p1` | Output screen 1 image name |
+
+#### `milk-fpsexec-atmturb-mkvonkarman` — Generate von Karman Wind Velocity Series
+Synthesizes a 3-channel 1D time series $[u, v, w]$ representing longitudinal, transverse, and vertical turbulent wind fluctuations.
+
+```bash
+# Syntax: milk-fpsexec-atmturb-mkvonkarman exec <vksize> <pixscale> <sigmawind> <lwind> <outname>
+milk-fpsexec-atmturb-mkvonkarman exec 8192 0.1 20.0 50.0 vkwind
+```
+
+| Positional Arg | Keyword | Type | Default | Description |
+| :---: | :--- | :--- | :--- | :--- |
+| 0 | `.vksize` | `INT32` | `8192` | Sample count of 1D series |
+| 1 | `.pixscale` | `FLOAT32` | `0.1` | Physical sampling step [m] |
+| 2 | `.sigmawind` | `FLOAT32` | `20.0` | Velocity standard deviation [m/s] |
+| 3 | `.lwind` | `FLOAT32` | `50.0` | Turbulence outer scale [m] |
+| 4 | `.outname` | `STREAMNAME` | `vKwind` | Output 3D image name ($v_{\text{size}} \times 1 \times 3$) |
+
+#### `milk-fpsexec-wfprop-fresnel` — Fresnel Wavefront Propagation
+Propagates a 2D complex optical field across distance $z$ using the Fourier Fresnel quadratic phase transfer function.
+
+```bash
+# Syntax: milk-fpsexec-wfprop-fresnel exec <inname> <outname> <pupilscale> <distance> <lambda>
+milk-fpsexec-wfprop-fresnel exec wfin wfout 0.01 1000.0 0.5e-6
+```
+
+| Positional Arg | Keyword | Type | Default | Description |
+| :---: | :--- | :--- | :--- | :--- |
+| 0 | `.inname` | `STREAMNAME` | `wfin` | Input complex image name |
+| 1 | `.outname` | `STREAMNAME` | `wfout` | Output complex image name |
+| 2 | `.pupilscale` | `FLOAT64` | `0.01` | Pupil sampling scale [m/pixel] |
+| 3 | `.distance` | `FLOAT64` | `1000.0` | Propagation distance [m] |
+| 4 | `.lambda` | `FLOAT64` | `0.5e-6` | Optical wavelength [m] |
 
 #### Background Daemon Mode (tmux)
 Run continuous simulation in the background and control it in real-time:
