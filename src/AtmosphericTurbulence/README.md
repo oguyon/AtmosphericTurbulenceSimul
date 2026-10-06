@@ -21,8 +21,13 @@ The `AtmosphericTurbulence` module provides multi-layer atmospheric turbulence s
 - `atmturb_linpred_pixel.c`: Pixel-level predictor training and shift-invariant 2D kernel extraction (`AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract`).
 - `atmturb_linpred_test.c`: Synthetic tip-tilt vibration test sequences and predictor verification (`AtmosphericTurbulence_mkTestTTseq`).
 - `atmturb_wfs_sim.c`: Multi-layer extruded wavefront time-series simulation engine (`make_AtmosphericTurbulence_wavefront_series`).
+- `atmturb_simd.h`: Declarations for SIMD-accelerated extrusion, scaling, and initialization.
+- `atmturb_simd_scalar.c`: Portable scalar reference implementation for extrusion and array ops.
+- `atmturb_simd_avx2.c`: AVX2 and FMA vectorized compute kernels for phase extrusion and scaling.
 - `atmturb_mkwfs_FPS.c`: FPS V2 compute unit for CLI and standalone execution (`milk-fpsexec-atmturb-mkwfs`).
 - `atmturb_mkhvturb_FPS.c`: FPS V2 compute unit for Cn2 profile generation (`milk-fpsexec-atmturb-mkhvturb`).
+- `atmturb_mkmastert_FPS.c`: FPS V2 compute unit for master turbulence screens (`milk-fpsexec-atmturb-mkmastert`).
+- `atmturb_mkvonkarman_FPS.c`: FPS V2 compute unit for von Karman wind synthesis (`milk-fpsexec-atmturb-mkvonkarman`).
 
 ## Public Headers
 

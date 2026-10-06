@@ -7,9 +7,11 @@
  * @brief   Multi-layer atmospheric turbulence wavefront series simulation
  */
 
+#include <omp.h>
 #include "AtmosphereModel/AtmosphereModel.h"
 #include "AtmosphericTurbulence.h"
 #include "atmturb_types.h"
+#include "atmturb_simd.h"
 
 typedef struct
 {
@@ -129,47 +131,46 @@ static void atmturb_wfs_load_screens(atmturb_wfs_context_t *ctx, long master_siz
 }
 
 /**
- * atmturb_wfs_extrude_layer - Extract and bilinear/bicubic interpolate pupil area from screen
- * @screen_id: Master phase screen image ID.
- * @x0: Offset X coordinate in screen pixels.
- * @y0: Offset Y coordinate in screen pixels.
- * @msize: Master screen linear dimension.
- * @pupil_size: Extracted pupil dimension.
- * @out_pupil: Output buffer for extracted layer pupil.
+ * atmturb_wfs_render_frames - Multi-threaded SIMD rendering of simulation time steps
+ * @ctx: Pointer to simulation context.
+ * @pup_size: Linear dimension of the pupil grid.
+ * @nbframes: Number of frames to synthesize.
+ * @Scoeff: Chromatic dispersion scaling coefficient for secondary wavelength.
+ * @IDout_pha: Primary phase 3D image ID.
+ * @IDout_amp: Primary amplitude 3D image ID.
+ * @IDout_spha: Secondary phase 3D image ID.
+ * @IDout_samp: Secondary amplitude 3D image ID.
  */
-static void atmturb_wfs_extrude_layer(imageID screen_id, double x0, double y0,
-                                      long msize, long pupil_size, float *out_pupil)
+static void atmturb_wfs_render_frames(const atmturb_wfs_context_t *ctx, long pup_size,
+                                      long nbframes, double Scoeff, imageID IDout_pha,
+                                      imageID IDout_amp, imageID IDout_spha,
+                                      imageID IDout_samp)
 {
-    for (long jj = 0; jj < pupil_size; jj++)
+    long frame_pixels = pup_size * pup_size;
+
+    #pragma omp parallel for schedule(dynamic)
+    for (long t = 0; t < nbframes; t++)
     {
-        for (long ii = 0; ii < pupil_size; ii++)
+        long slice = t * frame_pixels;
+        float *pha_slice  = &dcimg[IDout_pha].array.F[slice];
+        float *amp_slice  = &dcimg[IDout_amp].array.F[slice];
+        float *spha_slice = &dcimg[IDout_spha].array.F[slice];
+        float *samp_slice = &dcimg[IDout_samp].array.F[slice];
+
+        atmturb_init_phase_amp(pha_slice, amp_slice, frame_pixels);
+
+        for (long k = 0; k < ctx->nblayers; k++)
         {
-            double px = x0 + ii;
-            double py = y0 + jj;
+            double cur_x = (double)(t + 1) * ctx->vxpix[k];
+            double cur_y = (double)(t + 1) * ctx->vypix[k];
+            float weight = (float)sqrt(ctx->cn2[k]);
 
-            long ix = ((long)floor(px)) % msize;
-            long iy = ((long)floor(py)) % msize;
-            if (ix < 0) ix += msize;
-            if (iy < 0) iy += msize;
-
-            long ix1 = (ix + 1) % msize;
-            long iy1 = (iy + 1) % msize;
-
-            float fx = (float)(px - floor(px));
-            float fy = (float)(py - floor(py));
-
-            float v00 = dcimg[screen_id].array.F[iy * msize + ix];
-            float v10 = dcimg[screen_id].array.F[iy * msize + ix1];
-            float v01 = dcimg[screen_id].array.F[iy1 * msize + ix];
-            float v11 = dcimg[screen_id].array.F[iy1 * msize + ix1];
-
-            float val = (1.0f - fx) * (1.0f - fy) * v00 +
-                        fx * (1.0f - fy) * v10 +
-                        (1.0f - fx) * fy * v01 +
-                        fx * fy * v11;
-
-            out_pupil[jj * pupil_size + ii] = val;
+            atmturb_extrude_accumulate(dcimg[ctx->id_tm[k]].array.F, CONF_MASTER_SIZE,
+                                       cur_x, cur_y, pup_size, weight, pha_slice);
         }
+
+        atmturb_scale_float_array(spha_slice, pha_slice, (float)Scoeff, frame_pixels);
+        atmturb_scale_float_array(samp_slice, amp_slice, 1.0f, frame_pixels);
     }
 }
 
@@ -221,8 +222,6 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
     imageID IDout_spha = create_3Dimage_ID("outsarraypha", pup_size, pup_size, nbframes);
     imageID IDout_samp = create_3Dimage_ID("outsarrayamp", pup_size, pup_size, nbframes);
 
-    float *layer_buf = malloc(sizeof(float) * pup_size * pup_size);
-
     double slambda = slambdaum * 1e-6;
     double Nlambda = AtmosphereModel_stdAtmModel_N(0.0f, CONF_LAMBDA, 0);
     double Nslambda = AtmosphereModel_stdAtmModel_N(0.0f, (float)slambda, 0);
@@ -234,39 +233,9 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
         ctx.vypix[k] = ctx.spd[k] * sin(ctx.dir[k]) * CONF_WFTIME_STEP / CONF_PUPIL_SCALE;
     }
 
-    for (long t = 0; t < nbframes; t++)
-    {
-        long slice = t * pup_size * pup_size;
-        for (long i = 0; i < pup_size * pup_size; i++)
-        {
-            dcimg[IDout_pha].array.F[slice + i] = 0.0f;
-            dcimg[IDout_amp].array.F[slice + i] = 1.0f;
-        }
+    atmturb_wfs_render_frames(&ctx, pup_size, nbframes, Scoeff,
+                              IDout_pha, IDout_amp, IDout_spha, IDout_samp);
 
-        for (long k = 0; k < ctx.nblayers; k++)
-        {
-            ctx.xpos[k] += ctx.vxpix[k];
-            ctx.ypos[k] += ctx.vypix[k];
-
-            atmturb_wfs_extrude_layer(ctx.id_tm[k], ctx.xpos[k], ctx.ypos[k],
-                                     CONF_MASTER_SIZE, pup_size, layer_buf);
-
-            float weight = (float)sqrt(ctx.cn2[k]);
-            for (long i = 0; i < pup_size * pup_size; i++)
-            {
-                dcimg[IDout_pha].array.F[slice + i] += weight * layer_buf[i];
-            }
-        }
-
-        for (long i = 0; i < pup_size * pup_size; i++)
-        {
-            dcimg[IDout_spha].array.F[slice + i] =
-                (float)(dcimg[IDout_pha].array.F[slice + i] * Scoeff);
-            dcimg[IDout_samp].array.F[slice + i] = 1.0f;
-        }
-    }
-
-    free(layer_buf);
     atmturb_wfs_free_context(&ctx);
 
     if (CONF_WFOUTPUT)

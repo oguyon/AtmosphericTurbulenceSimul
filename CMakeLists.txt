@@ -50,6 +50,8 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_linpred_pixel.c
     src/AtmosphericTurbulence/atmturb_linpred_test.c
     src/AtmosphericTurbulence/atmturb_wfs_sim.c
+    src/AtmosphericTurbulence/atmturb_simd_scalar.c
+    src/AtmosphericTurbulence/atmturb_simd_avx2.c
     src/AtmosphericTurbulence/atmturb_mkwfs_FPS.c
     src/AtmosphericTurbulence/atmturb_mkhvturb_FPS.c
     src/AtmosphericTurbulence/atmturb_mkmastert_FPS.c
@@ -70,11 +72,17 @@ set(INCLUDEFILES
     src/milkatmturb.h
     src/AtmosphereModel/AtmosphereModel.h
     src/AtmosphericTurbulence/AtmosphericTurbulence.h
+    src/AtmosphericTurbulence/atmturb_simd.h
     src/OpticsMaterials/OpticsMaterials.h
     src/WFpropagate/WFpropagate.h
 )
 
 file(GLOB SCRIPTS "src/AtmosphericTurbulence/scripts/*")
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx2.c
+        PROPERTIES COMPILE_FLAGS "-mavx2 -mfma")
+endif()
 
 # Build shared library for milk CLI
 add_library(${LIBNAME} SHARED ${SOURCEFILES})

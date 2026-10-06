@@ -7,6 +7,7 @@
  * @brief   2D Fresnel diffractive wavefront propagation algorithms
  */
 
+#define _GNU_SOURCE
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,6 +53,7 @@ int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double 
 
     if (atype == COMPLEX_FLOAT)
     {
+        #pragma omp parallel for
         for (long jj = 0; jj < naxes[1]; jj++)
         {
             long jj1 = naxes[0] * jj;
@@ -61,16 +63,19 @@ int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double 
                 long   ii1    = jj1 + ii;
                 long   ii2    = ii - n0h;
                 double sqdist = (double) (ii2 * ii2 + jj2);
-                double angle  = -coeff * sqdist;
-                double re     = dcimg[ID].array.CF[ii1].re / co1;
-                double im     = dcimg[ID].array.CF[ii1].im / co1;
-                dcimg[ID].array.CF[ii1].re = (float) (re * cos(angle) - im * sin(angle));
-                dcimg[ID].array.CF[ii1].im = (float) (re * sin(angle) + im * cos(angle));
+                float  angle  = (float) (-coeff * sqdist);
+                float  s, c;
+                sincosf(angle, &s, &c);
+                float re = (float) (dcimg[ID].array.CF[ii1].re / co1);
+                float im = (float) (dcimg[ID].array.CF[ii1].im / co1);
+                dcimg[ID].array.CF[ii1].re = re * c - im * s;
+                dcimg[ID].array.CF[ii1].im = re * s + im * c;
             }
         }
     }
     else
     {
+        #pragma omp parallel for
         for (long jj = 0; jj < naxes[1]; jj++)
         {
             long jj1 = naxes[0] * jj;
@@ -81,10 +86,12 @@ int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double 
                 long   ii2    = ii - n0h;
                 double sqdist = (double) (ii2 * ii2 + jj2);
                 double angle  = -coeff * sqdist;
-                double re     = dcimg[ID].array.CD[ii1].re / co1;
-                double im     = dcimg[ID].array.CD[ii1].im / co1;
-                dcimg[ID].array.CD[ii1].re = re * cos(angle) - im * sin(angle);
-                dcimg[ID].array.CD[ii1].im = re * sin(angle) + im * cos(angle);
+                double s, c;
+                sincos(angle, &s, &c);
+                double re = dcimg[ID].array.CD[ii1].re / co1;
+                double im = dcimg[ID].array.CD[ii1].im / co1;
+                dcimg[ID].array.CD[ii1].re = re * c - im * s;
+                dcimg[ID].array.CD[ii1].im = re * s + im * c;
             }
         }
     }

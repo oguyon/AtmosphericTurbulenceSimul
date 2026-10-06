@@ -26,24 +26,29 @@ static void atmturb_generate_spatial_distance_map(const char *outname, long size
     imageID ID = (precision == 0) ? create_2Dimage_ID(outname, size, size)
                                   : create_2Dimage_ID_double(outname, size, size);
 
-    for (long ii = 0; ii < size; ii++)
+    double rlim2 = rlim * rlim;
+    double f0_sq = outer_f0 * outer_f0;
+
+    #pragma omp parallel for
+    for (long jj = 0; jj < size; jj++)
     {
-        for (long jj = 0; jj < size; jj++)
+        double dy = 1.0 * jj - size / 2;
+        double dy2 = dy * dy;
+        long row_idx = jj * size;
+
+        for (long ii = 0; ii < size; ii++)
         {
             double dx = 1.0 * ii - size / 2;
-            double dy = 1.0 * jj - size / 2;
-            double r = sqrt(dx * dx + dy * dy);
-            double val = (rlim_mode == 1 && r < rlim)
-                             ? 0.0
-                             : sqrt(dx * dx + dy * dy + outer_f0 * outer_f0);
+            double r2 = dx * dx + dy2;
+            double val = (rlim_mode == 1 && r2 < rlim2) ? 0.0 : sqrt(r2 + f0_sq);
 
             if (precision == 0)
             {
-                dcimg[ID].array.F[jj * size + ii] = (float)val;
+                dcimg[ID].array.F[row_idx + ii] = (float)val;
             }
             else
             {
-                dcimg[ID].array.D[jj * size + ii] = val;
+                dcimg[ID].array.D[row_idx + ii] = val;
             }
         }
     }
@@ -60,22 +65,27 @@ static void atmturb_apply_innerscale_cutoff(const char *imname, long size,
                                            double inner_f0, long precision)
 {
     imageID ID = image_ID(imname);
-    for (long ii = 0; ii < size; ii++)
+    double inv_two_inner2 = 0.5 / (inner_f0 * inner_f0);
+
+    #pragma omp parallel for
+    for (long jj = 0; jj < size; jj++)
     {
-        for (long jj = 0; jj < size; jj++)
+        double dy = 1.0 * jj - size / 2;
+        double dy2 = dy * dy;
+        long row_idx = jj * size;
+
+        for (long ii = 0; ii < size; ii++)
         {
             double dx = 1.0 * ii - size / 2;
-            double dy = 1.0 * jj - size / 2;
-            double iscoeff = exp(-(dx * dx + dy * dy) / (inner_f0 * inner_f0));
-            double factor = sqrt(iscoeff);
+            double factor = exp(-(dx * dx + dy2) * inv_two_inner2);
 
             if (precision == 0)
             {
-                dcimg[ID].array.F[jj * size + ii] *= (float)factor;
+                dcimg[ID].array.F[row_idx + ii] *= (float)factor;
             }
             else
             {
-                dcimg[ID].array.D[jj * size + ii] *= factor;
+                dcimg[ID].array.D[row_idx + ii] *= factor;
             }
         }
     }
