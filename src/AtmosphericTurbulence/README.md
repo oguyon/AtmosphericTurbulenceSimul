@@ -21,6 +21,7 @@ The `AtmosphericTurbulence` module provides multi-layer atmospheric turbulence s
 - `atmturb_linpred_pixel.c`: Pixel-level predictor training and shift-invariant 2D kernel extraction (`AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract`).
 - `atmturb_linpred_test.c`: Synthetic tip-tilt vibration test sequences and predictor verification (`AtmosphericTurbulence_mkTestTTseq`).
 - `atmturb_wfs_sim.c`: Multi-layer extruded wavefront time-series simulation engine (`make_AtmosphericTurbulence_wavefront_series`).
+- `atmturb_cuda.cu` / `atmturb_cuda.h`: CUDA GPU accelerated multi-layer wavefront extrusion kernel.
 - `atmturb_simd.h`: Declarations for SIMD-accelerated extrusion, scaling, initialization, and ISA queries.
 - `atmturb_simd_scalar.c`: Portable scalar reference implementation for extrusion and array ops.
 - `atmturb_simd_avx2.c`: AVX2 and FMA 256-bit vectorized compute kernels (8 floats/vector).

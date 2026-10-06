@@ -44,10 +44,16 @@ MKVONKARMAN_EXEC=$(find_executable "milk-fpsexec-atmturb-mkvonkarman") || {
     exit 1
 }
 
+WFPROP_EXEC=$(find_executable "milk-fpsexec-wfprop-fresnel") || {
+    echo "ERROR: milk-fpsexec-wfprop-fresnel not found." >&2
+    exit 1
+}
+
 echo "=== Testing milkatmturb FPS Components ==="
 echo "mkhvturb:    $MKHVTURB_EXEC"
 echo "mkmastert:   $MKMASTERT_EXEC"
 echo "mkvonkarman: $MKVONKARMAN_EXEC"
+echo "wfprop:      $WFPROP_EXEC"
 
 TEST_TMPDIR="$(mktemp -d /tmp/test_fps_components_XXXXXX)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -77,5 +83,10 @@ echo "  [OK] Master turbulence screens generated"
 echo "Running atmturb-mkvonkarman..."
 "$MKVONKARMAN_EXEC" exec 512 0.1 20.0 50.0 vkwind
 echo "  [OK] von Karman wind series synthesized"
+
+# 4. Test Fresnel propagation component
+echo "Running wfprop-fresnel..."
+"$WFPROP_EXEC" exec wfin wfout 0.01 1000.0 0.5e-6
+echo "  [OK] Fresnel diffractive propagation verified"
 
 echo "=== All FPS component tests passed successfully! ==="

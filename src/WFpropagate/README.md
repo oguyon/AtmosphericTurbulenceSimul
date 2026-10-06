@@ -9,7 +9,9 @@ The `WFpropagate` module implements Fresnel optical wavefront propagation using 
 ## Components
 
 - `WFpropagate.c` / `WFpropagate.h`: Public API module initialization and milk CLI command registration.
-- `wfprop_fresnel.c`: Fresnel wavefront propagation kernels, transfer function initialization, and plane-to-plane propagation.
+- `wfprop_fresnel.c`: Fresnel wavefront propagation orchestrator with automatic CUDA/CPU dispatch.
+- `wfprop_fresnel_cuda.cu` / `wfprop_fresnel_cuda.h`: CUDA GPU accelerated 2D cuFFT Fresnel propagation.
+- `wfprop_fresnel_FPS.c`: FPS V2 compute unit for CLI and standalone execution (`milk-fpsexec-wfprop-fresnel`).
 - `wfprop_cube.c`: Multi-distance propagation creating amplitude and phase data cubes.
 - `wfprop_lyot.c`: Optical train simulation including focal plane masks, Lyot stops, and multi-plane Fresnel diffraction.
 
@@ -28,3 +30,5 @@ The `WFpropagate` module implements Fresnel optical wavefront propagation using 
 - `CLIcore` (image memory management, command registration)
 - `milkCOREMODarith`, `milkCOREMODmemory`, `milkfft`
 - `OpticsMaterials`
+- CUDA Toolkit / cuFFT (when GPU acceleration is enabled)
+- OpenMP (multi-threaded CPU propagation fallback)

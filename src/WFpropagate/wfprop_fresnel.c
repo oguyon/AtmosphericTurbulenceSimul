@@ -25,6 +25,69 @@
 
 #define SBUFFERSIZE 2000
 
+#if defined(HAVE_CUDA)
+#    include "wfprop_fresnel_cuda.h"
+#endif
+
+/**
+ * wfprop_fresnel_propagate_cpu - Apply quadratic phase modulation on CPU
+ * @ID: Complex image ID in dcimg.
+ * @nx: Horizontal grid dimension.
+ * @ny: Vertical grid dimension.
+ * @coeff: Quadratic phase coefficient.
+ * @atype: Complex data type (COMPLEX_FLOAT or COMPLEX_DOUBLE).
+ */
+static void wfprop_fresnel_propagate_cpu(long ID, long nx, long ny, double coeff, int atype)
+{
+    double co1 = 1.0 * nx * ny;
+    long n0h   = nx / 2;
+
+    if (atype == COMPLEX_FLOAT)
+    {
+        #pragma omp parallel for
+        for (long jj = 0; jj < ny; jj++)
+        {
+            long jj1 = nx * jj;
+            long jj2 = (jj - ny / 2) * (jj - ny / 2);
+            for (long ii = 0; ii < nx; ii++)
+            {
+                long   ii1    = jj1 + ii;
+                long   ii2    = ii - n0h;
+                double sqdist = (double)(ii2 * ii2 + jj2);
+                float  angle  = (float)(-coeff * sqdist);
+                float  s, c;
+                sincosf(angle, &s, &c);
+                float re = (float)(dcimg[ID].array.CF[ii1].re / co1);
+                float im = (float)(dcimg[ID].array.CF[ii1].im / co1);
+                dcimg[ID].array.CF[ii1].re = re * c - im * s;
+                dcimg[ID].array.CF[ii1].im = re * s + im * c;
+            }
+        }
+    }
+    else
+    {
+        #pragma omp parallel for
+        for (long jj = 0; jj < ny; jj++)
+        {
+            long jj1 = nx * jj;
+            long jj2 = (jj - ny / 2) * (jj - ny / 2);
+            for (long ii = 0; ii < nx; ii++)
+            {
+                long   ii1    = jj1 + ii;
+                long   ii2    = ii - n0h;
+                double sqdist = (double)(ii2 * ii2 + jj2);
+                double angle  = -coeff * sqdist;
+                double s, c;
+                sincos(angle, &s, &c);
+                double re = dcimg[ID].array.CD[ii1].re / co1;
+                double im = dcimg[ID].array.CD[ii1].im / co1;
+                dcimg[ID].array.CD[ii1].re = re * c - im * s;
+                dcimg[ID].array.CD[ii1].im = re * s + im * c;
+            }
+        }
+    }
+}
+
 /**
  * Fresnel_propagate_wavefront - Fresnel propagate complex optical field
  * @in: Name of input complex image
@@ -39,62 +102,44 @@
  */
 int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double z, double lambda)
 {
+    long IDin = image_ID(in);
+    if (IDin == -1)
+    {
+        printf("Stream [%s] not found\n", in);
+        return -1;
+    }
+    long nx   = dcimg[IDin].md[0].size[0];
+    long ny   = dcimg[IDin].md[0].size[1];
+    int atype = dcimg[IDin].md[0].atype;
+    int is_double = (atype == COMPLEX_DOUBLE) ? 1 : 0;
+
+#if defined(HAVE_CUDA)
+    if (wfprop_fresnel_device_available())
+    {
+        imageID IDout = image_ID(out);
+        if (IDout == -1)
+        {
+            IDout = is_double ? create_2DCimage_ID_double(out, nx, ny)
+                              : create_2DCimage_ID(out, nx, ny);
+        }
+        const void *h_in = is_double ? (const void *)dcimg[IDin].array.CD
+                                     : (const void *)dcimg[IDin].array.CF;
+        void *h_out = is_double ? (void *)dcimg[IDout].array.CD
+                                : (void *)dcimg[IDout].array.CF;
+
+        if (wfprop_fresnel_propagate_cuda(h_in, h_out, nx, ny, PUPIL_SCALE, z, lambda, is_double) == 0)
+        {
+            return 0;
+        }
+    }
+#endif
+
     do2dfft(in, "tmp");
     permut("tmp");
-    long ID    = image_ID("tmp");
-    int  atype = dcimg[ID].md[0].atype;
+    long ID = image_ID("tmp");
+    double coeff = PI * z * lambda / (PUPIL_SCALE * nx) / (PUPIL_SCALE * nx);
 
-    long   naxes[2];
-    naxes[0]     = dcimg[ID].md[0].size[0];
-    naxes[1]     = dcimg[ID].md[0].size[1];
-    double coeff = PI * z * lambda / (PUPIL_SCALE * naxes[0]) / (PUPIL_SCALE * naxes[0]);
-    double co1   = 1.0 * naxes[0] * naxes[1];
-    long   n0h   = naxes[0] / 2;
-
-    if (atype == COMPLEX_FLOAT)
-    {
-        #pragma omp parallel for
-        for (long jj = 0; jj < naxes[1]; jj++)
-        {
-            long jj1 = naxes[0] * jj;
-            long jj2 = (jj - naxes[1] / 2) * (jj - naxes[1] / 2);
-            for (long ii = 0; ii < naxes[0]; ii++)
-            {
-                long   ii1    = jj1 + ii;
-                long   ii2    = ii - n0h;
-                double sqdist = (double) (ii2 * ii2 + jj2);
-                float  angle  = (float) (-coeff * sqdist);
-                float  s, c;
-                sincosf(angle, &s, &c);
-                float re = (float) (dcimg[ID].array.CF[ii1].re / co1);
-                float im = (float) (dcimg[ID].array.CF[ii1].im / co1);
-                dcimg[ID].array.CF[ii1].re = re * c - im * s;
-                dcimg[ID].array.CF[ii1].im = re * s + im * c;
-            }
-        }
-    }
-    else
-    {
-        #pragma omp parallel for
-        for (long jj = 0; jj < naxes[1]; jj++)
-        {
-            long jj1 = naxes[0] * jj;
-            long jj2 = (jj - naxes[1] / 2) * (jj - naxes[1] / 2);
-            for (long ii = 0; ii < naxes[0]; ii++)
-            {
-                long   ii1    = jj1 + ii;
-                long   ii2    = ii - n0h;
-                double sqdist = (double) (ii2 * ii2 + jj2);
-                double angle  = -coeff * sqdist;
-                double s, c;
-                sincos(angle, &s, &c);
-                double re = dcimg[ID].array.CD[ii1].re / co1;
-                double im = dcimg[ID].array.CD[ii1].im / co1;
-                dcimg[ID].array.CD[ii1].re = re * c - im * s;
-                dcimg[ID].array.CD[ii1].im = re * s + im * c;
-            }
-        }
-    }
+    wfprop_fresnel_propagate_cpu(ID, nx, ny, coeff, atype);
 
     permut("tmp");
     do2dffti("tmp", out);

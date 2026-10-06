@@ -12,6 +12,9 @@
 #include "AtmosphericTurbulence.h"
 #include "atmturb_types.h"
 #include "atmturb_simd.h"
+#if defined(HAVE_CUDA)
+#    include "atmturb_cuda.h"
+#endif
 
 typedef struct
 {
@@ -196,6 +199,67 @@ static void atmturb_wfs_free_context(atmturb_wfs_context_t *ctx)
 }
 
 /**
+ * atmturb_wfs_dispatch_render - Dispatch rendering to CUDA GPU or multi-threaded CPU SIMD
+ * @ctx: Pointer to simulation context.
+ * @pup_size: Linear dimension of the pupil grid.
+ * @nbframes: Number of frames to synthesize.
+ * @Scoeff: Chromatic dispersion scaling coefficient for secondary wavelength.
+ * @IDout_pha: Primary phase 3D image ID.
+ * @IDout_amp: Primary amplitude 3D image ID.
+ * @IDout_spha: Secondary phase 3D image ID.
+ * @IDout_samp: Secondary amplitude 3D image ID.
+ */
+static void atmturb_wfs_dispatch_render(const atmturb_wfs_context_t *ctx, long pup_size,
+                                        long nbframes, double Scoeff, imageID IDout_pha,
+                                        imageID IDout_amp, imageID IDout_spha,
+                                        imageID IDout_samp)
+{
+#if defined(HAVE_CUDA)
+    if (atmturb_cuda_device_available())
+    {
+        const float **h_masters = (const float **)malloc(sizeof(const float *) * ctx->nblayers);
+        for (long k = 0; k < ctx->nblayers; k++)
+        {
+            h_masters[k] = dcimg[ctx->id_tm[k]].array.F;
+        }
+
+        atmturb_cuda_sim_params_t params = {
+            .nblayers = ctx->nblayers,
+            .msize = CONF_MASTER_SIZE,
+            .pup_size = pup_size,
+            .nbframes = nbframes,
+            .Scoeff = Scoeff,
+            .h_masters = h_masters,
+            .vxpix = ctx->vxpix,
+            .vypix = ctx->vypix,
+            .cn2 = ctx->cn2
+        };
+
+        atmturb_cuda_sim_outputs_t outputs = {
+            .pha = dcimg[IDout_pha].array.F,
+            .amp = dcimg[IDout_amp].array.F,
+            .spha = dcimg[IDout_spha].array.F,
+            .samp = dcimg[IDout_samp].array.F
+        };
+
+        printf("Synthesizing %ld wavefront frames [CUDA GPU]\n", nbframes);
+        int res = atmturb_wfs_render_frames_cuda(&params, &outputs);
+        free(h_masters);
+        if (res == 0)
+        {
+            return;
+        }
+    }
+#endif
+
+    printf("Synthesizing %ld wavefront frames [%s SIMD]\n", nbframes,
+           atmturb_simd_active_isa());
+
+    atmturb_wfs_render_frames(ctx, pup_size, nbframes, Scoeff,
+                              IDout_pha, IDout_amp, IDout_spha, IDout_samp);
+}
+
+/**
  * make_AtmosphericTurbulence_wavefront_series - Run full atmospheric wavefront simulation series
  * @slambdaum: Secondary observing wavelength in um.
  * @WFprecision: Precision mode flag.
@@ -233,11 +297,8 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
         ctx.vypix[k] = ctx.spd[k] * sin(ctx.dir[k]) * CONF_WFTIME_STEP / CONF_PUPIL_SCALE;
     }
 
-    printf("Synthesizing %ld wavefront frames [%s SIMD]\n", nbframes,
-           atmturb_simd_active_isa());
-
-    atmturb_wfs_render_frames(&ctx, pup_size, nbframes, Scoeff,
-                              IDout_pha, IDout_amp, IDout_spha, IDout_samp);
+    atmturb_wfs_dispatch_render(&ctx, pup_size, nbframes, Scoeff,
+                                IDout_pha, IDout_amp, IDout_spha, IDout_samp);
 
     atmturb_wfs_free_context(&ctx);
 

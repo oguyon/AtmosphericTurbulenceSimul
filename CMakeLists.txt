@@ -88,8 +88,35 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
         PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq -mavx512bw -mfma")
 endif()
 
-# Build shared library for milk CLI
+# CUDA GPU Acceleration
+if(HAVE_CUDA OR USE_CUDA)
+    include(CheckLanguage)
+    check_language(CUDA)
+    if(CMAKE_CUDA_COMPILER)
+        enable_language(CUDA OPTIONAL)
+        find_package(CUDAToolkit QUIET)
+        if(CUDAToolkit_FOUND)
+            set(USE_CUDA_ACCEL TRUE)
+            add_compile_definitions(HAVE_CUDA)
+            list(APPEND SOURCEFILES
+                src/WFpropagate/wfprop_fresnel_cuda.cu
+                src/AtmosphericTurbulence/atmturb_cuda.cu
+            )
+            list(APPEND INCLUDEFILES
+                src/WFpropagate/wfprop_fresnel_cuda.h
+                src/AtmosphericTurbulence/atmturb_cuda.h
+            )
+            message(STATUS "milkatmturb: CUDA GPU acceleration ENABLED")
+        endif()
+    endif()
+endif()
+
 add_library(${LIBNAME} SHARED ${SOURCEFILES})
+
+set_target_properties(${LIBNAME} PROPERTIES
+    LINKER_LANGUAGE C
+    INTERPROCEDURAL_OPTIMIZATION OFF
+)
 
 target_include_directories(${LIBNAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -129,6 +156,10 @@ target_link_libraries(${LIBNAME} PUBLIC
     ${FFTWF_LIBRARIES}
     m
 )
+
+if(USE_CUDA_ACCEL)
+    target_link_libraries(${LIBNAME} PRIVATE CUDA::cudart CUDA::cufft)
+endif()
 
 # Export and install shared library
 install(
