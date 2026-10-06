@@ -12,6 +12,7 @@ cmake_install.cmake
 *.dylib
 *.lo
 *.la
+tests/benchmark_perf
 
 # Backup and temp files
 *~
