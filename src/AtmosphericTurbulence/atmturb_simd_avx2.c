@@ -61,7 +61,7 @@ static inline void atmturb_extrude_row_avx2(const float *row0, const float *row1
 }
 
 /**
- * atmturb_extrude_accumulate - AVX2 accelerated bilinear extrusion and accumulation
+ * atmturb_extrude_accumulate_avx2 - AVX2 accelerated bilinear extrusion and accumulation
  * @master: Master screen array.
  * @msize: Master screen dimension.
  * @x0: Sub-pixel X coordinate offset.
@@ -70,8 +70,8 @@ static inline void atmturb_extrude_row_avx2(const float *row0, const float *row1
  * @weight: Layer weight.
  * @out_pha: Output phase array.
  */
-void atmturb_extrude_accumulate(const float *master, long msize, double x0, double y0,
-                                long pup_size, float weight, float *out_pha)
+void atmturb_extrude_accumulate_avx2(const float *master, long msize, double x0, double y0,
+                                     long pup_size, float weight, float *out_pha)
 {
     float fx = (float)(x0 - floor(x0));
     float fy = (float)(y0 - floor(y0));
@@ -121,13 +121,13 @@ void atmturb_extrude_accumulate(const float *master, long msize, double x0, doub
 }
 
 /**
- * atmturb_scale_float_array - Vectorized array multiplication by scalar
+ * atmturb_scale_float_array_avx2 - Vectorized array multiplication by scalar (AVX2)
  * @dest: Output float array.
  * @src: Input float array.
  * @scale: Scalar multiplier.
  * @n: Number of elements.
  */
-void atmturb_scale_float_array(float *dest, const float *src, float scale, long n)
+void atmturb_scale_float_array_avx2(float *dest, const float *src, float scale, long n)
 {
     __m256 vscale = _mm256_set1_ps(scale);
     long i = 0;
@@ -143,12 +143,12 @@ void atmturb_scale_float_array(float *dest, const float *src, float scale, long 
 }
 
 /**
- * atmturb_init_phase_amp - Vectorized phase zeroing and amplitude one-filling
+ * atmturb_init_phase_amp_avx2 - Vectorized phase zeroing and amplitude one-filling (AVX2)
  * @pha: Phase array.
  * @amp: Amplitude array.
  * @n: Number of elements.
  */
-void atmturb_init_phase_amp(float *pha, float *amp, long n)
+void atmturb_init_phase_amp_avx2(float *pha, float *amp, long n)
 {
     __m256 vzero = _mm256_setzero_ps();
     __m256 vone = _mm256_set1_ps(1.0f);
@@ -167,25 +167,18 @@ void atmturb_init_phase_amp(float *pha, float *amp, long n)
 
 #else
 
-// Fallback to scalar when AVX2 is not available at compile time
-extern void atmturb_extrude_accumulate_scalar(const float *master, long msize, double x0,
-                                             double y0, long pup_size, float weight,
-                                             float *out_pha);
-extern void atmturb_scale_float_array_scalar(float *dest, const float *src, float scale, long n);
-extern void atmturb_init_phase_amp_scalar(float *pha, float *amp, long n);
-
-void atmturb_extrude_accumulate(const float *master, long msize, double x0, double y0,
-                                long pup_size, float weight, float *out_pha)
+void atmturb_extrude_accumulate_avx2(const float *master, long msize, double x0, double y0,
+                                     long pup_size, float weight, float *out_pha)
 {
     atmturb_extrude_accumulate_scalar(master, msize, x0, y0, pup_size, weight, out_pha);
 }
 
-void atmturb_scale_float_array(float *dest, const float *src, float scale, long n)
+void atmturb_scale_float_array_avx2(float *dest, const float *src, float scale, long n)
 {
     atmturb_scale_float_array_scalar(dest, src, scale, n);
 }
 
-void atmturb_init_phase_amp(float *pha, float *amp, long n)
+void atmturb_init_phase_amp_avx2(float *pha, float *amp, long n)
 {
     atmturb_init_phase_amp_scalar(pha, amp, n);
 }

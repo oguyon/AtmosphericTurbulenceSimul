@@ -46,6 +46,34 @@ void atmturb_scale_float_array(float *dest, const float *src, float scale, long 
  */
 void atmturb_init_phase_amp(float *pha, float *amp, long n);
 
+/**
+ * atmturb_simd_active_isa - Query name of active vectorized ISA implementation
+ *
+ * Return: String name of active ISA ("AVX-512", "AVX2", or "Scalar").
+ */
+const char *atmturb_simd_active_isa(void);
+
+/* Scalar reference implementations */
+void atmturb_extrude_accumulate_scalar(const float *master, long msize, double x0,
+                                       double y0, long pup_size, float weight,
+                                       float *out_pha);
+void atmturb_scale_float_array_scalar(float *dest, const float *src, float scale, long n);
+void atmturb_init_phase_amp_scalar(float *pha, float *amp, long n);
+
+/* AVX2 implementations */
+void atmturb_extrude_accumulate_avx2(const float *master, long msize, double x0,
+                                     double y0, long pup_size, float weight,
+                                     float *out_pha);
+void atmturb_scale_float_array_avx2(float *dest, const float *src, float scale, long n);
+void atmturb_init_phase_amp_avx2(float *pha, float *amp, long n);
+
+/* AVX-512 implementations */
+void atmturb_extrude_accumulate_avx512(const float *master, long msize, double x0,
+                                       double y0, long pup_size, float weight,
+                                       float *out_pha);
+void atmturb_scale_float_array_avx512(float *dest, const float *src, float scale, long n);
+void atmturb_init_phase_amp_avx512(float *pha, float *amp, long n);
+
 #ifdef __cplusplus
 }
 #endif

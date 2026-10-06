@@ -52,6 +52,8 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_wfs_sim.c
     src/AtmosphericTurbulence/atmturb_simd_scalar.c
     src/AtmosphericTurbulence/atmturb_simd_avx2.c
+    src/AtmosphericTurbulence/atmturb_simd_avx512.c
+    src/AtmosphericTurbulence/atmturb_simd_dispatch.c
     src/AtmosphericTurbulence/atmturb_mkwfs_FPS.c
     src/AtmosphericTurbulence/atmturb_mkhvturb_FPS.c
     src/AtmosphericTurbulence/atmturb_mkmastert_FPS.c
@@ -82,6 +84,8 @@ file(GLOB SCRIPTS "src/AtmosphericTurbulence/scripts/*")
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx2.c
         PROPERTIES COMPILE_FLAGS "-mavx2 -mfma")
+    set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx512.c
+        PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq -mavx512bw -mfma")
 endif()
 
 # Build shared library for milk CLI

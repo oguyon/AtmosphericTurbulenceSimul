@@ -233,6 +233,9 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
         ctx.vypix[k] = ctx.spd[k] * sin(ctx.dir[k]) * CONF_WFTIME_STEP / CONF_PUPIL_SCALE;
     }
 
+    printf("Synthesizing %ld wavefront frames [%s SIMD]\n", nbframes,
+           atmturb_simd_active_isa());
+
     atmturb_wfs_render_frames(&ctx, pup_size, nbframes, Scoeff,
                               IDout_pha, IDout_amp, IDout_spha, IDout_samp);
 
