@@ -16,9 +16,9 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda);
 
 double AtmosphereModel_RefractionPath(double lambda, double Zangle, int WritePath);
 
-
-
-
+extern float SiteLat;
+extern float SiteLong;
+extern float SiteAlt;
 /* -------------------------------------------------------------------- */
 /* ---------  N R L M S I S E - 0 0    M O D E L    2 0 0 1  ---------- */
 /* -------------------------------------------------------------------- */

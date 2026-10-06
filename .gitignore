@@ -1,36 +1,32 @@
-compileREADME.txt
-*~
+# Build directories
+build/
+_build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Compiled binaries and libraries
 *.o
 *.a
-*.lo
 *.so
+*.dylib
+*.lo
 *.la
-*.Po
-*.Plo
+
+# Backup and temp files
+*~
 *.bak
-sync
-TBE
-html/
-latex/
-*.m4
-missing
-*.tex
-*.Plo
-ar-lib
-bin/*
-autom4te.cache/*
-compile
-config.log
-config.status
-install-sh
-notes/
-src/cfits
-libtool
 *.save
 *#
-Makefile
-*/Makefile
-*/*/Makefile
-*/*/*/Makefile
-src/fft/config/*
+.#*
+*.swp
 
+# IDE and tool caches
+.vscode/
+.cache/
+compile_commands.json
+
+# Documentation generated files
+html/
+latex/
+doxygen_sqlite3.db

@@ -4,8 +4,20 @@
 # number of arguments to script
 NBARGS=1
 
-# link to executable - change as needed
-execname="AtmosphericTurbulenceSimul"
+# link to executable - auto-detected (standalone FPS binary, milk-cli, or legacy)
+if command -v milk-fpsexec-atmturb-mkwfs &>/dev/null; then
+    execmode="standalone"
+    execname="milk-fpsexec-atmturb-mkwfs"
+elif command -v milk-cli &>/dev/null; then
+    execmode="cli"
+    execname="milk-cli"
+elif command -v AtmosphericTurbulenceSimul &>/dev/null; then
+    execmode="legacy"
+    execname="AtmosphericTurbulenceSimul"
+else
+    execmode="standalone"
+    execname="milk-fpsexec-atmturb-mkwfs"
+fi
 
 
 ## OPTIONAL : refractive index / absorption coefficients files (RIA files)
@@ -506,9 +518,15 @@ printf "\n\n" >> $conffilename
 
 
 
-$execname << EOF
+if [ "$execmode" = "standalone" ]; then
+    $execname exec ${slambdaum} ${PRECISION}
+elif [ "$execmode" = "cli" ]; then
+    echo "atmturb.mkwfs ${slambdaum} ${PRECISION}; exitCLI" | $execname
+else
+    $execname << EOF
 #mkatmospheremodel $conffilename
 mkwfs ${slambdaum} ${PRECISION}
 exit
 EOF
+fi
 

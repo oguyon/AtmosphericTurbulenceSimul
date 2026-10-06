@@ -44,9 +44,12 @@ fi
 	exit
 fi
 
-
-AtmosphericTurbulenceSimul << EOF
-mkHVturbprof $1 $2 $3 $4 turbHV.prof
-exit
-EOF
+if command -v milk-fpsexec-atmturb-mkhvturb &>/dev/null; then
+    milk-fpsexec-atmturb-mkhvturb exec "$1" "$2" "$3" "$4" "turbHV.prof"
+elif command -v milk-cli &>/dev/null; then
+    echo "atmturb.mkHVturbprof $1 $2 $3 $4 turbHV.prof; exitCLI" | milk-cli
+else
+    echo "Error: neither milk-fpsexec-atmturb-mkhvturb nor milk-cli found in PATH" >&2
+    exit 1
+fi
 

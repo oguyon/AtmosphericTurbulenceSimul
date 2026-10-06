@@ -46,7 +46,8 @@ int clock_gettime(int clk_id, struct timespec *t){
 #include "OpticsMaterials/OpticsMaterials.h"
 #include "AtmosphereModel/AtmosphereModel.h"
 
-#include "cudacomp/cudacomp.h"
+#include "linalgebra/linalgebra.h"
+#include "atmturb_compat.h"
 
 
 #ifdef _OPENMP
@@ -68,9 +69,9 @@ char CONFFILE[200] = "WFsim.conf";
 //float TimeLocalSolarTime;
 
 
-float SiteLat;
-float SiteLong;
-float SiteAlt;
+// float SiteLat;  (extern declared in AtmosphereModel.h)
+// float SiteLong; (extern declared in AtmosphereModel.h)
+// float SiteAlt;  (extern declared in AtmosphereModel.h)
 //float CO2_ppm;
 
 //float SiteH2OMethod;
@@ -329,129 +330,83 @@ int AtmosphericTurbulence_Test_LinPredictor_cli()
 
 int init_AtmosphericTurbulence()
 {
-    strcpy(data.module[data.NBmodule].name, __FILE__);
-    strcpy(data.module[data.NBmodule].info, "Atmospheric Turbulence");
-    data.NBmodule++;
+    RegisterCLIcommand("mkwfs", __FILE__, make_AtmosphericTurbulence_wavefront_series_cli,
+                       "make wavefront series",
+                       "<wavelength [nm]> <precision 0=single, 1=double>",
+                       "mkwfs 1650.0 1",
+                       "int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecision)");
 
+    RegisterCLIcommand("mkvonKarmanWind", __FILE__, make_AtmosphericTurbulence_vonKarmanWind_cli,
+                       "make vonKarman wind model",
+                       "<pixsize> <pixscale [m/pix]> <sigma windspeed [m/s]> <scale [m]> <size [long]> <output name>",
+                       "mkvonKarmanWind 8192 0.1 20.0 50.0 512 vKmodel",
+                       "long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float sigmawind, float Lwind, long size, char *IDout_name)");
 
-    strcpy(data.cmd[data.NBcmd].key,"mkwfs");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = make_AtmosphericTurbulence_wavefront_series_cli;
-    strcpy(data.cmd[data.NBcmd].info,"make wavefront series");
-    strcpy(data.cmd[data.NBcmd].syntax,"<wavelength [nm]> <precision 0=single, 1=double>");
-    strcpy(data.cmd[data.NBcmd].example,"mkwfs 1650.0 1");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecision)");
-    data.NBcmd++;
+    RegisterCLIcommand("mkmastert", __FILE__, AtmosphericTurbulence_mkmastert_cli,
+                       "make 2 master phase screens",
+                       "<screen0> <screen1> <size> <outerscale> <innerscale>",
+                       "mkmastert scr0 scr1 2048 50.0 2.0",
+                       "int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, float outercale, float innercale, long WFprecision)");
 
-    strcpy(data.cmd[data.NBcmd].key,"mkvonKarmanWind");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = make_AtmosphericTurbulence_vonKarmanWind_cli;
-    strcpy(data.cmd[data.NBcmd].info,"make vonKarman wind model");
-    strcpy(data.cmd[data.NBcmd].syntax,"<pixsize> <pixscale [m/pix]> <sigma windspeed [m/s]> <scale [m]> <size [long]> <output name>");
-    strcpy(data.cmd[data.NBcmd].example,"mkvonKarmanWind 8192 0.1 20.0 50.0 512 vKmodel");
-    strcpy(data.cmd[data.NBcmd].Ccall,"long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float sigmawind, float Lwind, long size, char *IDout_name)");
-    data.NBcmd++;
+    RegisterCLIcommand("mkHVturbprof", __FILE__, AtmosphericTurbulence_makeHV_CN2prof_cli,
+                       "make Hufnager-Valley turbulence profile",
+                       "<high wind speed [m/s]> <r0 [m]> <site alt [m]> <NBlayers> <output file>",
+                       "mkHVturbprof 21.0 0.15 4200 100 turbHV.prof",
+                       "int AtmosphericTurbulence_makeHV_CN2prof(double wspeed, double r0, double sitealt, long NBlayer, char *outfile)");
 
-    strcpy(data.cmd[data.NBcmd].key,"mkmastert");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_mkmastert_cli;
-    strcpy(data.cmd[data.NBcmd].info,"make 2 master phase screens");
-    strcpy(data.cmd[data.NBcmd].syntax,"<screen0> <screen1> <size> <outerscale> <innerscale>");
-    strcpy(data.cmd[data.NBcmd].example,"mkmastert scr0 scr1 2048 50.0 2.0");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, float outercale, float innercale, long WFprecision)");
-    data.NBcmd++;
+    RegisterCLIcommand("atmturbmeasexpo", __FILE__, AtmosphericTurbulence_measure_wavefront_series_expoframes_cli,
+                       "Measure long exposure time PSF from wavefront series",
+                       "<etime [s]> <out name>",
+                       "atmturbmeasexpo 1.0 outpsf",
+                       "int measure_wavefront_series_expoframes(float etime, char *outfile)");
 
-    strcpy(data.cmd[data.NBcmd].key,"mkHVturbprof");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_makeHV_CN2prof_cli;
-    strcpy(data.cmd[data.NBcmd].info,"make Hufnager-Valley turbulence profile");
-    strcpy(data.cmd[data.NBcmd].syntax,"<high wind speed [m/s]> <r0 [m]> <site alt [m]> <NBlayers> <output file>");
-    strcpy(data.cmd[data.NBcmd].example,"mkHVturbprof 21.0 0.15 4200 100 turbHV.prof");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int AtmosphericTurbulence_makeHV_CN2prof(double wspeed, double r0, double sitealt, long NBlayer, char *outfile)");
-    data.NBcmd++;
+    RegisterCLIcommand("atmturbmktestTTs", __FILE__, AtmosphericTurbulence_mkTestTTseq_cli,
+                       "make test TT sequence",
+                       "<dt [s]> <number of pts per block> <number of blocks> <measurement noise> <accelerometer mode> <accelerometer noise> <mode>",
+                       "atmturbmktestTTs 0.001 1000 10 0.1 0 0.0 0",
+                       "int AtmosphericTurbulence_mkTestTTseq(double dt, long NBpts, long NBblocks, double measnoise, int ACCnmode, double ACCnoise, int MODE)");
 
-    strcpy(data.cmd[data.NBcmd].key,"atmturbmeasexpo");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_measure_wavefront_series_expoframes_cli;
-    strcpy(data.cmd[data.NBcmd].info,"Measure long exposure time PSF from wavefront series");
-    strcpy(data.cmd[data.NBcmd].syntax,"<etime [s]> <out name>");
-    strcpy(data.cmd[data.NBcmd].example,"atmturbmeasexpo 1.0 outpsf");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int measure_wavefront_series_expoframes(float etime, char *outfile)");
-    data.NBcmd++;
+    RegisterCLIcommand("atmturbwfpredictf", __FILE__, AtmosphericTurbulence_Build_LinPredictor_Full_cli,
+                       "build full linear predictor from wavefront series",
+                       "<input WF series (cube)> <mask image> <predictor order> <predictor time lag> <SVD eps> <RegLambda>",
+                       "atmturbwfpredictf wfin wfmask 20 3.5 0.001 0.0",
+                       "int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_name, int PForder, float PFlag, double SVDeps, double Rlambda)");
 
+    RegisterCLIcommand("atmturbwfpapply", __FILE__, AtmosphericTurbulence_Apply_LinPredictor_Full_cli,
+                       "Apply full linear predictor from wavefront series",
+                       "<mode> <input WF series (cube)> <mask image> <predictor order> <predictor time lag> <predicted future values> <measured future values>",
+                       "atmturbwfpapply 0 wfin wfmask 20 3.5 outp outf",
+                       "int AtmosphericTurbulence_Apply_LinPredictor_Full(int MODE, char *WFin_name, char *WFmask_name, int PForder, float PFlag, char *WFoutp_name, char *WFoutf_name)");
 
-    strcpy(data.cmd[data.NBcmd].key,"atmturbmktestTTs");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_mkTestTTseq_cli;
-    strcpy(data.cmd[data.NBcmd].info,"make test TT sequence");
-    strcpy(data.cmd[data.NBcmd].syntax,"<dt [s]> <number of pts per block> <number of blocks> <measurement noise> <accelerometer mode> <accelerometer noise> <mode>");
-    strcpy(data.cmd[data.NBcmd].example,"atmturbmktestTTs 0.001 1000 10 0.1 0 0.0 0");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int AtmosphericTurbulence_mkTestTTseq(double dt, long NBpts, long NBblocks, double measnoise, int ACCnmode, double ACCnoise, int MODE)");
-    data.NBcmd++;
+    RegisterCLIcommand("atmturbwfp2Dkern", __FILE__, AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract_cli,
+                       "collapse WF predictor into 2D kernel",
+                       "<input WF filter (cube)> <mask image> <kernel radius> <output kernel name>",
+                       "atmturbwfp2Dkern wfpfilt wfmask 20 wfpkern",
+                       "long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, char *IDmask_name, long krad, char *IDkern_name)");
 
-    strcpy(data.cmd[data.NBcmd].key,"atmturbwfpredictf");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_Build_LinPredictor_Full_cli;
-    strcpy(data.cmd[data.NBcmd].info,"build full linear predictor from wavefront series");
-    strcpy(data.cmd[data.NBcmd].syntax,"<input WF series (cube)> <mask image> <predictor order> <predictor time lag> <SVD eps> <RegLambda>");
-    strcpy(data.cmd[data.NBcmd].example,"atmturbwfpredictf wfin wfmask 20 3.5 0.001 0.0");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_name, int PForder, float PFlag, double SVDeps, double Rlambda)");
-    data.NBcmd++;
+    RegisterCLIcommand("atmturbwfpexp", __FILE__, AtmosphericTurbulence_LinPredictor_filt_Expand_cli,
+                       "Expand 3D filter cube into pixel-based 3D cube filters",
+                       "<input WF filter (cube)> <mask image>",
+                       "atmturbwfpexp wfpfilt wfmask ",
+                       "long AtmosphericTurbulence_LinPredictor_filt_Expand(char *IDfilt_name, char *IDmask_name)");
 
-    strcpy(data.cmd[data.NBcmd].key,"atmturbwfpapply");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_Apply_LinPredictor_Full_cli;
-    strcpy(data.cmd[data.NBcmd].info,"Apply full linear predictor from wavefront series");
-    strcpy(data.cmd[data.NBcmd].syntax,"<mode> <input WF series (cube)> <mask image> <predictor order> <predictor time lag> <predicted future values> <measured future values>");
-    strcpy(data.cmd[data.NBcmd].example,"atmturbwfpapply 0 wfin wfmask 20 3.5 outp outf");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int AtmosphericTurbulence_Apply_LinPredictor_Full(int MODE, char *WFin_name, char *WFmask_name, int PForder, float PFlag, char *WFoutp_name, char *WFoutf_name)");
-    data.NBcmd++;
+    RegisterCLIcommand("atmturbwfpredict", __FILE__, AtmosphericTurbulence_Build_LinPredictor_cli,
+                       "build linear predictor from wavefront series",
+                       "<number steps input> <noise level [rad]> <predictor z size> <predictor xy radius> <lambda [um]>",
+                       "atmturbwfpredict 1000 0.01 5 5 64 64 1.65",
+                       "int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, long WFP_NBstep, long WFP_xyrad, long WFPiipix, long WFPjjpix, float slambdaum)");
 
-	strcpy(data.cmd[data.NBcmd].key,"atmturbwfp2Dkern");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract_cli;
-    strcpy(data.cmd[data.NBcmd].info,"collapse WF predictor into 2D kernel");
-    strcpy(data.cmd[data.NBcmd].syntax,"<input WF filter (cube)> <mask image> <kernel radius> <output kernel name>");
-    strcpy(data.cmd[data.NBcmd].example,"atmturbwfp2Dkern wfpfilt wfmask 20 wfpkern");
-    strcpy(data.cmd[data.NBcmd].Ccall,"long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, char *IDmask_name, long krad, char *IDkern_name)");
-	data.NBcmd++;
-	
-	strcpy(data.cmd[data.NBcmd].key,"atmturbwfpexp");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_LinPredictor_filt_Expand_cli;
-    strcpy(data.cmd[data.NBcmd].info,"Expand 3D filter cube into pixel-based 3D cube filters");
-    strcpy(data.cmd[data.NBcmd].syntax,"<input WF filter (cube)> <mask image>");
-    strcpy(data.cmd[data.NBcmd].example,"atmturbwfpexp wfpfilt wfmask ");
-    strcpy(data.cmd[data.NBcmd].Ccall,"long AtmosphericTurbulence_LinPredictor_filt_Expand(char *IDfilt_name, char *IDmask_name)");
-	data.NBcmd++;
+    RegisterCLIcommand("atmturbmkpsfcc", __FILE__, AtmosphericTurbulence_psfCubeContrast_cli,
+                       "measure contrast performance of WF cube",
+                       "<input WF cube> <mask> <output psf cube>",
+                       "atmturbmkpsfcc wfc mask psfc",
+                       "long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name, char *IDpsfc_name)");
 
-    strcpy(data.cmd[data.NBcmd].key,"atmturbwfpredict");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_Build_LinPredictor_cli;
-    strcpy(data.cmd[data.NBcmd].info,"build linear predictor from wavefront series");
-    strcpy(data.cmd[data.NBcmd].syntax,"<number steps input> <noise level [rad]> <predictor z size> <predictor xy radius> <lambda [um]>");
-    strcpy(data.cmd[data.NBcmd].example,"atmturbwfpredict 1000 0.01 5 5 64 64 1.65");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, long WFP_NBstep, long WFP_xyrad, long WFPiipix, long WFPjjpix, float slambdaum)");
-    data.NBcmd++;
-
-	strcpy(data.cmd[data.NBcmd].key,"atmturbmkpsfcc");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_psfCubeContrast_cli;
-    strcpy(data.cmd[data.NBcmd].info,"measure contrast performance of WF cube");
-    strcpy(data.cmd[data.NBcmd].syntax,"<input WF cube> <mask> <output psf cube>");
-    strcpy(data.cmd[data.NBcmd].example,"atmturbmkpsfcc wfc mask psfc");
-    strcpy(data.cmd[data.NBcmd].Ccall,"long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name, char *IDpsfc_name)");
-    data.NBcmd++;
-
-
-    strcpy(data.cmd[data.NBcmd].key,"atmturbwfptest");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphericTurbulence_Test_LinPredictor_cli;
-    strcpy(data.cmd[data.NBcmd].info,"Test linear predictor on wavefront series");
-    strcpy(data.cmd[data.NBcmd].syntax,"<number steps input> <noise level [rad]> <predictor name> <lag> <iipix> <jjpix>");
-    strcpy(data.cmd[data.NBcmd].example,"atmturbwfptest 1000 0.01 wfpfilt 1 32 54");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int AtmosphericTurbulence_Test_LinPredictor(long NB_WFstep, double WFphaNoise, char *IDWFPfilt_name, long WFPlag, long WFPiipix, long WFPjjpix)");
-    data.NBcmd++;
+    RegisterCLIcommand("atmturbwfptest", __FILE__, AtmosphericTurbulence_Test_LinPredictor_cli,
+                       "Test linear predictor on wavefront series",
+                       "<number steps input> <noise level [rad]> <predictor name> <lag> <iipix> <jjpix>",
+                       "atmturbwfptest 1000 0.01 wfpfilt 1 32 54",
+                       "int AtmosphericTurbulence_Test_LinPredictor(long NB_WFstep, double WFphaNoise, char *IDWFPfilt_name, long WFPlag, long WFPiipix, long WFPjjpix)");
 
     return 0;
 }
@@ -522,7 +477,7 @@ long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float
             dx = 1.0*ii-vKsize/2;
             r = sqrt(dx*dx); // period = (size*pixscale)/r
             // spatial frequency = 2 PI / period
-            data.image[ID].array.F[ii] = sqrt( 1.0/pow(1.0 + pow(1.339*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0), 5.0/6.0) );
+            dcimg[ID].array.F[ii] = sqrt( 1.0/pow(1.0 + pow(1.339*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0), 5.0/6.0) );
         }
     
     
@@ -544,11 +499,11 @@ long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float
     ID = image_ID("tmpo1");
     rms = 0.0;
     for(ii=0; ii<vKsize; ii++)
-        rms += data.image[ID].array.F[ii]*data.image[ID].array.F[ii];
+        rms += dcimg[ID].array.F[ii]*dcimg[ID].array.F[ii];
     rms = sqrt(rms/vKsize);
     
     for(ii=0; ii<vKsize; ii++)
-        data.image[IDc].array.F[ii] = data.image[ID].array.F[ii]/rms*sigmau;
+        dcimg[IDc].array.F[ii] = dcimg[ID].array.F[ii]/rms*sigmau;
     delete_image_ID("tmpo1");
 
   
@@ -562,7 +517,7 @@ long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float
         {
             dx = 1.0*ii-vKsize/2;
             r = sqrt(dx*dx); 
-            data.image[ID].array.F[ii] = sqrt( (1.0 + 8.0/3.0*pow(2.678*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0)) /pow(1.0 + pow(2.678*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0), 11.0/6.0) );
+            dcimg[ID].array.F[ii] = sqrt( (1.0 + 8.0/3.0*pow(2.678*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0)) /pow(1.0 + pow(2.678*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0), 11.0/6.0) );
         }
     make_rnd("tmpg", vKsize, 1,"-gauss");
     arith_image_mult("tmpg", "tmpamp0", "tmpamp");
@@ -581,11 +536,11 @@ long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float
     ID = image_ID("tmpo1");
     rms = 0.0;
     for(ii=0; ii<vKsize; ii++)
-        rms += data.image[ID].array.F[ii]*data.image[ID].array.F[ii];
+        rms += dcimg[ID].array.F[ii]*dcimg[ID].array.F[ii];
     rms = sqrt(rms/(vKsize));
     
     for(ii=0; ii<vKsize; ii++)
-        data.image[IDc].array.F[vKsize+ii] = data.image[ID].array.F[ii]/rms*sigmav;
+        dcimg[IDc].array.F[vKsize+ii] = dcimg[ID].array.F[ii]/rms*sigmav;
     delete_image_ID("tmpo1");
       
       
@@ -601,7 +556,7 @@ long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float
         {
             dx = 1.0*ii-size/2;
             r = sqrt(dx*dx);
-            data.image[ID].array.F[ii] = sqrt( (1.0 + 8.0/3.0*pow(2.678*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0)) /pow(1.0 + pow(2.678*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0), 11.0/6.0) );
+            dcimg[ID].array.F[ii] = sqrt( (1.0 + 8.0/3.0*pow(2.678*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0)) /pow(1.0 + pow(2.678*2.0*M_PI*r/(vKsize*pixscale)*Lwind,2.0), 11.0/6.0) );
         }
     make_rnd("tmpg", vKsize, 1,"-gauss");
     arith_image_mult("tmpg", "tmpamp0", "tmpamp");
@@ -620,11 +575,11 @@ long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale, float
     ID = image_ID("tmpo1");
     rms = 0.0;
     for(ii=0; ii<vKsize; ii++)
-        rms += data.image[ID].array.F[ii]*data.image[ID].array.F[ii];
+        rms += dcimg[ID].array.F[ii]*dcimg[ID].array.F[ii];
     rms = sqrt(rms/vKsize);
     
     for(ii=0; ii<size; ii++)
-        data.image[IDc].array.F[vKsize*2+ii] = data.image[ID].array.F[ii]/rms*sigmav;
+        dcimg[IDc].array.F[vKsize*2+ii] = dcimg[ID].array.F[ii]/rms*sigmav;
     delete_image_ID("tmpo1");
 
     
@@ -663,7 +618,7 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
     /*  IDv = variable_ID("OUTERSCALE");
       if(IDv!=-1)
         {
-          outerscale = data.variable[IDv].value.f;
+          outerscale = dcvar[IDv].value.f;
           printf("Outer scale = %f pix\n", outerscale);
         }
      */
@@ -672,7 +627,7 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
     if(IDv!=-1)
     {
         RLIMMODE = 1;
-        rlim = data.variable[IDv].value.f;
+        rlim = dcvar[IDv].value.f;
         printf("R limit = %f pix\n",rlim);
     }
 
@@ -706,12 +661,12 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
                 {
                     r = sqrt(dx*dx + dy*dy);
                     if(r<rlim)
-                        data.image[ID].array.F[jj*size+ii] = 0.0;
+                        dcimg[ID].array.F[jj*size+ii] = 0.0;
                     else
-                        data.image[ID].array.F[jj*size+ii] = sqrt(dx*dx + dy*dy + OUTERscale_f0*OUTERscale_f0);
+                        dcimg[ID].array.F[jj*size+ii] = sqrt(dx*dx + dy*dy + OUTERscale_f0*OUTERscale_f0);
                 }
                 else
-                    data.image[ID].array.F[jj*size+ii] = sqrt(dx*dx + dy*dy + OUTERscale_f0*OUTERscale_f0);
+                    dcimg[ID].array.F[jj*size+ii] = sqrt(dx*dx + dy*dy + OUTERscale_f0*OUTERscale_f0);
             }
     }
     else
@@ -726,12 +681,12 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
                 {
                     r = sqrt(dx*dx + dy*dy);
                     if(r<rlim)
-                        data.image[ID].array.D[jj*size+ii] = 0.0;
+                        dcimg[ID].array.D[jj*size+ii] = 0.0;
                     else
-                        data.image[ID].array.D[jj*size+ii] = sqrt(dx*dx + dy*dy + OUTERscale_f0*OUTERscale_f0);
+                        dcimg[ID].array.D[jj*size+ii] = sqrt(dx*dx + dy*dy + OUTERscale_f0*OUTERscale_f0);
                 }
                 else
-                    data.image[ID].array.D[jj*size+ii] = sqrt(dx*dx + dy*dy + OUTERscale_f0*OUTERscale_f0);
+                    dcimg[ID].array.D[jj*size+ii] = sqrt(dx*dx + dy*dy + OUTERscale_f0*OUTERscale_f0);
             }
     }
 
@@ -754,7 +709,7 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
 				dx = 1.0*ii-size/2;
 				dy = 1.0*jj-size/2;
 				iscoeff = exp(-(dx*dx+dy*dy)/INNERscale_f0/INNERscale_f0);
-				data.image[ID].array.F[jj*size+ii] *= sqrt(iscoeff); // power -> amplitude : sqrt
+				dcimg[ID].array.F[jj*size+ii] *= sqrt(iscoeff); // power -> amplitude : sqrt
 			}
 	}
 	else
@@ -765,7 +720,7 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
 				dx = 1.0*ii-size/2;
 				dy = 1.0*jj-size/2;
 				iscoeff = exp(-(dx*dx+dy*dy)/INNERscale_f0/INNERscale_f0);
-				data.image[ID].array.D[jj*size+ii] *= sqrt(iscoeff); // power -> amplitude : sqrt
+				dcimg[ID].array.D[jj*size+ii] *= sqrt(iscoeff); // power -> amplitude : sqrt
 			}
 	}
 
@@ -793,12 +748,12 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
 
     value = 0.0;
     cnt = 0;
-    if(data.image[ID].md[0].atype == FLOAT)
+    if(dcimg[ID].md[0].atype == FLOAT)
     {
         for(ii = 1; ii<Dlim; ii++)
             for(jj = 1; jj<Dlim; jj++)
             {
-                value += log10(data.image[ID].array.F[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj));
+                value += log10(dcimg[ID].array.F[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj));
                 cnt++;
             }
     }
@@ -807,7 +762,7 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
         for(ii = 1; ii<Dlim; ii++)
             for(jj = 1; jj<Dlim; jj++)
             {
-                value += log10(data.image[ID].array.D[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj));
+                value += log10(dcimg[ID].array.D[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj));
                 cnt++;
             }
     }
@@ -822,12 +777,12 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
     ID = image_ID("strf");
     value = 0.0;
     cnt = 0;
-    if(data.image[ID].md[0].atype == FLOAT)
+    if(dcimg[ID].md[0].atype == FLOAT)
     {
         for(ii=1; ii<Dlim; ii++)
             for(jj=1; jj<Dlim; jj++)
             {
-                value += log10(data.image[ID].array.F[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj));
+                value += log10(dcimg[ID].array.F[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj));
                 cnt++;
             }
     }
@@ -836,7 +791,7 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size, flo
         for(ii=1; ii<Dlim; ii++)
             for(jj=1; jj<Dlim; jj++)
             {
-                value += log10(data.image[ID].array.D[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj));
+                value += log10(dcimg[ID].array.D[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj));
                 cnt++;
             }
     }
@@ -895,8 +850,8 @@ int make_master_turbulence_screen_pow(char *ID_name1, char *ID_name2, long size,
     for(ii=1; ii<Dlim; ii++)
         for(jj=1; jj<Dlim; jj++)
         {
-            value += log10(data.image[ID].array.F[jj*size+ii])-power*log10(sqrt(ii*ii+jj*jj));
-            /*	printf("%ld %ld %f\n",ii,jj,log10(data.image[ID].array.F[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj)));*/
+            value += log10(dcimg[ID].array.F[jj*size+ii])-power*log10(sqrt(ii*ii+jj*jj));
+            /*	printf("%ld %ld %f\n",ii,jj,log10(dcimg[ID].array.F[jj*size+ii])-5.0/3.0*log10(sqrt(ii*ii+jj*jj)));*/
             cnt++;
         }
     delete_image_ID("strf");
@@ -909,7 +864,7 @@ int make_master_turbulence_screen_pow(char *ID_name1, char *ID_name2, long size,
     for(ii=1; ii<Dlim; ii++)
         for(jj=1; jj<Dlim; jj++)
         {
-            value += log10(data.image[ID].array.F[jj*size+ii])-power*log10(sqrt(ii*ii+jj*jj));
+            value += log10(dcimg[ID].array.F[jj*size+ii])-power*log10(sqrt(ii*ii+jj*jj));
             cnt++;
         }
     delete_image_ID("strf");
@@ -950,12 +905,12 @@ int contract_wavefront_cube(char *ina_file, char *inp_file, char *outa_file, cha
     IDpha=image_ID("tmpwfp");
     load_fits(ina_file, "tmpwfa", 1);
     IDamp=image_ID("tmpwfa");
-    naxes[0] = data.image[IDpha].md[0].size[0];
-    naxes[1] = data.image[IDpha].md[0].size[1];
-    naxes[2] = data.image[IDpha].md[0].size[2];
-    naxes_out[0] = data.image[IDpha].md[0].size[0]/pfactor;
-    naxes_out[1] = data.image[IDpha].md[0].size[1]/pfactor;
-    naxes_out[2] = data.image[IDpha].md[0].size[2];
+    naxes[0] = dcimg[IDpha].md[0].size[0];
+    naxes[1] = dcimg[IDpha].md[0].size[1];
+    naxes[2] = dcimg[IDpha].md[0].size[2];
+    naxes_out[0] = dcimg[IDpha].md[0].size[0]/pfactor;
+    naxes_out[1] = dcimg[IDpha].md[0].size[1]/pfactor;
+    naxes_out[2] = dcimg[IDpha].md[0].size[2];
     IDoutpha = create_3Dimage_ID("tmpwfop",naxes_out[0],naxes_out[1],naxes_out[2]);
     IDoutamp = create_3Dimage_ID("tmpwfoa",naxes_out[0],naxes_out[1],naxes_out[2]);
 
@@ -985,10 +940,10 @@ int contract_wavefront_cube(char *ina_file, char *inp_file, char *outa_file, cha
                 for(i=0; i<pfactor; i++)
                     for(j=0; j<pfactor; j++)
                     {
-                        amp = data.image[IDamp].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i];
-                        pha = data.image[IDpha].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i];
-                        pharef += data.image[IDamp].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i]*data.image[IDpha].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i];
-                        ampref += data.image[IDamp].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i];
+                        amp = dcimg[IDamp].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i];
+                        pha = dcimg[IDpha].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i];
+                        pharef += dcimg[IDamp].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i]*dcimg[IDpha].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i];
+                        ampref += dcimg[IDamp].array.F[kk*naxes[0]*naxes[1]+(pfactor*jj+j)*naxes[0]+pfactor*ii+i];
                         re += amp*cos(pha);
                         im += amp*sin(pha);
                     }
@@ -998,8 +953,8 @@ int contract_wavefront_cube(char *ina_file, char *inp_file, char *outa_file, cha
                 P = 2.0*PI*( ((long) (0.5+1.0*LARGE+(pharef-pha)/2.0/PI)) - LARGE);
                 if(ampref<0.01)
                     P = 0.0;
-                data.image[IDoutpha].array.F[kk*naxes_out[0]*naxes_out[1]+jj*naxes_out[0]+ii] = pha+P;
-                data.image[IDoutamp].array.F[kk*naxes_out[0]*naxes_out[1]+jj*naxes_out[0]+ii] = amp/pfactor/pfactor;
+                dcimg[IDoutpha].array.F[kk*naxes_out[0]*naxes_out[1]+jj*naxes_out[0]+ii] = pha+P;
+                dcimg[IDoutamp].array.F[kk*naxes_out[0]*naxes_out[1]+jj*naxes_out[0]+ii] = amp/pfactor/pfactor;
             }
     }
 
@@ -1045,12 +1000,12 @@ int contract_wavefront_cube_phaseonly(char *inp_file, char *outp_file, int facto
 
     load_fits(inp_file, "tmpwfp", 1);
     IDpha=image_ID("tmpwfp");
-    naxes[0] = data.image[IDpha].md[0].size[0];
-    naxes[1] = data.image[IDpha].md[0].size[1];
-    naxes[2] = data.image[IDpha].md[0].size[2];
-    naxes_out[0] = data.image[IDpha].md[0].size[0]/pfactor;
-    naxes_out[1] = data.image[IDpha].md[0].size[1]/pfactor;
-    naxes_out[2] = data.image[IDpha].md[0].size[2];
+    naxes[0] = dcimg[IDpha].md[0].size[0];
+    naxes[1] = dcimg[IDpha].md[0].size[1];
+    naxes[2] = dcimg[IDpha].md[0].size[2];
+    naxes_out[0] = dcimg[IDpha].md[0].size[0]/pfactor;
+    naxes_out[1] = dcimg[IDpha].md[0].size[1]/pfactor;
+    naxes_out[2] = dcimg[IDpha].md[0].size[2];
     IDoutpha = create_3Dimage_ID("tmpwfop",naxes_out[0],naxes_out[1],naxes_out[2]);
 
     ii=0;
@@ -1079,8 +1034,8 @@ int contract_wavefront_cube_phaseonly(char *inp_file, char *outp_file, int facto
                     l3=l4+(pfactor*jj+j)*naxes[0];
                     for(i=0; i<pfactor; i++)
                     {
-                        pha = data.image[IDpha].array.F[l3+i];
-                        pharef += data.image[IDpha].array.F[l3+i];
+                        pha = dcimg[IDpha].array.F[l3+i];
+                        pharef += dcimg[IDpha].array.F[l3+i];
                         re += cos(pha);
                         im += sin(pha);
                     }
@@ -1091,7 +1046,7 @@ int contract_wavefront_cube_phaseonly(char *inp_file, char *outp_file, int facto
                 P = 2.0*PI*( ((long) (0.5+1.0*LARGE+(pharef-pha)/2.0/PI)) - LARGE);
                 if(ampref<0.01)
                     P = 0.0;
-                data.image[IDoutpha].array.F[l1+jj*naxes_out[0]+ii] = pha+P;
+                dcimg[IDoutpha].array.F[l1+jj*naxes_out[0]+ii] = pha+P;
             }
 
     }
@@ -1894,11 +1849,11 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
         IDout_sarray_amp = create_3Dimage_ID("outsarrayamp", naxesout[0], naxesout[1], naxesout[2]);
         for(ii=0; ii<naxesout[0]*naxesout[1]*naxesout[2]; ii++)
         {
-            data.image[IDout_array_amp].array.F[ii] = 1.0;
-            data.image[IDout_array_pha].array.F[ii] = 0.0;
+            dcimg[IDout_array_amp].array.F[ii] = 1.0;
+            dcimg[IDout_array_pha].array.F[ii] = 0.0;
 
-            data.image[IDout_sarray_amp].array.F[ii] = 1.0;
-            data.image[IDout_sarray_pha].array.F[ii] = 0.0;
+            dcimg[IDout_sarray_amp].array.F[ii] = 1.0;
+            dcimg[IDout_sarray_pha].array.F[ii] = 0.0;
         }
     }
     else // double precision 
@@ -1909,11 +1864,11 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
         IDout_sarray_amp = create_3Dimage_ID_double("outsarrayamp", naxesout[0], naxesout[1], naxesout[2]);
         for(ii=0; ii<naxesout[0]*naxesout[1]*naxesout[2]; ii++)
         {
-            data.image[IDout_array_amp].array.D[ii] = 1.0;
-            data.image[IDout_array_pha].array.D[ii] = 0.0;
+            dcimg[IDout_array_amp].array.D[ii] = 1.0;
+            dcimg[IDout_array_pha].array.D[ii] = 0.0;
 
-            data.image[IDout_sarray_amp].array.D[ii] = 1.0;
-            data.image[IDout_sarray_pha].array.D[ii] = 0.0;
+            dcimg[IDout_sarray_amp].array.D[ii] = 1.0;
+            dcimg[IDout_sarray_pha].array.D[ii] = 0.0;
         }
     }
 
@@ -2256,8 +2211,8 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
             for(ii=0; ii<CONF_MASTER_SIZE-dpix; ii++)
                 for(jj=0; jj<CONF_MASTER_SIZE; jj++)
                 {
-                    p1 = data.image[ID_TM[k]].array.F[jj*CONF_MASTER_SIZE+ii];
-                    p2 = data.image[ID_TM[k]].array.F[jj*CONF_MASTER_SIZE+ii+dpix];
+                    p1 = dcimg[ID_TM[k]].array.F[jj*CONF_MASTER_SIZE+ii];
+                    p2 = dcimg[ID_TM[k]].array.F[jj*CONF_MASTER_SIZE+ii+dpix];
                     tot += (p1-p2)*(p1-p2);
                     cnt++;
                 }
@@ -2267,8 +2222,8 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
             for(ii=0; ii<CONF_MASTER_SIZE-dpix; ii++)
                 for(jj=0; jj<CONF_MASTER_SIZE; jj++)
                 {
-                    p1 = data.image[ID_TM[k]].array.D[jj*CONF_MASTER_SIZE+ii];
-                    p2 = data.image[ID_TM[k]].array.D[jj*CONF_MASTER_SIZE+ii+dpix];
+                    p1 = dcimg[ID_TM[k]].array.D[jj*CONF_MASTER_SIZE+ii];
+                    p2 = dcimg[ID_TM[k]].array.D[jj*CONF_MASTER_SIZE+ii+dpix];
                     tot += (p1-p2)*(p1-p2);
                     cnt++;
                 }
@@ -2287,13 +2242,13 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
     {
         for(k=0; k<NBMASTERS; k++)
             for(ii=0; ii<CONF_MASTER_SIZE*CONF_MASTER_SIZE; ii++)
-                data.image[ID_TM[k]].array.F[ii] *= tmp1;
+                dcimg[ID_TM[k]].array.F[ii] *= tmp1;
     }
     else
     {
         for(k=0; k<NBMASTERS; k++)
             for(ii=0; ii<CONF_MASTER_SIZE*CONF_MASTER_SIZE; ii++)
-                data.image[ID_TM[k]].array.D[ii] *= tmp1;
+                dcimg[ID_TM[k]].array.D[ii] *= tmp1;
     }
 
     r0tot = 0.0;
@@ -2307,8 +2262,8 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
             for(ii=0; ii<CONF_MASTER_SIZE-dpix; ii++)
                 for(jj=0; jj<CONF_MASTER_SIZE; jj++)
                 {
-                    p1 = data.image[ID_TM[k]].array.F[jj*CONF_MASTER_SIZE+ii];
-                    p2 = data.image[ID_TM[k]].array.F[jj*CONF_MASTER_SIZE+ii+dpix];
+                    p1 = dcimg[ID_TM[k]].array.F[jj*CONF_MASTER_SIZE+ii];
+                    p2 = dcimg[ID_TM[k]].array.F[jj*CONF_MASTER_SIZE+ii+dpix];
                     tot += (p1-p2)*(p1-p2);
                     cnt++;
                 }
@@ -2318,8 +2273,8 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
             for(ii=0; ii<CONF_MASTER_SIZE-dpix; ii++)
                 for(jj=0; jj<CONF_MASTER_SIZE; jj++)
                 {
-                    p1 = data.image[ID_TM[k]].array.D[jj*CONF_MASTER_SIZE+ii];
-                    p2 = data.image[ID_TM[k]].array.D[jj*CONF_MASTER_SIZE+ii+dpix];
+                    p1 = dcimg[ID_TM[k]].array.D[jj*CONF_MASTER_SIZE+ii];
+                    p2 = dcimg[ID_TM[k]].array.D[jj*CONF_MASTER_SIZE+ii+dpix];
                     tot += (p1-p2)*(p1-p2);
                     cnt++;
                 }
@@ -2352,12 +2307,12 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
         if(WFprecision == 0)
         {
             for(ii=0; ii<CONF_MASTER_SIZE*CONF_MASTER_SIZE; ii++)
-                data.image[ID_TML[i]].array.F[ii] *= sqrt(LAYER_CN2[i]/cos(CONF_ZANGLE));
+                dcimg[ID_TML[i]].array.F[ii] *= sqrt(LAYER_CN2[i]/cos(CONF_ZANGLE));
         }
         else
         {
             for(ii=0; ii<CONF_MASTER_SIZE*CONF_MASTER_SIZE; ii++)
-                data.image[ID_TML[i]].array.D[ii] *= sqrt(LAYER_CN2[i]/cos(CONF_ZANGLE));
+                dcimg[ID_TML[i]].array.D[ii] *= sqrt(LAYER_CN2[i]/cos(CONF_ZANGLE));
         }
         printf("Layer %ld, coeff = %g\n",i,sqrt(LAYER_CN2[i]/cos(CONF_ZANGLE)));
     }
@@ -2470,16 +2425,16 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
             IDshmsamp = create_image_ID(fname, 2, naxesout, DOUBLE, 1, 0);
 
         kw = 0;
-        strcpy(data.image[IDshmspha].kw[kw].name, "TIME");
-        data.image[IDshmspha].kw[kw].type = 'D';
-        data.image[IDshmspha].kw[kw].value.numf = 0.0;
-        strcpy(data.image[IDshmspha].kw[kw].comment, "Physical time [sec]");
+        strcpy(dcimg[IDshmspha].kw[kw].name, "TIME");
+        dcimg[IDshmspha].kw[kw].type = 'D';
+        dcimg[IDshmspha].kw[kw].value.numf = 0.0;
+        strcpy(dcimg[IDshmspha].kw[kw].comment, "Physical time [sec]");
 
         kw = 0;
-        strcpy(data.image[IDshmsamp].kw[kw].name, "TIME");
-        data.image[IDshmsamp].kw[kw].type = 'D';
-        data.image[IDshmsamp].kw[kw].value.numf = 0.0;
-        strcpy(data.image[IDshmsamp].kw[kw].comment, "Physical time [sec]");
+        strcpy(dcimg[IDshmsamp].kw[kw].name, "TIME");
+        dcimg[IDshmsamp].kw[kw].type = 'D';
+        dcimg[IDshmsamp].kw[kw].value.numf = 0.0;
+        strcpy(dcimg[IDshmsamp].kw[kw].comment, "Physical time [sec]");
     }
 
 
@@ -2538,7 +2493,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 exit(0);
             }
             for(ii=0; ii<vKwindsize; ii++)
-                fprintf(fp, "%6ld   %20.16f   %20.16f  %.16g  %.16g  %.16g\n", ii, WSPEEDpixscale*ii, WSPEEDpixscale*ii*LAYER_SPD[layer], data.image[ID].array.F[ii], data.image[ID].array.F[vKwindsize+ii], data.image[ID].array.F[2*vKwindsize+ii]);
+                fprintf(fp, "%6ld   %20.16f   %20.16f  %.16g  %.16g  %.16g\n", ii, WSPEEDpixscale*ii, WSPEEDpixscale*ii*LAYER_SPD[layer], dcimg[ID].array.F[ii], dcimg[ID].array.F[vKwindsize+ii], dcimg[ID].array.F[2*vKwindsize+ii]);
             fclose(fp);
         }
     }
@@ -2570,17 +2525,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     for(ii=0; ii<naxes[0]; ii++)
                         for(jj=0; jj<naxes[1]; jj++)
                         {
-                            data.image[ID_array1].array.F[jj*naxes[0]+ii] = 0.0;
-                            data.image[ID_sarray1].array.F[jj*naxes[0]+ii] = 0.0;
+                            dcimg[ID_array1].array.F[jj*naxes[0]+ii] = 0.0;
+                            dcimg[ID_sarray1].array.F[jj*naxes[0]+ii] = 0.0;
                         }
                     if(CONF_WAVEFRONT_AMPLITUDE==1)
                         for(ii=0; ii<naxes[0]; ii++)
                             for(jj=0; jj<naxes[1]; jj++)
                             {
-                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].re = 1.0;
-                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].im = 0.0;
-                                data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].re = 1.0;
-                                data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].im = 0.0;
+                                dcimg[ID_array2].array.CF[jj*naxes[0]+ii].re = 1.0;
+                                dcimg[ID_array2].array.CF[jj*naxes[0]+ii].im = 0.0;
+                                dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].re = 1.0;
+                                dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].im = 0.0;
                             }
                 }
                 else
@@ -2588,17 +2543,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     for(ii=0; ii<naxes[0]; ii++)
                         for(jj=0; jj<naxes[1]; jj++)
                         {
-                            data.image[ID_array1].array.D[jj*naxes[0]+ii] = 0.0;
-                            data.image[ID_sarray1].array.D[jj*naxes[0]+ii] = 0.0;
+                            dcimg[ID_array1].array.D[jj*naxes[0]+ii] = 0.0;
+                            dcimg[ID_sarray1].array.D[jj*naxes[0]+ii] = 0.0;
                         }
                     if(CONF_WAVEFRONT_AMPLITUDE==1)
                         for(ii=0; ii<naxes[0]; ii++)
                             for(jj=0; jj<naxes[1]; jj++)
                             {
-                                data.image[ID_array2].array.CD[jj*naxes[0]+ii].re = 1.0;
-                                data.image[ID_array2].array.CD[jj*naxes[0]+ii].im = 0.0;
-                                data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].re = 1.0;
-                                data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].im = 0.0;
+                                dcimg[ID_array2].array.CD[jj*naxes[0]+ii].re = 1.0;
+                                dcimg[ID_array2].array.CD[jj*naxes[0]+ii].im = 0.0;
+                                dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].re = 1.0;
+                                dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].im = 0.0;
                             }
                 }
             }
@@ -2608,26 +2563,26 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 {
                     for(ii=0; ii<naxes[0]; ii++)
                         for(jj=0; jj<naxes[1]; jj++)
-                            data.image[ID_array1].array.F[jj*naxes[0]+ii] = 0.0;
+                            dcimg[ID_array1].array.F[jj*naxes[0]+ii] = 0.0;
                     if(CONF_WAVEFRONT_AMPLITUDE==1)
                         for(ii=0; ii<naxes[0]; ii++)
                             for(jj=0; jj<naxes[1]; jj++)
                             {
-                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].re = 1.0;
-                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].im = 0.0;
+                                dcimg[ID_array2].array.CF[jj*naxes[0]+ii].re = 1.0;
+                                dcimg[ID_array2].array.CF[jj*naxes[0]+ii].im = 0.0;
                             }
                 }
                 else
                 {
                     for(ii=0; ii<naxes[0]; ii++)
                         for(jj=0; jj<naxes[1]; jj++)
-                            data.image[ID_array1].array.D[jj*naxes[0]+ii] = 0.0;
+                            dcimg[ID_array1].array.D[jj*naxes[0]+ii] = 0.0;
                     if(CONF_WAVEFRONT_AMPLITUDE==1)
                         for(ii=0; ii<naxes[0]; ii++)
                             for(jj=0; jj<naxes[1]; jj++)
                             {
-                                data.image[ID_array2].array.CD[jj*naxes[0]+ii].re = 1.0;
-                                data.image[ID_array2].array.CD[jj*naxes[0]+ii].im = 0.0;
+                                dcimg[ID_array2].array.CD[jj*naxes[0]+ii].re = 1.0;
+                                dcimg[ID_array2].array.CD[jj*naxes[0]+ii].im = 0.0;
                             }
                 }
             }
@@ -2781,23 +2736,23 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                             if(jjm1>CONF_MASTER_SIZE-1)
                                 jjm1 -= CONF_MASTER_SIZE;
 
-                            value = (1.0-iifrac)*(1.0-jjfrac)*data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim];
-                            value += (1.0-iifrac)*(jjfrac)*data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim];
-                            value += (iifrac)*(jjfrac)*data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
-                            value += (iifrac)*(1.0-jjfrac)*data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1];
+                            value = (1.0-iifrac)*(1.0-jjfrac)*dcimg[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim];
+                            value += (1.0-iifrac)*(jjfrac)*dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim];
+                            value += (iifrac)*(jjfrac)*dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
+                            value += (iifrac)*(1.0-jjfrac)*dcimg[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1];
 
-                            data.image[ID_array1].array.F[jj*naxes[0]+ii] += value;
+                            dcimg[ID_array1].array.F[jj*naxes[0]+ii] += value;
                             if(CONF_WAVEFRONT_AMPLITUDE==1)
                             {
-                                re = data.image[ID_array2].array.CF[jj*naxes[0]+ii].re;
-                                im = data.image[ID_array2].array.CF[jj*naxes[0]+ii].im;
-                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+                                re = dcimg[ID_array2].array.CF[jj*naxes[0]+ii].re;
+                                im = dcimg[ID_array2].array.CF[jj*naxes[0]+ii].im;
+                                dcimg[ID_array2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+                                dcimg[ID_array2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
                             }
                         }
                    
 						//fpxypos = fopen("xypos.log", "a");
-						//fprintf(fpxypos, "%5ld %4ld    %10.8f %10.8f      %5ld %10.8f %5ld %10.8f    %10.8f %10.8f  %.18g        %.18g   %.18g   %.18g   %.18g\n", vindex, layer, xpos[layer], ypos[layer], iim, iifrac, jjm, jjfrac, 1.0*iim+iifrac, 1.0*jjm+jjfrac, value, data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1], data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1]);
+						//fprintf(fpxypos, "%5ld %4ld    %10.8f %10.8f      %5ld %10.8f %5ld %10.8f    %10.8f %10.8f  %.18g        %.18g   %.18g   %.18g   %.18g\n", vindex, layer, xpos[layer], ypos[layer], iim, iifrac, jjm, jjfrac, 1.0*iim+iifrac, 1.0*jjm+jjfrac, value, dcimg[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim], dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim], dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1], dcimg[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1]);
 						//fclose(fpxypos);
 					}
 					else 
@@ -2860,25 +2815,25 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 							assert(jjm3<CONF_MASTER_SIZE);
 							*/
 							
-							p00 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim0];
-							p01 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim0];
-							p02 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim0];
-							p03 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim0];
+							p00 = dcimg[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim0];
+							p01 = dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim0];
+							p02 = dcimg[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim0];
+							p03 = dcimg[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim0];
 
-							p10 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim1];
-							p11 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
-							p12 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim1];
-							p13 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim1];
+							p10 = dcimg[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim1];
+							p11 = dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
+							p12 = dcimg[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim1];
+							p13 = dcimg[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim1];
 
-							p20 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim2];
-							p21 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim2];
-							p22 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim2];
-							p23 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim2];
+							p20 = dcimg[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim2];
+							p21 = dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim2];
+							p22 = dcimg[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim2];
+							p23 = dcimg[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim2];
 
-							p30 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim3];
-							p31 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim3];
-							p32 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim3];
-							p33 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim3];
+							p30 = dcimg[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim3];
+							p31 = dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim3];
+							p32 = dcimg[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim3];
+							p33 = dcimg[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim3];
 							
 							
 							a00 = p11;
@@ -2906,18 +2861,18 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 							value = (a00 + a01 * y + a02 * y2 + a03 * y3) + (a10 + a11 * y + a12 * y2 + a13 * y3) * x + (a20 + a21 * y + a22 * y2 + a23 * y3) * x2 + (a30 + a31 * y + a32 * y2 + a33 * y3) * x3;							
 						
 						
-							data.image[ID_array1].array.F[jj*naxes[0]+ii] += value;
+							dcimg[ID_array1].array.F[jj*naxes[0]+ii] += value;
 							if(CONF_WAVEFRONT_AMPLITUDE==1)
                             {
-                                re = data.image[ID_array2].array.CF[jj*naxes[0]+ii].re;
-                                im = data.image[ID_array2].array.CF[jj*naxes[0]+ii].im;
-                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-                                data.image[ID_array2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+                                re = dcimg[ID_array2].array.CF[jj*naxes[0]+ii].re;
+                                im = dcimg[ID_array2].array.CF[jj*naxes[0]+ii].im;
+                                dcimg[ID_array2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+                                dcimg[ID_array2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
                             }
 
 						
 						//fpxypos = fopen("xypos3.log", "a");
-						//fprintf(fpxypos, "%5ld %4ld    %10.8f %10.8f      %5ld %10.8f %5ld %10.8f    %10.8f %10.8f  %.18g        %.18g   %.18g   %.18g   %.18g\n", vindex, layer, xpos[layer], ypos[layer], iim, x, jjm, y, 1.0*iim+x, 1.0*jjm+y, value, data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim], data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1], data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1]);
+						//fprintf(fpxypos, "%5ld %4ld    %10.8f %10.8f      %5ld %10.8f %5ld %10.8f    %10.8f %10.8f  %.18g        %.18g   %.18g   %.18g   %.18g\n", vindex, layer, xpos[layer], ypos[layer], iim, x, jjm, y, 1.0*iim+x, 1.0*jjm+y, value, dcimg[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim], dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim], dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1], dcimg[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1]);
 						//fclose(fpxypos);
 						}
 					}
@@ -2948,18 +2903,18 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                             if(jjm1>CONF_MASTER_SIZE-1)
                                 jjm1 -= CONF_MASTER_SIZE;
 
-                            value = (1.0-iifrac)*(1.0-jjfrac)*data.image[ID_TML[layer]].array.D[jjm*naxes_MASTER[0]+iim];
-                            value += (1.0-iifrac)*(jjfrac)*data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim];
-                            value += (iifrac)*(jjfrac)*data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
-                            value += (iifrac)*(1.0-jjfrac)*data.image[ID_TML[layer]].array.D[jjm*naxes_MASTER[0]+iim1];
+                            value = (1.0-iifrac)*(1.0-jjfrac)*dcimg[ID_TML[layer]].array.D[jjm*naxes_MASTER[0]+iim];
+                            value += (1.0-iifrac)*(jjfrac)*dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim];
+                            value += (iifrac)*(jjfrac)*dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
+                            value += (iifrac)*(1.0-jjfrac)*dcimg[ID_TML[layer]].array.D[jjm*naxes_MASTER[0]+iim1];
 
-                            data.image[ID_array1].array.D[jj*naxes[0]+ii] += value;
+                            dcimg[ID_array1].array.D[jj*naxes[0]+ii] += value;
                             if(CONF_WAVEFRONT_AMPLITUDE==1)
                             {
-                                re = data.image[ID_array2].array.CD[jj*naxes[0]+ii].re;
-                                im = data.image[ID_array2].array.CD[jj*naxes[0]+ii].im;
-                                data.image[ID_array2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-                                data.image[ID_array2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+                                re = dcimg[ID_array2].array.CD[jj*naxes[0]+ii].re;
+                                im = dcimg[ID_array2].array.CD[jj*naxes[0]+ii].im;
+                                dcimg[ID_array2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+                                dcimg[ID_array2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
                             }
                         }
 					}
@@ -3022,25 +2977,25 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 							assert(jjm2<CONF_MASTER_SIZE);
 							assert(jjm3<CONF_MASTER_SIZE);
 					*/
-							p00 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim0];
-							p01 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim0];
-							p02 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim0];
-							p03 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim0];
+							p00 = dcimg[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim0];
+							p01 = dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim0];
+							p02 = dcimg[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim0];
+							p03 = dcimg[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim0];
 
-							p10 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim1];
-							p11 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
-							p12 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim1];
-							p13 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim1];
+							p10 = dcimg[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim1];
+							p11 = dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
+							p12 = dcimg[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim1];
+							p13 = dcimg[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim1];
 
-							p20 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim2];
-							p21 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim2];
-							p22 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim2];
-							p23 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim2];
+							p20 = dcimg[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim2];
+							p21 = dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim2];
+							p22 = dcimg[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim2];
+							p23 = dcimg[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim2];
 
-							p30 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim3];
-							p31 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim3];
-							p32 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim3];
-							p33 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim3];
+							p30 = dcimg[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim3];
+							p31 = dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim3];
+							p32 = dcimg[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim3];
+							p33 = dcimg[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim3];
 							
 							
 							a00 = p11;
@@ -3068,13 +3023,13 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 							value = (a00 + a01 * y + a02 * y2 + a03 * y3) + (a10 + a11 * y + a12 * y2 + a13 * y3) * x + (a20 + a21 * y + a22 * y2 + a23 * y3) * x2 + (a30 + a31 * y + a32 * y2 + a33 * y3) * x3;							
 						
 					
-							data.image[ID_array1].array.D[jj*naxes[0]+ii] += value;
+							dcimg[ID_array1].array.D[jj*naxes[0]+ii] += value;
 							if(CONF_WAVEFRONT_AMPLITUDE==1)
 							{
-								re = data.image[ID_array2].array.CD[jj*naxes[0]+ii].re;
-								im = data.image[ID_array2].array.CD[jj*naxes[0]+ii].im;
-								data.image[ID_array2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-								data.image[ID_array2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+								re = dcimg[ID_array2].array.CD[jj*naxes[0]+ii].re;
+								im = dcimg[ID_array2].array.CD[jj*naxes[0]+ii].im;
+								dcimg[ID_array2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+								dcimg[ID_array2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
 							}
 						}
 					}
@@ -3109,21 +3064,21 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 if(jjm1>CONF_MASTER_SIZE-1)
                                     jjm1 -= CONF_MASTER_SIZE;
 
-                                value = (1.0-iifrac)*(1.0-jjfrac)*data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim];
-                                value += (1.0-iifrac)*(jjfrac)*data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim];
-                                value += (iifrac)*(jjfrac)*data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
-                                value += (iifrac)*(1.0-jjfrac)*data.image[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1];
+                                value = (1.0-iifrac)*(1.0-jjfrac)*dcimg[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim];
+                                value += (1.0-iifrac)*(jjfrac)*dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim];
+                                value += (iifrac)*(jjfrac)*dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
+                                value += (iifrac)*(1.0-jjfrac)*dcimg[ID_TML[layer]].array.F[jjm*naxes_MASTER[0]+iim1];
 
                                 value *= Scoeff;  // multiplicative coeff to go from ref lambda to science lambda
 
-                                data.image[ID_sarray1].array.F[jj*naxes[0]+ii] += value;
+                                dcimg[ID_sarray1].array.F[jj*naxes[0]+ii] += value;
 
                                 if(CONF_WAVEFRONT_AMPLITUDE==1)
                                 {
-                                    re = data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].re;
-                                    im = data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].im;
-                                    data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-                                    data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+                                    re = dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].re;
+                                    im = dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].im;
+                                    dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+                                    dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
                                 }
                             }
 						}
@@ -3186,25 +3141,25 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 							assert(jjm2<CONF_MASTER_SIZE);
 							assert(jjm3<CONF_MASTER_SIZE);
 					*/
-							p00 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim0];
-							p01 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim0];
-							p02 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim0];
-							p03 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim0];
+							p00 = dcimg[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim0];
+							p01 = dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim0];
+							p02 = dcimg[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim0];
+							p03 = dcimg[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim0];
 
-							p10 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim1];
-							p11 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
-							p12 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim1];
-							p13 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim1];
+							p10 = dcimg[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim1];
+							p11 = dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim1];
+							p12 = dcimg[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim1];
+							p13 = dcimg[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim1];
 
-							p20 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim2];
-							p21 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim2];
-							p22 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim2];
-							p23 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim2];
+							p20 = dcimg[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim2];
+							p21 = dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim2];
+							p22 = dcimg[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim2];
+							p23 = dcimg[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim2];
 
-							p30 = data.image[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim3];
-							p31 = data.image[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim3];
-							p32 = data.image[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim3];
-							p33 = data.image[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim3];
+							p30 = dcimg[ID_TML[layer]].array.F[jjm0*naxes_MASTER[0]+iim3];
+							p31 = dcimg[ID_TML[layer]].array.F[jjm1*naxes_MASTER[0]+iim3];
+							p32 = dcimg[ID_TML[layer]].array.F[jjm2*naxes_MASTER[0]+iim3];
+							p33 = dcimg[ID_TML[layer]].array.F[jjm3*naxes_MASTER[0]+iim3];
 							
 							
 							a00 = p11;
@@ -3234,14 +3189,14 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 						
 							value *= Scoeff;  // multiplicative coeff to go from ref lambda to science lambda
 						
-							data.image[ID_sarray1].array.F[jj*naxes[0]+ii] += value;
+							dcimg[ID_sarray1].array.F[jj*naxes[0]+ii] += value;
 						
 							if(CONF_WAVEFRONT_AMPLITUDE==1)
 							{
-								re = data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].re;
-								im = data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].im;
-								data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-								data.image[ID_sarray2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+								re = dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].re;
+								im = dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].im;
+								dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+								dcimg[ID_sarray2].array.CF[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
 							}
 							}
 						}
@@ -3270,21 +3225,21 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 if(jjm1>CONF_MASTER_SIZE-1)
                                     jjm1 -= CONF_MASTER_SIZE;
 
-                                value = (1.0-iifrac)*(1.0-jjfrac)*data.image[ID_TML[layer]].array.D[jjm*naxes_MASTER[0]+iim];
-                                value += (1.0-iifrac)*(jjfrac)*data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim];
-                                value += (iifrac)*(jjfrac)*data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
-                                value += (iifrac)*(1.0-jjfrac)*data.image[ID_TML[layer]].array.D[jjm*naxes_MASTER[0]+iim1];
+                                value = (1.0-iifrac)*(1.0-jjfrac)*dcimg[ID_TML[layer]].array.D[jjm*naxes_MASTER[0]+iim];
+                                value += (1.0-iifrac)*(jjfrac)*dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim];
+                                value += (iifrac)*(jjfrac)*dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
+                                value += (iifrac)*(1.0-jjfrac)*dcimg[ID_TML[layer]].array.D[jjm*naxes_MASTER[0]+iim1];
 
                                 value *= Scoeff;  // multiplicative coeff to go from ref lambda to science lambda
 
-                                data.image[ID_sarray1].array.D[jj*naxes[0]+ii] += value;
+                                dcimg[ID_sarray1].array.D[jj*naxes[0]+ii] += value;
 
                                 if(CONF_WAVEFRONT_AMPLITUDE==1)
                                 {
-                                    re = data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].re;
-                                    im = data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].im;
-                                    data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-                                    data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+                                    re = dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].re;
+                                    im = dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].im;
+                                    dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+                                    dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
                                 }
                             }
                         }
@@ -3349,25 +3304,25 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 							*/
 
 					
-							p00 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim0];
-							p01 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim0];
-							p02 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim0];
-							p03 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim0];
+							p00 = dcimg[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim0];
+							p01 = dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim0];
+							p02 = dcimg[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim0];
+							p03 = dcimg[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim0];
 
-							p10 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim1];
-							p11 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
-							p12 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim1];
-							p13 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim1];
+							p10 = dcimg[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim1];
+							p11 = dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim1];
+							p12 = dcimg[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim1];
+							p13 = dcimg[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim1];
 
-							p20 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim2];
-							p21 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim2];
-							p22 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim2];
-							p23 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim2];
+							p20 = dcimg[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim2];
+							p21 = dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim2];
+							p22 = dcimg[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim2];
+							p23 = dcimg[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim2];
 
-							p30 = data.image[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim3];
-							p31 = data.image[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim3];
-							p32 = data.image[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim3];
-							p33 = data.image[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim3];
+							p30 = dcimg[ID_TML[layer]].array.D[jjm0*naxes_MASTER[0]+iim3];
+							p31 = dcimg[ID_TML[layer]].array.D[jjm1*naxes_MASTER[0]+iim3];
+							p32 = dcimg[ID_TML[layer]].array.D[jjm2*naxes_MASTER[0]+iim3];
+							p33 = dcimg[ID_TML[layer]].array.D[jjm3*naxes_MASTER[0]+iim3];
 							
 							
 							a00 = p11;
@@ -3397,14 +3352,14 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 						
 							value *= Scoeff;  // multiplicative coeff to go from ref lambda to science lambda
 						
-							data.image[ID_sarray1].array.D[jj*naxes[0]+ii] += value;
+							dcimg[ID_sarray1].array.D[jj*naxes[0]+ii] += value;
 						
 							if(CONF_WAVEFRONT_AMPLITUDE==1)
 							{
-								re = data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].re;
-								im = data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].im;
-								data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
-								data.image[ID_sarray2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
+								re = dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].re;
+								im = dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].im;
+								dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].re = re*cos(value)-im*sin(value);
+								dcimg[ID_sarray2].array.CD[jj*naxes[0]+ii].im = re*sin(value)+im*cos(value);
 							}
 							}
 						}
@@ -3423,7 +3378,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 {
                     ii1 = ii+(naxes[0]-naxesout[0])/2;
                     jj1 = jj+(naxes[1]-naxesout[1])/2;
-                    data.image[IDout_array_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = data.image[ID_array1].array.F[jj1*naxes[0]+ii1];
+                    dcimg[IDout_array_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = dcimg[ID_array1].array.F[jj1*naxes[0]+ii1];
                 }
             }
             else
@@ -3433,7 +3388,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                 {
                     ii1 = ii+(naxes[0]-naxesout[0])/2;
                     jj1 = jj+(naxes[1]-naxesout[1])/2;
-                    data.image[IDout_array_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = data.image[ID_array1].array.D[jj1*naxes[0]+ii1];
+                    dcimg[IDout_array_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = dcimg[ID_array1].array.D[jj1*naxes[0]+ii1];
                 }
             }
 
@@ -3446,14 +3401,14 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     {
                         ii1 = ii+(naxes[0]-naxesout[0])/2;
                         jj1 = jj+(naxes[1]-naxesout[1])/2;
-                        array[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = data.image[ID_array2].array.CF[jj1*naxes[0]+ii1].re;
-                        array[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = data.image[ID_array2].array.CF[jj1*naxes[0]+ii1].im;
+                        array[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = dcimg[ID_array2].array.CF[jj1*naxes[0]+ii1].re;
+                        array[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = dcimg[ID_array2].array.CF[jj1*naxes[0]+ii1].im;
 
                         re = array[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re;
                         im = array[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im;
-                        data.image[IDout_array_amp].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = sqrt(re*re+im*im);
+                        dcimg[IDout_array_amp].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = sqrt(re*re+im*im);
                         pha = atan2(im,re);
-                        data.image[IDout_array_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha + 2.0*M_PI*((long) (data.image[IDout_array_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]/2.0/M_PI+1000.5) - 1000.0);
+                        dcimg[IDout_array_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha + 2.0*M_PI*((long) (dcimg[IDout_array_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]/2.0/M_PI+1000.5) - 1000.0);
                     }
             }
 			}
@@ -3464,14 +3419,14 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     {
                         ii1 = ii+(naxes[0]-naxesout[0])/2;
                         jj1 = jj+(naxes[1]-naxesout[1])/2;
-                        array_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = data.image[ID_array2].array.CD[jj1*naxes[0]+ii1].re;
-                        array_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = data.image[ID_array2].array.CD[jj1*naxes[0]+ii1].im;
+                        array_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = dcimg[ID_array2].array.CD[jj1*naxes[0]+ii1].re;
+                        array_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = dcimg[ID_array2].array.CD[jj1*naxes[0]+ii1].im;
 
                         re = array_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re;
                         im = array_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im;
-                        data.image[IDout_array_amp].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = sqrt(re*re+im*im);
+                        dcimg[IDout_array_amp].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = sqrt(re*re+im*im);
                         pha = atan2(im,re);
-                        data.image[IDout_array_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha + 2.0*M_PI*((long) (data.image[IDout_array_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]/2.0/M_PI+1000.5) - 1000.0);
+                        dcimg[IDout_array_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha + 2.0*M_PI*((long) (dcimg[IDout_array_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]/2.0/M_PI+1000.5) - 1000.0);
                     }
             }
 			
@@ -3488,12 +3443,12 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     if(WFprecision == 0)
                     {
                         for(ii=0; ii<naxesout[0]*naxesout[1]; ii++)
-                            data.image[IDshmpha].array.F[ii] = data.image[ID_array1].array.F[frame*naxesout[0]*naxesout[1]+ii];
+                            dcimg[IDshmpha].array.F[ii] = dcimg[ID_array1].array.F[frame*naxesout[0]*naxesout[1]+ii];
                     }
                     else
                     {
                         for(ii=0; ii<naxesout[0]*naxesout[1]; ii++)
-                            data.image[IDshmpha].array.D[ii] = data.image[ID_array1].array.D[frame*naxesout[0]*naxesout[1]+ii];
+                            dcimg[IDshmpha].array.D[ii] = dcimg[ID_array1].array.D[frame*naxesout[0]*naxesout[1]+ii];
                     }
                 }
                 else
@@ -3502,16 +3457,16 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     {
                         for(ii=0; ii<naxesout[0]*naxesout[1]; ii++)
                         {
-                            data.image[IDshmpha].array.F[ii] = data.image[IDout_array_pha].array.F[frame*naxesout[0]*naxesout[1]+ii];
-                            data.image[IDshmamp].array.F[ii] = data.image[IDout_array_amp].array.F[frame*naxesout[0]*naxesout[1]+ii];
+                            dcimg[IDshmpha].array.F[ii] = dcimg[IDout_array_pha].array.F[frame*naxesout[0]*naxesout[1]+ii];
+                            dcimg[IDshmamp].array.F[ii] = dcimg[IDout_array_amp].array.F[frame*naxesout[0]*naxesout[1]+ii];
                         }
                     }
                     else
                     {
                         for(ii=0; ii<naxesout[0]*naxesout[1]; ii++)
                         {
-                            data.image[IDshmpha].array.D[ii] = data.image[IDout_array_pha].array.D[frame*naxesout[0]*naxesout[1]+ii];
-                            data.image[IDshmamp].array.D[ii] = data.image[IDout_array_amp].array.D[frame*naxesout[0]*naxesout[1]+ii];
+                            dcimg[IDshmpha].array.D[ii] = dcimg[IDout_array_pha].array.D[frame*naxesout[0]*naxesout[1]+ii];
+                            dcimg[IDshmamp].array.D[ii] = dcimg[IDout_array_amp].array.D[frame*naxesout[0]*naxesout[1]+ii];
                         }
                     }
                 }
@@ -3529,7 +3484,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                         {
                             ii1 = ii+(naxes[0]-naxesout[0])/2;
                             jj1 = jj+(naxes[1]-naxesout[1])/2;
-                            data.image[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = data.image[ID_sarray1].array.F[jj1*naxes[0]+ii1];
+                            dcimg[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = dcimg[ID_sarray1].array.F[jj1*naxes[0]+ii1];
                         }
                 }
                 else
@@ -3539,7 +3494,7 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                         {
                             ii1 = ii+(naxes[0]-naxesout[0])/2;
                             jj1 = jj+(naxes[1]-naxesout[1])/2;
-                            data.image[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = data.image[ID_sarray1].array.D[jj1*naxes[0]+ii1];
+                            dcimg[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = dcimg[ID_sarray1].array.D[jj1*naxes[0]+ii1];
                         }
                 }
 
@@ -3550,20 +3505,20 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     {
                         for(ii2=0; ii2<xsizepeakpha*ysizepeakpha; ii2++)
                         {
-                            data.image[IDpeakpha_re_bin].array.F[ii2] = 0.0;
-                            data.image[IDpeakpha_im_bin].array.F[ii2] = 0.0;
-                            data.image[IDpeakpha_bin].array.F[ii2] = 0.0;
-                            data.image[IDpeakpha_bin_ch].array.F[ii2] = 0.0;
+                            dcimg[IDpeakpha_re_bin].array.F[ii2] = 0.0;
+                            dcimg[IDpeakpha_im_bin].array.F[ii2] = 0.0;
+                            dcimg[IDpeakpha_bin].array.F[ii2] = 0.0;
+                            dcimg[IDpeakpha_bin_ch].array.F[ii2] = 0.0;
                         }
                     }
                     else
                     {
                         for(ii2=0; ii2<xsizepeakpha*ysizepeakpha; ii2++)
                         {
-                            data.image[IDpeakpha_re_bin].array.D[ii2] = 0.0;
-                            data.image[IDpeakpha_im_bin].array.D[ii2] = 0.0;
-                            data.image[IDpeakpha_bin].array.D[ii2] = 0.0;
-                            data.image[IDpeakpha_bin_ch].array.D[ii2] = 0.0;
+                            dcimg[IDpeakpha_re_bin].array.D[ii2] = 0.0;
+                            dcimg[IDpeakpha_im_bin].array.D[ii2] = 0.0;
+                            dcimg[IDpeakpha_bin].array.D[ii2] = 0.0;
+                            dcimg[IDpeakpha_bin_ch].array.D[ii2] = 0.0;
                         }
                     }
 
@@ -3577,22 +3532,22 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                             {
                                 ii1 = ii+(naxes[0]-naxesout[0])/2;
                                 jj1 = jj+(naxes[1]-naxesout[1])/2;
-                                sarray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = data.image[ID_sarray2].array.CF[jj1*naxes[0]+ii1].re;
-                                sarray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = data.image[ID_sarray2].array.CF[jj1*naxes[0]+ii1].im;
+                                sarray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = dcimg[ID_sarray2].array.CF[jj1*naxes[0]+ii1].re;
+                                sarray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = dcimg[ID_sarray2].array.CF[jj1*naxes[0]+ii1].im;
                                 re = sarray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re;
                                 im = sarray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im;
-                                data.image[IDout_sarray_amp].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = sqrt(re*re+im*im);
+                                dcimg[IDout_sarray_amp].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = sqrt(re*re+im*im);
                                 pha = atan2(im,re);
-                                data.image[IDpeakpha_re].array.F[jj*naxesout[0]+ii] = cos(data.image[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]-pha);
-                                data.image[IDpeakpha_im].array.F[jj*naxesout[0]+ii] = sin(data.image[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]-pha);
-                                data.image[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha;
+                                dcimg[IDpeakpha_re].array.F[jj*naxesout[0]+ii] = cos(dcimg[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]-pha);
+                                dcimg[IDpeakpha_im].array.F[jj*naxesout[0]+ii] = sin(dcimg[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]-pha);
+                                dcimg[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha;
                                 ii2 = (long) (1.0*ii/naxesout[0]*xsizepeakpha);
                                 jj2 = (long) (1.0*jj/naxesout[1]*ysizepeakpha);
 
                                 if((ii2<xsizepeakpha)&&(jj2<ysizepeakpha))
                                 {
-                                    data.image[IDpeakpha_re_bin].array.F[jj2*xsizepeakpha+ii2] += cos(data.image[ID_sarray1].array.F[jj1*naxes[0]+ii1]-pha);
-                                    data.image[IDpeakpha_im_bin].array.F[jj2*xsizepeakpha+ii2] += sin(data.image[ID_sarray1].array.F[jj1*naxes[0]+ii1]-pha);
+                                    dcimg[IDpeakpha_re_bin].array.F[jj2*xsizepeakpha+ii2] += cos(dcimg[ID_sarray1].array.F[jj1*naxes[0]+ii1]-pha);
+                                    dcimg[IDpeakpha_im_bin].array.F[jj2*xsizepeakpha+ii2] += sin(dcimg[ID_sarray1].array.F[jj1*naxes[0]+ii1]-pha);
                                 }
                             }
                     }
@@ -3603,22 +3558,22 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                             {
                                 ii1 = ii+(naxes[0]-naxesout[0])/2;
                                 jj1 = jj+(naxes[1]-naxesout[1])/2;
-                                sarray_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = data.image[ID_sarray2].array.CD[jj1*naxes[0]+ii1].re;
-                                sarray_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = data.image[ID_sarray2].array.CD[jj1*naxes[0]+ii1].im;
+                                sarray_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = dcimg[ID_sarray2].array.CD[jj1*naxes[0]+ii1].re;
+                                sarray_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = dcimg[ID_sarray2].array.CD[jj1*naxes[0]+ii1].im;
                                 re = sarray_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re;
                                 im = sarray_double[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im;
-                                data.image[IDout_sarray_amp].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = sqrt(re*re+im*im);
+                                dcimg[IDout_sarray_amp].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = sqrt(re*re+im*im);
                                 pha = atan2(im,re);
-                                data.image[IDpeakpha_re].array.D[jj*naxesout[0]+ii] = cos(data.image[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]-pha);
-                                data.image[IDpeakpha_im].array.D[jj*naxesout[0]+ii] = sin(data.image[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]-pha);
-                                data.image[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha;
+                                dcimg[IDpeakpha_re].array.D[jj*naxesout[0]+ii] = cos(dcimg[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]-pha);
+                                dcimg[IDpeakpha_im].array.D[jj*naxesout[0]+ii] = sin(dcimg[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii]-pha);
+                                dcimg[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha;
                                 ii2 = (long) (1.0*ii/naxesout[0]*xsizepeakpha);
                                 jj2 = (long) (1.0*jj/naxesout[1]*ysizepeakpha);
 
                                 if((ii2<xsizepeakpha)&&(jj2<ysizepeakpha))
                                 {
-                                    data.image[IDpeakpha_re_bin].array.D[jj2*xsizepeakpha+ii2] += cos(data.image[ID_sarray1].array.D[jj1*naxes[0]+ii1]-pha);
-                                    data.image[IDpeakpha_im_bin].array.D[jj2*xsizepeakpha+ii2] += sin(data.image[ID_sarray1].array.D[jj1*naxes[0]+ii1]-pha);
+                                    dcimg[IDpeakpha_re_bin].array.D[jj2*xsizepeakpha+ii2] += cos(dcimg[ID_sarray1].array.D[jj1*naxes[0]+ii1]-pha);
+                                    dcimg[IDpeakpha_im_bin].array.D[jj2*xsizepeakpha+ii2] += sin(dcimg[ID_sarray1].array.D[jj1*naxes[0]+ii1]-pha);
                                 }
                             }
                     }
@@ -3633,16 +3588,16 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                     {
                         for(ii2=0; ii2<xsizepeakpha*ysizepeakpha; ii2++)
                         {
-                            data.image[IDpeakpha_bin].array.F[ii2] = atan2(data.image[IDpeakpha_im_bin].array.F[ii2], data.image[IDpeakpha_re_bin].array.F[ii2]);
-                            //	while(data.image[IDpeakpha_bin].array.F[ii2]<0.0)
-                            //	data.image[IDpeakpha_bin].array.F[ii2] += 2.0*M_PI;
+                            dcimg[IDpeakpha_bin].array.F[ii2] = atan2(dcimg[IDpeakpha_im_bin].array.F[ii2], dcimg[IDpeakpha_re_bin].array.F[ii2]);
+                            //	while(dcimg[IDpeakpha_bin].array.F[ii2]<0.0)
+                            //	dcimg[IDpeakpha_bin].array.F[ii2] += 2.0*M_PI;
                         }
                     }
                     else
                     {
                         for(ii2=0; ii2<xsizepeakpha*ysizepeakpha; ii2++)
                         {
-                            data.image[IDpeakpha_bin].array.D[ii2] = atan2(data.image[IDpeakpha_im_bin].array.D[ii2], data.image[IDpeakpha_re_bin].array.D[ii2]);
+                            dcimg[IDpeakpha_bin].array.D[ii2] = atan2(dcimg[IDpeakpha_im_bin].array.D[ii2], dcimg[IDpeakpha_re_bin].array.D[ii2]);
                         }
                     }
 
@@ -3657,12 +3612,12 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                         if(WFprecision == 0)
                         {
                             for(ii2=0; ii2<xsizepeakpha*ysizepeakpha; ii2++)
-                                data.image[IDpeakpha_bin_ch].array.F[ii2] = 0.0;
+                                dcimg[IDpeakpha_bin_ch].array.F[ii2] = 0.0;
                         }
                         else
                         {
                             for(ii2=0; ii2<xsizepeakpha*ysizepeakpha; ii2++)
-                                data.image[IDpeakpha_bin_ch].array.D[ii2] = 0.0;
+                                dcimg[IDpeakpha_bin_ch].array.D[ii2] = 0.0;
                         }
 
                         if(WFprecision == 0)
@@ -3672,17 +3627,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = jj2*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+1;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= 0.2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += 0.2;
                                     }
                                 }
 
@@ -3691,17 +3646,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = jj2*xsizepeakpha+ii2;
                                     index2 = (jj2+1)*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= 0.2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += 0.2;
                                     }
                                 }
 
@@ -3711,17 +3666,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = jj2*xsizepeakpha+ii2;
                                     index2 = (jj2+1)*xsizepeakpha+ii2+1;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= 0.2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += 0.2;
                                     }
                                 }
 
@@ -3731,17 +3686,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+1)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+1;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= 0.2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += 0.2;
                                     }
                                 }
 
@@ -3754,17 +3709,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = jj2*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+2;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
                                     }
                                 }
 
@@ -3774,17 +3729,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
                                     }
                                 }
 
@@ -3793,17 +3748,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2+1;
                                     index2 = jj2*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
                                     }
                                 }
 
@@ -3812,17 +3767,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+1;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
                                     }
                                 }
 
@@ -3831,17 +3786,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2+2;
                                     index2 = jj2*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
                                     }
                                 }
 
@@ -3850,17 +3805,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+2;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
                                     }
                                 }
 
@@ -3869,17 +3824,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+1)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+2;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
                                     }
                                 }
 
@@ -3888,17 +3843,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+1)*xsizepeakpha+ii2+2;
                                     index2 = jj2*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.F[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.F[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.F[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.F[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.F[index2] += pcoeff2;
                                     }
                                 }
 
@@ -3906,8 +3861,8 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 
                             plim = 0.0;
                             for(ii2=0; ii2<xsizepeakpha*ysizepeakpha; ii2++)
-                                if(fabs(data.image[IDpeakpha_bin_ch].array.F[ii2])>plim)
-                                    plim = fabs(data.image[IDpeakpha_bin_ch].array.F[ii2]);
+                                if(fabs(dcimg[IDpeakpha_bin_ch].array.F[ii2])>plim)
+                                    plim = fabs(dcimg[IDpeakpha_bin_ch].array.F[ii2]);
                             plim -= 0.001;
 
                             if(plim<0.5)
@@ -3920,17 +3875,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                             for(ii2=0; ii2<xsizepeakpha; ii2++)
                                 for(jj2=0; jj2<ysizepeakpha; jj2++)
                                 {
-                                    if(data.image[IDpeakpha_bin_ch].array.F[jj2*xsizepeakpha+ii2]>plim)
+                                    if(dcimg[IDpeakpha_bin_ch].array.F[jj2*xsizepeakpha+ii2]>plim)
                                     {
                                         if((ii2>1)&&(jj2>1)&&(ii2<xsizepeakpha-2)&&(jj2<ysizepeakpha-2))
                                             chcnt ++;
-                                        data.image[IDpeakpha_bin].array.F[jj2*xsizepeakpha+ii2] += 2.0*M_PI;
+                                        dcimg[IDpeakpha_bin].array.F[jj2*xsizepeakpha+ii2] += 2.0*M_PI;
                                     }
-                                    if(data.image[IDpeakpha_bin_ch].array.F[jj2*xsizepeakpha+ii2]<-plim)
+                                    if(dcimg[IDpeakpha_bin_ch].array.F[jj2*xsizepeakpha+ii2]<-plim)
                                     {
                                         if((ii2>1)&&(jj2>1)&&(ii2<xsizepeakpha-2)&&(jj2<ysizepeakpha-2))
                                             chcnt ++;
-                                        data.image[IDpeakpha_bin].array.F[jj2*xsizepeakpha+ii2] -= 2.0*M_PI;
+                                        dcimg[IDpeakpha_bin].array.F[jj2*xsizepeakpha+ii2] -= 2.0*M_PI;
                                     }
 
                                 }
@@ -3942,17 +3897,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = jj2*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+1;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= 0.2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += 0.2;
                                     }
                                 }
 
@@ -3961,17 +3916,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = jj2*xsizepeakpha+ii2;
                                     index2 = (jj2+1)*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= 0.2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += 0.2;
                                     }
                                 }
 
@@ -3981,17 +3936,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = jj2*xsizepeakpha+ii2;
                                     index2 = (jj2+1)*xsizepeakpha+ii2+1;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= 0.2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += 0.2;
                                     }
                                 }
 
@@ -4001,17 +3956,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+1)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+1;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= 0.2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= 0.2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= 0.2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += 0.2;
                                     }
                                 }
 
@@ -4024,17 +3979,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = jj2*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+2;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
                                     }
                                 }
 
@@ -4044,17 +3999,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
                                     }
                                 }
 
@@ -4063,17 +4018,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2+1;
                                     index2 = jj2*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
                                     }
                                 }
 
@@ -4082,17 +4037,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+1;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
                                     }
                                 }
 
@@ -4101,17 +4056,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2+2;
                                     index2 = jj2*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
                                     }
                                 }
 
@@ -4120,17 +4075,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+2)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+2;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
                                     }
                                 }
 
@@ -4139,17 +4094,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+1)*xsizepeakpha+ii2;
                                     index2 = jj2*xsizepeakpha+ii2+2;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
                                     }
                                 }
 
@@ -4158,17 +4113,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     index1 = (jj2+1)*xsizepeakpha+ii2+2;
                                     index2 = jj2*xsizepeakpha+ii2;
-                                    pv1 = data.image[IDpeakpha_bin].array.D[index1];
-                                    pv2 = data.image[IDpeakpha_bin].array.D[index2];
+                                    pv1 = dcimg[IDpeakpha_bin].array.D[index1];
+                                    pv2 = dcimg[IDpeakpha_bin].array.D[index2];
                                     if(pv2>pv1+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] -= pcoeff2;
                                     }
                                     if(pv1>pv2+M_PI)
                                     {
-                                        data.image[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
-                                        data.image[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index1] -= pcoeff2;
+                                        dcimg[IDpeakpha_bin_ch].array.D[index2] += pcoeff2;
                                     }
                                 }
 
@@ -4176,8 +4131,8 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 
                             plim = 0.0;
                             for(ii2=0; ii2<xsizepeakpha*ysizepeakpha; ii2++)
-                                if(fabs(data.image[IDpeakpha_bin_ch].array.D[ii2])>plim)
-                                    plim = fabs(data.image[IDpeakpha_bin_ch].array.D[ii2]);
+                                if(fabs(dcimg[IDpeakpha_bin_ch].array.D[ii2])>plim)
+                                    plim = fabs(dcimg[IDpeakpha_bin_ch].array.D[ii2]);
                             plim -= 0.001;
 
                             if(plim<0.5)
@@ -4190,17 +4145,17 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                             for(ii2=0; ii2<xsizepeakpha; ii2++)
                                 for(jj2=0; jj2<ysizepeakpha; jj2++)
                                 {
-                                    if(data.image[IDpeakpha_bin_ch].array.D[jj2*xsizepeakpha+ii2]>plim)
+                                    if(dcimg[IDpeakpha_bin_ch].array.D[jj2*xsizepeakpha+ii2]>plim)
                                     {
                                         if((ii2>1)&&(jj2>1)&&(ii2<xsizepeakpha-2)&&(jj2<ysizepeakpha-2))
                                             chcnt ++;
-                                        data.image[IDpeakpha_bin].array.D[jj2*xsizepeakpha+ii2] += 2.0*M_PI;
+                                        dcimg[IDpeakpha_bin].array.D[jj2*xsizepeakpha+ii2] += 2.0*M_PI;
                                     }
-                                    if(data.image[IDpeakpha_bin_ch].array.D[jj2*xsizepeakpha+ii2]<-plim)
+                                    if(dcimg[IDpeakpha_bin_ch].array.D[jj2*xsizepeakpha+ii2]<-plim)
                                     {
                                         if((ii2>1)&&(jj2>1)&&(ii2<xsizepeakpha-2)&&(jj2<ysizepeakpha-2))
                                             chcnt ++;
-                                        data.image[IDpeakpha_bin].array.D[jj2*xsizepeakpha+ii2] -= 2.0*M_PI;
+                                        dcimg[IDpeakpha_bin].array.D[jj2*xsizepeakpha+ii2] -= 2.0*M_PI;
                                     }
 
                                 }
@@ -4232,13 +4187,13 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 jj2 = (long) (1.0*jj/naxesout[1]*ysizepeakpha);
 
                                 if((ii2<xsizepeakpha)&&(jj2<ysizepeakpha))
-                                    peakpha = data.image[IDpeakpha_bin].array.F[jj2*xsizepeakpha+ii2];
+                                    peakpha = dcimg[IDpeakpha_bin].array.F[jj2*xsizepeakpha+ii2];
 
                                 ii1 = ii+(naxes[0]-naxesout[0])/2;
                                 jj1 = jj+(naxes[1]-naxesout[1])/2;
 
-                                pha = data.image[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii];
-                                data.image[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha + 2.0*M_PI*((long) ((data.image[ID_sarray1].array.F[jj1*naxes[0]+ii1]-pha-peakpha)/2.0/M_PI+1000.5) - 1000.0);
+                                pha = dcimg[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii];
+                                dcimg[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha + 2.0*M_PI*((long) ((dcimg[ID_sarray1].array.F[jj1*naxes[0]+ii1]-pha-peakpha)/2.0/M_PI+1000.5) - 1000.0);
                             }
                     }
                     else
@@ -4250,13 +4205,13 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 jj2 = (long) (1.0*jj/naxesout[1]*ysizepeakpha);
 
                                 if((ii2<xsizepeakpha)&&(jj2<ysizepeakpha))
-                                    peakpha = data.image[IDpeakpha_bin].array.D[jj2*xsizepeakpha+ii2];
+                                    peakpha = dcimg[IDpeakpha_bin].array.D[jj2*xsizepeakpha+ii2];
 
                                 ii1 = ii+(naxes[0]-naxesout[0])/2;
                                 jj1 = jj+(naxes[1]-naxesout[1])/2;
 
-                                pha = data.image[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii];
-                                data.image[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha + 2.0*M_PI*((long) ((data.image[ID_sarray1].array.D[jj1*naxes[0]+ii1]-pha-peakpha)/2.0/M_PI+1000.5) - 1000.0);
+                                pha = dcimg[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii];
+                                dcimg[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii] = pha + 2.0*M_PI*((long) ((dcimg[ID_sarray1].array.D[jj1*naxes[0]+ii1]-pha-peakpha)/2.0/M_PI+1000.5) - 1000.0);
                             }
                     }
                 }
@@ -4272,8 +4227,8 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
                                 {
                                     ii1 = ii+(naxes[0]-naxesout[0])/2;
                                     jj1 = jj+(naxes[1]-naxesout[1])/2;
-                                    carray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = data.image[ID_carray2].array.CF[jj1*naxes[0]+ii1].re;
-                                    carray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = data.image[ID_carray2].array.CF[jj1*naxes[0]+ii1].im;
+                                    carray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].re = dcimg[ID_carray2].array.CF[jj1*naxes[0]+ii1].re;
+                                    carray[frame*naxesout[0]*naxesout[1]+jj*naxesout[0]+ii].im = dcimg[ID_carray2].array.CF[jj1*naxes[0]+ii1].im;
                                 }
                         }
 
@@ -4299,47 +4254,47 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 
                 if(CONF_WAVEFRONT_AMPLITUDE==0)
                 {
-                    data.image[IDshmspha].md[0].write = 1;
-                    data.image[IDshmspha].kw[0].value.numf = tnowdouble;
+                    dcimg[IDshmspha].md[0].write = 1;
+                    dcimg[IDshmspha].kw[0].value.numf = tnowdouble;
                     if(WFprecision == 0)
                     {
                         for(ii=0; ii<naxesout[0]*naxesout[1]; ii++)
-                            data.image[IDshmspha].array.F[ii] = data.image[ID_sarray1].array.F[frame*naxesout[0]*naxesout[1]+ii]*coeff;
+                            dcimg[IDshmspha].array.F[ii] = dcimg[ID_sarray1].array.F[frame*naxesout[0]*naxesout[1]+ii]*coeff;
                     }
                     else
                     {
                         for(ii=0; ii<naxesout[0]*naxesout[1]; ii++)
-                            data.image[IDshmspha].array.D[ii] = data.image[ID_sarray1].array.D[frame*naxesout[0]*naxesout[1]+ii]*coeff;
+                            dcimg[IDshmspha].array.D[ii] = dcimg[ID_sarray1].array.D[frame*naxesout[0]*naxesout[1]+ii]*coeff;
                     }
-                    data.image[IDshmspha].md[0].cnt0++;
-                    data.image[IDshmspha].md[0].write = 0;
+                    dcimg[IDshmspha].md[0].cnt0++;
+                    dcimg[IDshmspha].md[0].write = 0;
                 }
                 else
                 {
-                    data.image[IDshmspha].md[0].write = 1;
-                    data.image[IDshmsamp].md[0].write = 1;
-                    data.image[IDshmspha].kw[0].value.numf = tnowdouble;
-                    data.image[IDshmsamp].kw[0].value.numf = tnowdouble;
+                    dcimg[IDshmspha].md[0].write = 1;
+                    dcimg[IDshmsamp].md[0].write = 1;
+                    dcimg[IDshmspha].kw[0].value.numf = tnowdouble;
+                    dcimg[IDshmsamp].kw[0].value.numf = tnowdouble;
                     if(WFprecision == 0)
                     {
                         for(ii=0; ii<naxesout[0]*naxesout[1]; ii++)
                         {
-                            data.image[IDshmspha].array.F[ii] = data.image[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+ii]*coeff;
-                            data.image[IDshmsamp].array.F[ii] = data.image[IDout_sarray_amp].array.F[frame*naxesout[0]*naxesout[1]+ii];
+                            dcimg[IDshmspha].array.F[ii] = dcimg[IDout_sarray_pha].array.F[frame*naxesout[0]*naxesout[1]+ii]*coeff;
+                            dcimg[IDshmsamp].array.F[ii] = dcimg[IDout_sarray_amp].array.F[frame*naxesout[0]*naxesout[1]+ii];
                         }
                     }
                     else
                     {
                         for(ii=0; ii<naxesout[0]*naxesout[1]; ii++)
                         {
-                            data.image[IDshmspha].array.D[ii] = data.image[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+ii]*coeff;
-                            data.image[IDshmsamp].array.D[ii] = data.image[IDout_sarray_amp].array.D[frame*naxesout[0]*naxesout[1]+ii];
+                            dcimg[IDshmspha].array.D[ii] = dcimg[IDout_sarray_pha].array.D[frame*naxesout[0]*naxesout[1]+ii]*coeff;
+                            dcimg[IDshmsamp].array.D[ii] = dcimg[IDout_sarray_amp].array.D[frame*naxesout[0]*naxesout[1]+ii];
                         }
                     }
-                    data.image[IDshmspha].md[0].cnt0++;
-                    data.image[IDshmsamp].md[0].cnt0++;
-                    data.image[IDshmspha].md[0].write = 0;
-                    data.image[IDshmsamp].md[0].write = 0;
+                    dcimg[IDshmspha].md[0].cnt0++;
+                    dcimg[IDshmsamp].md[0].cnt0++;
+                    dcimg[IDshmspha].md[0].write = 0;
+                    dcimg[IDshmsamp].md[0].write = 0;
                 }
 
             }
@@ -4498,12 +4453,12 @@ int contract_wavefront_series(char *in_prefix, char *out_prefix, long NB_files)
         sprintf(fname,"%s%08ld.%09ld.amp.fits",in_prefix, index, (long) (1.0e12*SLAMBDA+0.5));
         load_fits(fname, "tmpwfa", 1);
         IDamp=image_ID("tmpwfa");
-        naxes[0] = data.image[IDpha].md[0].size[0];
-        naxes[1] = data.image[IDpha].md[0].size[1];
-        naxes[2] = data.image[IDpha].md[0].size[2];
-        naxes_out[0] = data.image[IDpha].md[0].size[0]/2;
-        naxes_out[1] = data.image[IDpha].md[0].size[1]/2;
-        naxes_out[2] = data.image[IDpha].md[0].size[2];
+        naxes[0] = dcimg[IDpha].md[0].size[0];
+        naxes[1] = dcimg[IDpha].md[0].size[1];
+        naxes[2] = dcimg[IDpha].md[0].size[2];
+        naxes_out[0] = dcimg[IDpha].md[0].size[0]/2;
+        naxes_out[1] = dcimg[IDpha].md[0].size[1]/2;
+        naxes_out[2] = dcimg[IDpha].md[0].size[2];
         IDoutpha = create_3Dimage_ID("tmpwfop",naxes_out[0],naxes_out[1],naxes_out[2]);
         IDoutamp = create_3Dimage_ID("tmpwfoa",naxes_out[0],naxes_out[1],naxes_out[2]);
 
@@ -4524,10 +4479,10 @@ int contract_wavefront_series(char *in_prefix, char *out_prefix, long NB_files)
                     for(i=0; i<2; i++)
                         for(j=0; j<2; j++)
                         {
-                            amp = data.image[IDamp].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i];
-                            pha = data.image[IDpha].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i];
-                            pharef += data.image[IDamp].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i]*data.image[IDpha].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i];
-                            ampref += data.image[IDamp].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i];
+                            amp = dcimg[IDamp].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i];
+                            pha = dcimg[IDpha].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i];
+                            pharef += dcimg[IDamp].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i]*dcimg[IDpha].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i];
+                            ampref += dcimg[IDamp].array.F[kk*naxes[0]*naxes[1]+(2*jj+j)*naxes[0]+2*ii+i];
                             re += amp*cos(pha);
                             im += amp*sin(pha);
                         }
@@ -4537,8 +4492,8 @@ int contract_wavefront_series(char *in_prefix, char *out_prefix, long NB_files)
                     P = 2.0*PI*( ((long) (0.5+1.0*LARGE+(pharef-pha)/2.0/PI)) - LARGE);
                     if(ampref<0.01)
                         P = 0.0;
-                    data.image[IDoutpha].array.F[kk*naxes_out[0]*naxes_out[1]+jj*naxes_out[0]+ii] = pha+P;
-                    data.image[IDoutamp].array.F[kk*naxes_out[0]*naxes_out[1]+jj*naxes_out[0]+ii] = amp/4.0;
+                    dcimg[IDoutpha].array.F[kk*naxes_out[0]*naxes_out[1]+jj*naxes_out[0]+ii] = pha+P;
+                    dcimg[IDoutamp].array.F[kk*naxes_out[0]*naxes_out[1]+jj*naxes_out[0]+ii] = amp/4.0;
                 }
         }
         sprintf(fname,"%s%8ld.%09ld.pha.fits", out_prefix, index, (long) (1.0e12*SLAMBDA+0.1));
@@ -4615,8 +4570,8 @@ int measure_wavefront_series(float factor)
             printf("ERROR: pupil amplitude map not loaded");
             exit(0);
         }
-    naxes[0]=data.image[ID].md[0].size[0];
-    naxes[1]=data.image[ID].md[0].size[1];
+    naxes[0]=dcimg[ID].md[0].size[0];
+    naxes[1]=dcimg[ID].md[0].size[1];
 
 
 
@@ -4655,20 +4610,20 @@ int measure_wavefront_series(float factor)
                 for(ii=0; ii<naxes[0]; ii++)
                     for(jj=0; jj<naxes[1]; jj++)
                     {
-                        amp = data.image[IDamp].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii]*data.image[IDpupamp].array.F[jj*naxes[0]+ii];
-                        pha = factor*data.image[IDpha].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
-                        data.image[ID_array1].array.CF[jj*naxes[0]+ii].re = amp*cos(pha);
-                        data.image[ID_array1].array.CF[jj*naxes[0]+ii].im = amp*sin(pha);
+                        amp = dcimg[IDamp].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii]*dcimg[IDpupamp].array.F[jj*naxes[0]+ii];
+                        pha = factor*dcimg[IDpha].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
+                        dcimg[ID_array1].array.CF[jj*naxes[0]+ii].re = amp*cos(pha);
+                        dcimg[ID_array1].array.CF[jj*naxes[0]+ii].im = amp*sin(pha);
                         psfflux += amp*amp;
                     }
             else
                 for(ii=0; ii<naxes[0]; ii++)
                     for(jj=0; jj<naxes[1]; jj++)
                     {
-                        amp = data.image[IDpupamp].array.F[jj*naxes[0]+ii];
-                        pha = factor*data.image[IDpha].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
-                        data.image[ID_array1].array.CF[jj*naxes[0]+ii].re = amp*cos(pha);
-                        data.image[ID_array1].array.CF[jj*naxes[0]+ii].im = amp*sin(pha);
+                        amp = dcimg[IDpupamp].array.F[jj*naxes[0]+ii];
+                        pha = factor*dcimg[IDpha].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
+                        dcimg[ID_array1].array.CF[jj*naxes[0]+ii].re = amp*cos(pha);
+                        dcimg[ID_array1].array.CF[jj*naxes[0]+ii].im = amp*sin(pha);
                     }
 
             do2dfft("array1","im_c");
@@ -4680,8 +4635,8 @@ int measure_wavefront_series(float factor)
                     dx = 1.0*ii-naxes[0]/2;
                     dy = 1.0*jj-naxes[1]/2;
                     r = sqrt(dx*dx+dy*dy);
-                    tmp = (data.image[ID].array.CF[jj*naxes[0]+ii].re*data.image[ID].array.CF[jj*naxes[0]+ii].re+data.image[ID].array.CF[jj*naxes[0]+ii].im*data.image[ID].array.CF[jj*naxes[0]+ii].im);
-                    data.image[IDpsf].array.F[jj*naxes[0]+ii] += tmp;
+                    tmp = (dcimg[ID].array.CF[jj*naxes[0]+ii].re*dcimg[ID].array.CF[jj*naxes[0]+ii].re+dcimg[ID].array.CF[jj*naxes[0]+ii].im*dcimg[ID].array.CF[jj*naxes[0]+ii].im);
+                    dcimg[IDpsf].array.F[jj*naxes[0]+ii] += tmp;
                     if(r<1.0/FOCAL_SCALE)
                         psfflux1 += tmp;
                     if(r<2.0/FOCAL_SCALE)
@@ -4944,43 +4899,43 @@ int AtmosphericTurbulence_mkTestTTseq(double dt, long NBpts, long NBblocks, doub
 
 				if(ACCmode==0)
 				{
-				data.image[IDout].array.F[4*ii] = x;
-				data.image[IDout].array.F[4*ii+1] = y;
+				dcimg[IDout].array.F[4*ii] = x;
+				dcimg[IDout].array.F[4*ii+1] = y;
 
-				data.image[IDout].array.F[4*ii+2] = -x;
-				data.image[IDout].array.F[4*ii+3] = -y;
+				dcimg[IDout].array.F[4*ii+2] = -x;
+				dcimg[IDout].array.F[4*ii+3] = -y;
 
 
 
-				data.image[IDoutn].array.F[4*ii] = xn;
-				data.image[IDoutn].array.F[4*ii+1] = yn;
+				dcimg[IDoutn].array.F[4*ii] = xn;
+				dcimg[IDoutn].array.F[4*ii+1] = yn;
 
-				data.image[IDoutn].array.F[4*ii+2] = -xn;
-				data.image[IDoutn].array.F[4*ii+3] = -yn;
+				dcimg[IDoutn].array.F[4*ii+2] = -xn;
+				dcimg[IDoutn].array.F[4*ii+3] = -yn;
 				}
 				else
 				{
-				data.image[IDout].array.F[8*ii] = x;
-				data.image[IDout].array.F[8*ii+1] = y;
-				data.image[IDout].array.F[8*ii+2] = ax;
-				data.image[IDout].array.F[8*ii+3] = ay;
+				dcimg[IDout].array.F[8*ii] = x;
+				dcimg[IDout].array.F[8*ii+1] = y;
+				dcimg[IDout].array.F[8*ii+2] = ax;
+				dcimg[IDout].array.F[8*ii+3] = ay;
 
-				data.image[IDout].array.F[8*ii+4] = -x;
-				data.image[IDout].array.F[8*ii+5] = -y;
-				data.image[IDout].array.F[8*ii+6] = -ax;
-				data.image[IDout].array.F[8*ii+7] = -ay;
+				dcimg[IDout].array.F[8*ii+4] = -x;
+				dcimg[IDout].array.F[8*ii+5] = -y;
+				dcimg[IDout].array.F[8*ii+6] = -ax;
+				dcimg[IDout].array.F[8*ii+7] = -ay;
 
 
 
-				data.image[IDoutn].array.F[8*ii] = xn;
-				data.image[IDoutn].array.F[8*ii+1] = yn;
-				data.image[IDoutn].array.F[8*ii+2] = axn;
-				data.image[IDoutn].array.F[8*ii+3] = ayn;
+				dcimg[IDoutn].array.F[8*ii] = xn;
+				dcimg[IDoutn].array.F[8*ii+1] = yn;
+				dcimg[IDoutn].array.F[8*ii+2] = axn;
+				dcimg[IDoutn].array.F[8*ii+3] = ayn;
 
-				data.image[IDoutn].array.F[8*ii+4] = -xn;
-				data.image[IDoutn].array.F[8*ii+5] = -yn;
-				data.image[IDoutn].array.F[8*ii+6] = -axn;
-				data.image[IDoutn].array.F[8*ii+7] = -ayn;
+				dcimg[IDoutn].array.F[8*ii+4] = -xn;
+				dcimg[IDoutn].array.F[8*ii+5] = -yn;
+				dcimg[IDoutn].array.F[8*ii+6] = -axn;
+				dcimg[IDoutn].array.F[8*ii+7] = -ayn;
 				}
 			
 				tsim += dt;
@@ -5062,15 +5017,15 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 	
 	
 	ID_WFin = image_ID(WFin_name);
-	xsize = data.image[ID_WFin].md[0].size[0];
-	ysize = data.image[ID_WFin].md[0].size[1];
-	zsize = data.image[ID_WFin].md[0].size[2];
+	xsize = dcimg[ID_WFin].md[0].size[0];
+	ysize = dcimg[ID_WFin].md[0].size[1];
+	zsize = dcimg[ID_WFin].md[0].size[2];
 	xysize = xsize*ysize;
 	
 	ID_WFmask = image_ID(WFmask_name);
 	NBpix = 0;
 	for(ii=0;ii<xsize*ysize;ii++)
-		if(data.image[ID_WFmask].array.F[ii] > 0.5)
+		if(dcimg[ID_WFmask].array.F[ii] > 0.5)
 			NBpix++;
 	pixarray_x = (long*) malloc(sizeof(long)*NBpix);
 	pixarray_y = (long*) malloc(sizeof(long)*NBpix);
@@ -5084,7 +5039,7 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 	totm = 0.0;
 	for(ii=0;ii<xsize;ii++)
 		for(jj=0;jj<ysize;jj++)
-			if(data.image[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
+			if(dcimg[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
 				totm += 1.0;
 
 	for(kk=0;kk<zsize;kk++)
@@ -5093,13 +5048,13 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 		for(ii=0;ii<xsize;ii++)
 			for(jj=0;jj<ysize;jj++)
 			{
-				data.image[ID_WFin].array.F[kk*xysize+jj*xsize+ii] *= data.image[ID_WFmask].array.F[jj*xsize+ii];
-				tot += data.image[ID_WFin].array.F[kk*xysize+jj*xsize+ii];
+				dcimg[ID_WFin].array.F[kk*xysize+jj*xsize+ii] *= dcimg[ID_WFmask].array.F[jj*xsize+ii];
+				tot += dcimg[ID_WFin].array.F[kk*xysize+jj*xsize+ii];
 			}
 			for(ii=0;ii<xsize;ii++)
 				for(jj=0;jj<ysize;jj++)
-					if(data.image[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
-						data.image[ID_WFin].array.F[kk*xysize+jj*xsize+ii] -= tot/totm;
+					if(dcimg[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
+						dcimg[ID_WFin].array.F[kk*xysize+jj*xsize+ii] -= tot/totm;
 		}
 	if(Save==1)
 		save_fits(WFin_name, "!wfinm.fits");
@@ -5111,7 +5066,7 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 	NBpix = 0;
 	for(ii=0;ii<xsize;ii++)
 		for(jj=0;jj<ysize;jj++)
-			if(data.image[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
+			if(dcimg[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
 				{
 					pixarray_x[NBpix] = ii;
 					pixarray_y[NBpix] = jj;
@@ -5162,14 +5117,14 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 		k0 = m + PForder-1; // dt=0 index
 		for(pix=0; pix<NBpix; pix++)
 			for(dt=0; dt<PForder; dt++)		
-				data.image[IDmatA].array.F[(NBpix*dt+pix)*NBmvec1+m] = data.image[ID_WFin].array.F[(k0-dt)*xysize + pixarray_xy[pix]];
+				dcimg[IDmatA].array.F[(NBpix*dt+pix)*NBmvec1+m] = dcimg[ID_WFin].array.F[(k0-dt)*xysize + pixarray_xy[pix]];
 	}
 	if(REG==1)
 		{
 			for(m=0; m<mvecsize; m++)
 				{
 					m1 = NBmvec + m;
-					data.image[IDmatA].array.F[(m)*NBmvec1+(NBmvec+m)] = RegLambda;
+					dcimg[IDmatA].array.F[(m)*NBmvec1+(NBmvec+m)] = RegLambda;
 				}
 		}
 
@@ -5185,7 +5140,7 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 
 	
 	#ifdef HAVE_MAGMA
-		CUDACOMP_magma_compute_SVDpseudoInverse("PFmatD", "PFmatC", SVDeps, 100000, "PF_VTmat");
+		magma_compute_SVDpseudoInverse("PFmatD", "PFmatC", SVDeps, 100000, "PF_VTmat");
 	#else
 		linopt_compute_SVDpseudoInverse("PFmatD", "PFmatC", SVDeps, 100000, "PF_VTmat");
 	#endif
@@ -5195,7 +5150,7 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 		save_fits("PFmatC", "!test_PFmatC.fits");
 		save_fits("PF_VTmat", "!test_PF_VTmat.fits");
 			#ifdef HAVE_MAGMA
-		CUDACOMP_magma_compute_SVDpseudoInverse("PFmatD", "PFmatC_magma", SVDeps, 100000, "PF_VTmat_magma");
+		magma_compute_SVDpseudoInverse("PFmatD", "PFmatC_magma", SVDeps, 100000, "PF_VTmat_magma");
 		#else
 		linopt_compute_SVDpseudoInverse("PFmatD", "PFmatC_magma", SVDeps, 100000, "PF_VTmat_magma");
 		#endif
@@ -5233,7 +5188,7 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 				k0 = m + PForder -1;
 				k0 += (long) PFlag;
 				
-				valfarray[m] = (1.0-alpha)*data.image[ID_WFin].array.F[(k0)*xysize + pixarray_xy[PFpix]] + alpha*data.image[ID_WFin].array.F[(k0+1)*xysize + pixarray_xy[PFpix]];
+				valfarray[m] = (1.0-alpha)*dcimg[ID_WFin].array.F[(k0)*xysize + pixarray_xy[PFpix]] + alpha*dcimg[ID_WFin].array.F[(k0+1)*xysize + pixarray_xy[PFpix]];
 			}
 		
 		
@@ -5244,10 +5199,10 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
 						val = 0.0;
 						ind1 = (NBpix*dt+pix)*NBmvec1;
 						for(m=0; m<NBmvec; m++)
-							val += data.image[IDmatC].array.F[ind1+m] * valfarray[m];
+							val += dcimg[IDmatC].array.F[ind1+m] * valfarray[m];
 
-						data.image[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]] =  val;
-						data.image[IDfiltC].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] = val;
+						dcimg[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]] =  val;
+						dcimg[IDfiltC].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] = val;
 					}
 			}
 		save_fits(filtname, filtfname);	
@@ -5299,11 +5254,11 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, 
 	IDfilt = image_ID(IDfilt_name);
 	
 	IDmask = image_ID(IDmask_name);
-	xsize = data.image[IDmask].md[0].size[0];
-	ysize = data.image[IDmask].md[0].size[1];
+	xsize = dcimg[IDmask].md[0].size[0];
+	ysize = dcimg[IDmask].md[0].size[1];
 	xysize = xsize*ysize;
-	NBpix = data.image[IDfilt].md[0].size[0];
-	PForder = data.image[IDfilt].md[0].size[2];
+	NBpix = dcimg[IDfilt].md[0].size[0];
+	PForder = dcimg[IDfilt].md[0].size[2];
 	
 	
 	pixarray_x = (long*) malloc(sizeof(long)*NBpix);
@@ -5313,7 +5268,7 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, 
 	NBpix1 = 0;
 	for(ii=0;ii<xsize;ii++)
 		for(jj=0;jj<ysize;jj++)
-			if(data.image[IDmask].array.F[jj*xsize+ii] > 0.5)
+			if(dcimg[IDmask].array.F[jj*xsize+ii] > 0.5)
 				{
 					pixarray_x[NBpix1] = ii;
 					pixarray_y[NBpix1] = jj;
@@ -5347,8 +5302,8 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, 
 					
 					if(dii*dii+djj*djj<krad*krad)
 						{
-							data.image[IDkern].array.F[dt*xksize*yksize + (djj+krad)*xksize + dii+krad] += data.image[IDfilt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
-							data.image[IDkern_cnt].array.F[dt*xksize*yksize + (djj+krad)*xksize + dii+krad] += 1.0;
+							dcimg[IDkern].array.F[dt*xksize*yksize + (djj+krad)*xksize + dii+krad] += dcimg[IDfilt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
+							dcimg[IDkern_cnt].array.F[dt*xksize*yksize + (djj+krad)*xksize + dii+krad] += 1.0;
 						}
 				}
 		}
@@ -5358,7 +5313,7 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, 
 	for(ii=0; ii<xksize; ii++)
 		for(jj=0; jj<yksize; jj++)
 			for(dt=0; dt<PForder; dt++)	
-				data.image[IDkern].array.F[dt*xksize*yksize + jj*xksize + ii] /= (data.image[IDkern_cnt].array.F[dt*xksize*yksize + jj*xksize + ii] + 1.0e-8);
+				dcimg[IDkern].array.F[dt*xksize*yksize + jj*xksize + ii] /= (dcimg[IDkern_cnt].array.F[dt*xksize*yksize + jj*xksize + ii] + 1.0e-8);
 	
 	
 	
@@ -5384,8 +5339,8 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, 
 					
 							if((dii*dii+djj*djj)<(krad*krad))
 								{
-									data.image[IDfiltC1].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] = data.image[IDkern].array.F[dt*xksize*yksize + (djj+krad)*xksize + dii+krad];
-									data.image[IDfiltC1cnt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] = 1.0;
+									dcimg[IDfiltC1].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] = dcimg[IDkern].array.F[dt*xksize*yksize + (djj+krad)*xksize + dii+krad];
+									dcimg[IDfiltC1cnt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] = 1.0;
 								}
 							
 							
@@ -5406,18 +5361,18 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, 
 				
 				for(pix=0; pix<NBpix; pix++)
 					{
-						tmp1 += data.image[IDfiltC1cnt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
-						tmp2 += data.image[IDfiltC1].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
+						tmp1 += dcimg[IDfiltC1cnt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
+						tmp2 += dcimg[IDfiltC1].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
 					}
 				tmp1 = 1.0*NBpix - tmp1;
 			
 				
 				for(pix=0; pix<NBpix; pix++)
 				{
-					data.image[IDfiltC1].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] -= (1.0-data.image[IDfiltC1cnt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix])*(tmp2/tmp1);
+					dcimg[IDfiltC1].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] -= (1.0-dcimg[IDfiltC1cnt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix])*(tmp2/tmp1);
 
 					// non piston-compensated 
-					data.image[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] = data.image[IDfiltC1].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] + tmp2/tmp1;
+					dcimg[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] = dcimg[IDfiltC1].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] + tmp2/tmp1;
 				}
 			}
 	}			
@@ -5428,8 +5383,8 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, 
 			tmp1 = 0.0;	
 			for(dt=0; dt<PForder; dt++)	
 				for(pix=0; pix<NBpix; pix++)
-					tmp1 += data.image[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
-			data.image[IDfiltC2n].array.F[pixarray_xy[PFpix]] = tmp1;
+					tmp1 += dcimg[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
+			dcimg[IDfiltC2n].array.F[pixarray_xy[PFpix]] = tmp1;
 		}
 			
 	
@@ -5438,21 +5393,21 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, 
 	{
 		for(PFpix=0; PFpix<NBpix; PFpix++)
 			{
-				if(data.image[IDfiltC2n].array.F[pixarray_xy[PFpix]]>0.01)
-					gain = 1.0/data.image[IDfiltC2n].array.F[pixarray_xy[PFpix]];
+				if(dcimg[IDfiltC2n].array.F[pixarray_xy[PFpix]]>0.01)
+					gain = 1.0/dcimg[IDfiltC2n].array.F[pixarray_xy[PFpix]];
 				tmp1 = 0.0;
 				tmp2 = 0.0;
 				for(pix=0; pix<NBpix; pix++)
 				{
-					data.image[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] *= gain;
+					dcimg[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] *= gain;
 					tmp1 += 1.0;
-					tmp2 += data.image[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
+					tmp2 += dcimg[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
 				}
 				
 			
 				
 				for(pix=0; pix<NBpix; pix++)
-					data.image[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] -= (tmp2/tmp1);
+					dcimg[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix] -= (tmp2/tmp1);
 				
 			}
 	}			
@@ -5471,11 +5426,11 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name, 
 		for(dt=0; dt<PForder; dt++)	
 			for(pix=0; pix<NBpix; pix++)
 				{
-					data.image[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]] = data.image[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
-					tmp1 += data.image[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]];
+					dcimg[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]] = dcimg[IDfiltC2].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
+					tmp1 += dcimg[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]];
 				}
 		save_fits(filtname, filtfname);
-		data.image[IDfiltC1n].array.F[pixarray_xy[PFpix]] = tmp1;
+		dcimg[IDfiltC1n].array.F[pixarray_xy[PFpix]] = tmp1;
 	}
 	
 	
@@ -5523,11 +5478,11 @@ long AtmosphericTurbulence_LinPredictor_filt_Expand(char *IDfilt_name, char *IDm
 	IDfilt = image_ID(IDfilt_name);
 	
 	IDmask = image_ID(IDmask_name);
-	xsize = data.image[IDmask].md[0].size[0];
-	ysize = data.image[IDmask].md[0].size[1];
+	xsize = dcimg[IDmask].md[0].size[0];
+	ysize = dcimg[IDmask].md[0].size[1];
 	xysize = xsize*ysize;
-	NBpix = data.image[IDfilt].md[0].size[0];
-	PForder = data.image[IDfilt].md[0].size[2];
+	NBpix = dcimg[IDfilt].md[0].size[0];
+	PForder = dcimg[IDfilt].md[0].size[2];
 	
 	
 	pixarray_x = (long*) malloc(sizeof(long)*NBpix);
@@ -5537,7 +5492,7 @@ long AtmosphericTurbulence_LinPredictor_filt_Expand(char *IDfilt_name, char *IDm
 	NBpix1 = 0;
 	for(ii=0;ii<xsize;ii++)
 		for(jj=0;jj<ysize;jj++)
-			if(data.image[IDmask].array.F[jj*xsize+ii] > 0.5)
+			if(dcimg[IDmask].array.F[jj*xsize+ii] > 0.5)
 				{
 					pixarray_x[NBpix1] = ii;
 					pixarray_y[NBpix1] = jj;
@@ -5566,18 +5521,18 @@ long AtmosphericTurbulence_LinPredictor_filt_Expand(char *IDfilt_name, char *IDm
 		for(dt=0; dt<PForder; dt++)	
 			for(pix=0; pix<NBpix; pix++)
 				{
-					data.image[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]] = data.image[IDfilt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
+					dcimg[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]] = dcimg[IDfilt].array.F[dt*NBpix*NBpix  + PFpix*NBpix + pix];
 					
-					norm1 += fabs(data.image[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]]);
-					norm2 += data.image[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]]*data.image[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]];
-					tau += data.image[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]]*data.image[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]]*dt;
+					norm1 += fabs(dcimg[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]]);
+					norm2 += dcimg[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]]*dcimg[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]];
+					tau += dcimg[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]]*dcimg[ID_Pfilt].array.F[xysize*dt + pixarray_xy[pix]]*dt;
 				}
 		tau /= norm2;
 		norm2 = sqrt(norm2);
 		
-		data.image[IDnorm1].array.F[pixarray_xy[PFpix]] = norm1;
-		data.image[IDnorm2].array.F[pixarray_xy[PFpix]] = norm2;
-		data.image[IDtau].array.F[pixarray_xy[PFpix]] = tau;
+		dcimg[IDnorm1].array.F[pixarray_xy[PFpix]] = norm1;
+		dcimg[IDnorm2].array.F[pixarray_xy[PFpix]] = norm2;
+		dcimg[IDtau].array.F[pixarray_xy[PFpix]] = tau;
 
 		save_fits(filtname, filtfname);
 	}
@@ -5659,9 +5614,9 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(int MODE, char *WFin_name, cha
 	
 	
 	ID_WFin = image_ID(WFin_name);
-	xsize = data.image[ID_WFin].md[0].size[0];
-	ysize = data.image[ID_WFin].md[0].size[1];
-	zsize = data.image[ID_WFin].md[0].size[2];
+	xsize = dcimg[ID_WFin].md[0].size[0];
+	ysize = dcimg[ID_WFin].md[0].size[1];
+	zsize = dcimg[ID_WFin].md[0].size[2];
 	xysize = xsize*ysize;
 	
 	IDoutp = create_3Dimage_ID(WFoutp_name, xsize, ysize, zsize);
@@ -5678,7 +5633,7 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(int MODE, char *WFin_name, cha
 	ID_WFmask = image_ID(WFmask_name);
 	NBpix = 0;
 	for(ii=0;ii<xsize*ysize;ii++)
-		if(data.image[ID_WFmask].array.F[ii] > 0.5)
+		if(dcimg[ID_WFmask].array.F[ii] > 0.5)
 			NBpix++;
 	pixarray_x = (long*) malloc(sizeof(long)*NBpix);
 	pixarray_y = (long*) malloc(sizeof(long)*NBpix);
@@ -5688,13 +5643,13 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(int MODE, char *WFin_name, cha
 	totm = 0.0;
 	for(ii=0;ii<xsize;ii++)
 		for(jj=0;jj<ysize;jj++)
-			if(data.image[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
+			if(dcimg[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
 				totm += 1.0;
 
 	NBpix = 0;
 	for(ii=0;ii<xsize;ii++)
 		for(jj=0;jj<ysize;jj++)
-			if(data.image[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
+			if(dcimg[ID_WFmask].array.F[jj*xsize+ii] > 0.5)
 				{
 					pixarray_x[NBpix] = ii;
 					pixarray_y[NBpix] = jj;
@@ -5723,7 +5678,7 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(int MODE, char *WFin_name, cha
 			ID_Pfilt = create_3Dimage_ID(filtname, xsize, ysize, PForder);
 
 			for(step=0;step<PForder;step++)
-				data.image[ID_Pfilt].array.F[xysize*step + pixarray_y[PFpix]*xsize+pixarray_x[PFpix]] = 1.0/PForder;
+				dcimg[ID_Pfilt].array.F[xysize*step + pixarray_y[PFpix]*xsize+pixarray_x[PFpix]] = 1.0/PForder;
 		}
 		
 		for(kk=PForder;kk<zsize;kk++)
@@ -5732,31 +5687,31 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(int MODE, char *WFin_name, cha
 				for(step=0;step<PForder;step++)
 					{
 						for(ii=0;ii<xsize*ysize;ii++)
-							valp += data.image[ID_Pfilt].array.F[xysize*step+ii]*data.image[ID_WFin].array.F[(kk-step)*xysize + ii];
+							valp += dcimg[ID_Pfilt].array.F[xysize*step+ii]*dcimg[ID_WFin].array.F[(kk-step)*xysize + ii];
 					}
 					
 				valf = 0.0;
 				if(kk+PFlag+1<zsize)
-					valf = (1.0-alpha) * data.image[ID_WFin].array.F[(kk+PFlagl)*xysize+pixarray_xy[PFpix]] + alpha * data.image[ID_WFin].array.F[(kk+PFlagl+1)*xysize+pixarray_xy[PFpix]];
+					valf = (1.0-alpha) * dcimg[ID_WFin].array.F[(kk+PFlagl)*xysize+pixarray_xy[PFpix]] + alpha * dcimg[ID_WFin].array.F[(kk+PFlagl+1)*xysize+pixarray_xy[PFpix]];
 			
 				valft = 0.0;
 				if(kk+PFlag+1<zsize)
-					valft = (1.0-alpha) * data.image[IDreft].array.F[(kk+PFlagl)*xysize+pixarray_xy[PFpix]] + alpha * data.image[IDreft].array.F[(kk+PFlagl+1)*xysize+pixarray_xy[PFpix]];
+					valft = (1.0-alpha) * dcimg[IDreft].array.F[(kk+PFlagl)*xysize+pixarray_xy[PFpix]] + alpha * dcimg[IDreft].array.F[(kk+PFlagl+1)*xysize+pixarray_xy[PFpix]];
 		
 		
-				data.image[IDoutp].array.F[kk*xysize+pixarray_xy[PFpix]] = valp;
-				data.image[IDoutf].array.F[kk*xysize+pixarray_xy[PFpix]] = valf;
+				dcimg[IDoutp].array.F[kk*xysize+pixarray_xy[PFpix]] = valp;
+				dcimg[IDoutf].array.F[kk*xysize+pixarray_xy[PFpix]] = valf;
 				
 				if(IDreft!=-1)
 				{					
 					valft = 0.0;
 					if(kk+PFlag+1<zsize)
-						valft = (1.0-alpha) * data.image[IDreft].array.F[(kk+PFlagl)*xysize+pixarray_xy[PFpix]] + alpha * data.image[IDreft].array.F[(kk+PFlagl+1)*xysize+pixarray_xy[PFpix]];
-					data.image[IDoutft].array.F[kk*xysize+pixarray_xy[PFpix]] = valft;
+						valft = (1.0-alpha) * dcimg[IDreft].array.F[(kk+PFlagl)*xysize+pixarray_xy[PFpix]] + alpha * dcimg[IDreft].array.F[(kk+PFlagl+1)*xysize+pixarray_xy[PFpix]];
+					dcimg[IDoutft].array.F[kk*xysize+pixarray_xy[PFpix]] = valft;
 
-					data.image[IDoutp_res].array.F[kk*xysize+pixarray_xy[PFpix]] = valp-valft;					
-					data.image[IDoutf_res].array.F[kk*xysize+pixarray_xy[PFpix]] = valf-valft;		
-					data.image[IDoutl_res].array.F[kk*xysize+pixarray_xy[PFpix]] = data.image[ID_WFin].array.F[kk*xysize + pixarray_xy[PFpix]]-valft;					
+					dcimg[IDoutp_res].array.F[kk*xysize+pixarray_xy[PFpix]] = valp-valft;					
+					dcimg[IDoutf_res].array.F[kk*xysize+pixarray_xy[PFpix]] = valf-valft;		
+					dcimg[IDoutl_res].array.F[kk*xysize+pixarray_xy[PFpix]] = dcimg[ID_WFin].array.F[kk*xysize + pixarray_xy[PFpix]]-valft;					
 				}
 			}
 		delete_image_ID(filtname);
@@ -5863,7 +5818,7 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
     
     if((vID=variable_ID("SVDeps"))!=-1)
     {
-        SVDeps = data.variable[vID].value.f;
+        SVDeps = dcvar[vID].value.f;
         printf("SVDeps = %f\n", SVDeps);
     }
 
@@ -5893,8 +5848,8 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
         exit(0);
     }
 
-    naxes[0] = data.image[IDpupamp].md[0].size[0];
-    naxes[1] = data.image[IDpupamp].md[0].size[1];
+    naxes[0] = dcimg[IDpupamp].md[0].size[0];
+    naxes[1] = dcimg[IDpupamp].md[0].size[1];
     NBFRAMES = (long) (CONF_TIME_SPAN/CONF_WFTIME_STEP);
 
     printf("NBFRAMES = %ld\n", NBFRAMES);
@@ -5930,17 +5885,17 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
         // initialization: set GHA_UT to Identity square matrix
         for(ii=0; ii<GHA_m; ii++)
             for(jj=0; jj<GHA_m; jj++)
-                data.image[ID_GHA_UT].array.F[jj*GHA_m+ii] = 0.0;
+                dcimg[ID_GHA_UT].array.F[jj*GHA_m+ii] = 0.0;
         for(ii=0; ii<GHA_m; ii++)
-            data.image[ID_GHA_UT].array.F[ii*GHA_m+ii] = 1.0;
+            dcimg[ID_GHA_UT].array.F[ii*GHA_m+ii] = 1.0;
 
         // set NT elements
         for(ii=0; ii<GHA_m; ii++)
             for(jj=0; jj<GHA_n; jj++)
-                data.image[ID_GHA_NT].array.F[jj*GHA_m+ii] = 0.0;
+                dcimg[ID_GHA_NT].array.F[jj*GHA_m+ii] = 0.0;
         for(ii=0; ii<GHA_m; ii++)
-            data.image[ID_GHA_NT].array.F[ii*GHA_m+ii] = 1.0;
-        //data.image[ID_GHA_NT].array.F[10] = 1.0;
+            dcimg[ID_GHA_NT].array.F[ii*GHA_m+ii] = 1.0;
+        //dcimg[ID_GHA_NT].array.F[10] = 1.0;
     }
 
 
@@ -5974,15 +5929,15 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
                         ii1 = ii0 + (ii-WFP_xyrad);
                         jj1 = jj0 + (jj-WFP_xyrad);
                         if((ii1>0)&&(ii1<CONF_WFsize)&&(jj1>0)&&(jj1<CONF_WFsize))
-                            pha = data.image[IDpha].array.F[frame*naxes[0]*naxes[1]+jj1*naxes[0]+ii1];
+                            pha = dcimg[IDpha].array.F[frame*naxes[0]*naxes[1]+jj1*naxes[0]+ii1];
                         else
                             pha = 0;
-                        data.image[IDpha_measured].array.F[k*WFPxsize*WFPysize+jj*WFPxsize+ii] = gauss()*WFphaNoise + pha;
+                        dcimg[IDpha_measured].array.F[k*WFPxsize*WFPysize+jj*WFPxsize+ii] = gauss()*WFphaNoise + pha;
                         cnt++;
-                        cntval += data.image[IDpha_measured].array.F[k*WFPxsize*WFPysize+jj*WFPxsize+ii];
+                        cntval += dcimg[IDpha_measured].array.F[k*WFPxsize*WFPysize+jj*WFPxsize+ii];
                     }
                 //            for(ii=0; ii<WFPxsize*WFPysize; ii++)
-                //                  data.image[IDpha_measured].array.F[k*WFPxsize*WFPysize+ii] -= cntval/cnt;
+                //                  dcimg[IDpha_measured].array.F[k*WFPxsize*WFPysize+ii] -= cntval/cnt;
             }
             k++;
         }
@@ -5994,7 +5949,7 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
 
 
     //    for(ii=0; ii<WFPxsize*WFPysize*NB_WFstep; ii++)
-    //      data.image[IDpha_measured].array.F[ii] -= cntval/cnt;
+    //      dcimg[IDpha_measured].array.F[ii] -= cntval/cnt;
 
     if(Save==1)
         save_fits("WFP_pham", "!WFP_pham.fits");
@@ -6024,7 +5979,7 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
                 mvecdy[l] = jj-WFP_xyrad;
                 mvecdz[l] = k;
                 
-                if((data.image[IDpupmask].array.F[(jj0+mvecdy[l])*naxes[0] + (ii0+mvecdx[l])]>0.1) && (sqrt(mvecdx[l]*mvecdx[l]+mvecdy[l]*mvecdy[l])<2.0+maxPixSpeed*(k+1)) )
+                if((dcimg[IDpupmask].array.F[(jj0+mvecdy[l])*naxes[0] + (ii0+mvecdx[l])]>0.1) && (sqrt(mvecdx[l]*mvecdx[l]+mvecdy[l]*mvecdy[l])<2.0+maxPixSpeed*(k+1)) )
                     l++;
             }
     }
@@ -6041,7 +5996,7 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
     {
         k0 = m+WFP_NBstep;
         for(l=0; l<mvecsize; l++)
-            data.image[IDmatA].array.F[l*NBmvec+m] = data.image[IDpha_measured].array.F[(k0-mvecdz[l])*WFPxsize*WFPysize+(mvecdy[l]+WFP_xyrad)*WFPxsize+(mvecdx[l]+WFP_xyrad)];
+            dcimg[IDmatA].array.F[l*NBmvec+m] = dcimg[IDpha_measured].array.F[(k0-mvecdz[l])*WFPxsize*WFPysize+(mvecdy[l]+WFP_xyrad)*WFPxsize+(mvecdx[l]+WFP_xyrad)];
     }
 
 
@@ -6057,7 +6012,7 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
             if(k1>NB_WFstep-1)
                 k1 -= NB_WFstep;
             for(l=0; l<mvecsize; l++)
-                data.image[ID_GHA_matA].array.F[l*NBmvec+k] = data.image[IDmatA].array.F[l*NBmvec+k] - data.image[IDmatA].array.F[l*NBmvec+k1];
+                dcimg[ID_GHA_matA].array.F[l*NBmvec+k] = dcimg[IDmatA].array.F[l*NBmvec+k] - dcimg[IDmatA].array.F[l*NBmvec+k1];
         }
     }
 
@@ -6085,40 +6040,40 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
 
                 // initialize input vector x
                 for(ii=0; ii<GHA_n; ii++)
-                    data.image[ID_GHA_x].array.F[ii] = data.image[ID_GHA_matA].array.F[ii*NBmvec+k];
+                    dcimg[ID_GHA_x].array.F[ii] = dcimg[ID_GHA_matA].array.F[ii*NBmvec+k];
 
                 // initialize output vector y
                 for(ii=0; ii<GHA_m; ii++)
-                    data.image[ID_GHA_y].array.F[ii] = data.image[ID_GHA_x].array.F[60];
-                //data.image[IDpha_measured].array.F[(k+WFP_NBstep)*WFPxsize*WFPysize+WFP_xyrad*WFPxsize+WFP_xyrad];
-                //data.image[ID_GHA_x].array.F[24];
+                    dcimg[ID_GHA_y].array.F[ii] = dcimg[ID_GHA_x].array.F[60];
+                //dcimg[IDpha_measured].array.F[(k+WFP_NBstep)*WFPxsize*WFPysize+WFP_xyrad*WFPxsize+WFP_xyrad];
+                //dcimg[ID_GHA_x].array.F[24];
 
                 // Compute vector z = UT y
                 for(ii=0; ii<GHA_m; ii++)
-                    data.image[ID_GHA_z].array.F[ii] = 0.0;
+                    dcimg[ID_GHA_z].array.F[ii] = 0.0;
 
                 for(ii=0; ii<GHA_m; ii++)
                     for(jj=0; jj<GHA_m; jj++)
-                        data.image[ID_GHA_z].array.F[ii] += data.image[ID_GHA_UT].array.F[jj*GHA_m+ii] * data.image[ID_GHA_y].array.F[jj];
+                        dcimg[ID_GHA_z].array.F[ii] += dcimg[ID_GHA_UT].array.F[jj*GHA_m+ii] * dcimg[ID_GHA_y].array.F[jj];
 
                 // compute LT[zzT]
                 for(ii=0; ii<GHA_m; ii++)
                     for(jj=0; jj<GHA_m; jj++)
                         if(jj<=ii)
-                            data.image[ID_GHA_zzT].array.F[jj*GHA_m+ii] = data.image[ID_GHA_z].array.F[ii] * data.image[ID_GHA_z].array.F[jj];
+                            dcimg[ID_GHA_zzT].array.F[jj*GHA_m+ii] = dcimg[ID_GHA_z].array.F[ii] * dcimg[ID_GHA_z].array.F[jj];
 
                 // update UT
                 for(ii=0; ii<GHA_m; ii++)
                     for(jj=0; jj<GHA_m; jj++)
                     {
                         dval = 0.0;
-                        dval = data.image[ID_GHA_z].array.F[ii]*data.image[ID_GHA_y].array.F[jj];  // z yT
+                        dval = dcimg[ID_GHA_z].array.F[ii]*dcimg[ID_GHA_y].array.F[jj];  // z yT
                         dval0 = 0.0;
                         for(ll=0; ll<GHA_m; ll++)
-                            dval0 += data.image[ID_GHA_zzT].array.F[ll*GHA_m+ii] * data.image[ID_GHA_UT].array.F[jj*GHA_m+ll];
+                            dval0 += dcimg[ID_GHA_zzT].array.F[ll*GHA_m+ii] * dcimg[ID_GHA_UT].array.F[jj*GHA_m+ll];
                         dval -= dval0;
 
-                        data.image[ID_GHA_UT].array.F[jj*GHA_m+ii] += GHA_eta * dval;
+                        dcimg[ID_GHA_UT].array.F[jj*GHA_m+ii] += GHA_eta * dval;
                     }
 
                 // update NT
@@ -6127,19 +6082,19 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
                     for(jj=0; jj<GHA_n; jj++)
                     {
                         dval = 0.0;
-                        dval = data.image[ID_GHA_z].array.F[ii]*data.image[ID_GHA_x].array.F[jj];  // z xT
+                        dval = dcimg[ID_GHA_z].array.F[ii]*dcimg[ID_GHA_x].array.F[jj];  // z xT
                         dval0 = 0.0;
                         for(ll=0; ll<GHA_m; ll++)
-                            dval0 += data.image[ID_GHA_zzT].array.F[ll*GHA_m+ii] * data.image[ID_GHA_NT].array.F[jj*GHA_m+ll];
+                            dval0 += dcimg[ID_GHA_zzT].array.F[ll*GHA_m+ii] * dcimg[ID_GHA_NT].array.F[jj*GHA_m+ll];
                         dval -= dval0;
 
                         errval += dval*dval;
 
-                        data.image[ID_GHA_NT].array.F[jj*GHA_m+ii] += GHA_eta*dval;
+                        dcimg[ID_GHA_NT].array.F[jj*GHA_m+ii] += GHA_eta*dval;
                     }
-                //  printf("%05ld   z = %g    U = %g     NT0 = %g\n", k, data.image[ID_GHA_z].array.F[0], data.image[ID_GHA_UT].array.F[0], data.image[ID_GHA_NT].array.F[0]);
+                //  printf("%05ld   z = %g    U = %g     NT0 = %g\n", k, dcimg[ID_GHA_z].array.F[0], dcimg[ID_GHA_UT].array.F[0], dcimg[ID_GHA_NT].array.F[0]);
             }
-            printf("%3ld  errval = %.18lf    %.10f\n", GHAiter, (double) errval, data.image[ID_GHA_NT].array.F[0]);
+            printf("%3ld  errval = %.18lf    %.10f\n", GHAiter, (double) errval, dcimg[ID_GHA_NT].array.F[0]);
             fflush(stdout);
         }
         printf("done\n");
@@ -6162,15 +6117,15 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
             val = 0.0;
             for(ii=0; ii<GHA_n; ii++)
             {
-                dval = data.image[ID_GHA_NT].array.F[ii*GHA_m+jj];
+                dval = dcimg[ID_GHA_NT].array.F[ii*GHA_m+jj];
                 val += dval*dval;
-                data.image[ID_GHA_V].array.F[jj*GHA_n+ii] = dval;
+                dcimg[ID_GHA_V].array.F[jj*GHA_n+ii] = dval;
             }
             val = sqrt(val);
             for(ii=0; ii<GHA_n; ii++)
-                data.image[ID_GHA_V].array.F[jj*GHA_n+ii] /= val;
+                dcimg[ID_GHA_V].array.F[jj*GHA_n+ii] /= val;
             printf("Singular value %3ld = %g\n", jj, 1.0/val);
-            data.image[ID_GHA_sval].array.F[jj] = 1.0/val;
+            dcimg[ID_GHA_sval].array.F[jj] = 1.0/val;
         }
         save_fits("GHA_V", "!GHA_V.fits");
 
@@ -6179,11 +6134,11 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
 
         for(ll=0; ll<GHA_m; ll++) // singular value index
         {
-            sval = data.image[ID_GHA_sval].array.F[ll];
+            sval = dcimg[ID_GHA_sval].array.F[ll];
             for(jj=0; jj<GHA_n; jj++)
                 for(ii=0; ii<GHA_m; ii++)
                 {
-                    data.image[ID_GHA_Mest].array.F[jj*GHA_m+ii] += data.image[ID_GHA_UT].array.F[ii*GHA_m+ll]*sval*data.image[ID_GHA_V].array.F[ll*GHA_n+jj];
+                    dcimg[ID_GHA_Mest].array.F[jj*GHA_m+ii] += dcimg[ID_GHA_UT].array.F[ii*GHA_m+ll]*sval*dcimg[ID_GHA_V].array.F[ll*GHA_n+jj];
                 }
         }
 
@@ -6191,7 +6146,7 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
         ID_GHA_WFPfilt = create_3Dimage_ID("GHA_WFPfilt", WFPxsize, WFPysize, WFP_NBstep);
         offset = WFPxsize*WFPysize*WFPlag;
         for(k=0; k<WFPxsize*WFPysize*(WFP_NBstep-WFPlag); k++)
-            data.image[ID_GHA_WFPfilt].array.F[offset+k] =  data.image[ID_GHA_Mest].array.F[k];
+            dcimg[ID_GHA_WFPfilt].array.F[offset+k] =  dcimg[ID_GHA_Mest].array.F[k];
         save_fits("GHA_WFPfilt", "!GHA_WFPfilt.fits");
 
     }
@@ -6210,9 +6165,9 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
     {
         val = 0.0;
         for(m=0; m<NBmvec; m++)
-            val += data.image[IDmatC].array.F[l*NBmvec+m] * data.image[IDpha_measured].array.F[(m+WFP_NBstep)*WFPxsize*WFPysize + WFP_xyrad*WFPxsize + WFP_xyrad];
+            val += dcimg[IDmatC].array.F[l*NBmvec+m] * dcimg[IDpha_measured].array.F[(m+WFP_NBstep)*WFPxsize*WFPysize + WFP_xyrad*WFPxsize + WFP_xyrad];
         // printf("%5ld  ->  %5ld / %5ld     %5ld / %5ld    %5ld / %5ld\n", l, mvecdz[l], WFP_NBstep, mvecdy[l]+WFP_xyrad, WFPysize, mvecdx[l]+WFP_xyrad, WFPxsize);
-        data.image[ID_WFPfilt].array.F[WFPxsize*WFPysize*mvecdz[l]+WFPxsize*(mvecdy[l]+WFP_xyrad)+(mvecdx[l]+WFP_xyrad)] =  val;
+        dcimg[ID_WFPfilt].array.F[WFPxsize*WFPysize*mvecdz[l]+WFPxsize*(mvecdy[l]+WFP_xyrad)+(mvecdx[l]+WFP_xyrad)] =  val;
     }
     sprintf(fname, "!WFPfilt_lag%ld_rad%ld_%03ld_%03ld.fits", WFPlag, WFP_xyrad, WFPiipix, WFPjjpix);
     save_fits("WFPfilt", fname);
@@ -6222,7 +6177,7 @@ int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise, 
     {
         val = 0.0;
         for(ii=0; ii<WFPxsize*WFPysize; ii++)
-            val += data.image[ID_WFPfilt].array.F[WFPxsize*WFPysize*k+ii]*data.image[ID_WFPfilt].array.F[WFPxsize*WFPysize*k+ii];
+            val += dcimg[ID_WFPfilt].array.F[WFPxsize*WFPysize*k+ii]*dcimg[ID_WFPfilt].array.F[WFPxsize*WFPysize*k+ii];
         printf("%5ld  %.10f\n", k, val);
     }
     list_image_ID();
@@ -6254,9 +6209,9 @@ long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name, 
 	
 	
 	IDwfc = image_ID(IDwfc_name);
-	xsize = data.image[IDwfc].md[0].size[0];
-	ysize = data.image[IDwfc].md[0].size[1];
-	zsize = data.image[IDwfc].md[0].size[2];
+	xsize = dcimg[IDwfc].md[0].size[0];
+	ysize = dcimg[IDwfc].md[0].size[1];
+	zsize = dcimg[IDwfc].md[0].size[2];
 	xysize = xsize*ysize;
 	
 	IDmask = image_ID(IDmask_name);
@@ -6272,7 +6227,7 @@ long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name, 
 			{
 				ii1 = ii + (xsize1-xsize)/2;
 				jj1 = jj + (ysize1-ysize)/2;
-				data.image[IDm].array.F[jj1*xsize1+ii1] = data.image[IDmask].array.F[jj*xsize+ii];
+				dcimg[IDm].array.F[jj1*xsize1+ii1] = dcimg[IDmask].array.F[jj*xsize+ii];
 			}
 
 	
@@ -6303,7 +6258,7 @@ long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name, 
 			{
 				ii1 = ii + (xsize1-xsize)/2;
 				jj1 = jj + (ysize1-ysize)/2;
-				data.image[IDtmp].array.F[jj1*xsize1+ii1] = data.image[IDwfc].array.F[kk*xysize + jj*xsize + ii];
+				dcimg[IDtmp].array.F[jj1*xsize1+ii1] = dcimg[IDwfc].array.F[kk*xysize + jj*xsize + ii];
 			}
 		mk_complex_from_amph("wfmask1", "wftmp", "wfctmp", 0);
 		permut("wfctmp");
@@ -6317,24 +6272,24 @@ long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name, 
 		peakC = 0.0;
 		for(ii=0;ii<xysize1;ii++)
 			{
-				data.image[IDpsfc].array.F[xysize1*kk+ii] = data.image[IDa].array.F[ii]*data.image[IDa].array.F[ii];
-				if(data.image[IDpsfc].array.F[xysize1*kk+ii]>peakC)
-					peakC = data.image[IDpsfc].array.F[xysize1*kk+ii];
+				dcimg[IDpsfc].array.F[xysize1*kk+ii] = dcimg[IDa].array.F[ii]*dcimg[IDa].array.F[ii];
+				if(dcimg[IDpsfc].array.F[xysize1*kk+ii]>peakC)
+					peakC = dcimg[IDpsfc].array.F[xysize1*kk+ii];
 			}
 		for(ii=0;ii<xysize1;ii++)
-			data.image[IDpsfc].array.F[xysize1*kk+ii] /= peakC;
+			dcimg[IDpsfc].array.F[xysize1*kk+ii] /= peakC;
 		delete_image_ID("foca");
 	
 		for(ii=0;ii<xysize1;ii++)
-			data.image[IDpsfc_ave].array.F[ii] += data.image[IDpsfc].array.F[xysize1*kk+ii]/zsize;
+			dcimg[IDpsfc_ave].array.F[ii] += dcimg[IDpsfc].array.F[xysize1*kk+ii]/zsize;
 		
 		for(ii=0;ii<xsize;ii++)
 			for(jj=0;jj<ysize;jj++)
 			{
 				ii1 = ii + (xsize1-xsize)/2;
 				jj1 = jj + (ysize1-ysize)/2;
-				data.image[IDretmp].array.F[jj1*xsize1+ii1] = data.image[IDm].array.F[jj1*xsize1+ii1] * (cos(data.image[IDwfc].array.F[kk*xysize + jj*xsize + ii])-1.0);
-				data.image[IDretmp].array.F[jj1*xsize1+ii1] = data.image[IDm].array.F[jj1*xsize1+ii1] * sin(data.image[IDwfc].array.F[kk*xysize + jj*xsize + ii]);
+				dcimg[IDretmp].array.F[jj1*xsize1+ii1] = dcimg[IDm].array.F[jj1*xsize1+ii1] * (cos(dcimg[IDwfc].array.F[kk*xysize + jj*xsize + ii])-1.0);
+				dcimg[IDretmp].array.F[jj1*xsize1+ii1] = dcimg[IDm].array.F[jj1*xsize1+ii1] * sin(dcimg[IDwfc].array.F[kk*xysize + jj*xsize + ii]);
 			}
 		mk_complex_from_reim("wfretmp", "wfimtmp", "wfctmp", 0);
 		permut("wfctmp");
@@ -6346,19 +6301,19 @@ long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name, 
 		delete_image_ID("focp");
 		IDa = image_ID("foca");
 		for(ii=0;ii<xysize1;ii++)
-			data.image[IDpsfCc].array.F[xysize1*kk+ii] = (data.image[IDa].array.F[ii]*data.image[IDa].array.F[ii])/peakC;
+			dcimg[IDpsfCc].array.F[xysize1*kk+ii] = (dcimg[IDa].array.F[ii]*dcimg[IDa].array.F[ii])/peakC;
 		delete_image_ID("foca");
 		
 		for(ii=0;ii<xysize1;ii++)
-			data.image[IDpsfCc_ave].array.F[ii] += data.image[IDpsfCc].array.F[xysize1*kk+ii]/zsize;
+			dcimg[IDpsfCc_ave].array.F[ii] += dcimg[IDpsfCc].array.F[xysize1*kk+ii]/zsize;
 
 		if(kk<zsize/2)
 		{
 			cnt0++;
 			for(ii=0;ii<xysize1;ii++)
 			{
-				data.image[IDpsfc_ave0].array.F[ii] += data.image[IDpsfc].array.F[xysize1*kk+ii];
-				data.image[IDpsfCc_ave0].array.F[ii] += data.image[IDpsfCc].array.F[xysize1*kk+ii];
+				dcimg[IDpsfc_ave0].array.F[ii] += dcimg[IDpsfc].array.F[xysize1*kk+ii];
+				dcimg[IDpsfCc_ave0].array.F[ii] += dcimg[IDpsfCc].array.F[xysize1*kk+ii];
 			}
 		}
 		else
@@ -6366,8 +6321,8 @@ long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name, 
 			cnt1++;
 			for(ii=0;ii<xysize1;ii++)
 			{
-				data.image[IDpsfc_ave1].array.F[ii] += data.image[IDpsfc].array.F[xysize1*kk+ii];
-				data.image[IDpsfCc_ave1].array.F[ii] += data.image[IDpsfCc].array.F[xysize1*kk+ii];
+				dcimg[IDpsfc_ave1].array.F[ii] += dcimg[IDpsfc].array.F[xysize1*kk+ii];
+				dcimg[IDpsfCc_ave1].array.F[ii] += dcimg[IDpsfCc].array.F[xysize1*kk+ii];
 			}
 		}
 	}
@@ -6376,10 +6331,10 @@ long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name, 
 
 	for(ii=0;ii<xysize1;ii++)
 	{
-		data.image[IDpsfc_ave0].array.F[ii] /= cnt0;
-		data.image[IDpsfc_ave1].array.F[ii] /= cnt1;
-		data.image[IDpsfCc_ave0].array.F[ii] /= cnt0;
-		data.image[IDpsfCc_ave1].array.F[ii] /= cnt1;		
+		dcimg[IDpsfc_ave0].array.F[ii] /= cnt0;
+		dcimg[IDpsfc_ave1].array.F[ii] /= cnt1;
+		dcimg[IDpsfCc_ave0].array.F[ii] /= cnt0;
+		dcimg[IDpsfCc_ave1].array.F[ii] /= cnt1;		
 	}
 	
 	printf("\n");
@@ -6426,9 +6381,9 @@ int AtmosphericTurbulence_Test_LinPredictor(long NB_WFstep, double WFphaNoise, c
         exit(0);
     }
 
-    WFPxsize = data.image[IDWFPfilt].md[0].size[0];
-    WFPysize = data.image[IDWFPfilt].md[0].size[1];
-    WFP_NBstep = data.image[IDWFPfilt].md[0].size[2];
+    WFPxsize = dcimg[IDWFPfilt].md[0].size[0];
+    WFPysize = dcimg[IDWFPfilt].md[0].size[1];
+    WFP_NBstep = dcimg[IDWFPfilt].md[0].size[2];
 
     WFP_xyrad = (long) (0.5*WFPxsize);
 
@@ -6487,8 +6442,8 @@ int AtmosphericTurbulence_Test_LinPredictor(long NB_WFstep, double WFphaNoise, c
                 // write buffer slice 0
                 for(ii=0; ii<CONF_WFsize*CONF_WFsize; ii++)
                     {
-                        data.image[IDbuff].array.F[ii] = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+ii] + gauss()*WFphaNoise;
-                        data.image[IDbuff1].array.F[ii] = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+ii];
+                        dcimg[IDbuff].array.F[ii] = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+ii] + gauss()*WFphaNoise;
+                        dcimg[IDbuff1].array.F[ii] = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+ii];
                     }
                     
                 // estimation
@@ -6505,49 +6460,49 @@ int AtmosphericTurbulence_Test_LinPredictor(long NB_WFstep, double WFphaNoise, c
                         jj2 = jj + jj1 - WFP_xyrad;
                         if((ii2>-1)&&(ii2<CONF_WFsize)&&(jj2>-1)&&(jj2<CONF_WFsize))
                             for(k1=0; k1<WFP_NBstep; k1++)
-                                val += data.image[IDbuff].array.F[k1*CONF_WFsize*CONF_WFsize+CONF_WFsize*jj2+ii2] * data.image[IDWFPfilt].array.F[k1*WFPxsize*WFPysize+jj1*WFPxsize+ii1];
+                                val += dcimg[IDbuff].array.F[k1*CONF_WFsize*CONF_WFsize+CONF_WFsize*jj2+ii2] * dcimg[IDWFPfilt].array.F[k1*WFPxsize*WFPysize+jj1*WFPxsize+ii1];
                     }
 
 
-                //data.image[IDphaout].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii] = val;
-                //data.image[IDphaoutres].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii] = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii] - val;
+                //dcimg[IDphaout].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii] = val;
+                //dcimg[IDphaoutres].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii] = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii] - val;
 
-                valgain100 = data.image[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
-                valgain050 = valgain050*(1.00-0.50) + 0.50*data.image[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
-                valgain025 = valgain025*(1.00-0.25) + 0.25*data.image[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
-                valgain013 = valgain013*(1.00-0.13) + 0.13*data.image[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
-                valgain006 = valgain006*(1.00-0.06) + 0.06*data.image[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
-                valgain003 = valgain003*(1.00-0.03) + 0.03*data.image[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
-                vallag = data.image[IDbuff1].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
+                valgain100 = dcimg[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
+                valgain050 = valgain050*(1.00-0.50) + 0.50*dcimg[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
+                valgain025 = valgain025*(1.00-0.25) + 0.25*dcimg[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
+                valgain013 = valgain013*(1.00-0.13) + 0.13*dcimg[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
+                valgain006 = valgain006*(1.00-0.06) + 0.06*dcimg[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
+                valgain003 = valgain003*(1.00-0.03) + 0.03*dcimg[IDbuff].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
+                vallag = dcimg[IDbuff1].array.F[WFPlag*CONF_WFsize*CONF_WFsize+CONF_WFsize*WFPjjpix+WFPiipix];
 
-                fprintf(fp, "%5ld  %20f  %20f  %20f  %20f  %20f  %20f  %20f  %20f  %20f\n", k, data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii], val, data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-val, valgain100, valgain050, valgain025, valgain013, valgain006, valgain003);
+                fprintf(fp, "%5ld  %20f  %20f  %20f  %20f  %20f  %20f  %20f  %20f  %20f\n", k, dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii], val, dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-val, valgain100, valgain050, valgain025, valgain013, valgain006, valgain003);
 
 
 
                 if(k>100)
                 {
-                    err = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain100;
+                    err = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain100;
                     rms100 += err*err;
 
-                    err = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain050;
+                    err = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain050;
                     rms050 += err*err;
 
-                    err = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain025;
+                    err = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain025;
                     rms025 += err*err;
 
-                    err = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain013;
+                    err = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain013;
                     rms013 += err*err;
 
-                    err = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain006;
+                    err = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain006;
                     rms006 += err*err;
 
-                    err = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain003;
+                    err = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-valgain003;
                     rms003 += err*err;
 
-                    err = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-val;
+                    err = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-val;
                     rms += err*err;
 
-                    err = data.image[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-vallag;
+                    err = dcimg[IDpha].array.F[frame*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii]-vallag;
                     rmslag += err*err;
 
                     rmscnt ++;
@@ -6558,8 +6513,8 @@ int AtmosphericTurbulence_Test_LinPredictor(long NB_WFstep, double WFphaNoise, c
                 for(k1=WFP_NBstep-1; k1>0; k1--)
                     for(ii=0; ii<CONF_WFsize*CONF_WFsize; ii++)
                         {
-                            data.image[IDbuff].array.F[k1*CONF_WFsize*CONF_WFsize+ii] = data.image[IDbuff].array.F[(k1-1)*CONF_WFsize*CONF_WFsize+ii];
-                            data.image[IDbuff1].array.F[k1*CONF_WFsize*CONF_WFsize+ii] = data.image[IDbuff1].array.F[(k1-1)*CONF_WFsize*CONF_WFsize+ii];
+                            dcimg[IDbuff].array.F[k1*CONF_WFsize*CONF_WFsize+ii] = dcimg[IDbuff].array.F[(k1-1)*CONF_WFsize*CONF_WFsize+ii];
+                            dcimg[IDbuff1].array.F[k1*CONF_WFsize*CONF_WFsize+ii] = dcimg[IDbuff1].array.F[(k1-1)*CONF_WFsize*CONF_WFsize+ii];
                         }
             }
             k++;
@@ -6643,8 +6598,8 @@ int measure_wavefront_series_expoframes(float etime, char *outfile)
             exit(0);
         }
  
-    naxes[0] = data.image[ID].md[0].size[0];
-    naxes[1] = data.image[ID].md[0].size[1];
+    naxes[0] = dcimg[ID].md[0].size[0];
+    naxes[1] = dcimg[ID].md[0].size[1];
     IDamp = ID;
 
     naxesout[0] = naxes[0]*zoomfactor;
@@ -6700,19 +6655,19 @@ int measure_wavefront_series_expoframes(float etime, char *outfile)
                 for(ii=0; ii<naxes[0]; ii++)
                     for(jj=0; jj<naxes[1]; jj++)
                     {
-                        amp = data.image[IDamp].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
-                        pha = data.image[IDpha].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
-                        data.image[ID_array1].array.CF[(jj+yoffset)*naxesout[0]+ii+xoffset].re = amp*cos(pha);
-                        data.image[ID_array1].array.CF[(jj+yoffset)*naxesout[0]+ii+xoffset].im = amp*sin(pha);
+                        amp = dcimg[IDamp].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
+                        pha = dcimg[IDpha].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
+                        dcimg[ID_array1].array.CF[(jj+yoffset)*naxesout[0]+ii+xoffset].re = amp*cos(pha);
+                        dcimg[ID_array1].array.CF[(jj+yoffset)*naxesout[0]+ii+xoffset].im = amp*sin(pha);
                     }
             else
                 for(ii=0; ii<naxes[0]; ii++)
                     for(jj=0; jj<naxes[1]; jj++)
                     {
-                        amp = data.image[IDamp].array.F[jj*naxes[0]+ii];
-                        pha = data.image[IDpha].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
-                        data.image[ID_array1].array.CF[(jj+yoffset)*naxesout[0]+ii+xoffset].re = amp*cos(pha);
-                        data.image[ID_array1].array.CF[(jj+yoffset)*naxesout[0]+ii+xoffset].im = amp*sin(pha);
+                        amp = dcimg[IDamp].array.F[jj*naxes[0]+ii];
+                        pha = dcimg[IDpha].array.F[frame*naxes[0]*naxes[1]+jj*naxes[0]+ii];
+                        dcimg[ID_array1].array.CF[(jj+yoffset)*naxesout[0]+ii+xoffset].re = amp*cos(pha);
+                        dcimg[ID_array1].array.CF[(jj+yoffset)*naxesout[0]+ii+xoffset].im = amp*sin(pha);
                     }
 
             do2dfft("array1","im_c");
@@ -6721,7 +6676,7 @@ int measure_wavefront_series_expoframes(float etime, char *outfile)
             for(ii=0; ii<naxesout[0]; ii++)
                 for(jj=0; jj<naxesout[1]; jj++)
                 {
-                    data.image[IDpsf].array.F[jj*naxesout[0]+ii] += (data.image[ID].array.CF[jj*naxesout[0]+ii].re*data.image[ID].array.CF[jj*naxesout[0]+ii].re+data.image[ID].array.CF[jj*naxesout[0]+ii].im*data.image[ID].array.CF[jj*naxesout[0]+ii].im);
+                    dcimg[IDpsf].array.F[jj*naxesout[0]+ii] += (dcimg[ID].array.CF[jj*naxesout[0]+ii].re*dcimg[ID].array.CF[jj*naxesout[0]+ii].re+dcimg[ID].array.CF[jj*naxesout[0]+ii].im*dcimg[ID].array.CF[jj*naxesout[0]+ii].im);
                 }
             delete_image_ID("im_c");
 
@@ -7176,12 +7131,12 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
     wfstime = 0.0;
     for(ii=0; ii<WFsize1*WFsize1; ii++)
     {
-        data.image[IDwfs_opd].array.F[ii] = 0.0;
-        data.image[IDdm_opd].array.F[ii] = 0.0;
-        data.image[IDwfs_mes_opd].array.F[ii] = 0.0;
-        data.image[IDwfs_mes_opd_prev].array.F[ii] = 0.0;
-        data.image[IDwfs_mes_opd_derivative].array.F[ii] = 0.0;
-        data.image[IDwfs_mes_opd_integral].array.F[ii] = 0.0;
+        dcimg[IDwfs_opd].array.F[ii] = 0.0;
+        dcimg[IDdm_opd].array.F[ii] = 0.0;
+        dcimg[IDwfs_mes_opd].array.F[ii] = 0.0;
+        dcimg[IDwfs_mes_opd_prev].array.F[ii] = 0.0;
+        dcimg[IDwfs_mes_opd_derivative].array.F[ii] = 0.0;
+        dcimg[IDwfs_mes_opd_integral].array.F[ii] = 0.0;
     }
     wfscnt = 0;
     WFSdelayWait = 1;
@@ -7317,29 +7272,29 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
         {
             for(ii=0; ii<CONF_WFsize*CONF_WFsize; ii++)
             {
-                val0 = data.image[IDac0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+ii];
-                val1 = data.image[IDac1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+ii];
+                val0 = dcimg[IDac0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+ii];
+                val1 = dcimg[IDac1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+ii];
                 amp = (1.0-framefrac)*val0 + framefrac*val1;
 
-                val0 = data.image[IDpc0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+ii];
-                val1 = data.image[IDpc1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+ii];
+                val0 = dcimg[IDpc0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+ii];
+                val1 = dcimg[IDpc1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+ii];
                 pha = (1.0-framefrac)*val0 + framefrac*val1;
 
 
-                data.image[IDatm_amp].array.F[ii] = amp;
-                data.image[IDatm_opd].array.F[ii] = pha/2.0/M_PI*SLAMBDA;
+                dcimg[IDatm_amp].array.F[ii] = amp;
+                dcimg[IDatm_opd].array.F[ii] = pha/2.0/M_PI*SLAMBDA;
 
 
-                val0 = data.image[IDacs0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+ii];
-                val1 = data.image[IDacs1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+ii];
+                val0 = dcimg[IDacs0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+ii];
+                val1 = dcimg[IDacs1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+ii];
                 amp = (1.0-framefrac)*val0 + framefrac*val1;
 
-                val0 = data.image[IDpcs0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+ii];
-                val1 = data.image[IDpcs1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+ii];
+                val0 = dcimg[IDpcs0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+ii];
+                val1 = dcimg[IDpcs1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+ii];
                 pha = (1.0-framefrac)*val0 + framefrac*val1;
 
-                data.image[IDatm_amp_sci].array.F[ii] = amp;
-                data.image[IDatm_opd_sci].array.F[ii] = pha/2.0/M_PI*(1.0e-9*SCILAMBDA);
+                dcimg[IDatm_amp_sci].array.F[ii] = amp;
+                dcimg[IDatm_opd_sci].array.F[ii] = pha/2.0/M_PI*(1.0e-9*SCILAMBDA);
             }
         }
         else
@@ -7360,12 +7315,12 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
                             ii = ii1*BINWF+i;
                             jj = jj1*BINWF+j;
 
-                            val0 = data.image[IDac0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
-                            val1 = data.image[IDac1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
+                            val0 = dcimg[IDac0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
+                            val1 = dcimg[IDac1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
                             amp = (1.0-framefrac)*val0 + framefrac*val1;
 
-                            val0 = data.image[IDpc0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
-                            val1 = data.image[IDpc1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
+                            val0 = dcimg[IDpc0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
+                            val1 = dcimg[IDpc1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
                             pha = (1.0-framefrac)*val0 + framefrac*val1;
 
                             re += amp*cos(pha);
@@ -7373,12 +7328,12 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
                             pha_ave += pha;
 
 
-                            val0 = data.image[IDacs0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
-                            val1 = data.image[IDacs1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
+                            val0 = dcimg[IDacs0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
+                            val1 = dcimg[IDacs1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
                             amp = (1.0-framefrac)*val0 + framefrac*val1;
 
-                            val0 = data.image[IDpcs0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
-                            val1 = data.image[IDpcs1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
+                            val0 = dcimg[IDpcs0].array.F[frameindex0*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
+                            val1 = dcimg[IDpcs1].array.F[frameindex1*CONF_WFsize*CONF_WFsize+jj*CONF_WFsize+ii];
                             pha = (1.0-framefrac)*val0 + framefrac*val1;
 
                             re_sci += amp*cos(pha);
@@ -7392,7 +7347,7 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
                     pha_ave /= (BINWF*BINWF);
                     pha_ave_sci /= (BINWF*BINWF);
 
-                    data.image[IDatm_amp].array.F[jj1*WFsize1+ii1] = sqrt(re*re+im*im);
+                    dcimg[IDatm_amp].array.F[jj1*WFsize1+ii1] = sqrt(re*re+im*im);
                     pha = pha_ave;
                     errpha = atan2(im,re)-pha_ave; // close to -2PI, 0, 2PI etc...
                     errpha = modf(errpha/(2.0*M_PI),&tmpd);
@@ -7401,10 +7356,10 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
                     if(errpha<-0.5)
                         errpha += 1.0;
                     pha += errpha*2.0*M_PI;
-                    data.image[IDatm_opd].array.F[jj1*WFsize1+ii1] = pha/2.0/M_PI*SLAMBDA;
+                    dcimg[IDatm_opd].array.F[jj1*WFsize1+ii1] = pha/2.0/M_PI*SLAMBDA;
 
 
-                    data.image[IDatm_amp_sci].array.F[jj1*WFsize1+ii1] = sqrt(re_sci*re_sci+im_sci*im_sci);
+                    dcimg[IDatm_amp_sci].array.F[jj1*WFsize1+ii1] = sqrt(re_sci*re_sci+im_sci*im_sci);
                     pha = pha_ave_sci;
                     errpha = atan2(im_sci,re_sci)-pha_ave_sci; // close to -2PI, 0, 2PI etc...
                     errpha = modf(errpha/(2.0*M_PI),&tmpd);
@@ -7413,7 +7368,7 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
                     if(errpha<-0.5)
                         errpha += 1.0;
                     pha += errpha*2.0*M_PI;
-                    data.image[IDatm_opd_sci].array.F[jj1*WFsize1+ii1] = pha/2.0/M_PI*(1.0e-9*SCILAMBDA);
+                    dcimg[IDatm_opd_sci].array.F[jj1*WFsize1+ii1] = pha/2.0/M_PI*(1.0e-9*SCILAMBDA);
                 }
         }
 
@@ -7424,14 +7379,14 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
         // Apply DM
         for(ii=0; ii<WFsize1*WFsize1; ii++)
         {
-            data.image[IDwfs_opd].array.F[ii] = data.image[IDatm_opd].array.F[ii] - data.image[IDdm_opd].array.F[ii];
-            data.image[IDsci_opd].array.F[ii] = data.image[IDatm_opd_sci].array.F[ii] - data.image[IDdm_opd].array.F[ii];
+            dcimg[IDwfs_opd].array.F[ii] = dcimg[IDatm_opd].array.F[ii] - dcimg[IDdm_opd].array.F[ii];
+            dcimg[IDsci_opd].array.F[ii] = dcimg[IDatm_opd_sci].array.F[ii] - dcimg[IDdm_opd].array.F[ii];
         }
 
 
         // WFS integration
         for(ii=0; ii<WFsize1*WFsize1; ii++)
-            data.image[IDwfs_mes_opd].array.F[ii] += data.image[IDwfs_opd].array.F[ii];
+            dcimg[IDwfs_mes_opd].array.F[ii] += dcimg[IDwfs_opd].array.F[ii];
         wfscnt++;
 
 
@@ -7447,18 +7402,18 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
             {
                 for(ii=0; ii<WFsize1*WFsize1; ii++)
                 {
-                    data.image[IDwfs_mes_opd].array.F[ii] /= wfscnt; // AVERAGE OVER WFS INTEGRATION TIME
-                    data.image[IDwfs_mes_opd_derivative].array.F[ii] = (1.0-Kdgain)*data.image[IDwfs_mes_opd_derivative].array.F[ii] + Kdgain*(data.image[IDwfs_mes_opd].array.F[ii]-data.image[IDwfs_mes_opd_prev].array.F[ii])/WFS_SamplingTime;
-                    data.image[IDwfs_mes_opd_integral].array.F[ii] += WFS_SamplingTime*data.image[IDwfs_mes_opd].array.F[ii];
+                    dcimg[IDwfs_mes_opd].array.F[ii] /= wfscnt; // AVERAGE OVER WFS INTEGRATION TIME
+                    dcimg[IDwfs_mes_opd_derivative].array.F[ii] = (1.0-Kdgain)*dcimg[IDwfs_mes_opd_derivative].array.F[ii] + Kdgain*(dcimg[IDwfs_mes_opd].array.F[ii]-dcimg[IDwfs_mes_opd_prev].array.F[ii])/WFS_SamplingTime;
+                    dcimg[IDwfs_mes_opd_integral].array.F[ii] += WFS_SamplingTime*dcimg[IDwfs_mes_opd].array.F[ii];
                 }
             }
             else
             {
                 for(ii=0; ii<WFsize1*WFsize1; ii++)
                 {
-                    data.image[IDwfs_mes_opd].array.F[ii] /= wfscnt; // AVERAGE OVER WFS INTEGRATION TIME
-                    data.image[IDwfs_mes_opd_derivative].array.F[ii] = 0.0;
-                    data.image[IDwfs_mes_opd_integral].array.F[ii] += WFS_SamplingTime*data.image[IDwfs_mes_opd].array.F[ii];
+                    dcimg[IDwfs_mes_opd].array.F[ii] /= wfscnt; // AVERAGE OVER WFS INTEGRATION TIME
+                    dcimg[IDwfs_mes_opd_derivative].array.F[ii] = 0.0;
+                    dcimg[IDwfs_mes_opd_integral].array.F[ii] += WFS_SamplingTime*dcimg[IDwfs_mes_opd].array.F[ii];
                 }
                 PIDok = 1;
             }
@@ -7468,8 +7423,8 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
 
             for(ii=0; ii<WFsize1*WFsize1; ii++)
             {
-                data.image[IDdm_opd_tmp].array.F[ii] += Kp*data.image[IDwfs_mes_opd].array.F[ii] + Kd*data.image[IDwfs_mes_opd_derivative].array.F[ii]*WFS_SamplingTime;
-                data.image[IDwfs_mes_opd].array.F[ii] = 0.0;
+                dcimg[IDdm_opd_tmp].array.F[ii] += Kp*dcimg[IDwfs_mes_opd].array.F[ii] + Kd*dcimg[IDwfs_mes_opd_derivative].array.F[ii]*WFS_SamplingTime;
+                dcimg[IDwfs_mes_opd].array.F[ii] = 0.0;
             }
             wfscnt = 0.0;
             wfstime = 0.0;
@@ -7479,7 +7434,7 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
 
 
             for(ii=0; ii<WFsize1*WFsize1; ii++)
-                data.image[IDwfs_mes_opd_prev].array.F[ii] = data.image[IDwfs_mes_opd].array.F[ii]; // PREVIOUS WFS MEASUREMENT
+                dcimg[IDwfs_mes_opd_prev].array.F[ii] = dcimg[IDwfs_mes_opd].array.F[ii]; // PREVIOUS WFS MEASUREMENT
         }
 
         if((wfstime1>WFS_Delay)&&(WFSdelayWait==1))
@@ -7487,7 +7442,7 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
             printf("UPDATE DM SHAPE\n");
             WFSdelayWait = 0;
             for(ii=0; ii<WFsize1*WFsize1; ii++)
-                data.image[IDdm_opd].array.F[ii] = data.image[IDdm_opd_tmp].array.F[ii];
+                dcimg[IDdm_opd].array.F[ii] = dcimg[IDdm_opd_tmp].array.F[ii];
         }
 
         // MEASURE WF QUALITY
@@ -7495,18 +7450,18 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
         val1 = 0.0;
         for(ii=0; ii<WFsize1*WFsize1; ii++)
         {
-            val0 += data.image[IDwfs_opd].array.F[ii]*data.image[IDtelpup].array.F[ii];
-            val1 += data.image[IDtelpup].array.F[ii];
+            val0 += dcimg[IDwfs_opd].array.F[ii]*dcimg[IDtelpup].array.F[ii];
+            val1 += dcimg[IDtelpup].array.F[ii];
         }
         for(ii=0; ii<WFsize1*WFsize1; ii++) // REMOVE PISTON
-            data.image[IDwfs_opd].array.F[ii] -= val0/val1;
+            dcimg[IDwfs_opd].array.F[ii] -= val0/val1;
 
         val0 = 0.0;
         val1 = 0.0;
         for(ii=0; ii<WFsize1*WFsize1; ii++) // COMPUTE RMS WF QUALITY
         {
-            val0 += data.image[IDsci_opd].array.F[ii]*data.image[IDsci_opd].array.F[ii]*data.image[IDtelpup].array.F[ii];
-            val1 += data.image[IDtelpup].array.F[ii];
+            val0 += dcimg[IDsci_opd].array.F[ii]*dcimg[IDsci_opd].array.F[ii]*dcimg[IDtelpup].array.F[ii];
+            val1 += dcimg[IDtelpup].array.F[ii];
         }
         RMSwf = sqrt(val0/val1);
 
@@ -7538,9 +7493,9 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
                 jj1 = WFsize1/2-sizeb/2+jj;
                 if((ii1>-1)&&(jj1>-1)&&(ii1<WFsize1)&&(jj1<WFsize1))
                 {
-                    data.image[IDpupa].array.F[jj*sizeb+ii] = data.image[IDtelpup].array.F[jj1*WFsize1+ii1]*data.image[IDatm_amp_sci].array.F[jj1*WFsize1+ii1];
-                    tot += data.image[IDpupa].array.F[jj*sizeb+ii];
-                    data.image[IDpupp].array.F[jj*sizeb+ii] = data.image[IDtelpup].array.F[jj1*WFsize1+ii1]*2.0*M_PI*data.image[IDsci_opd].array.F[jj1*WFsize1+ii1]/(1.0e-9*SCILAMBDA);
+                    dcimg[IDpupa].array.F[jj*sizeb+ii] = dcimg[IDtelpup].array.F[jj1*WFsize1+ii1]*dcimg[IDatm_amp_sci].array.F[jj1*WFsize1+ii1];
+                    tot += dcimg[IDpupa].array.F[jj*sizeb+ii];
+                    dcimg[IDpupp].array.F[jj*sizeb+ii] = dcimg[IDtelpup].array.F[jj1*WFsize1+ii1]*2.0*M_PI*dcimg[IDsci_opd].array.F[jj1*WFsize1+ii1]/(1.0e-9*SCILAMBDA);
                 }
             }
 
@@ -7576,8 +7531,8 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
         peak = 0.0;
         for(ii=0; ii<size*size; ii++)
         {
-            re = data.image[IDre].array.F[ii];
-            im = data.image[IDim].array.F[ii];
+            re = dcimg[IDre].array.F[ii];
+            im = dcimg[IDim].array.F[ii];
             amp = re*re+im*im;
             if(amp>peak)
                 peak = amp;
@@ -7587,8 +7542,8 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
         cnt = 0;
         for(ii=0; ii<size*size; ii++)
         {
-            re = data.image[IDre].array.F[ii];
-            im = data.image[IDim].array.F[ii];
+            re = dcimg[IDre].array.F[ii];
+            im = dcimg[IDim].array.F[ii];
             reave += re;
             imave += im;
             amp = re*re+im*im;
@@ -7599,13 +7554,13 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
         imave /= cnt;
         for(ii=0; ii<size*size; ii++)
         {
-            re = data.image[IDre].array.F[ii];
-            im = data.image[IDim].array.F[ii];
+            re = dcimg[IDre].array.F[ii];
+            im = dcimg[IDim].array.F[ii];
             amp = re*re+im*im;
             if(amp>0.2*peak)
             {
-                data.image[IDre].array.F[ii] -= reave;
-                data.image[IDim].array.F[ii] -= imave;
+                dcimg[IDre].array.F[ii] -= reave;
+                dcimg[IDim].array.F[ii] -= imave;
             }
         }
         mk_complex_from_reim("pupre1", "pupim1", "pupc", 0);
@@ -7630,10 +7585,10 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
             peak = 0.0;
             for(ii=0; ii<size*size; ii++)
             {
-                data.image[IDpsfcumul].array.F[ii] += data.image[ID].array.F[ii];
-                data.image[IDpsfcumul1].array.F[ii] += data.image[ID1].array.F[ii];
-                if(data.image[IDpsfcumul].array.F[ii]>peak)
-                    peak = data.image[IDpsfcumul].array.F[ii];
+                dcimg[IDpsfcumul].array.F[ii] += dcimg[ID].array.F[ii];
+                dcimg[IDpsfcumul1].array.F[ii] += dcimg[ID1].array.F[ii];
+                if(dcimg[IDpsfcumul].array.F[ii]>peak)
+                    peak = dcimg[IDpsfcumul].array.F[ii];
             }
         }
 
@@ -7820,8 +7775,8 @@ int AtmosphericTurbulence_WFprocess()
         }
         else
         {
-            size = data.image[ID].md[0].size[0];
-            sizec = data.image[ID].md[0].size[2];
+            size = dcimg[ID].md[0].size[0];
+            sizec = dcimg[ID].md[0].size[2];
             printf("%ld  %ld %ld\n",k,size,sizec);
 
             for(kk=0; kk<sizec; kk++)

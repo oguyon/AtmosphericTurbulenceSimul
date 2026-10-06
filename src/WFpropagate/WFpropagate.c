@@ -15,6 +15,7 @@
 #include "image_gen/image_gen.h"
 
 #include "WFpropagate/WFpropagate.h"
+#include "atmturb_compat.h"
 
 
 extern DATA data;
@@ -40,18 +41,11 @@ int Fresnel_propagate_wavefront_cli()
 
 int init_WFpropagate()
 {
-  strcpy(data.module[data.NBmodule].name, __FILE__);
-  strcpy(data.module[data.NBmodule].info, "light propagation");
-  data.NBmodule++;
-  
-  strcpy(data.cmd[data.NBcmd].key,"fresnelpw");
-  strcpy(data.cmd[data.NBcmd].module,__FILE__);
-  data.cmd[data.NBcmd].fp = Fresnel_propagate_wavefront_cli;
-  strcpy(data.cmd[data.NBcmd].info,"Fresnel propagate wavefront");
-  strcpy(data.cmd[data.NBcmd].syntax,"<input image> <output image> <pupil scale m/s> <prop dist> <lambda>");
-  strcpy(data.cmd[data.NBcmd].example,"fresnelpw in out 0.01 1000 0.0000005");
-  strcpy(data.cmd[data.NBcmd].Ccall,"int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double z, double lambda)");
-  data.NBcmd++;
+  RegisterCLIcommand("fresnelpw", __FILE__, Fresnel_propagate_wavefront_cli,
+                     "Fresnel propagate wavefront",
+                     "<input image> <output image> <pupil scale m/s> <prop dist> <lambda>",
+                     "fresnelpw in out 0.01 1000 0.0000005",
+                     "int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double z, double lambda)");
  
  // add atexit functions here
 
@@ -84,14 +78,14 @@ int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double 
     do2dfft(in, "tmp");
     permut("tmp");
     ID = image_ID("tmp");
-    atype = data.image[ID].md[0].atype;
+    atype = dcimg[ID].md[0].atype;
 
 
 
 
 
-    naxes[0] = data.image[ID].md[0].size[0];
-    naxes[1] = data.image[ID].md[0].size[1];
+    naxes[0] = dcimg[ID].md[0].size[0];
+    naxes[1] = dcimg[ID].md[0].size[1];
     coeff = PI*z*lambda/(PUPIL_SCALE*naxes[0])/(PUPIL_SCALE*naxes[0]);
 
     co1 = 1.0*naxes[0]*naxes[1];
@@ -113,10 +107,10 @@ int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double 
                 ii2 = ii-n0h;
                 sqdist = ii2*ii2+jj2;
                 angle = -coeff*sqdist;
-                re = data.image[ID].array.CF[ii1].re/co1;
-                im = data.image[ID].array.CF[ii1].im/co1;
-                data.image[ID].array.CF[ii1].re = re*cos(angle) - im*sin(angle);
-                data.image[ID].array.CF[ii1].im = re*sin(angle) + im*cos(angle);
+                re = dcimg[ID].array.CF[ii1].re/co1;
+                im = dcimg[ID].array.CF[ii1].im/co1;
+                dcimg[ID].array.CF[ii1].re = re*cos(angle) - im*sin(angle);
+                dcimg[ID].array.CF[ii1].im = re*sin(angle) + im*cos(angle);
             }
         }
     }
@@ -132,10 +126,10 @@ int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double 
                 ii2 = ii-n0h;
                 sqdist = ii2*ii2+jj2;
                 angle = -coeff*sqdist;
-                re = data.image[ID].array.CD[ii1].re/co1;
-                im = data.image[ID].array.CD[ii1].im/co1;
-                data.image[ID].array.CD[ii1].re = re*cos(angle) - im*sin(angle);
-                data.image[ID].array.CD[ii1].im = re*sin(angle) + im*cos(angle);
+                re = dcimg[ID].array.CD[ii1].re/co1;
+                im = dcimg[ID].array.CD[ii1].im/co1;
+                dcimg[ID].array.CD[ii1].re = re*cos(angle) - im*sin(angle);
+                dcimg[ID].array.CD[ii1].im = re*sin(angle) + im*cos(angle);
             }
         }
     }
@@ -215,8 +209,8 @@ int Init_Fresnel_propagate_wavefront(char *Cim, long size, double PUPIL_SCALE, d
                 Re1 = Amp*cos(Pha)/co1;
                 Im1 = Amp*sin(Pha)/co1;
 
-                data.image[ID].array.CF[jj*size+ii].re = Re1;
-                data.image[ID].array.CF[jj*size+ii].im = Im1;
+                dcimg[ID].array.CF[jj*size+ii].re = Re1;
+                dcimg[ID].array.CF[jj*size+ii].im = Im1;
             }
     }
     else
@@ -249,8 +243,8 @@ int Init_Fresnel_propagate_wavefront(char *Cim, long size, double PUPIL_SCALE, d
                 Re1 = Amp*cos(Pha)/co1;
                 Im1 = Amp*sin(Pha)/co1;
 
-                data.image[ID].array.CD[jj*size+ii].re = Re1;
-                data.image[ID].array.CD[jj*size+ii].im = Im1;
+                dcimg[ID].array.CD[jj*size+ii].re = Re1;
+                dcimg[ID].array.CD[jj*size+ii].im = Im1;
             }
     }
 
@@ -282,15 +276,15 @@ int Fresnel_propagate_wavefront1(char *in, char *out, char *Cin)
     int atype;
 
     ID = image_ID(in);
-    sizein = data.image[ID].md[0].size[0];
+    sizein = dcimg[ID].md[0].size[0];
     sprintf(fname,"tmpfpw%ld", sizein);
-    atype = data.image[ID].md[0].atype;
+    atype = dcimg[ID].md[0].atype;
 
     do2dfft(in,fname);
 
     ID = image_ID(fname);
-    naxes[0]=data.image[ID].md[0].size[0];
-    naxes[1]=data.image[ID].md[0].size[1];
+    naxes[0]=dcimg[ID].md[0].size[0];
+    naxes[1]=dcimg[ID].md[0].size[1];
     nbelem = naxes[0]*naxes[1];
 
     IDref = image_ID(Cin);
@@ -299,28 +293,28 @@ int Fresnel_propagate_wavefront1(char *in, char *out, char *Cin)
     {
         for(ii=0; ii<nbelem; ii++)
         {
-            re = data.image[ID].array.CF[ii].re;
-            im = data.image[ID].array.CF[ii].im;
+            re = dcimg[ID].array.CF[ii].re;
+            im = dcimg[ID].array.CF[ii].im;
 
-            reref = data.image[IDref].array.CF[ii].re;
-            imref = data.image[IDref].array.CF[ii].im;
+            reref = dcimg[IDref].array.CF[ii].re;
+            imref = dcimg[IDref].array.CF[ii].im;
 
-            data.image[ID].array.CF[ii].re = re*reref-im*imref;
-            data.image[ID].array.CF[ii].im = re*imref+im*reref;
+            dcimg[ID].array.CF[ii].re = re*reref-im*imref;
+            dcimg[ID].array.CF[ii].im = re*imref+im*reref;
         }
     }
     else
     {
         for(ii=0; ii<nbelem; ii++)
         {
-            re = data.image[ID].array.CD[ii].re;
-            im = data.image[ID].array.CD[ii].im;
+            re = dcimg[ID].array.CD[ii].re;
+            im = dcimg[ID].array.CD[ii].im;
 
-            reref = data.image[IDref].array.CD[ii].re;
-            imref = data.image[IDref].array.CD[ii].im;
+            reref = dcimg[IDref].array.CD[ii].re;
+            imref = dcimg[IDref].array.CD[ii].im;
 
-            data.image[ID].array.CD[ii].re = re*reref-im*imref;
-            data.image[ID].array.CD[ii].im = re*imref+im*reref;
+            dcimg[ID].array.CD[ii].re = re*reref-im*imref;
+            dcimg[ID].array.CD[ii].im = re*imref+im*reref;
         }
     }
     do2dffti(fname,out);
@@ -346,9 +340,9 @@ long Fresnel_propagate_cube(char *IDcin_name, char *IDout_name_amp, char *IDout_
     int atype;
 
     IDcin = image_ID(IDcin_name);
-    xsize = data.image[IDcin].md[0].size[0];
-    ysize = data.image[IDcin].md[0].size[1];
-    atype = data.image[IDcin].md[0].atype;
+    xsize = dcimg[IDcin].md[0].size[0];
+    ysize = dcimg[IDcin].md[0].size[1];
+    atype = dcimg[IDcin].md[0].atype;
 
     if(atype == COMPLEX_FLOAT)
     {
@@ -372,12 +366,12 @@ long Fresnel_propagate_cube(char *IDcin_name, char *IDout_name_amp, char *IDout_
             for(ii=0; ii<xsize; ii++)
                 for(jj=0; jj<ysize; jj++)
                 {
-                    re = data.image[IDtmp].array.CF[jj*xsize+ii].re;
-                    im = data.image[IDtmp].array.CF[jj*xsize+ii].im;
+                    re = dcimg[IDtmp].array.CF[jj*xsize+ii].re;
+                    im = dcimg[IDtmp].array.CF[jj*xsize+ii].im;
                     amp = sqrt(re*re+im*im);
                     pha = atan2(im,re);
-                    data.image[IDouta].array.F[kk*xsize*ysize+jj*xsize+ii] = amp;
-                    data.image[IDoutp].array.F[kk*xsize*ysize+jj*xsize+ii] = pha;
+                    dcimg[IDouta].array.F[kk*xsize*ysize+jj*xsize+ii] = amp;
+                    dcimg[IDoutp].array.F[kk*xsize*ysize+jj*xsize+ii] = pha;
                 }
         }
         else
@@ -385,12 +379,12 @@ long Fresnel_propagate_cube(char *IDcin_name, char *IDout_name_amp, char *IDout_
             for(ii=0; ii<xsize; ii++)
                 for(jj=0; jj<ysize; jj++)
                 {
-                    re = data.image[IDtmp].array.CD[jj*xsize+ii].re;
-                    im = data.image[IDtmp].array.CD[jj*xsize+ii].im;
+                    re = dcimg[IDtmp].array.CD[jj*xsize+ii].re;
+                    im = dcimg[IDtmp].array.CD[jj*xsize+ii].im;
                     amp = sqrt(re*re+im*im);
                     pha = atan2(im,re);
-                    data.image[IDouta].array.D[kk*xsize*ysize+jj*xsize+ii] = amp;
-                    data.image[IDoutp].array.D[kk*xsize*ysize+jj*xsize+ii] = pha;
+                    dcimg[IDouta].array.D[kk*xsize*ysize+jj*xsize+ii] = amp;
+                    dcimg[IDoutp].array.D[kk*xsize*ysize+jj*xsize+ii] = pha;
                 }
         }
 
@@ -437,13 +431,13 @@ double WFpropagate_TestLyot(long NBmask, double *maskpos)
         mk_amph_from_complex("imc1", "ima1", "imp1", 0);
         delete_image_ID("imc1");
         ID = image_ID("ima1");
-        size = data.image[ID].md[0].size[0];
+        size = dcimg[ID].md[0].size[0];
         sprintf(fname, "!ima_%ld_0.fits", k);
         save_fl_fits("ima1",fname);
         sprintf(fname, "!imp_%ld_0.fits", k);
         save_fl_fits("imp1",fname);
         for(ii=0; ii<size*size; ii++)
-            data.image[ID].array.F[ii] *= data.image[IDm].array.F[ii];
+            dcimg[ID].array.F[ii] *= dcimg[IDm].array.F[ii];
         sprintf(fname, "!ima_%ld_1.fits", k);
         save_fl_fits("ima1",fname);
         sprintf(fname, "!imp_%ld_1.fits", k);
@@ -468,7 +462,7 @@ double WFpropagate_TestLyot(long NBmask, double *maskpos)
 
     IDa = image_ID("foca");
     IDp = image_ID("focp");
-    size = data.image[IDa].md[0].size[0];
+    size = dcimg[IDa].md[0].size[0];
     for(ii=0; ii<size; ii++)
         for(jj=0; jj<size; jj++)
         {
@@ -476,7 +470,7 @@ double WFpropagate_TestLyot(long NBmask, double *maskpos)
             y = (1.0*jj-0.5*size)/5.12;
             r = sqrt(x*x+y*y);
             if((r>5*rout)||(r<rin))
-                data.image[IDa].array.F[jj*size+ii] = 0.0;
+                dcimg[IDa].array.F[jj*size+ii] = 0.0;
         }
     mk_complex_from_amph("foca", "focp", "focc", 0);
 
@@ -495,7 +489,7 @@ double WFpropagate_TestLyot(long NBmask, double *maskpos)
 
     ID = image_ID("foci");
     // scale : 5.12 pix = 1.0 l/D
-    size = data.image[ID].md[0].size[0];
+    size = dcimg[ID].md[0].size[0];
     for(ii=0; ii<size; ii++)
         for(jj=0; jj<size; jj++)
         {
@@ -504,7 +498,7 @@ double WFpropagate_TestLyot(long NBmask, double *maskpos)
             r = sqrt(x*x+y*y);
             if((r>rin)&&(r<rout))
             {
-                value += data.image[ID].array.F[jj*size+ii];
+                value += dcimg[ID].array.F[jj*size+ii];
                 valuecnt += 1.0;
             }
         }

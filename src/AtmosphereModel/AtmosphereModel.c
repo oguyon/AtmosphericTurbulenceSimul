@@ -272,14 +272,11 @@ int init_AtmosphereModel()
         initAtmosphereModel = 1;
     }
 
-    strcpy(data.cmd[data.NBcmd].key,"mkatmospheremodel");
-    strcpy(data.cmd[data.NBcmd].module,__FILE__);
-    data.cmd[data.NBcmd].fp = AtmosphereModel_Create_from_CONF_cli;
-    strcpy(data.cmd[data.NBcmd].info,"make Earth atmosphere model");
-    strcpy(data.cmd[data.NBcmd].syntax,"<conf file> <wavelength>");
-    strcpy(data.cmd[data.NBcmd].example,"mkatmospheremodel conf.txt 0.5e-6");
-    strcpy(data.cmd[data.NBcmd].Ccall,"int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda)");
-    data.NBcmd++;
+    RegisterCLIcommand("mkatmospheremodel", __FILE__, AtmosphereModel_Create_from_CONF_cli,
+                       "make Earth atmosphere model",
+                       "<conf file> <wavelength>",
+                       "mkatmospheremodel conf.txt 0.5e-6",
+                       "int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda)");
 
 
     return 0;
