@@ -118,44 +118,189 @@ set_target_properties(${LIBNAME} PROPERTIES
     INTERPROCEDURAL_OPTIMIZATION OFF
 )
 
-target_include_directories(${LIBNAME} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphereModel
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence/nrlmsise-00.20131225
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/OpticsMaterials
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/WFpropagate
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/coremods
-    ${CMAKE_SOURCE_DIR}/plugins/milk-extra-src
-)
+if(TARGET CLIcore)
+    # In-tree build under milk framework
+    target_include_directories(${LIBNAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphereModel
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence/nrlmsise-00.20131225
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/OpticsMaterials
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/WFpropagate
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/coremods
+        ${CMAKE_SOURCE_DIR}/plugins/milk-extra-src
+        $<TARGET_PROPERTY:CLIcore,INTERFACE_INCLUDE_DIRECTORIES>
+    )
 
-target_include_directories(${LIBNAME} PRIVATE
-    $<TARGET_PROPERTY:CLIcore,INTERFACE_INCLUDE_DIRECTORIES>
-)
+    target_link_libraries(${LIBNAME} PUBLIC
+        CLIcore
+        ImageStreamIO
+        milkCOREMODmemory
+        milkCOREMODarith
+        milkCOREMODiofits
+        milkCOREMODtools
+        milkfft
+        milkpsf
+        milklinalgebra
+        milkimagegen
+        milkimagefilter
+        milkimagebasic
+        milkstatistic
+        milklinoptimtools
+        OpenMP::OpenMP_C
+        GSL::gsl
+        GSL::gslcblas
+        ${FFTW_LIBRARIES}
+        ${FFTWF_LIBRARIES}
+        m
+    )
+else()
+    # Out-of-tree / standalone build
+    set(MILK_SOURCE_CANDIDATES
+        ${MILK_SOURCE_DIR}
+        $ENV{MILK_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../milk-framework-dev
+        $ENV{MILK_ROOT}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../milk
+    )
+    set(MILK_SOURCE_FOUND "")
+    foreach(cand ${MILK_SOURCE_CANDIDATES})
+        if(cand AND EXISTS "${cand}/src/coremods" AND EXISTS "${cand}/plugins/milk-extra-src")
+            get_filename_component(MILK_SOURCE_FOUND "${cand}" ABSOLUTE)
+            message(STATUS "Found MILK source tree: ${MILK_SOURCE_FOUND}")
+            break()
+        endif()
+    endforeach()
 
-target_link_libraries(${LIBNAME} PUBLIC
-    CLIcore
-    ImageStreamIO
-    milkCOREMODmemory
-    milkCOREMODarith
-    milkCOREMODiofits
-    milkCOREMODtools
-    milkfft
-    milkpsf
-    milklinalgebra
-    milkimagegen
-    milkimagefilter
-    milkimagebasic
-    milkstatistic
-    milklinoptimtools
-    OpenMP::OpenMP_C
-    GSL::gsl
-    GSL::gslcblas
-    ${FFTW_LIBRARIES}
-    ${FFTWF_LIBRARIES}
-    m
-)
+    find_path(MILK_INCLUDE_DIR
+        NAMES CommandLineInterface/CLIcore.h CLIcore.h
+        HINTS
+            ${MILK_ROOT}/include
+            $ENV{MILK_ROOT}/include
+            /usr/local/milk/include
+            /usr/local/include
+    )
+
+    set(MILK_STANDALONE_INCLUDES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphereModel
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence/nrlmsise-00.20131225
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/OpticsMaterials
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/WFpropagate
+    )
+
+    # Include compatibility shim for installed milk layout quirks
+    set(MILK_SHIM_DIR "${CMAKE_CURRENT_BINARY_DIR}/milk_compat_include")
+    file(MAKE_DIRECTORY "${MILK_SHIM_DIR}")
+    if(MILK_INCLUDE_DIR)
+        if(NOT EXISTS "${MILK_SHIM_DIR}/libprocessinfo")
+            file(CREATE_LINK "${MILK_INCLUDE_DIR}" "${MILK_SHIM_DIR}/libprocessinfo" SYMBOLIC)
+        endif()
+        if(EXISTS "${MILK_INCLUDE_DIR}/libmilkcommon/milk_compiler.h" AND NOT EXISTS "${MILK_SHIM_DIR}/milk_compiler.h")
+            file(CREATE_LINK "${MILK_INCLUDE_DIR}/libmilkcommon/milk_compiler.h" "${MILK_SHIM_DIR}/milk_compiler.h" SYMBOLIC)
+        endif()
+    endif()
+    list(APPEND MILK_STANDALONE_INCLUDES "${MILK_SHIM_DIR}")
+
+    if(MILK_SOURCE_FOUND)
+        list(APPEND MILK_STANDALONE_INCLUDES
+            ${MILK_SOURCE_FOUND}/src
+            ${MILK_SOURCE_FOUND}/src/coremods
+            ${MILK_SOURCE_FOUND}/plugins/milk-extra-src
+            ${MILK_SOURCE_FOUND}/src/cli
+            ${MILK_SOURCE_FOUND}/src/cli/CLIcore
+            ${MILK_SOURCE_FOUND}/src/engine
+            ${MILK_SOURCE_FOUND}/src/engine/libfps
+            ${MILK_SOURCE_FOUND}/src/engine/libmilkcommon
+            ${MILK_SOURCE_FOUND}/src/engine/libprocessinfo
+            ${MILK_SOURCE_FOUND}/src/engine/libmilkdata
+            ${MILK_SOURCE_FOUND}/src/engine/ImageStreamIO
+        )
+        if(EXISTS "${MILK_SOURCE_FOUND}/_build/config")
+            list(APPEND MILK_STANDALONE_INCLUDES "${MILK_SOURCE_FOUND}/_build/config")
+        endif()
+    endif()
+
+    if(MILK_INCLUDE_DIR)
+        list(APPEND MILK_STANDALONE_INCLUDES
+            ${MILK_INCLUDE_DIR}
+            ${MILK_INCLUDE_DIR}/CommandLineInterface
+            ${MILK_INCLUDE_DIR}/CommandLineInterface/CLIcore
+            ${MILK_INCLUDE_DIR}/libmilkcommon
+            ${MILK_INCLUDE_DIR}/libfps
+            ${MILK_INCLUDE_DIR}/libmilkdata
+            ${MILK_INCLUDE_DIR}/ImageStreamIO
+        )
+    endif()
+
+    target_include_directories(${LIBNAME} PRIVATE ${MILK_STANDALONE_INCLUDES})
+
+    set(MILK_LIB_NAMES
+        CLIcore
+        ImageStreamIO
+        milkCOREMODmemory
+        milkCOREMODarith
+        milkCOREMODiofits
+        milkCOREMODtools
+        milkfft
+        milkpsf
+        milklinalgebra
+        milkimagegen
+        milkimagefilter
+        milkimagebasic
+        milkstatistic
+        milklinoptimtools
+    )
+
+    set(MILK_SEARCH_HINTS
+        ${MILK_ROOT}/lib
+        $ENV{MILK_ROOT}/lib
+        /usr/local/milk/lib
+        /usr/local/lib
+    )
+    if(MILK_SOURCE_FOUND)
+        list(APPEND MILK_SEARCH_HINTS
+            ${MILK_SOURCE_FOUND}/_build/lib
+            ${MILK_SOURCE_FOUND}/_build/src/cli/CLIcore
+            ${MILK_SOURCE_FOUND}/_build/src/engine/ImageStreamIO
+            ${MILK_SOURCE_FOUND}/_build/src/coremods/COREMOD_memory
+            ${MILK_SOURCE_FOUND}/_build/src/coremods/COREMOD_arith
+            ${MILK_SOURCE_FOUND}/_build/src/coremods/COREMOD_iofits
+            ${MILK_SOURCE_FOUND}/_build/src/coremods/COREMOD_tools
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/fft
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/psf
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/linalgebra
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/image_gen
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/image_filter
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/image_basic
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/statistic
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/linopt_imtools
+        )
+    endif()
+
+    set(MILK_LIBRARIES "")
+    foreach(lib ${MILK_LIB_NAMES})
+        find_library(MILK_${lib}_LIB NAMES ${lib} HINTS ${MILK_SEARCH_HINTS})
+        if(MILK_${lib}_LIB)
+            list(APPEND MILK_LIBRARIES ${MILK_${lib}_LIB})
+        else()
+            message(WARNING "MILK library '${lib}' not found in search paths; falling back to -l${lib}")
+            list(APPEND MILK_LIBRARIES ${lib})
+        endif()
+    endforeach()
+
+    target_link_libraries(${LIBNAME} PUBLIC
+        ${MILK_LIBRARIES}
+        OpenMP::OpenMP_C
+        GSL::gsl
+        GSL::gslcblas
+        ${FFTW_LIBRARIES}
+        ${FFTWF_LIBRARIES}
+        m
+    )
+endif()
 
 if(USE_CUDA_ACCEL)
     target_link_libraries(${LIBNAME} PRIVATE CUDA::cudart CUDA::cufft)
