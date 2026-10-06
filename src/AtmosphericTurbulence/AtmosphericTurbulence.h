@@ -39,7 +39,9 @@ int measure_wavefront_series_expoframes(float etime, char *outfile);
 
 int frame_select_PSF(char *logfile, long NBfiles, float frac);
 
-int AtmosphericTurbulence_WFprocess();
+int AtmosphericTurbulence_WFprocess(void);
+
+double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdgain);
 
 int AtmosphericTurbulence_makeHV_CN2prof(double wspeed, double r0, double sitealt, long NBlayer, char *outfile);
 

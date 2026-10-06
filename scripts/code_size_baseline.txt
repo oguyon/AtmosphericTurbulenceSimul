@@ -1,0 +1,8 @@
+# milkatmturb Code Size Ratchet Baseline
+# Format: 2 lines per entry: <TYPE> <MAX_LINES> followed by <TARGET>
+# Generated on 2026-10-06 03:57:39 UTC
+# Update via: ./scripts/check_code_size.sh --update-baseline
+
+# --- File Lengths (> 1000 lines) ---
+
+# --- Function Lengths (> 150 lines, or main > 80 lines) ---

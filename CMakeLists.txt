@@ -31,11 +31,36 @@ pkg_check_modules(FFTWF REQUIRED fftw3f)
 set(SOURCEFILES
     src/milkatmturb.c
     src/AtmosphereModel/AtmosphereModel.c
+    src/AtmosphereModel/atmmod_ria_table.c
+    src/AtmosphereModel/atmmod_gas_mixture.c
+    src/AtmosphereModel/atmmod_standard_model.c
+    src/AtmosphereModel/atmmod_refraction.c
+    src/AtmosphereModel/atmmod_config_parser.c
+    src/AtmosphericTurbulence/nrlmsise-00.20131225/nrlmsise-00.c
+    src/AtmosphericTurbulence/nrlmsise-00.20131225/nrlmsise-00_data.c
     src/AtmosphericTurbulence/AtmosphericTurbulence.c
+    src/AtmosphericTurbulence/atmturb_config.c
+    src/AtmosphericTurbulence/atmturb_screens.c
+    src/AtmosphericTurbulence/atmturb_wind.c
+    src/AtmosphericTurbulence/atmturb_hvturb.c
+    src/AtmosphericTurbulence/atmturb_cube_ops.c
+    src/AtmosphericTurbulence/atmturb_psf_metrics.c
+    src/AtmosphericTurbulence/atmturb_psf_sim.c
+    src/AtmosphericTurbulence/atmturb_linpred_full.c
+    src/AtmosphericTurbulence/atmturb_linpred_pixel.c
+    src/AtmosphericTurbulence/atmturb_linpred_test.c
+    src/AtmosphericTurbulence/atmturb_wfs_sim.c
     src/AtmosphericTurbulence/atmturb_mkwfs_FPS.c
     src/AtmosphericTurbulence/atmturb_mkhvturb_FPS.c
     src/OpticsMaterials/OpticsMaterials.c
+    src/OpticsMaterials/optmat_solids.c
+    src/OpticsMaterials/optmat_gases.c
+    src/OpticsMaterials/optmat_pmgi.c
+    src/OpticsMaterials/optmat_pmma.c
     src/WFpropagate/WFpropagate.c
+    src/WFpropagate/wfprop_fresnel.c
+    src/WFpropagate/wfprop_cube.c
+    src/WFpropagate/wfprop_lyot.c
 )
 
 set(INCLUDEFILES
@@ -55,6 +80,7 @@ target_include_directories(${LIBNAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphereModel
     ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence/nrlmsise-00.20131225
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OpticsMaterials
     ${CMAKE_CURRENT_SOURCE_DIR}/src/WFpropagate
     ${CMAKE_SOURCE_DIR}/src
