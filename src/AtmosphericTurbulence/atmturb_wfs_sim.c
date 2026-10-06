@@ -76,6 +76,10 @@ static int atmturb_wfs_read_layers(const char *fname, atmturb_wfs_context_t *ctx
     {
         if (line[0] != '#' && strlen(line) > 5)
         {
+            ctx->outerscale[k] = 50.0;
+            ctx->innerscale[k] = 0.01;
+            ctx->sigmawspeed[k] = 0.0;
+            ctx->lwind[k] = 500.0;
             sscanf(line, "%lf %lf %lf %lf %lf %lf %lf %lf",
                    &ctx->alt[k], &ctx->cn2[k], &ctx->spd[k], &ctx->dir[k],
                    &ctx->outerscale[k], &ctx->innerscale[k],
@@ -96,6 +100,7 @@ static int atmturb_wfs_read_layers(const char *fname, atmturb_wfs_context_t *ctx
 static void atmturb_wfs_load_screens(atmturb_wfs_context_t *ctx, long master_size,
                                      long precision)
 {
+    float pscale = (CONF_PUPIL_SCALE > 1e-6f) ? CONF_PUPIL_SCALE : 0.18f;
     for (long k = 0; k < ctx->nblayers; k++)
     {
         char sname[200];
@@ -105,9 +110,18 @@ static void atmturb_wfs_load_screens(atmturb_wfs_context_t *ctx, long master_siz
         {
             char sname2[200];
             snprintf(sname2, sizeof(sname2), "turbm%02ld_p1", k);
+            float osc = (float)(ctx->outerscale[k] / pscale);
+            float isc = (float)(ctx->innerscale[k] / pscale);
+            if (osc < 1.0f)
+            {
+                osc = 100.0f;
+            }
+            if (isc < 0.1f)
+            {
+                isc = 1.0f;
+            }
             make_master_turbulence_screen(sname, sname2, master_size,
-                                          (float)ctx->outerscale[k],
-                                          (float)ctx->innerscale[k], precision);
+                                          osc, isc, precision);
             id = image_ID(sname);
         }
         ctx->id_tm[k] = id;
@@ -257,13 +271,13 @@ int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecisio
 
     if (CONF_WFOUTPUT)
     {
-        save_fl_fits("outarraypha", "!outarraypha.fits");
-        save_fl_fits("outarrayamp", "!outarrayamp.fits");
+        save_fl_fits("outarraypha", "outarraypha.fits");
+        save_fl_fits("outarrayamp", "outarrayamp.fits");
     }
     if (CONF_SWF_WRITE2DISK)
     {
-        save_fl_fits("outsarraypha", "!outsarraypha.fits");
-        save_fl_fits("outsarrayamp", "!outsarrayamp.fits");
+        save_fl_fits("outsarraypha", "outsarraypha.fits");
+        save_fl_fits("outsarrayamp", "outsarrayamp.fits");
     }
 
     return 0;

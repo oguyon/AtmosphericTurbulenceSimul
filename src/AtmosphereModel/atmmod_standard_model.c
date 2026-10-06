@@ -132,6 +132,26 @@ int AtmosphereModel_load_stdAtmModel(char *fname)
 }
 
 /**
+ * atmmod_edlen_refractivity - Compute fallback air refractivity via Edlen formula
+ * @alt: Altitude above sea level in meters.
+ * @lambda: Optical wavelength in meters.
+ *
+ * Return: Refractivity (n - 1) scaled by exponential scale height.
+ */
+static float atmmod_edlen_refractivity(float alt, float lambda)
+{
+    double lambda_um = (double)lambda * 1e6;
+    if (lambda_um <= 0.01)
+    {
+        lambda_um = 0.55;
+    }
+    double s2 = 1.0 / (lambda_um * lambda_um);
+    double n_minus_1_1e6 = 287.6155 + 1.62887 * s2 + 0.01360 * s2 * s2;
+    double scale = exp(-(double)alt / 8400.0);
+    return (float)(n_minus_1_1e6 * 1e-6 * scale);
+}
+
+/**
  * AtmosphereModel_stdAtmModel_N - Refractive index minus 1 at specified altitude
  * @alt: Altitude above sea level in meters.
  * @lambda: Optical wavelength in meters.
@@ -141,6 +161,11 @@ int AtmosphereModel_load_stdAtmModel(char *fname)
  */
 float AtmosphereModel_stdAtmModel_N(float alt, float lambda, int mode)
 {
+    if (densN2 == NULL)
+    {
+        return atmmod_edlen_refractivity(alt, lambda);
+    }
+
     long i = (long)(alt / 10.0);
     if (i > 9998)
     {
