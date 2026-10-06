@@ -59,34 +59,29 @@ long Fresnel_propagate_cube(char *IDcin_name, char *IDout_name_amp, char *IDout_
         Fresnel_propagate_wavefront(IDcin_name, "_propim", PUPIL_SCALE, zprop, lambda);
         long IDtmp = image_ID("_propim");
 
+        long nbelem = xsize * ysize;
+        long offset = kk * nbelem;
+
         if (atype == COMPLEX_FLOAT)
         {
-            for (long ii = 0; ii < xsize; ii++)
+            #pragma omp parallel for
+            for (long idx = 0; idx < nbelem; idx++)
             {
-                for (long jj = 0; jj < ysize; jj++)
-                {
-                    double re  = dcimg[IDtmp].array.CF[jj * xsize + ii].re;
-                    double im  = dcimg[IDtmp].array.CF[jj * xsize + ii].im;
-                    float  amp = (float) sqrt(re * re + im * im);
-                    float  pha = (float) atan2(im, re);
-                    dcimg[IDouta].array.F[kk * xsize * ysize + jj * xsize + ii] = amp;
-                    dcimg[IDoutp].array.F[kk * xsize * ysize + jj * xsize + ii] = pha;
-                }
+                float re = dcimg[IDtmp].array.CF[idx].re;
+                float im = dcimg[IDtmp].array.CF[idx].im;
+                dcimg[IDouta].array.F[offset + idx] = sqrtf(re * re + im * im);
+                dcimg[IDoutp].array.F[offset + idx] = atan2f(im, re);
             }
         }
         else
         {
-            for (long ii = 0; ii < xsize; ii++)
+            #pragma omp parallel for
+            for (long idx = 0; idx < nbelem; idx++)
             {
-                for (long jj = 0; jj < ysize; jj++)
-                {
-                    double re  = dcimg[IDtmp].array.CD[jj * xsize + ii].re;
-                    double im  = dcimg[IDtmp].array.CD[jj * xsize + ii].im;
-                    double amp = sqrt(re * re + im * im);
-                    double pha = atan2(im, re);
-                    dcimg[IDouta].array.D[kk * xsize * ysize + jj * xsize + ii] = amp;
-                    dcimg[IDoutp].array.D[kk * xsize * ysize + jj * xsize + ii] = pha;
-                }
+                double re = dcimg[IDtmp].array.CD[idx].re;
+                double im = dcimg[IDtmp].array.CD[idx].im;
+                dcimg[IDouta].array.D[offset + idx] = sqrt(re * re + im * im);
+                dcimg[IDoutp].array.D[offset + idx] = atan2(im, re);
             }
         }
 

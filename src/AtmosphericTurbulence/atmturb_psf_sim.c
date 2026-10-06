@@ -7,6 +7,8 @@
  * @brief   End-to-end adaptive optics closed-loop simulation and PSF synthesis
  */
 
+#define _GNU_SOURCE
+#include <math.h>
 #include "AtmosphericTurbulence.h"
 #include "atmturb_types.h"
 
@@ -27,6 +29,8 @@ typedef struct
     imageID id_sci_opd;
     imageID id_sci_amp;
     imageID id_psf_cumul;
+    imageID id_arr;
+    imageID id_fft;
 } atmturb_ao_sim_state_t;
 
 /**
@@ -57,6 +61,8 @@ static void atmturb_psf_sim_init_images(atmturb_ao_sim_state_t *st, long wf_size
     st->id_sci_opd = create_2Dimage_ID("sciopd", wf_size1, wf_size1);
     st->id_sci_amp = create_2Dimage_ID("sciamp", wf_size1, wf_size1);
     st->id_psf_cumul = create_2Dimage_ID("PSFcumul", 512, 512);
+    st->id_arr = create_2DCimage_ID("tmp_ao_arr", wf_size1, wf_size1);
+    st->id_fft = create_2DCimage_ID("tmp_ao_fft", wf_size1, wf_size1);
 
     for (long i = 0; i < wf_size1 * wf_size1; i++)
     {
@@ -104,29 +110,33 @@ static void atmturb_psf_sim_update_pid(atmturb_ao_sim_state_t *st, double Kp, do
 static void atmturb_psf_sim_accumulate_psf(atmturb_ao_sim_state_t *st, double scilambda)
 {
     long ntot = st->wf_size1 * st->wf_size1;
-    imageID id_arr = create_2DCimage_ID("tmp_ao_arr", st->wf_size1, st->wf_size1);
+    float coeff = (float)(2.0 * M_PI / scilambda);
 
+    #pragma omp parallel for
     for (long i = 0; i < ntot; i++)
     {
         float opd = dcimg[st->id_sci_opd].array.F[i];
         float amp = dcimg[st->id_sci_amp].array.F[i] * dcimg[st->id_telpup].array.F[i];
-        float pha = (float)(2.0 * M_PI * opd / scilambda);
-        dcimg[id_arr].array.CF[i].re = amp * cosf(pha);
-        dcimg[id_arr].array.CF[i].im = amp * sinf(pha);
+        float pha = opd * coeff;
+        float s, c;
+        sincosf(pha, &s, &c);
+        dcimg[st->id_arr].array.CF[i].re = amp * c;
+        dcimg[st->id_arr].array.CF[i].im = amp * s;
     }
 
     permut("tmp_ao_arr");
     do2dfft("tmp_ao_arr", "tmp_ao_fft");
-    delete_image_ID("tmp_ao_arr");
+    permut("tmp_ao_arr");
 
-    imageID id_fft = image_ID("tmp_ao_fft");
-    for (long i = 0; i < 512 * 512 && i < ntot; i++)
+    long max_pixels = (ntot < 512 * 512) ? ntot : (512 * 512);
+
+    #pragma omp parallel for
+    for (long i = 0; i < max_pixels; i++)
     {
-        float re = dcimg[id_fft].array.CF[i].re;
-        float im = dcimg[id_fft].array.CF[i].im;
+        float re = dcimg[st->id_fft].array.CF[i].re;
+        float im = dcimg[st->id_fft].array.CF[i].im;
         dcimg[st->id_psf_cumul].array.F[i] += re * re + im * im;
     }
-    delete_image_ID("tmp_ao_fft");
 }
 
 /**
@@ -202,6 +212,8 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
     delete_image_ID("sciamp");
     delete_image_ID("TelPup");
     delete_image_ID("PSFcumul");
+    delete_image_ID("tmp_ao_arr");
+    delete_image_ID("tmp_ao_fft");
 
     return peak;
 }

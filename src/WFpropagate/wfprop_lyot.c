@@ -90,16 +90,18 @@ double WFpropagate_TestLyot(long NBmask, double *maskpos)
 
     long IDa  = image_ID("foca");
     long size = dcimg[IDa].md[0].size[0];
-    for (long ii = 0; ii < size; ii++)
+    for (long jj = 0; jj < size; jj++)
     {
-        for (long jj = 0; jj < size; jj++)
+        double y = ((double) jj - 0.5 * size) / 5.12;
+        double y2 = y * y;
+        long jj1 = jj * size;
+        for (long ii = 0; ii < size; ii++)
         {
             double x = ((double) ii - 0.5 * size) / 5.12;
-            double y = ((double) jj - 0.5 * size) / 5.12;
-            double r = sqrt(x * x + y * y);
+            double r = sqrt(x * x + y2);
             if ((r > 5.0 * rout) || (r < rin))
             {
-                dcimg[IDa].array.F[jj * size + ii] = 0.0f;
+                dcimg[IDa].array.F[jj1 + ii] = 0.0f;
             }
         }
     }
@@ -119,16 +121,18 @@ double WFpropagate_TestLyot(long NBmask, double *maskpos)
 
     long IDf = image_ID("foci");
     size     = dcimg[IDf].md[0].size[0];
-    for (long ii = 0; ii < size; ii++)
+    for (long jj = 0; jj < size; jj++)
     {
-        for (long jj = 0; jj < size; jj++)
+        double y = ((double) jj - 0.5 * size) / 5.12;
+        double y2 = y * y;
+        long jj1 = jj * size;
+        for (long ii = 0; ii < size; ii++)
         {
             double x = ((double) ii - 0.5 * size) / 5.12;
-            double y = ((double) jj - 0.5 * size) / 5.12;
-            double r = sqrt(x * x + y * y);
+            double r = sqrt(x * x + y2);
             if ((r > rin) && (r < rout))
             {
-                value += dcimg[IDf].array.F[jj * size + ii];
+                value += dcimg[IDf].array.F[jj1 + ii];
                 valuecnt += 1.0;
             }
         }
