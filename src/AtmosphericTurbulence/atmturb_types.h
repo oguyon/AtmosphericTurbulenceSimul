@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include <malloc.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -117,5 +118,35 @@ int atmturb_screen_create_dist(const char *name, long size, double outer_f0,
                               double rlim, int rlim_mode, long precision);
 
 int atmturb_bin_2d_pixels(const float *src, float *dst, long in_x, long in_y, int factor);
+
+/**
+ * atmturb_rng_splitmix64 - Advance 64-bit SplitMix PRNG state
+ * @state: Pointer to 64-bit state variable.
+ *
+ * Return: Pseudorandom 64-bit unsigned integer.
+ */
+static inline uint64_t atmturb_rng_splitmix64(uint64_t *state)
+{
+    uint64_t z = (*state += 0x9e3779b97f4a7c15ULL);
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+    return z ^ (z >> 31);
+}
+
+/**
+ * atmturb_rng_gaussian_pair - Sample standard normal pair via Box-Muller transform
+ * @state: Pointer to PRNG state.
+ * @g0: Output pointer for first standard Gaussian sample.
+ * @g1: Output pointer for second standard Gaussian sample.
+ */
+static inline void atmturb_rng_gaussian_pair(uint64_t *state, double *g0, double *g1)
+{
+    double u1 = ((atmturb_rng_splitmix64(state) >> 11) + 1.0) * (1.0 / 9007199254740992.0);
+    double u2 = (atmturb_rng_splitmix64(state) >> 11) * (1.0 / 9007199254740992.0);
+    double r = sqrt(-2.0 * log(u1));
+    double theta = 2.0 * M_PI * u2;
+    *g0 = r * cos(theta);
+    *g1 = r * sin(theta);
+}
 
 #endif // ATMTURB_TYPES_H

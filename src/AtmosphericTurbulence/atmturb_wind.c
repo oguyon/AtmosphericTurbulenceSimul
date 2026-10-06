@@ -7,88 +7,87 @@
  * @brief   1D von Karman turbulent wind velocity profile generation
  */
 
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fftw3.h>
+
 #include "AtmosphericTurbulence.h"
 #include "atmturb_types.h"
 
 /**
- * atmturb_compute_wind_psd_amplitude - Compute 1D von Karman spectrum amplitude
- * @vksize: Array size in samples.
- * @pixscale: Physical sampling step in meters.
+ * atmturb_synthesize_wind_component - Synthesize 1D von Karman wind velocity component
+ * @vksize: Number of samples in the 1D series.
+ * @pixscale: Spatial sampling step in meters.
+ * @sigmawind: Target RMS velocity standard deviation in m/s.
  * @Lwind: Wind velocity outer scale in meters.
  * @is_transverse: 0 for longitudinal component, 1 for transverse / vertical.
+ * @out: Output pointer to destination float buffer (length vksize).
  */
-static void atmturb_compute_wind_psd_amplitude(long vksize, float pixscale,
-                                               float Lwind, int is_transverse)
+static void atmturb_synthesize_wind_component(long vksize, float pixscale,
+                                             float sigmawind, float Lwind,
+                                             int is_transverse, float *out)
 {
-    imageID ID = create_2Dimage_ID("tmpamp0", vksize, 1);
-    double length_total = vksize * pixscale;
+    fftwf_complex *buf = (fftwf_complex *)fftwf_alloc_complex(vksize);
+    if (!buf)
+    {
+        return;
+    }
+
+    double length_total = (double)vksize * pixscale;
+    uint64_t rng = 0x243f6a8885a308d3ULL + (uint64_t)is_transverse * 0x9e3779b97f4a7c15ULL;
 
     for (long ii = 0; ii < vksize; ii++)
     {
-        double dx = 1.0 * ii - vksize / 2;
-        double r = fabs(dx);
+        long fx = (ii < vksize / 2) ? ii : (ii - vksize);
+        double r = fabs((double)fx);
 
+        if (fx == 0)
+        {
+            buf[ii][0] = 0.0f;
+            buf[ii][1] = 0.0f;
+            continue;
+        }
+
+        double amp = 0.0;
         if (!is_transverse)
         {
             double k = 1.339 * 2.0 * M_PI * r / length_total * Lwind;
-            dcimg[ID].array.F[ii] = (float)sqrt(1.0 / pow(1.0 + k * k, 5.0 / 6.0));
+            amp = sqrt(1.0 / pow(1.0 + k * k, 5.0 / 6.0));
         }
         else
         {
             double k = 2.678 * 2.0 * M_PI * r / length_total * Lwind;
             double num = 1.0 + (8.0 / 3.0) * (k * k);
             double den = pow(1.0 + k * k, 11.0 / 6.0);
-            dcimg[ID].array.F[ii] = (float)sqrt(num / den);
+            amp = sqrt(num / den);
         }
+
+        double g0, g1;
+        atmturb_rng_gaussian_pair(&rng, &g0, &g1);
+        buf[ii][0] = (float)(amp * g0);
+        buf[ii][1] = (float)(amp * g1);
     }
-}
 
-/**
- * atmturb_synthesize_wind_series - Transform PSD into time series and scale to sigma
- * @vksize: Number of samples.
- * @sigma: Target RMS velocity standard deviation.
- * @idc: Destination 3D image ID.
- * @channel_offset: Output offset in 3D array (e.g. 0, vksize, 2*vksize).
- */
-static void atmturb_synthesize_wind_series(long vksize, float sigma, imageID idc,
-                                          long channel_offset)
-{
-    make_rnd("tmppha0", vksize, 1, "");
-    arith_image_cstmult("tmppha0", 2.0 * PI, "tmppha");
-    delete_image_ID("tmppha0");
+    fftwf_plan plan = fftwf_plan_dft_1d((int)vksize, buf, buf, FFTW_FORWARD, FFTW_ESTIMATE);
+    fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
 
-    make_rnd("tmpg", vksize, 1, "-gauss");
-    arith_image_mult("tmpg", "tmpamp0", "tmpamp");
-    delete_image_ID("tmpamp0");
-    delete_image_ID("tmpg");
-
-    arith_set_pixel("tmpamp", 0.0, vksize / 2, 0);
-    mk_complex_from_amph("tmpamp", "tmppha", "tmpc", 0);
-    delete_image_ID("tmpamp");
-    delete_image_ID("tmppha");
-
-    permut("tmpc");
-    do2dfft("tmpc", "tmpcf");
-    delete_image_ID("tmpc");
-
-    mk_reim_from_complex("tmpcf", "tmpo1", "tmpo2", 0);
-    delete_image_ID("tmpcf");
-    delete_image_ID("tmpo2");
-
-    imageID ID = image_ID("tmpo1");
-    double rms = 0.0;
+    double sum_sq = 0.0;
     for (long ii = 0; ii < vksize; ii++)
     {
-        rms += dcimg[ID].array.F[ii] * dcimg[ID].array.F[ii];
+        sum_sq += (double)buf[ii][0] * (double)buf[ii][0];
     }
-    rms = sqrt(rms / vksize);
+    double rms = sqrt(sum_sq / (double)vksize);
+    double scale = (rms > 0.0) ? ((double)sigmawind / rms) : 1.0;
 
     for (long ii = 0; ii < vksize; ii++)
     {
-        dcimg[idc].array.F[channel_offset + ii] =
-            (float)(dcimg[ID].array.F[ii] / rms * sigma);
+        out[ii] = (float)((double)buf[ii][0] * scale);
     }
-    delete_image_ID("tmpo1");
+
+    fftwf_free(buf);
 }
 
 /**
@@ -107,6 +106,7 @@ long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale,
                                              long size, char *IDout_name)
 {
     (void)size;
+    delete_image_ID(IDout_name);
     imageID IDc = create_3Dimage_ID(IDout_name, vKsize, 1, 3);
 
     printf("vK wind outer scale = %f m\n", Lwind);
@@ -114,16 +114,16 @@ long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale,
     printf("Image size          = %f m\n", vKsize * pixscale);
 
     // Longitudinal component (u)
-    atmturb_compute_wind_psd_amplitude(vKsize, pixscale, Lwind, 0);
-    atmturb_synthesize_wind_series(vKsize, sigmawind, IDc, 0);
+    atmturb_synthesize_wind_component(vKsize, pixscale, sigmawind, Lwind, 0,
+                                      &dcimg[IDc].array.F[0]);
 
     // Tangential component (v)
-    atmturb_compute_wind_psd_amplitude(vKsize, pixscale, Lwind, 1);
-    atmturb_synthesize_wind_series(vKsize, sigmawind, IDc, vKsize);
+    atmturb_synthesize_wind_component(vKsize, pixscale, sigmawind, Lwind, 1,
+                                      &dcimg[IDc].array.F[vKsize]);
 
     // Vertical component (w)
-    atmturb_compute_wind_psd_amplitude(vKsize, pixscale, Lwind, 1);
-    atmturb_synthesize_wind_series(vKsize, sigmawind, IDc, 2 * vKsize);
+    atmturb_synthesize_wind_component(vKsize, pixscale, sigmawind, Lwind, 1,
+                                      &dcimg[IDc].array.F[2 * vKsize]);
 
     return IDc;
 }
