@@ -50,6 +50,8 @@ typedef struct
  * @sin_z: Sine of zenith angle.
  * @ez_x: Unit vector toward zenith in pupil frame (x component).
  * @ez_y: Unit vector toward zenith in pupil frame (y component).
+ * @oversample: Master grid oversampling factor.
+ * @interp: Interpolation scheme (0=bilinear, 1=Keys bicubic).
  * @nlayers: Number of layers.
  * @layers: Array of per-layer geometric properties.
  */
@@ -63,6 +65,8 @@ typedef struct
     double               sin_z;
     double               ez_x;
     double               ez_y;
+    int                  oversample;
+    int                  interp;
     int                  nlayers;
     atmturb_layer_geom_t *layers;
 } atmturb_geom_t;
@@ -77,6 +81,7 @@ typedef struct
  * @site_alt_m: Telescope altitude ASL [m] (-1 for auto-detect).
  * @pupil_scale_m: Pupil sampling scale [m/pixel].
  * @oversample: Master grid oversampling factor (1 or 2).
+ * @interp: Interpolation scheme (0=bilinear, 1=Keys bicubic).
  * @master_size: Linear dimension of master screen [pixels].
  * @time_step_s: Time step between frames [seconds].
  * @source_x_rad: Off-axis source x angular position [radians].
@@ -93,6 +98,7 @@ typedef struct
     double   site_alt_m;
     double   pupil_scale_m;
     int      oversample;
+    int      interp;
     long     master_size;
     double   time_step_s;
     double   source_x_rad;

@@ -151,6 +151,51 @@ static int atmturb_wfs_load_screens(
 }
 
 /**
+ * atmturb_wfs_extrude_channel - Extrude a single turbulence layer phase into pupil
+ * @scr: Master screen pointer.
+ * @master_size: Master screen linear dimension.
+ * @x: Unwrapped X position in master pixels.
+ * @y: Unwrapped Y position in master pixels.
+ * @pup_size: Linear dimension of pupil.
+ * @geom: Observing geometry context.
+ * @weight: Scaled layer weight.
+ * @out_pha: Destination phase array to accumulate into.
+ */
+static inline void atmturb_wfs_extrude_channel(
+    const float          *scr,
+    long                  master_size,
+    double                x,
+    double                y,
+    long                  pup_size,
+    const atmturb_geom_t *geom,
+    float                 weight,
+    float                *out_pha)
+{
+    double cur_x = fmod(x, (double) master_size);
+    if (cur_x < 0.0)
+    {
+        cur_x += (double) master_size;
+    }
+    double cur_y = fmod(y, (double) master_size);
+    if (cur_y < 0.0)
+    {
+        cur_y += (double) master_size;
+    }
+
+    atmturb_extrude_params_t ep;
+    ep.master   = scr;
+    ep.msize    = master_size;
+    ep.x0       = cur_x;
+    ep.y0       = cur_y;
+    ep.pup_size = pup_size;
+    ep.os       = (long) geom->oversample;
+    ep.interp   = geom->interp;
+    ep.weight   = weight;
+    ep.out_pha  = out_pha;
+    atmturb_extrude_accumulate(&ep);
+}
+
+/**
  * atmturb_wfs_render_frames - Multi-threaded SIMD rendering of simulation time steps
  * @geom: Computed observing geometry.
  * @id_tm: Array of master screen image IDs.
@@ -186,33 +231,15 @@ static void atmturb_wfs_render_frames(
             const atmturb_layer_geom_t *lg = &geom->layers[k];
             const float *scr = dcimg[id_tm[k]].array.F;
 
-            double cur_x = fmod(lg->x0 + (double) t * lg->vx_pix, (double) master_size);
-            if (cur_x < 0.0)
-            {
-                cur_x += (double) master_size;
-            }
-            double cur_y = fmod(lg->y0 + (double) t * lg->vy_pix, (double) master_size);
-            if (cur_y < 0.0)
-            {
-                cur_y += (double) master_size;
-            }
+            atmturb_wfs_extrude_channel(scr, master_size,
+                                        lg->x0 + (double) t * lg->vx_pix,
+                                        lg->y0 + (double) t * lg->vy_pix,
+                                        pup_size, geom, (float) lg->weight, pha_slice);
 
-            atmturb_extrude_accumulate(scr, master_size, cur_x, cur_y,
-                                       pup_size, (float) lg->weight, pha_slice);
-
-            double cur_sx = fmod(lg->xs0 + (double) t * lg->vx_pix, (double) master_size);
-            if (cur_sx < 0.0)
-            {
-                cur_sx += (double) master_size;
-            }
-            double cur_sy = fmod(lg->ys0 + (double) t * lg->vy_pix, (double) master_size);
-            if (cur_sy < 0.0)
-            {
-                cur_sy += (double) master_size;
-            }
-
-            atmturb_extrude_accumulate(scr, master_size, cur_sx, cur_sy,
-                                       pup_size, (float) lg->weight_s, spha_slice);
+            atmturb_wfs_extrude_channel(scr, master_size,
+                                        lg->xs0 + (double) t * lg->vx_pix,
+                                        lg->ys0 + (double) t * lg->vy_pix,
+                                        pup_size, geom, (float) lg->weight_s, spha_slice);
         }
     }
 }
@@ -258,10 +285,12 @@ static int atmturb_wfs_validate_config(void)
                (double) CONF_WFTIME_STEP, (double) CONF_TIME_SPAN);
         return -1;
     }
-    if (CONF_WFsize < 1 || CONF_MASTER_SIZE < CONF_WFsize)
+    long os = (CONF_OVERSAMPLE > 1) ? (long) CONF_OVERSAMPLE : 1L;
+    if (CONF_WFsize < 1 || CONF_MASTER_SIZE < CONF_WFsize * os)
     {
-        printf("ERROR: need 1 <= WFsize <= MASTER_SIZE (got WFsize=%ld, MASTER_SIZE=%ld)\n",
-               CONF_WFsize, CONF_MASTER_SIZE);
+        printf("ERROR: need 1 <= WFsize * os <= MASTER_SIZE "
+               "(got WFsize=%ld, os=%ld, MASTER_SIZE=%ld)\n",
+               CONF_WFsize, os, CONF_MASTER_SIZE);
         return -1;
     }
     if (!(CONF_LAMBDA > 0.0f))
@@ -313,7 +342,8 @@ int make_AtmosphericTurbulence_wavefront_series(
     params.parallactic_rad = (double) CONF_PARALLACTIC_ANGLE;
     params.site_alt_m = (double) CONF_SITE_ALT;
     params.pupil_scale_m = (double) CONF_PUPIL_SCALE;
-    params.oversample = 1;
+    params.oversample = (CONF_OVERSAMPLE > 1) ? CONF_OVERSAMPLE : 1;
+    params.interp = CONF_INTERP;
     params.master_size = CONF_MASTER_SIZE;
     params.time_step_s = (double) CONF_WFTIME_STEP;
     params.source_x_rad = (double) CONF_SOURCE_Xpos;

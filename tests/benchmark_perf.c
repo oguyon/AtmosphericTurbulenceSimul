@@ -51,8 +51,18 @@ static void run_extrusion_scalar(const float *const *masters, long msize, long p
             double cur_x = (double)(t + 1) * vx[k];
             double cur_y = (double)(t + 1) * vy[k];
             float weight = (float)sqrt(cn2[k]);
-            atmturb_extrude_accumulate_scalar(masters[k], msize, cur_x, cur_y,
-                                              pup_size, weight, pha_slice);
+            atmturb_extrude_params_t ep = {
+                .master   = masters[k],
+                .msize    = msize,
+                .x0       = cur_x,
+                .y0       = cur_y,
+                .pup_size = pup_size,
+                .os       = 1,
+                .interp   = ATMTURB_INTERP_BILINEAR,
+                .weight   = weight,
+                .out_pha  = pha_slice
+            };
+            atmturb_extrude_accumulate_scalar(&ep);
         }
     }
 }
@@ -72,8 +82,18 @@ static void run_extrusion_avx2_single(const float *const *masters, long msize, l
             double cur_x = (double)(t + 1) * vx[k];
             double cur_y = (double)(t + 1) * vy[k];
             float weight = (float)sqrt(cn2[k]);
-            atmturb_extrude_accumulate_avx2(masters[k], msize, cur_x, cur_y,
-                                            pup_size, weight, pha_slice);
+            atmturb_extrude_params_t ep = {
+                .master   = masters[k],
+                .msize    = msize,
+                .x0       = cur_x,
+                .y0       = cur_y,
+                .pup_size = pup_size,
+                .os       = 1,
+                .interp   = ATMTURB_INTERP_BILINEAR,
+                .weight   = weight,
+                .out_pha  = pha_slice
+            };
+            atmturb_extrude_accumulate_avx2(&ep);
         }
     }
 }
@@ -94,8 +114,18 @@ static void run_extrusion_avx2_omp(const float *const *masters, long msize, long
             double cur_x = (double)(t + 1) * vx[k];
             double cur_y = (double)(t + 1) * vy[k];
             float weight = (float)sqrt(cn2[k]);
-            atmturb_extrude_accumulate_avx2(masters[k], msize, cur_x, cur_y,
-                                            pup_size, weight, pha_slice);
+            atmturb_extrude_params_t ep = {
+                .master   = masters[k],
+                .msize    = msize,
+                .x0       = cur_x,
+                .y0       = cur_y,
+                .pup_size = pup_size,
+                .os       = 1,
+                .interp   = ATMTURB_INTERP_BILINEAR,
+                .weight   = weight,
+                .out_pha  = pha_slice
+            };
+            atmturb_extrude_accumulate_avx2(&ep);
         }
     }
 }

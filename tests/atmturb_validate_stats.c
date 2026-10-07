@@ -52,20 +52,13 @@ static int cmd_finite(
     int    argc,
     char **argv)
 {
-    if (argc < 2)
-    {
-        fprintf(stderr, "Usage: atmturb-validate-stats finite <file> [--min-std <val>]\n");
-        return 1;
-    }
+    if (argc < 2) return 1;
     const char *fname = argv[1];
     double min_std = 1e-3;
 
     for (int i = 2; i < argc; i++)
     {
-        if (strcmp(argv[i], "--min-std") == 0 && i + 1 < argc)
-        {
-            min_std = atof(argv[++i]);
-        }
+        if (strcmp(argv[i], "--min-std") == 0 && i + 1 < argc) min_std = atof(argv[++i]);
     }
 
     val_cube_t cube;
@@ -502,6 +495,54 @@ static int cmd_scint(
 }
 
 /**
+ * @brief Subcommand: breathing - peak-to-peak high-frequency power variation across frames.
+ */
+static int cmd_breathing(
+    int    argc,
+    char **argv)
+{
+    if (argc < 2) return 1;
+    const char *fname = argv[1];
+    double tol = 0.20;
+
+    for (int i = 2; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--tol") == 0 && i + 1 < argc) tol = atof(argv[++i]);
+    }
+
+    val_cube_t cube;
+    if (val_cube_load(fname, &cube) != 0)
+    {
+        return verdict(0, "failed to load cube for breathing test");
+    }
+
+    double ratio = val_cube_breathing_ratio(&cube);
+    int ok = (ratio <= tol);
+    char msg[256];
+    snprintf(msg, sizeof(msg), "breathing ratio = %.4f (tol %.4f)", ratio, tol);
+
+    val_cube_free(&cube);
+    return verdict(ok, msg);
+}
+
+/**
+ * @brief Subcommand: simd-parity - test bitwise parity across CPU SIMD backends.
+ */
+static int cmd_simd_parity(
+    int    argc,
+    char **argv)
+{
+    double tol = 1e-4;
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--tol") == 0 && i + 1 < argc) tol = atof(argv[++i]);
+    }
+    char msg[256];
+    int ok = val_check_simd_parity(tol, msg, sizeof(msg));
+    return verdict(ok, msg);
+}
+
+/**
  * @brief Print usage summary.
  */
 static void print_usage(void)
@@ -516,7 +557,9 @@ static void print_usage(void)
            "  tilt <file> [options]\n"
            "  repeat <file> [--lag <val>] [--tol <val>]\n"
            "  scint <file> [options]\n"
-           "  corr <file> [options]\n");
+           "  corr <file> [options]\n"
+           "  breathing <file> [--tol <val>]\n"
+           "  simd-parity\n");
 }
 
 /**
@@ -542,6 +585,8 @@ int main(
     if (strcmp(cmd, "repeat") == 0) return cmd_repeat(argc - 1, &argv[1]);
     if (strcmp(cmd, "scint") == 0) return cmd_scint(argc - 1, &argv[1]);
     if (strcmp(cmd, "corr") == 0) return cmd_corr(argc - 1, &argv[1]);
+    if (strcmp(cmd, "breathing") == 0) return cmd_breathing(argc - 1, &argv[1]);
+    if (strcmp(cmd, "simd-parity") == 0) return cmd_simd_parity(argc - 1, &argv[1]);
 
     fprintf(stderr, "Unknown subcommand: %s\n", cmd);
     return 1;

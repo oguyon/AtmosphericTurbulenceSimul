@@ -96,6 +96,8 @@ extern char CONF_WAITSEMIMNAME[100];
 extern int CONF_SKIP_EXISTING;
 extern long CONF_WF_RAW_SIZE;
 extern long CONF_MASTER_SIZE;
+extern int CONF_OVERSAMPLE;
+extern int CONF_INTERP;
 
 extern int CONF_FRESNEL_PROPAGATION;
 extern int CONF_WAVEFRONT_AMPLITUDE;

@@ -362,6 +362,7 @@ add_executable(atmturb-validate-stats
 )
 target_include_directories(atmturb-validate-stats PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
     ${CMAKE_CURRENT_SOURCE_DIR}/tests
 )
 target_link_libraries(atmturb-validate-stats PRIVATE
