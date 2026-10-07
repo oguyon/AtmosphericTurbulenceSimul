@@ -50,6 +50,7 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_linpred_pixel.c
     src/AtmosphericTurbulence/atmturb_linpred_test.c
     src/AtmosphericTurbulence/atmturb_wfs_sim.c
+    src/AtmosphericTurbulence/atmturb_fresnel.c
     src/AtmosphericTurbulence/atmturb_lowfreq.c
     src/AtmosphericTurbulence/atmturb_rolling.c
     src/AtmosphericTurbulence/atmturb_simd_scalar.c
@@ -67,6 +68,7 @@ set(SOURCEFILES
     src/OpticsMaterials/optmat_pmma.c
     src/WFpropagate/WFpropagate.c
     src/WFpropagate/wfprop_fresnel.c
+    src/WFpropagate/wfprop_fresnel_engine.c
     src/WFpropagate/wfprop_fresnel_FPS.c
     src/WFpropagate/wfprop_cube.c
     src/WFpropagate/wfprop_lyot.c
@@ -78,11 +80,13 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/AtmosphericTurbulence.h
     src/AtmosphericTurbulence/atmturb_profile.h
     src/AtmosphericTurbulence/atmturb_geometry.h
+    src/AtmosphericTurbulence/atmturb_fresnel.h
     src/AtmosphericTurbulence/atmturb_lowfreq.h
     src/AtmosphericTurbulence/atmturb_rolling.h
     src/AtmosphericTurbulence/atmturb_simd.h
     src/OpticsMaterials/OpticsMaterials.h
     src/WFpropagate/WFpropagate.h
+    src/WFpropagate/wfprop_fresnel_engine.h
 )
 
 file(GLOB SCRIPTS "src/AtmosphericTurbulence/scripts/*")

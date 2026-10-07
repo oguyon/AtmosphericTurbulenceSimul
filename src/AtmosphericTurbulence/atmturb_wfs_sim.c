@@ -18,6 +18,7 @@
 
 #include "AtmosphereModel/AtmosphereModel.h"
 #include "AtmosphericTurbulence.h"
+#include "atmturb_fresnel.h"
 #include "atmturb_geometry.h"
 #include "atmturb_lowfreq.h"
 #include "atmturb_profile.h"
@@ -97,7 +98,7 @@ static inline void atmturb_wfs_extrude_channel(
  * @pha_slice: Primary phase frame slice.
  * @spha_slice: Secondary phase frame slice.
  */
-static inline void atmturb_wfs_render_layer(
+void atmturb_wfs_render_layer(
     const atmturb_rolling_t *r,
     const atmturb_geom_t    *geom,
     int                      k,
@@ -145,7 +146,7 @@ static inline void atmturb_wfs_render_layer(
 }
 
 /**
- * atmturb_wfs_render_frames - Multi-threaded SIMD rendering of simulation time steps
+ * atmturb_wfs_render_geometric - Multi-threaded geometric rendering of simulation time steps
  * @r: Rolling simulation context.
  * @geom: Computed observing geometry.
  * @master_size: Master screen dimension in pixels.
@@ -154,7 +155,7 @@ static inline void atmturb_wfs_render_layer(
  * @time_step_s: Time step between frames in seconds.
  * @imgs: Container of output 3D image handles.
  */
-static void atmturb_wfs_render_frames(
+static void atmturb_wfs_render_geometric(
     const atmturb_rolling_t    *r,
     const atmturb_geom_t       *geom,
     long                        master_size,
@@ -183,6 +184,127 @@ static void atmturb_wfs_render_frames(
                                      pup_size, pha_slice, spha_slice);
         }
     }
+}
+
+/**
+ * atmturb_wfs_render_diffractive - Multi-threaded diffractive rendering of simulation time steps
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @prof: Active turbulence profile.
+ * @params: Observation parameters container.
+ * @master_size: Master screen dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ * @nbframes: Number of simulation frames.
+ * @imgs: Container of output 3D image handles.
+ *
+ * Return: 0 on success, -1 on plan or context allocation failure.
+ */
+static int atmturb_wfs_render_diffractive(
+    const atmturb_rolling_t    *r,
+    const atmturb_geom_t       *geom,
+    const atmturb_profile_t    *prof,
+    const atmturb_obs_params_t *params,
+    long                        master_size,
+    long                        pup_size,
+    long                        nbframes,
+    const atmturb_wfs_images_t *imgs)
+{
+    atmturb_fresnel_plan_t plan;
+    double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
+    if (atmturb_fresnel_plan_init(&plan, prof, geom, pup_size, params->pupil_scale_m,
+                                  params->lambda_ref_m, params->lambda_s_m, z_bin) != 0)
+    {
+        return -1;
+    }
+
+    int nthreads = 1;
+#ifdef _OPENMP
+    nthreads = omp_get_max_threads();
+#endif
+    atmturb_fresnel_ctx_t *ctxs = (atmturb_fresnel_ctx_t *) calloc((size_t) nthreads,
+                                                                   sizeof(atmturb_fresnel_ctx_t));
+    if (ctxs == NULL)
+    {
+        atmturb_fresnel_plan_free(&plan);
+        return -1;
+    }
+
+    for (int tid = 0; tid < nthreads; tid++)
+    {
+        if (atmturb_fresnel_ctx_init(&ctxs[tid], pup_size) != 0)
+        {
+            for (int j = 0; j < tid; j++)
+            {
+                atmturb_fresnel_ctx_free(&ctxs[j]);
+            }
+            free(ctxs);
+            atmturb_fresnel_plan_free(&plan);
+            return -1;
+        }
+    }
+
+    long frame_pixels = pup_size * pup_size;
+
+    #pragma omp parallel for schedule(dynamic)
+    for (long t = 0; t < nbframes; t++)
+    {
+        int tid = 0;
+#ifdef _OPENMP
+        tid = omp_get_thread_num();
+#endif
+        long slice = t * frame_pixels;
+        float *pha_slice  = &dcimg[imgs->ID_pha].array.F[slice];
+        float *amp_slice  = &dcimg[imgs->ID_amp].array.F[slice];
+        float *spha_slice = &dcimg[imgs->ID_spha].array.F[slice];
+        float *samp_slice = &dcimg[imgs->ID_samp].array.F[slice];
+
+        atmturb_fresnel_render_step(&ctxs[tid], &plan, r, geom, t, params->time_step_s,
+                                    master_size, pup_size, pha_slice, amp_slice,
+                                    spha_slice, samp_slice);
+    }
+
+    for (int tid = 0; tid < nthreads; tid++)
+    {
+        atmturb_fresnel_ctx_free(&ctxs[tid]);
+    }
+    free(ctxs);
+    atmturb_fresnel_plan_free(&plan);
+
+    return 0;
+}
+
+/**
+ * atmturb_wfs_render_frames - Dispatch rendering to diffractive or geometric engine
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @prof: Active turbulence profile.
+ * @params: Observation parameters container.
+ * @master_size: Master screen dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ * @nbframes: Number of simulation frames.
+ * @imgs: Container of output 3D image handles.
+ */
+static void atmturb_wfs_render_frames(
+    const atmturb_rolling_t    *r,
+    const atmturb_geom_t       *geom,
+    const atmturb_profile_t    *prof,
+    const atmturb_obs_params_t *params,
+    long                        master_size,
+    long                        pup_size,
+    long                        nbframes,
+    const atmturb_wfs_images_t *imgs)
+{
+    if (CONF_FRESNEL_PROPAGATION == 1)
+    {
+        if (atmturb_wfs_render_diffractive(r, geom, prof, params, master_size,
+                                           pup_size, nbframes, imgs) == 0)
+        {
+            return;
+        }
+    }
+
+    atmturb_wfs_render_geometric(r, geom, master_size, pup_size, nbframes,
+                                 params->time_step_s, imgs);
 }
 
 /**
@@ -339,8 +461,8 @@ int make_AtmosphericTurbulence_wavefront_series(
            atmturb_simd_active_isa());
     fflush(stdout);
 
-    atmturb_wfs_render_frames(&rsim, &geom, CONF_MASTER_SIZE, pup_size, nbframes,
-                              params.time_step_s, &imgs);
+    atmturb_wfs_render_frames(&rsim, &geom, &prof, &params, CONF_MASTER_SIZE, pup_size,
+                              nbframes, &imgs);
     atmturb_wfs_save_outputs(pha_name, amp_name);
 
     atmturb_rolling_free(&rsim);

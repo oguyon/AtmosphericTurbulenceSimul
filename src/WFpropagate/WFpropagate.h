@@ -10,6 +10,8 @@
 #ifndef WFPROPAGATE_H
 #define WFPROPAGATE_H
 
+#include "wfprop_fresnel_engine.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
