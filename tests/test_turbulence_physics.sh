@@ -76,6 +76,7 @@ write_conf() {
         [SKIP_EXISTING]=0 [WF_RAW_SIZE]=128 [MASTER_SIZE]=1024
         [MASTER_OVERSAMPLE]=2 [INTERP]=1
         [WAVEFRONT_AMPLITUDE]=0 [FRESNEL_PROPAGATION]=0 [FRESNEL_PROPAGATION_BIN]=1000.0
+        [LOWFREQ]=0 [ROLLING]=0
     )
     local arg
     for arg in "$@"; do
@@ -225,6 +226,83 @@ scenario_T10b_simd_parity() {
     "${VALIDATE[@]}" simd-parity --tol 1e-4
 }
 
+# T11: analytic subharmonic modes restore tip/tilt variance within 15% of Noll theory
+scenario_T11_tilt_variance() {
+    one_layer_profile 4200 1.0 10.0 0.0 0.0 0.0
+    write_conf WFsim.conf PUPIL_SCALE=0.01 WFTIME_STEP=0.01 TIME_SPAN=2.0 MASTER_SIZE=512 \
+        MASTER_OVERSAMPLE=1 INTERP=1 LOWFREQ=1 ROLLING=0
+    run_mkwfs t11 1.65 0 || return 1
+    "${VALIDATE[@]}" tilt outarraypha.fits --seeing 0.6 --lam 0.5e-6 --pixscale 0.01 --tol 0.15
+}
+
+# T12: rolling cross-faded screens decorrelate at multiples of wrap time (corr < 0.10)
+scenario_T12_wrap_decorrelation() {
+    one_layer_profile 4200 1.0 10.0 0.0 0.0 0.0
+    write_conf WFsim.conf PUPIL_SCALE=0.01 WFTIME_STEP=0.01 TIME_SPAN=1.5 MASTER_SIZE=500 \
+        MASTER_OVERSAMPLE=1 INTERP=1 LOWFREQ=0 ROLLING=1 SEED=42
+    run_mkwfs t12 1.65 0 || return 1
+    python3 - <<'EOF'
+import sys
+import numpy as np
+from astropy.io import fits
+cube = fits.getdata("outarraypha.fits")
+for f in range(len(cube)):
+    cube[f] -= cube[f].mean()
+c50 = np.mean([np.corrcoef(cube[f].flat, cube[f+50].flat)[0, 1] for f in range(50)])
+c100 = np.mean([np.corrcoef(cube[f].flat, cube[f+100].flat)[0, 1] for f in range(50)])
+ok = abs(c50) < 0.10 and abs(c100) < 0.10
+msg = f": wrap correlation c50 = {c50:+.4f}, c100 = {c100:+.4f}"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+EOF
+}
+
+# T13: smooth cross-fading across epoch boundaries (correlation >= 0.998, variance flat < 5%)
+scenario_T13_epoch_stability() {
+    one_layer_profile 4200 1.0 0.0 0.0 0.0 0.0
+    write_conf WFsim.conf PUPIL_SCALE=0.01 WFTIME_STEP=0.01 TIME_SPAN=1.0 MASTER_SIZE=500 \
+        MASTER_OVERSAMPLE=1 INTERP=1 LOWFREQ=0 ROLLING=1 BOIL_TIME=0.2 SEED=1
+    run_mkwfs t13 1.65 0 || return 1
+    python3 - <<'EOF'
+import sys
+import numpy as np
+from astropy.io import fits
+cube = fits.getdata("outarraypha.fits")
+c_b = np.corrcoef(cube[19].flat, cube[20].flat)[0, 1]
+var19 = float(np.var(cube[19]))
+var20 = float(np.var(cube[20]))
+var_jump = abs(var20 - var19) / var19
+ok = c_b >= 0.998 and var_jump < 0.05
+msg = f": boundary corr = {c_b:.5f} (>= 0.998), var jump = {var_jump*100:.2f}% (< 5%)"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+EOF
+}
+
+# T14: maximum 1-pixel spatial and temporal gradients are within 6 sigma of Gaussian
+scenario_T14_seam_absence() {
+    one_layer_profile 4200 1.0 10.0 0.0 0.0 0.0
+    write_conf WFsim.conf PUPIL_SCALE=0.01 WFTIME_STEP=0.01 TIME_SPAN=1.5 MASTER_SIZE=500 \
+        MASTER_OVERSAMPLE=1 INTERP=1 LOWFREQ=1 ROLLING=1 SEED=1
+    run_mkwfs t14 1.65 0 || return 1
+    python3 - <<'EOF'
+import sys
+import numpy as np
+from astropy.io import fits
+cube = fits.getdata("outarraypha.fits")
+dx = np.diff(cube, axis=2)
+dy = np.diff(cube, axis=1)
+dt = np.diff(cube, axis=0)
+max_dx = float(np.max(np.abs(dx)) / np.std(dx))
+max_dy = float(np.max(np.abs(dy)) / np.std(dy))
+max_dt = float(np.max(np.abs(dt)) / np.std(dt))
+ok = max_dx <= 6.0 and max_dy <= 6.0 and max_dt <= 6.0
+msg = f": max gradient: dx = {max_dx:.2f}s, dy = {max_dy:.2f}s, dt = {max_dt:.2f}s"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+EOF
+}
+
 # T15: invalid geometry (PUPIL_SCALE = 0) is rejected without producing output
 scenario_T15_invalid_pupil_scale() {
     one_layer_profile 4200 1.0 10.0 0.3 10000 0.0
@@ -255,6 +333,10 @@ SCENARIOS=(
     "T8a_hv_single_layer:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
+    "T11_tilt_variance:pass"
+    "T12_wrap_decorrelation:pass"
+    "T13_epoch_stability:pass"
+    "T14_seam_absence:pass"
     "T15_invalid_pupil_scale:pass"
 )
 

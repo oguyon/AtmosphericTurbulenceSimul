@@ -52,12 +52,48 @@ typedef struct
     float       *out_pha;
 } atmturb_extrude_params_t;
 
+struct atmturb_lowfreq_t;
+
+/**
+ * struct atmturb_lowfreq_params_t - Parameter bundle for low-frequency mode accumulation
+ * @lf: Pointer to low-order subharmonic modes container.
+ * @screen_idx: Screen channel index (0 for p0, 1 for p1).
+ * @custom_are: Optional custom real amplitudes array (NULL to use lf->are/bre).
+ * @custom_aim: Optional custom imaginary amplitudes array (NULL to use lf->aim/bim).
+ * @x0: Continuous X coordinate offset in master pixels.
+ * @y0: Continuous Y coordinate offset in master pixels.
+ * @pup_size: Linear dimension of the extracted pupil in pixels.
+ * @os: Master grid oversampling factor (stride = os).
+ * @weight: Layer Cn2 amplitude weight factor.
+ * @out_pha: Output pupil phase array to accumulate into.
+ */
+typedef struct
+{
+    const struct atmturb_lowfreq_t *lf;
+    int                             screen_idx;
+    const float                    *custom_are;
+    const float                    *custom_aim;
+    double                          x0;
+    double                          y0;
+    long                            pup_size;
+    long                            os;
+    float                           weight;
+    float                          *out_pha;
+} atmturb_lowfreq_params_t;
+
 /**
  * atmturb_extrude_accumulate - Phase screen extrusion with weighted accumulation
  * @params: Extrusion configuration and data pointers.
  */
 void atmturb_extrude_accumulate(
     const atmturb_extrude_params_t *params);
+
+/**
+ * atmturb_extrude_lowfreq - Analytic low-order mode evaluation with weighted accumulation
+ * @params: Low-frequency configuration and data pointers.
+ */
+void atmturb_extrude_lowfreq(
+    const atmturb_lowfreq_params_t *params);
 
 /**
  * atmturb_scale_float_array - Multiply float array by scalar constant
@@ -106,6 +142,8 @@ void atmturb_init_phase_amp_scalar(
     float *pha,
     float *amp,
     long   n);
+void atmturb_extrude_lowfreq_scalar(
+    const atmturb_lowfreq_params_t *params);
 
 /* AVX2 implementations */
 void atmturb_extrude_accumulate_avx2(
@@ -123,6 +161,8 @@ void atmturb_init_phase_amp_avx2(
     float *pha,
     float *amp,
     long   n);
+void atmturb_extrude_lowfreq_avx2(
+    const atmturb_lowfreq_params_t *params);
 
 /* AVX-512 implementations */
 void atmturb_extrude_accumulate_avx512(
@@ -140,6 +180,8 @@ void atmturb_init_phase_amp_avx512(
     float *pha,
     float *amp,
     long   n);
+void atmturb_extrude_lowfreq_avx512(
+    const atmturb_lowfreq_params_t *params);
 
 #ifdef __cplusplus
 }

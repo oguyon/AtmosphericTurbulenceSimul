@@ -15,6 +15,7 @@ typedef struct
     void (*extrude_bicubic)(const atmturb_extrude_params_t *params);
     void (*scale_float_array)(float *dest, const float *src, float scale, long n);
     void (*init_phase_amp)(float *pha, float *amp, long n);
+    void (*extrude_lowfreq)(const atmturb_lowfreq_params_t *params);
     const char *isa_name;
 } atmturb_simd_ops_t;
 
@@ -35,30 +36,33 @@ static void atmturb_simd_init_dispatch(void)
     __builtin_cpu_init();
     if (__builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512dq"))
     {
-        g_simd_ops.extrude_bilinear = atmturb_extrude_accumulate_bilinear_avx512;
-        g_simd_ops.extrude_bicubic  = atmturb_extrude_accumulate_bicubic_avx512;
+        g_simd_ops.extrude_bilinear  = atmturb_extrude_accumulate_bilinear_avx512;
+        g_simd_ops.extrude_bicubic   = atmturb_extrude_accumulate_bicubic_avx512;
         g_simd_ops.scale_float_array = atmturb_scale_float_array_avx512;
         g_simd_ops.init_phase_amp    = atmturb_init_phase_amp_avx512;
+        g_simd_ops.extrude_lowfreq   = atmturb_extrude_lowfreq_avx512;
         g_simd_ops.isa_name          = "AVX-512";
         g_simd_initialized           = 1;
         return;
     }
     if (__builtin_cpu_supports("avx2"))
     {
-        g_simd_ops.extrude_bilinear = atmturb_extrude_accumulate_bilinear_avx2;
-        g_simd_ops.extrude_bicubic  = atmturb_extrude_accumulate_bicubic_avx2;
+        g_simd_ops.extrude_bilinear  = atmturb_extrude_accumulate_bilinear_avx2;
+        g_simd_ops.extrude_bicubic   = atmturb_extrude_accumulate_bicubic_avx2;
         g_simd_ops.scale_float_array = atmturb_scale_float_array_avx2;
         g_simd_ops.init_phase_amp    = atmturb_init_phase_amp_avx2;
+        g_simd_ops.extrude_lowfreq   = atmturb_extrude_lowfreq_avx2;
         g_simd_ops.isa_name          = "AVX2";
         g_simd_initialized           = 1;
         return;
     }
 #endif
 
-    g_simd_ops.extrude_bilinear = atmturb_extrude_accumulate_bilinear_scalar;
-    g_simd_ops.extrude_bicubic  = atmturb_extrude_accumulate_bicubic_scalar;
+    g_simd_ops.extrude_bilinear  = atmturb_extrude_accumulate_bilinear_scalar;
+    g_simd_ops.extrude_bicubic   = atmturb_extrude_accumulate_bicubic_scalar;
     g_simd_ops.scale_float_array = atmturb_scale_float_array_scalar;
     g_simd_ops.init_phase_amp    = atmturb_init_phase_amp_scalar;
+    g_simd_ops.extrude_lowfreq   = atmturb_extrude_lowfreq_scalar;
     g_simd_ops.isa_name          = "Scalar";
     g_simd_initialized           = 1;
 }
@@ -132,3 +136,17 @@ void atmturb_init_phase_amp(float *pha, float *amp, long n)
     }
     g_simd_ops.init_phase_amp(pha, amp, n);
 }
+
+/**
+ * atmturb_extrude_lowfreq - Dispatch low-frequency mode accumulation to optimal CPU kernel
+ * @params: Low-frequency configuration and data pointers.
+ */
+void atmturb_extrude_lowfreq(const atmturb_lowfreq_params_t *params)
+{
+    if (__builtin_expect(!g_simd_initialized, 0))
+    {
+        atmturb_simd_init_dispatch();
+    }
+    g_simd_ops.extrude_lowfreq(params);
+}
+

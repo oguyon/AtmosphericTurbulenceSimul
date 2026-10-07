@@ -190,6 +190,9 @@ int atmturb_geometry_compute(
     int os = (params->oversample > 1) ? params->oversample : 1;
     geom->oversample = os;
     geom->interp = (params->interp == 0) ? 0 : 1;
+    geom->lowfreq = (params->lowfreq != 0) ? 1 : 0;
+    geom->rolling = (params->rolling != 0) ? 1 : 0;
+    geom->boil_time_s = (params->boil_time_s > 0.0) ? params->boil_time_s : 0.0;
     geom->dx_master_m = params->pupil_scale_m / (double) os;
 
     geom->cos_z = cos(params->zenith_rad);
@@ -264,7 +267,12 @@ int atmturb_geometry_compute(
         double l_screen_m = (double) params->master_size * geom->dx_master_m;
         double v_eff = sqrt(lg->vx_pix * lg->vx_pix + lg->vy_pix * lg->vy_pix)
                        * (geom->dx_master_m / params->time_step_s);
-        lg->t_dec_s = (v_eff > 0.1) ? (0.5 * l_screen_m / v_eff) : 10.0;
+        double t_dec = (v_eff > 0.1) ? (0.5 * l_screen_m / v_eff) : 10.0;
+        if (params->boil_time_s > 0.0 && params->boil_time_s < t_dec)
+        {
+            t_dec = params->boil_time_s;
+        }
+        lg->t_dec_s = t_dec;
     }
 
     printf("[milkatmturb] Geometry: r0_ref = %.4f m (%.2f pix), site_alt = %.1f m, cos(z) = %.4f\n",
