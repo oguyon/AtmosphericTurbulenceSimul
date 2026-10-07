@@ -14,6 +14,7 @@
 #endif
 #include "fps.h"
 #include "COREMOD_memory/COREMOD_memory.h"
+#include "COREMOD_iofits/COREMOD_iofits.h"
 #include "AtmosphericTurbulence/AtmosphericTurbulence.h"
 #include "atmturb_mkvonkarman_FPS.h"
 
@@ -39,6 +40,8 @@ static float   param_pixscale  = 0.1f;
 static float   param_sigmawind = 20.0f;
 static float   param_lwind     = 50.0f;
 static char    param_outname[FUNCTION_PARAMETER_STRMAXLEN] = "vKwind";
+static int64_t param_seed      = 1;
+static char    param_fitsout[FUNCTION_PARAMETER_STRMAXLEN] = "";
 
 /* ================================================================
  * 3.  UNIFIED PARAMETER TABLE (X-Macro)
@@ -54,7 +57,11 @@ static char    param_outname[FUNCTION_PARAMETER_STRMAXLEN] = "vKwind";
     X(".lwind", &param_lwind, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,           \
       "Turbulence outer scale [m]")                                             \
     X(".outname", &param_outname, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,    \
-      "Output 3D image name (vksize x 1 x 3)")
+      "Output 3D image name (vksize x 1 x 3)")                                  \
+    X(".seed", &param_seed, FPTYPE_INT64, 1, FPFLAG_DEFAULT_INPUT,               \
+      "RNG seed (0 = time-based)")                                              \
+    X(".fitsout", &param_fitsout, FPTYPE_STRING, 1, FPFLAG_DEFAULT_INPUT,        \
+      "Optional FITS output file (empty = do not save)")
 
 /* ================================================================
  * 4.  COMPUTATION LOGIC
@@ -68,7 +75,12 @@ static char    param_outname[FUNCTION_PARAMETER_STRMAXLEN] = "vKwind";
 static MILK_HOT errno_t fpsexec(void)
 {
     make_AtmosphericTurbulence_vonKarmanWind((long) param_vksize, param_pixscale,
-                                            param_sigmawind, param_lwind, 0, param_outname);
+                                            param_sigmawind, param_lwind, (long) param_seed,
+                                            param_outname);
+    if (param_fitsout[0] != '\0')
+    {
+        save_fits(param_outname, param_fitsout);
+    }
 
     return RETURN_SUCCESS;
 }

@@ -8,6 +8,7 @@
  */
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,30 +18,44 @@
 #include "atmturb_types.h"
 
 /**
- * atmturb_synthesize_wind_component - Synthesize 1D von Karman wind velocity component
+ * struct atmturb_wind_spec_t - Parameters shared by the three wind components
  * @vksize: Number of samples in the 1D series.
  * @pixscale: Spatial sampling step in meters.
  * @sigmawind: Target RMS velocity standard deviation in m/s.
  * @Lwind: Wind velocity outer scale in meters.
- * @is_transverse: 0 for longitudinal component, 1 for transverse / vertical.
- * @out: Output pointer to destination float buffer (length vksize).
+ * @seed: Resolved (non-zero) base RNG seed.
+ */
+typedef struct
+{
+    long     vksize;
+    float    pixscale;
+    float    sigmawind;
+    float    Lwind;
+    uint64_t seed;
+} atmturb_wind_spec_t;
+
+/**
+ * atmturb_synthesize_wind_component - Synthesize 1D von Karman wind velocity component
+ * @spec: Shared wind synthesis parameters.
+ * @component: 0 = longitudinal (u), 1 = transverse (v), 2 = vertical (w).
+ * @out: Output pointer to destination float buffer (length spec->vksize).
  */
 static void atmturb_synthesize_wind_component(
-    long   vksize,
-    float  pixscale,
-    float  sigmawind,
-    float  Lwind,
-    int    is_transverse,
-    float *out)
+    const atmturb_wind_spec_t *spec,
+    int                        component,
+    float                     *out)
 {
+    long vksize = spec->vksize;
     fftwf_complex *buf = (fftwf_complex *)fftwf_alloc_complex(vksize);
     if (!buf)
     {
         return;
     }
 
-    double length_total = (double)vksize * pixscale;
-    uint64_t rng = 0x243f6a8885a308d3ULL + (uint64_t)is_transverse * 0x9e3779b97f4a7c15ULL;
+    double length_total = (double)vksize * spec->pixscale;
+    double Lwind = spec->Lwind;
+    // independent RNG stream per component
+    uint64_t rng = atmturb_rng_stream_seed(spec->seed, (uint64_t)component);
 
     for (long ii = 0; ii < vksize; ii++)
     {
@@ -55,7 +70,7 @@ static void atmturb_synthesize_wind_component(
         }
 
         double amp = 0.0;
-        if (!is_transverse)
+        if (component == 0)
         {
             double k = 1.339 * 2.0 * M_PI * r / length_total * Lwind;
             amp = sqrt(1.0 / pow(1.0 + k * k, 5.0 / 6.0));
@@ -84,7 +99,7 @@ static void atmturb_synthesize_wind_component(
         sum_sq += (double)buf[ii][0] * (double)buf[ii][0];
     }
     double rms = sqrt(sum_sq / (double)vksize);
-    double scale = (rms > 0.0) ? ((double)sigmawind / rms) : 1.0;
+    double scale = (rms > 0.0) ? ((double)spec->sigmawind / rms) : 1.0;
 
     for (long ii = 0; ii < vksize; ii++)
     {
@@ -100,7 +115,7 @@ static void atmturb_synthesize_wind_component(
  * @pixscale: Physical sampling step in meters.
  * @sigmawind: Velocity standard deviation in m/s.
  * @Lwind: Wind velocity turbulence outer scale in meters.
- * @size: Unused legacy size parameter.
+ * @seed: RNG seed (0 = time-based). The three components use independent streams.
  * @IDout_name: Output 3D image name (vKsize x 1 x 3).
  *
  * Return: Output image ID on success.
@@ -110,28 +125,30 @@ long make_AtmosphericTurbulence_vonKarmanWind(
     float       pixscale,
     float       sigmawind,
     float       Lwind,
-    long        size,
+    long        seed,
     const char *IDout_name)
 {
-    (void)size;
     delete_image_ID(IDout_name);
     imageID IDc = create_3Dimage_ID(IDout_name, vKsize, 1, 3);
+
+    atmturb_wind_spec_t spec = {
+        .vksize = vKsize,
+        .pixscale = pixscale,
+        .sigmawind = sigmawind,
+        .Lwind = Lwind,
+        .seed = atmturb_resolve_seed((uint64_t)seed)
+    };
 
     printf("vK wind outer scale = %f m\n", Lwind);
     printf("pixscale            = %f m\n", pixscale);
     printf("Image size          = %f m\n", vKsize * pixscale);
+    printf("seed                = %llu\n", (unsigned long long)spec.seed);
 
-    // Longitudinal component (u)
-    atmturb_synthesize_wind_component(vKsize, pixscale, sigmawind, Lwind, 0,
-                                      &dcimg[IDc].array.F[0]);
-
-    // Tangential component (v)
-    atmturb_synthesize_wind_component(vKsize, pixscale, sigmawind, Lwind, 1,
-                                      &dcimg[IDc].array.F[vKsize]);
-
-    // Vertical component (w)
-    atmturb_synthesize_wind_component(vKsize, pixscale, sigmawind, Lwind, 1,
-                                      &dcimg[IDc].array.F[2 * vKsize]);
+    // Longitudinal (u), tangential (v) and vertical (w) components
+    for (int comp = 0; comp < 3; comp++)
+    {
+        atmturb_synthesize_wind_component(&spec, comp, &dcimg[IDc].array.F[comp * vKsize]);
+    }
 
     return IDc;
 }

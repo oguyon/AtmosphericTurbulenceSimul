@@ -38,7 +38,10 @@ echo "Executable: $MKWFS_EXEC"
 
 # Create a temporary scratch workspace
 TEST_TMPDIR="$(mktemp -d /tmp/test_milkatmturb_XXXXXX)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
+MILK_SHM_DIR="${MILK_SHM_DIR:-/milk/shm}"
+FPS_NAME="twfs$$_mkwfs"
+# unique FPS name avoids reusing a stale parameter set; remove it on exit
+trap 'rm -rf "$TEST_TMPDIR"; rm -f "$MILK_SHM_DIR/${FPS_NAME}.fps.shm"' EXIT
 
 cd "$TEST_TMPDIR"
 
@@ -93,7 +96,7 @@ EOF
 
 # 3. Execute wavefront simulation
 echo "Starting simulation in $TEST_TMPDIR..."
-"$MKWFS_EXEC" exec 0.7 0
+"$MKWFS_EXEC" -n "$FPS_NAME" exec 0.7 0
 
 # 4. Verify expected output files exist
 EXPECTED_FILES=(
@@ -146,5 +149,15 @@ for name in ['outarrayamp.fits', 'outsarrayamp.fits']:
         print(f'  [OK] {name}: shape={data.shape}, mean={mean:.4f}')
 "
 fi
+
+# 6. Statistical sanity: finite, non-flat phase cubes (physics checks: test_turbulence_physics.sh)
+for f in outarraypha.fits outsarraypha.fits; do
+    status=0
+    python3 "$SCRIPT_DIR/validate_turbulence_stats.py" finite "$f" --min-std 1e-3 || status=$?
+    if [[ $status -ne 0 && $status -ne 77 ]]; then
+        echo "FAILED: statistical sanity check on $f" >&2
+        exit 1
+    fi
+done
 
 echo "=== All tests passed successfully! ==="

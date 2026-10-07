@@ -56,13 +56,16 @@ echo "mkvonkarman: $MKVONKARMAN_EXEC"
 echo "wfprop:      $WFPROP_EXEC"
 
 TEST_TMPDIR="$(mktemp -d /tmp/test_fps_components_XXXXXX)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
+MILK_SHM_DIR="${MILK_SHM_DIR:-/milk/shm}"
+FPS_PREFIX="tfpsc$$"
+# unique FPS names avoid reusing stale parameter sets; remove them on exit
+trap 'rm -rf "$TEST_TMPDIR"; rm -f "$MILK_SHM_DIR/${FPS_PREFIX}"_*.fps.shm' EXIT
 
 cd "$TEST_TMPDIR"
 
 # 1. Test Hufnagel-Valley profile generation
 echo "Running atmturb-mkhvturb..."
-"$MKHVTURB_EXEC" exec 21.0 0.15 4200.0 5 hv_test.prof
+"$MKHVTURB_EXEC" -n "${FPS_PREFIX}_hv" exec 21.0 0.15 4200.0 5 hv_test.prof
 if [[ ! -f "hv_test.prof" ]]; then
     echo "FAILED: hv_test.prof was not created." >&2
     exit 1
@@ -76,17 +79,21 @@ echo "  [OK] Hufnagel-Valley profile generated (5 layers)"
 
 # 2. Test master turbulence screens generation
 echo "Running atmturb-mkmastert..."
-"$MKMASTERT_EXEC" exec 128 50.0 1.0 0 scr0 scr1
+"$MKMASTERT_EXEC" -n "${FPS_PREFIX}_mt" exec 128 50.0 1.0 0 scr0 scr1
 echo "  [OK] Master turbulence screens generated"
 
 # 3. Test von Karman wind velocity series generation
 echo "Running atmturb-mkvonkarman..."
-"$MKVONKARMAN_EXEC" exec 512 0.1 20.0 50.0 vkwind
+"$MKVONKARMAN_EXEC" -n "${FPS_PREFIX}_vk" exec 512 0.1 20.0 50.0 vkwind 1 vkwind.fits
+if [[ ! -f "vkwind.fits" ]]; then
+    echo "FAILED: vkwind.fits was not created." >&2
+    exit 1
+fi
 echo "  [OK] von Karman wind series synthesized"
 
 # 4. Test Fresnel propagation component
 echo "Running wfprop-fresnel..."
-"$WFPROP_EXEC" exec wfin wfout 0.01 1000.0 0.5e-6
+"$WFPROP_EXEC" -n "${FPS_PREFIX}_fr" exec wfin wfout 0.01 1000.0 0.5e-6
 echo "  [OK] Fresnel diffractive propagation verified"
 
 echo "=== All FPS component tests passed successfully! ==="

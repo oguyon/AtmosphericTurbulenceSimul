@@ -82,6 +82,7 @@ make -C _build -j$(nproc)
 # Run component and wavefront series tests
 bash tests/test_fps_components.sh
 bash tests/test_wavefront_series.sh
+bash tests/test_turbulence_physics.sh
 ```
 
 ---

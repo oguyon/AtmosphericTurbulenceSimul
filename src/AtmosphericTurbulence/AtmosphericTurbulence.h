@@ -36,7 +36,7 @@ int AtmosphericTurbulence_change_configuration_file(
  * @pixscale: Physical sampling step in meters.
  * @sigmawind: Velocity standard deviation in m/s.
  * @Lwind: Wind velocity turbulence outer scale in meters.
- * @size: Unused legacy size parameter.
+ * @seed: RNG seed (0 = time-based); u, v, w use independent streams.
  * @IDout_name: Output 3D image name (vKsize x 1 x 3).
  *
  * Return: Output image ID on success.
@@ -46,7 +46,7 @@ long make_AtmosphericTurbulence_vonKarmanWind(
     float       pixscale,
     float       sigmawind,
     float       Lwind,
-    long        size,
+    long        seed,
     const char *IDout_name);
 
 /**
