@@ -15,8 +15,14 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 find_executable() {
     local name="$1"
     local candidates=(
+        "$REPO_ROOT/_build/$name"
+        "$REPO_ROOT/../WFpropagate/_build/$name"
         "$REPO_ROOT/../../_build/plugins/milkatmturb/$name"
+        "$REPO_ROOT/../../_build/plugins/WFpropagate/$name"
         "$REPO_ROOT/../_build/plugins/milkatmturb/$name"
+        "$REPO_ROOT/../_build/plugins/WFpropagate/$name"
+        "/home/oguyon/src/WFpropagate/_build/$name"
+        "/home/oguyon/src/milk-framework-dev/_build/plugins/WFpropagate/$name"
         "/home/oguyon/src/milk-framework-dev/_build/plugins/milkatmturb/$name"
         "$(command -v "$name" 2>/dev/null || true)"
     )

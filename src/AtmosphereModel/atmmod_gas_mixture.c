@@ -8,7 +8,7 @@
  */
 
 #include "AtmosphereModel.h"
-#include "OpticsMaterials.h"
+#include "OpticsMaterials/OpticsMaterials.h"
 #include "atmmod_types.h"
 
 /**

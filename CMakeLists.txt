@@ -62,17 +62,6 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_mkmastert_FPS.c
     src/AtmosphericTurbulence/atmturb_mkvonkarman_FPS.c
     src/AtmosphericTurbulence/atmturb_aoloop_FPS.c
-    src/OpticsMaterials/OpticsMaterials.c
-    src/OpticsMaterials/optmat_solids.c
-    src/OpticsMaterials/optmat_gases.c
-    src/OpticsMaterials/optmat_pmgi.c
-    src/OpticsMaterials/optmat_pmma.c
-    src/WFpropagate/WFpropagate.c
-    src/WFpropagate/wfprop_fresnel.c
-    src/WFpropagate/wfprop_fresnel_engine.c
-    src/WFpropagate/wfprop_fresnel_FPS.c
-    src/WFpropagate/wfprop_cube.c
-    src/WFpropagate/wfprop_lyot.c
 )
 
 set(INCLUDEFILES
@@ -85,9 +74,6 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/atmturb_lowfreq.h
     src/AtmosphericTurbulence/atmturb_rolling.h
     src/AtmosphericTurbulence/atmturb_simd.h
-    src/OpticsMaterials/OpticsMaterials.h
-    src/WFpropagate/WFpropagate.h
-    src/WFpropagate/wfprop_fresnel_engine.h
 )
 
 file(GLOB SCRIPTS "src/AtmosphericTurbulence/scripts/*")
@@ -110,11 +96,9 @@ if(HAVE_CUDA OR USE_CUDA)
             set(USE_CUDA_ACCEL TRUE)
             add_compile_definitions(HAVE_CUDA)
             list(APPEND SOURCEFILES
-                src/WFpropagate/wfprop_fresnel_cuda.cu
                 src/AtmosphericTurbulence/atmturb_cuda.cu
             )
             list(APPEND INCLUDEFILES
-                src/WFpropagate/wfprop_fresnel_cuda.h
                 src/AtmosphericTurbulence/atmturb_cuda.h
             )
             message(STATUS "milkatmturb: CUDA GPU acceleration ENABLED")
@@ -136,8 +120,6 @@ if(TARGET CLIcore)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphereModel
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence/nrlmsise-00.20131225
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/OpticsMaterials
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/WFpropagate
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/src/coremods
         ${CMAKE_SOURCE_DIR}/plugins/milk-extra-src
@@ -145,6 +127,8 @@ if(TARGET CLIcore)
     )
 
     target_link_libraries(${LIBNAME} PUBLIC
+        milkOpticsMaterials
+        milkWFpropagate
         CLIcore
         ImageStreamIO
         milkCOREMODmemory
@@ -196,8 +180,8 @@ else()
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphereModel
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence/nrlmsise-00.20131225
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/OpticsMaterials
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/WFpropagate
+        ${CMAKE_CURRENT_SOURCE_DIR}/../OpticsMaterials
+        ${CMAKE_CURRENT_SOURCE_DIR}/../WFpropagate
     )
 
     # Include compatibility shim for installed milk layout quirks
@@ -220,6 +204,10 @@ else()
             ${MILK_SOURCE_FOUND}/src
             ${MILK_SOURCE_FOUND}/src/coremods
             ${MILK_SOURCE_FOUND}/plugins/milk-extra-src
+            ${MILK_SOURCE_FOUND}/plugins/OpticsMaterials
+            ${MILK_SOURCE_FOUND}/plugins/WFpropagate
+            ${MILK_SOURCE_FOUND}/plugins/milk-extra-src/OpticsMaterials
+            ${MILK_SOURCE_FOUND}/plugins/milk-extra-src/WFpropagate
             ${MILK_SOURCE_FOUND}/src/cli
             ${MILK_SOURCE_FOUND}/src/cli/CLIcore
             ${MILK_SOURCE_FOUND}/src/engine
@@ -249,6 +237,8 @@ else()
     target_include_directories(${LIBNAME} PRIVATE ${MILK_STANDALONE_INCLUDES})
 
     set(MILK_LIB_NAMES
+        milkOpticsMaterials
+        milkWFpropagate
         CLIcore
         ImageStreamIO
         milkCOREMODmemory
@@ -266,14 +256,16 @@ else()
     )
 
     set(MILK_SEARCH_HINTS
-        ${MILK_ROOT}/lib
-        $ENV{MILK_ROOT}/lib
-        /usr/local/milk/lib
-        /usr/local/lib
+        ${CMAKE_CURRENT_SOURCE_DIR}/../OpticsMaterials/_build
+        ${CMAKE_CURRENT_SOURCE_DIR}/../WFpropagate/_build
     )
     if(MILK_SOURCE_FOUND)
         list(APPEND MILK_SEARCH_HINTS
             ${MILK_SOURCE_FOUND}/_build/lib
+            ${MILK_SOURCE_FOUND}/_build/plugins/OpticsMaterials
+            ${MILK_SOURCE_FOUND}/_build/plugins/WFpropagate
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/OpticsMaterials
+            ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/WFpropagate
             ${MILK_SOURCE_FOUND}/_build/src/cli/CLIcore
             ${MILK_SOURCE_FOUND}/_build/src/engine/ImageStreamIO
             ${MILK_SOURCE_FOUND}/_build/src/coremods/COREMOD_memory
@@ -290,6 +282,13 @@ else()
             ${MILK_SOURCE_FOUND}/_build/plugins/milk-extra-src/linopt_imtools
         )
     endif()
+    list(APPEND MILK_SEARCH_HINTS
+        ${MILK_ROOT}/lib
+        $ENV{MILK_ROOT}/lib
+        /usr/local/milk/lib
+        /usr/local/lib
+    )
+
 
     set(MILK_LIBRARIES "")
     foreach(lib ${MILK_LIB_NAMES})
@@ -327,48 +326,54 @@ install(FILES ${INCLUDEFILES} DESTINATION include/${SRCNAME})
 install(PROGRAMS ${SCRIPTS} DESTINATION bin)
 
 # ── Standalone executables (FPS V2 pattern) ───────────────────────
+if(NOT COMMAND add_milk_standalone AND MILK_SOURCE_FOUND AND EXISTS "${MILK_SOURCE_FOUND}/cmake/milk_standalone.cmake")
+    if(EXISTS "${MILK_SOURCE_FOUND}/cmake/milk_extensions.cmake")
+        include("${MILK_SOURCE_FOUND}/cmake/milk_extensions.cmake")
+    endif()
+    include("${MILK_SOURCE_FOUND}/cmake/milk_standalone.cmake")
+endif()
+
 if(COMMAND add_milk_standalone)
+    link_directories(/usr/local/milk/lib ${MILK_SEARCH_HINTS})
     add_milk_standalone(atmturb-mkwfs src/AtmosphericTurbulence/atmturb_mkwfs_FPS.c)
     target_include_directories(milk-fpsexec-atmturb-mkwfs PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+        ${MILK_STANDALONE_INCLUDES}
     )
-    target_link_libraries(milk-fpsexec-atmturb-mkwfs PRIVATE ${LIBNAME})
+    target_link_libraries(milk-fpsexec-atmturb-mkwfs PRIVATE ${LIBNAME} ${MILK_LIBRARIES})
 
     add_milk_standalone(atmturb-mkhvturb src/AtmosphericTurbulence/atmturb_mkhvturb_FPS.c)
     target_include_directories(milk-fpsexec-atmturb-mkhvturb PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+        ${MILK_STANDALONE_INCLUDES}
     )
-    target_link_libraries(milk-fpsexec-atmturb-mkhvturb PRIVATE ${LIBNAME})
+    target_link_libraries(milk-fpsexec-atmturb-mkhvturb PRIVATE ${LIBNAME} ${MILK_LIBRARIES})
 
     add_milk_standalone(atmturb-mkmastert src/AtmosphericTurbulence/atmturb_mkmastert_FPS.c)
     target_include_directories(milk-fpsexec-atmturb-mkmastert PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+        ${MILK_STANDALONE_INCLUDES}
     )
-    target_link_libraries(milk-fpsexec-atmturb-mkmastert PRIVATE ${LIBNAME})
+    target_link_libraries(milk-fpsexec-atmturb-mkmastert PRIVATE ${LIBNAME} ${MILK_LIBRARIES})
 
     add_milk_standalone(atmturb-mkvonkarman src/AtmosphericTurbulence/atmturb_mkvonkarman_FPS.c)
     target_include_directories(milk-fpsexec-atmturb-mkvonkarman PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+        ${MILK_STANDALONE_INCLUDES}
     )
-    target_link_libraries(milk-fpsexec-atmturb-mkvonkarman PRIVATE ${LIBNAME})
+    target_link_libraries(milk-fpsexec-atmturb-mkvonkarman PRIVATE ${LIBNAME} ${MILK_LIBRARIES})
 
     add_milk_standalone(atmturb-aoloop src/AtmosphericTurbulence/atmturb_aoloop_FPS.c)
     target_include_directories(milk-fpsexec-atmturb-aoloop PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+        ${MILK_STANDALONE_INCLUDES}
     )
-    target_link_libraries(milk-fpsexec-atmturb-aoloop PRIVATE ${LIBNAME})
-
-    add_milk_standalone(wfprop-fresnel src/WFpropagate/wfprop_fresnel_FPS.c)
-    target_include_directories(milk-fpsexec-wfprop-fresnel PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/WFpropagate
-    )
-    target_link_libraries(milk-fpsexec-wfprop-fresnel PRIVATE ${LIBNAME})
+    target_link_libraries(milk-fpsexec-atmturb-aoloop PRIVATE ${LIBNAME} ${MILK_LIBRARIES})
 endif()
 
 # ── Statistical test validation executable ─────────────────────────
@@ -383,6 +388,7 @@ target_include_directories(atmturb-validate-stats PRIVATE
 )
 target_link_libraries(atmturb-validate-stats PRIVATE
     ${LIBNAME}
+    ${MILK_LIBRARIES}
     ${FFTWF_LIBRARIES}
     ${FFTW_LIBRARIES}
     cfitsio
