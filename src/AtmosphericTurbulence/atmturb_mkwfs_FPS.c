@@ -55,6 +55,8 @@ static float   param_site_alt          = -1.0f;
 static float   param_source_x          = 0.0f;
 static float   param_source_y          = 0.0f;
 static int64_t param_seed              = 1;
+static int32_t param_master_oversample = 2;
+static int32_t param_interp            = 1;
 static char    param_out_phase[FUNCTION_PARAMETER_STRMAXLEN] = "outarraypha";
 static char    param_out_ampl[FUNCTION_PARAMETER_STRMAXLEN]  = "outarrayamp";
 static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
@@ -102,6 +104,10 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
       "Off-axis source Y position [rad]")                                       \
     X(".seed", &param_seed, FPTYPE_INT64, 0, FPFLAG_DEFAULT_INPUT,              \
       "Master PRNG seed (0 = time-based)")                                      \
+    X(".master_oversample", &param_master_oversample, FPTYPE_INT32, 0,          \
+      FPFLAG_DEFAULT_INPUT, "Master screen oversampling factor (1 or 2)")       \
+    X(".interp", &param_interp, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,          \
+      "Interpolation scheme (0=bilinear, 1=Keys bicubic)")                      \
     X(".out_phase", &param_out_phase, FPTYPE_STREAMNAME, 0,                     \
       FPFLAG_DEFAULT_INPUT, "Output phase stream name")                         \
     X(".out_ampl", &param_out_ampl, FPTYPE_STREAMNAME, 0,                       \
@@ -139,6 +145,8 @@ static void atmturb_mkwfs_sync_to_conf(void)
     CONF_SOURCE_Xpos       = param_source_x;
     CONF_SOURCE_Ypos       = param_source_y;
     CONF_SEED              = (uint64_t)param_seed;
+    CONF_OVERSAMPLE        = (int)param_master_oversample;
+    CONF_INTERP            = (int)param_interp;
 
     if (param_prof_file[0] != '\0')
     {
@@ -181,6 +189,8 @@ static void atmturb_mkwfs_sync_from_conf(void)
     param_source_x          = CONF_SOURCE_Xpos;
     param_source_y          = CONF_SOURCE_Ypos;
     param_seed              = (int64_t)CONF_SEED;
+    param_master_oversample = (int32_t)CONF_OVERSAMPLE;
+    param_interp            = (int32_t)CONF_INTERP;
 
     if (CONF_TURBULENCE_PROF_FILE[0] != '\0')
     {

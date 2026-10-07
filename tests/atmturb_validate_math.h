@@ -135,4 +135,18 @@ void val_scintillation(
     double           *out_mean,
     double           *out_scint_index);
 
+/**
+ * @brief Measure peak-to-peak high-frequency power variation across frames (breathing metric).
+ */
+double val_cube_breathing_ratio(
+    const val_cube_t *cube);
+
+/**
+ * @brief Compare scalar and vectorized SIMD extrusions across schemes and strides.
+ */
+int val_check_simd_parity(
+    double  tol,
+    char   *msg_buf,
+    size_t  msg_size);
+
 #endif /* ATMTURB_VALIDATE_MATH_H */

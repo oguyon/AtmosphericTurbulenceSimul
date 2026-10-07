@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "atmturb_simd.h"
 #include "atmturb_validate_math.h"
 
 #ifndef M_PI
@@ -662,4 +663,143 @@ void val_scintillation(
 
     *out_mean = mean_i;
     *out_scint_index = (mean_i > 0.0) ? (var_i / (mean_i * mean_i)) : 0.0;
+}
+
+/**
+ * @brief Measure peak-to-peak high-frequency power variation across frames (breathing metric).
+ */
+double val_cube_breathing_ratio(
+    const val_cube_t *cube)
+{
+    if (cube == NULL || cube->nframes < 2 || cube->nx < 2 || cube->ny < 2)
+    {
+        return 0.0;
+    }
+
+    long nx = cube->nx;
+    long ny = cube->ny;
+    long nframes = cube->nframes;
+    long frame_pixels = nx * ny;
+
+    double p_min = 1e30;
+    double p_max = -1e30;
+    double p_sum = 0.0;
+
+    for (long t = 0; t < nframes; t++)
+    {
+        const double *f = &cube->data[t * frame_pixels];
+        double diff_sum = 0.0;
+        long count = 0;
+
+        for (long y = 0; y < ny; y++)
+        {
+            long row = y * nx;
+            for (long x = 0; x < nx - 1; x++)
+            {
+                double dx = f[row + x + 1] - f[row + x];
+                diff_sum += dx * dx;
+                count++;
+            }
+        }
+
+        for (long y = 0; y < ny - 1; y++)
+        {
+            long row = y * nx;
+            long row_next = (y + 1) * nx;
+            for (long x = 0; x < nx; x++)
+            {
+                double dy = f[row_next + x] - f[row + x];
+                diff_sum += dy * dy;
+                count++;
+            }
+        }
+
+        double pt = (count > 0) ? (diff_sum / (double) count) : 0.0;
+        if (pt < p_min)
+        {
+            p_min = pt;
+        }
+        if (pt > p_max)
+        {
+            p_max = pt;
+        }
+        p_sum += pt;
+    }
+
+    double p_mean = p_sum / (double) nframes;
+    if (p_mean <= 1e-30)
+    {
+        return 0.0;
+    }
+    return (p_max - p_min) / p_mean;
+}
+
+/**
+ * @brief Compare scalar and vectorized SIMD extrusions across schemes and strides.
+ */
+int val_check_simd_parity(
+    double  tol,
+    char   *msg_buf,
+    size_t  msg_size)
+{
+    long msize = 512, pup_size = 128;
+    long mtot = msize * msize, ptot = pup_size * pup_size;
+    float *master = (float *) malloc(sizeof(float) * mtot);
+    float *out_s  = (float *) calloc((size_t) ptot, sizeof(float));
+    float *out_v  = (float *) calloc((size_t) ptot, sizeof(float));
+
+    if (!master || !out_s || !out_v)
+    {
+        free(master); free(out_s); free(out_v);
+        snprintf(msg_buf, msg_size, "allocation failure in SIMD parity test");
+        return 0;
+    }
+
+    for (long i = 0; i < mtot; i++)
+    {
+        master[i] = (float) sin((double) i * 0.1) + (float) cos((double) i * 0.03);
+    }
+
+    double max_diff = 0.0;
+    for (int interp = 0; interp <= 1; interp++)
+    {
+        for (int os = 1; os <= 2; os++)
+        {
+            for (double sub = 0.0; sub < 1.0; sub += 0.25)
+            {
+                atmturb_extrude_params_t ep_s = {
+                    .master   = master,
+                    .msize    = msize,
+                    .x0       = 15.3 + sub,
+                    .y0       = 22.7 + sub,
+                    .pup_size = pup_size,
+                    .os       = os,
+                    .interp   = interp,
+                    .weight   = 1.25f,
+                    .out_pha  = out_s
+                };
+                atmturb_extrude_params_t ep_v = ep_s;
+                ep_v.out_pha = out_v;
+
+                memset(out_s, 0, sizeof(float) * (size_t) ptot);
+                memset(out_v, 0, sizeof(float) * (size_t) ptot);
+
+                atmturb_extrude_accumulate_scalar(&ep_s);
+                atmturb_extrude_accumulate(&ep_v);
+
+                for (long i = 0; i < ptot; i++)
+                {
+                    double diff = fabs((double) out_s[i] - (double) out_v[i]);
+                    if (diff > max_diff)
+                    {
+                        max_diff = diff;
+                    }
+                }
+            }
+        }
+    }
+
+    free(master); free(out_s); free(out_v);
+    snprintf(msg_buf, msg_size, "SIMD parity max diff = %.3e (tol %.3e)", max_diff, tol);
+    return (max_diff <= tol);
 }

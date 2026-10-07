@@ -188,6 +188,8 @@ int atmturb_geometry_compute(
     memset(geom, 0, sizeof(*geom));
     geom->site_alt_m = atmturb_resolve_site_alt(params->site_alt_m, prof);
     int os = (params->oversample > 1) ? params->oversample : 1;
+    geom->oversample = os;
+    geom->interp = (params->interp == 0) ? 0 : 1;
     geom->dx_master_m = params->pupil_scale_m / (double) os;
 
     geom->cos_z = cos(params->zenith_rad);

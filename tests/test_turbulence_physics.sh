@@ -74,6 +74,7 @@ write_conf() {
         [REALTIME]=0 [REALTIMEFACTOR]=1.0 [WFTIME_STEP]=0.01 [TIME_SPAN]=0.2 [NB_TSPAN]=1
         [SIMTDELAY]=0 [WAITFORSEM]=0 [WAITSEMIMNAME]=none
         [SKIP_EXISTING]=0 [WF_RAW_SIZE]=128 [MASTER_SIZE]=1024
+        [MASTER_OVERSAMPLE]=2 [INTERP]=1
         [WAVEFRONT_AMPLITUDE]=0 [FRESNEL_PROPAGATION]=0 [FRESNEL_PROPAGATION_BIN]=1000.0
     )
     local arg
@@ -210,6 +211,20 @@ sys.exit(0 if ok else 1)
 EOF
 }
 
+# T10: sub-pixel advection breathing is suppressed under bicubic + oversampled extrusion
+scenario_T10_breathing() {
+    one_layer_profile 4200 1.0 10.0 0.0 10000 0.0
+    write_conf WFsim.conf PUPIL_SCALE=0.04 WFTIME_STEP=0.001 TIME_SPAN=0.02 MASTER_SIZE=2048 \
+        MASTER_OVERSAMPLE=2 INTERP=1
+    run_mkwfs t10 1.65 0 || return 1
+    "${VALIDATE[@]}" breathing outarraypha.fits --tol 0.20
+}
+
+# T10b: SIMD parity between scalar, AVX2, and AVX-512 backends
+scenario_T10b_simd_parity() {
+    "${VALIDATE[@]}" simd-parity --tol 1e-4
+}
+
 # T15: invalid geometry (PUPIL_SCALE = 0) is rejected without producing output
 scenario_T15_invalid_pupil_scale() {
     one_layer_profile 4200 1.0 10.0 0.3 10000 0.0
@@ -238,6 +253,8 @@ SCENARIOS=(
     "T6_precision:pass"
     "T7_wind_components:pass"
     "T8a_hv_single_layer:pass"
+    "T10_breathing:pass"
+    "T10b_simd_parity:pass"
     "T15_invalid_pupil_scale:pass"
 )
 

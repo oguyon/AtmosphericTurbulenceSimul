@@ -60,6 +60,8 @@ char CONF_WAITSEMIMNAME[100] = "";
 int CONF_SKIP_EXISTING = 0;
 long CONF_WF_RAW_SIZE = 512;
 long CONF_MASTER_SIZE = 4096;
+int CONF_OVERSAMPLE = 2;
+int CONF_INTERP = 1;
 
 int CONF_FRESNEL_PROPAGATION = 0;
 int CONF_WAVEFRONT_AMPLITUDE = 0;
@@ -308,9 +310,9 @@ static void atmturb_read_conf_timing(void)
 }
 
 /**
- * atmturb_read_conf_modes - Read compute modes and pupil masks
+ * atmturb_read_conf_screen - Read phase screen sizing and interpolation settings
  */
-static void atmturb_read_conf_modes(void)
+static void atmturb_read_conf_screen(void)
 {
     char keyword[200], content[200];
 
@@ -324,6 +326,39 @@ static void atmturb_read_conf_modes(void)
     snprintf(keyword, sizeof(keyword), "MASTER_SIZE");
     read_config_parameter(CONFFILE, keyword, content);
     CONF_MASTER_SIZE = atol(content);
+
+    snprintf(keyword, sizeof(keyword), "MASTER_OVERSAMPLE");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_OVERSAMPLE = atoi(content);
+    }
+    else
+    {
+        snprintf(keyword, sizeof(keyword), "OVERSAMPLE");
+        if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+        {
+            read_config_parameter(CONFFILE, keyword, content);
+            CONF_OVERSAMPLE = atoi(content);
+        }
+    }
+
+    snprintf(keyword, sizeof(keyword), "INTERP");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_INTERP = atoi(content);
+    }
+}
+
+/**
+ * atmturb_read_conf_modes - Read compute modes and pupil masks
+ */
+static void atmturb_read_conf_modes(void)
+{
+    char keyword[200], content[200];
+
+    atmturb_read_conf_screen();
 
     snprintf(keyword, sizeof(keyword), "WAVEFRONT_AMPLITUDE");
     read_config_parameter(CONFFILE, keyword, content);
@@ -430,7 +465,9 @@ static int atmturb_write_default_config(const char *fname)
     fprintf(fp, "WAITSEMIMNAME             wfsimwait\n");
     fprintf(fp, "SKIP_EXISTING             0\n");
     fprintf(fp, "WF_RAW_SIZE               256\n");
-    fprintf(fp, "MASTER_SIZE               2048\n");
+    fprintf(fp, "MASTER_SIZE               4096\n");
+    fprintf(fp, "MASTER_OVERSAMPLE         2\n");
+    fprintf(fp, "INTERP                    1\n");
     fprintf(fp, "WAVEFRONT_AMPLITUDE       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION_BIN   100.0\n");
