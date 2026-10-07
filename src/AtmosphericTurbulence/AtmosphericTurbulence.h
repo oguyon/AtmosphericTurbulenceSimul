@@ -10,6 +10,8 @@
 #ifndef ATMOSPHERETURBULENCE_H
 #define ATMOSPHERETURBULENCE_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -48,6 +50,70 @@ long make_AtmosphericTurbulence_vonKarmanWind(
     float       Lwind,
     long        seed,
     const char *IDout_name);
+
+/**
+ * struct atmturb_screen_spec_t - Specification for phase screen generation
+ * @size: Grid dimension in pixels (N).
+ * @r0_pix: Fried parameter in pixel units (>0, or <= 0 for default 6.88^0.6).
+ * @L0_pix: Outer scale in pixel units (<= 0 for infinite).
+ * @l0_pix: Inner scale in pixel units (<= 0 for none).
+ * @seed: PRNG seed value (0 selects time-based seed).
+ * @precision: Internal FFT precision (0 = single, 1 = double).
+ */
+typedef struct
+{
+    long     size;
+    double   r0_pix;
+    double   L0_pix;
+    double   l0_pix;
+    uint64_t seed;
+    int      precision;
+} atmturb_screen_spec_t;
+
+/**
+ * atmturb_generate_screen_pair - Generate two independent phase screens from spectrum
+ * @spec: Generation parameters and scales.
+ * @screen_a: Output buffer of size * size floats (or NULL to skip).
+ * @screen_b: Output buffer of size * size floats (or NULL to skip).
+ *
+ * Return: 0 on success, non-zero error code otherwise.
+ */
+int atmturb_generate_screen_pair(
+    const atmturb_screen_spec_t *spec,
+    float                       *screen_a,
+    float                       *screen_b);
+
+/**
+ * make_master_turbulence_screen_seeded - Generate von Karman master screens with seed
+ * @ID_name1: Output name for screen 1.
+ * @ID_name2: Output name for screen 2.
+ * @size: Grid dimension in pixels.
+ * @outerscale: Outer scale in pixels.
+ * @innerscale: Inner scale in pixels.
+ * @WFprecision: Precision flag (0=single, 1=double).
+ * @seed: PRNG seed value (0 = time-based).
+ *
+ * Return: 0 on success.
+ */
+int make_master_turbulence_screen_seeded(
+    const char *ID_name1,
+    const char *ID_name2,
+    long        size,
+    float       outerscale,
+    float       innerscale,
+    long        WFprecision,
+    uint64_t    seed);
+
+/**
+ * atmturb_measure_r0_pix - Estimate effective r0 in pixels from structure function at lag 1
+ * @data: Pointer to 2D float screen array.
+ * @size: Grid dimension in pixels.
+ *
+ * Return: Estimated r0 in pixel units.
+ */
+double atmturb_measure_r0_pix(
+    const float *data,
+    long         size);
 
 /**
  * make_master_turbulence_screen - Generate von Karman master turbulence screens
