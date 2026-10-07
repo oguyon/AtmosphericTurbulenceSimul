@@ -299,8 +299,10 @@ static double atmturb_measure_structure_constant_double(const double *data, long
  *
  * Return: 0 on success, -1 on allocation failure.
  */
-static int atmturb_synthesize_screens_float(const char *ID_name1, const char *ID_name2,
-                                           const atmturb_screen_params_t *p)
+static int atmturb_synthesize_screens_float(
+    const char                    *ID_name1,
+    const char                    *ID_name2,
+    const atmturb_screen_params_t *p)
 {
     long size = p->size;
     long ntot = size * size;
@@ -312,7 +314,8 @@ static int atmturb_synthesize_screens_float(const char *ID_name1, const char *ID
 
     atmturb_fill_spectrum_grid_float(buf, p);
 
-    fftwf_plan plan = fftwf_plan_dft_2d((int)size, (int)size, buf, buf, FFTW_FORWARD, FFTW_ESTIMATE);
+    fftwf_plan plan = fftwf_plan_dft_2d((int)size, (int)size, buf, buf,
+                                        FFTW_FORWARD, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
 
@@ -329,8 +332,10 @@ static int atmturb_synthesize_screens_float(const char *ID_name1, const char *ID
     }
     fftwf_free(buf);
 
-    double C1 = atmturb_measure_structure_constant_float(dcimg[ID1].array.F, size, p->power_exponent);
-    double C2 = atmturb_measure_structure_constant_float(dcimg[ID2].array.F, size, p->power_exponent);
+    double C1 = atmturb_measure_structure_constant_float(dcimg[ID1].array.F,
+                                                         size, p->power_exponent);
+    double C2 = atmturb_measure_structure_constant_float(dcimg[ID2].array.F,
+                                                         size, p->power_exponent);
     printf("C1, C2 =   %f %f\n", C1, C2);
     fflush(stdout);
 
@@ -355,8 +360,10 @@ static int atmturb_synthesize_screens_float(const char *ID_name1, const char *ID
  *
  * Return: 0 on success, -1 on allocation failure.
  */
-static int atmturb_synthesize_screens_double(const char *ID_name1, const char *ID_name2,
-                                            const atmturb_screen_params_t *p)
+static int atmturb_synthesize_screens_double(
+    const char                    *ID_name1,
+    const char                    *ID_name2,
+    const atmturb_screen_params_t *p)
 {
     long size = p->size;
     long ntot = size * size;
@@ -368,7 +375,8 @@ static int atmturb_synthesize_screens_double(const char *ID_name1, const char *I
 
     atmturb_fill_spectrum_grid_double(buf, p);
 
-    fftw_plan plan = fftw_plan_dft_2d((int)size, (int)size, buf, buf, FFTW_FORWARD, FFTW_ESTIMATE);
+    fftw_plan plan = fftw_plan_dft_2d((int)size, (int)size, buf, buf,
+                                      FFTW_FORWARD, FFTW_ESTIMATE);
     fftw_execute(plan);
     fftw_destroy_plan(plan);
 
@@ -385,8 +393,10 @@ static int atmturb_synthesize_screens_double(const char *ID_name1, const char *I
     }
     fftw_free(buf);
 
-    double C1 = atmturb_measure_structure_constant_double(dcimg[ID1].array.D, size, p->power_exponent);
-    double C2 = atmturb_measure_structure_constant_double(dcimg[ID2].array.D, size, p->power_exponent);
+    double C1 = atmturb_measure_structure_constant_double(dcimg[ID1].array.D,
+                                                          size, p->power_exponent);
+    double C2 = atmturb_measure_structure_constant_double(dcimg[ID2].array.D,
+                                                          size, p->power_exponent);
     printf("C1, C2 =   %f %f\n", C1, C2);
     fflush(stdout);
 
@@ -414,8 +424,13 @@ static int atmturb_synthesize_screens_double(const char *ID_name1, const char *I
  *
  * Return: 0 on success.
  */
-int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size,
-                                 float outerscale, float innerscale, long WFprecision)
+int make_master_turbulence_screen(
+    const char *ID_name1,
+    const char *ID_name2,
+    long        size,
+    float       outerscale,
+    float       innerscale,
+    long        WFprecision)
 {
     printf("Make turbulence screen, precision = %ld\n", WFprecision);
     fflush(stdout);
@@ -453,7 +468,11 @@ int make_master_turbulence_screen(char *ID_name1, char *ID_name2, long size,
  *
  * Return: 0 on success.
  */
-int make_master_turbulence_screen_pow(char *ID_name1, char *ID_name2, long size, float power)
+int make_master_turbulence_screen_pow(
+    const char *ID_name1,
+    const char *ID_name2,
+    long        size,
+    float       power)
 {
     atmturb_screen_params_t p;
     memset(&p, 0, sizeof(p));

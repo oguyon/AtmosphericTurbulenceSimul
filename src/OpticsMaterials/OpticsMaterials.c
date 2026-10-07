@@ -57,7 +57,8 @@ int init_OpticsMaterials(void)
  *
  * Return: Integer material code, or -1 if not recognized.
  */
-int OPTICSMATERIALS_code(char *name)
+int OPTICSMATERIALS_code(
+    const char *name)
 {
     if (name == NULL)
     {
@@ -80,7 +81,8 @@ int OPTICSMATERIALS_code(char *name)
  *
  * Return: String name of the optical material, or NULL if not recognized.
  */
-char *OPTICSMATERIALS_name(int code)
+const char *OPTICSMATERIALS_name(
+    int code)
 {
     for (int i = 0; MatCode[i].name != NULL; i++)
     {

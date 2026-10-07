@@ -20,8 +20,14 @@
  * @ny: Pupil linear height.
  * @id_psf: Output PSF image ID.
  */
-static void atmturb_compute_frame_psf(imageID id_amp, imageID id_pha, long slice_idx,
-                                      imageID id_pupamp, long nx, long ny, imageID id_psf)
+static void atmturb_compute_frame_psf(
+    imageID id_amp,
+    imageID id_pha,
+    long    slice_idx,
+    imageID id_pupamp,
+    long    nx,
+    long    ny,
+    imageID id_psf)
 {
     imageID id_arr = create_2DCimage_ID("tmp_carr", nx, ny);
 
@@ -64,8 +70,12 @@ static void atmturb_compute_frame_psf(imageID id_amp, imageID id_pha, long slice
  * @focal_scale: Plate scale in arcseconds/pixel.
  * @fluxes_out: Output array of 6 fluxes (total, 1", 2", 5", 10", 20").
  */
-static void atmturb_measure_psf_apertures(imageID id_psf, long nx, long ny,
-                                         float focal_scale, double *fluxes_out)
+static void atmturb_measure_psf_apertures(
+    imageID  id_psf,
+    long     nx,
+    long     ny,
+    float    focal_scale,
+    double  *fluxes_out)
 {
     double tot = 0.0, f1 = 0.0, f2 = 0.0, f5 = 0.0, f10 = 0.0, f20 = 0.0;
 
@@ -129,7 +139,7 @@ int measure_wavefront_series(float factor)
     const double SLAMBDA = 1.65e-6;
     for (long tspan = 0; tspan < CONF_NB_TSPAN; tspan++)
     {
-        char fnamepha[200], fnameamp[200];
+        char fnamepha[512], fnameamp[512];
         snprintf(fnamepha, sizeof(fnamepha), "%s%08ld.%09ld.pha.fits",
                  CONF_WF_FILE_PREFIX, tspan, (long)(1.0e12 * SLAMBDA + 0.5));
         snprintf(fnameamp, sizeof(fnameamp), "%s%08ld.%09ld.amp.fits",
@@ -166,11 +176,14 @@ int measure_wavefront_series(float factor)
  *
  * Return: 0 on success.
  */
-int measure_wavefront_series_expoframes(float etime, char *outfile)
+int measure_wavefront_series_expoframes(
+    float       etime,
+    const char *outfile)
 {
     AtmosphericTurbulence_ReadConf();
 
-    float focal_scale = (float)(CONF_LAMBDA / CONF_WFsize / CONF_PUPIL_SCALE / PI * 180.0 * 3600.0);
+    float focal_scale = (float)(CONF_LAMBDA / CONF_WFsize / CONF_PUPIL_SCALE
+                                / PI * 180.0 * 3600.0);
     imageID IDpupamp = image_ID("ST_pa");
     if (IDpupamp == -1)
     {
@@ -200,7 +213,7 @@ int measure_wavefront_series_expoframes(float etime, char *outfile)
 
     for (long tspan = 0; tspan < CONF_NB_TSPAN; tspan++)
     {
-        char fnamepha[200], fnameamp[200];
+        char fnamepha[512], fnameamp[512];
         snprintf(fnamepha, sizeof(fnamepha), "%s%08ld.%09ld.pha.fits",
                  CONF_WF_FILE_PREFIX, tspan, (long)(1.0e12 * SLAMBDA + 0.5));
         snprintf(fnameamp, sizeof(fnameamp), "%s%08ld.%09ld.amp.fits",
@@ -222,15 +235,18 @@ int measure_wavefront_series_expoframes(float etime, char *outfile)
             {
                 double fluxes[6];
                 atmturb_measure_psf_apertures(IDpsf_acc, nx, ny, focal_scale, fluxes);
-                fprintf(fp, "%ld %g %g %g %g %g %g\n",
-                        expo_idx++, fluxes[0], fluxes[1], fluxes[2], fluxes[3], fluxes[4], fluxes[5]);
+                fprintf(fp, "%ld %g %g %g %g %g %g\n", expo_idx++,
+                        fluxes[0], fluxes[1], fluxes[2], fluxes[3], fluxes[4], fluxes[5]);
                 memset(dcimg[IDpsf_acc].array.raw, 0, sizeof(float) * nx * ny);
                 acc_count = 0;
             }
         }
 
         delete_image_ID("wfpha");
-        if (IDamp >= 0) delete_image_ID("wfamp");
+        if (IDamp >= 0)
+        {
+            delete_image_ID("wfamp");
+        }
     }
 
     fclose(fp);
@@ -247,8 +263,10 @@ int measure_wavefront_series_expoframes(float etime, char *outfile)
  *
  * Return: Number of processed slices.
  */
-long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name,
-                                           char *IDpsfc_name)
+long AtmosphericTurbulence_psfCubeContrast(
+    const char *IDwfc_name,
+    const char *IDmask_name,
+    const char *IDpsfc_name)
 {
     imageID IDcube = image_ID(IDwfc_name);
     imageID IDmask = image_ID(IDmask_name);
@@ -266,7 +284,10 @@ long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name,
     {
         mask_norm += dcimg[IDmask].array.F[i];
     }
-    if (mask_norm < 1.0) mask_norm = 1.0;
+    if (mask_norm < 1.0)
+    {
+        mask_norm = 1.0;
+    }
 
     imageID IDout = create_2Dimage_ID(IDpsfc_name, nz, 1);
 
@@ -291,7 +312,10 @@ long AtmosphericTurbulence_psfCubeContrast(char *IDwfc_name, char *IDmask_name,
  *
  * Return: 0 on success.
  */
-int frame_select_PSF(char *logfile, long NBfiles, float frac)
+int frame_select_PSF(
+    const char *logfile,
+    long        NBfiles,
+    float       frac)
 {
     FILE *fp = fopen(logfile, "r");
     if (fp == NULL)
@@ -300,7 +324,10 @@ int frame_select_PSF(char *logfile, long NBfiles, float frac)
     }
 
     long n_select = (long)(NBfiles * frac);
-    if (n_select < 1) n_select = 1;
+    if (n_select < 1)
+    {
+        n_select = 1;
+    }
 
     float *metrics = malloc(sizeof(float) * NBfiles);
     long *indices = malloc(sizeof(long) * NBfiles);

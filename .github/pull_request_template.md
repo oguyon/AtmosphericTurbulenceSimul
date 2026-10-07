@@ -4,8 +4,10 @@
 ## Changes Checklist
 - [ ] Code compiles cleanly with zero warnings (`-Wall -Wextra`)
 - [ ] Code size ratchet passes (`./scripts/check_code_size.sh`)
-- [ ] Automated tests pass (`bash tests/test_fps_components.sh`, `bash tests/test_wavefront_series.sh`)
-- [ ] Adheres to C code style guide (Allman braces, <= 100 character lines, column-aligned parameters)
+- [ ] Automated tests pass (`bash tests/test_fps_components.sh`,
+      `bash tests/test_wavefront_series.sh`)
+- [ ] Adheres to C code style guide (Allman braces, <= 100 character lines,
+      column-aligned parameters)
 - [ ] No allocations (`malloc`, `calloc`) inside hot simulation loops (phase extrusion, Fresnel)
 - [ ] No resource/memory leaks (verified with ASan/UBSan or Valgrind)
 - [ ] New source files reflected in `CMakeLists.txt` and corresponding module `README.md`

@@ -25,9 +25,13 @@
  * @is_transverse: 0 for longitudinal component, 1 for transverse / vertical.
  * @out: Output pointer to destination float buffer (length vksize).
  */
-static void atmturb_synthesize_wind_component(long vksize, float pixscale,
-                                             float sigmawind, float Lwind,
-                                             int is_transverse, float *out)
+static void atmturb_synthesize_wind_component(
+    long   vksize,
+    float  pixscale,
+    float  sigmawind,
+    float  Lwind,
+    int    is_transverse,
+    float *out)
 {
     fftwf_complex *buf = (fftwf_complex *)fftwf_alloc_complex(vksize);
     if (!buf)
@@ -101,9 +105,13 @@ static void atmturb_synthesize_wind_component(long vksize, float pixscale,
  *
  * Return: Output image ID on success.
  */
-long make_AtmosphericTurbulence_vonKarmanWind(long vKsize, float pixscale,
-                                             float sigmawind, float Lwind,
-                                             long size, char *IDout_name)
+long make_AtmosphericTurbulence_vonKarmanWind(
+    long        vKsize,
+    float       pixscale,
+    float       sigmawind,
+    float       Lwind,
+    long        size,
+    const char *IDout_name)
 {
     (void)size;
     delete_image_ID(IDout_name);

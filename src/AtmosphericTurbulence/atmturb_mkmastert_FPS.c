@@ -44,17 +44,18 @@ static char    param_screen1[FUNCTION_PARAMETER_STRMAXLEN] = "turbm00_p1";
  * 3.  UNIFIED PARAMETER TABLE (X-Macro)
  * ============================================================= */
 
-#define FPS_PARAMS(X)                                                                                  \
-    X(".size", &param_size, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT, "Screen grid dimension [pixels]")  \
-    X(".outerscale", &param_outerscale, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,                      \
-      "Outer scale in grid units [pixels]")                                                            \
-    X(".innerscale", &param_innerscale, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,                      \
-      "Inner scale in grid units [pixels]")                                                            \
-    X(".precision", &param_precision, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,                           \
-      "Precision (0=single, 1=double)")                                                                \
-    X(".screen0", &param_screen0, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,                          \
-      "Output screen 0 image name")                                                                    \
-    X(".screen1", &param_screen1, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,                          \
+#define FPS_PARAMS(X)                                                          \
+    X(".size", &param_size, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,             \
+      "Screen grid dimension [pixels]")                                        \
+    X(".outerscale", &param_outerscale, FPTYPE_FLOAT32, 1,                     \
+      FPFLAG_DEFAULT_INPUT, "Outer scale in grid units [pixels]")              \
+    X(".innerscale", &param_innerscale, FPTYPE_FLOAT32, 1,                     \
+      FPFLAG_DEFAULT_INPUT, "Inner scale in grid units [pixels]")              \
+    X(".precision", &param_precision, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,   \
+      "Precision (0=single, 1=double)")                                        \
+    X(".screen0", &param_screen0, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,  \
+      "Output screen 0 image name")                                            \
+    X(".screen1", &param_screen1, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,  \
       "Output screen 1 image name")
 
 /* ================================================================

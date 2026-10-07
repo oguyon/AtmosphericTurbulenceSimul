@@ -19,9 +19,11 @@
  *
  * Return: Output image ID on success.
  */
-long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name,
-                                                            char *IDmask_name,
-                                                            long krad, char *IDkern_name)
+long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(
+    const char *IDfilt_name,
+    const char *IDmask_name,
+    long        krad,
+    const char *IDkern_name)
 {
     imageID IDfilt = image_ID(IDfilt_name);
     imageID IDmask = image_ID(IDmask_name);
@@ -103,7 +105,9 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(char *IDfilt_name,
  *
  * Return: Output expanded matrix image ID.
  */
-long AtmosphericTurbulence_LinPredictor_filt_Expand(char *IDfilt_name, char *IDmask_name)
+long AtmosphericTurbulence_LinPredictor_filt_Expand(
+    const char *IDfilt_name,
+    const char *IDmask_name)
 {
     imageID IDfilt = image_ID(IDfilt_name);
     imageID IDmask = image_ID(IDmask_name);
@@ -185,10 +189,15 @@ long AtmosphericTurbulence_LinPredictor_filt_Expand(char *IDfilt_name, char *IDm
  *
  * Return: 0 on success.
  */
-int AtmosphericTurbulence_Build_LinPredictor(long NB_WFstep, double WFphaNoise,
-                                            long WFPlag, long WFP_NBstep,
-                                            long WFP_xyrad, long WFPiipix,
-                                            long WFPjjpix, float slambdaum)
+int AtmosphericTurbulence_Build_LinPredictor(
+    long   NB_WFstep,
+    double WFphaNoise,
+    long   WFPlag,
+    long   WFP_NBstep,
+    long   WFP_xyrad,
+    long   WFPiipix,
+    long   WFPjjpix,
+    float  slambdaum)
 {
     (void)WFphaNoise;
     (void)slambdaum;

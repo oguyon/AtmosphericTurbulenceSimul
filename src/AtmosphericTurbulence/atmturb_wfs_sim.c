@@ -84,14 +84,17 @@ static int atmturb_wfs_load_default_layers(atmturb_wfs_context_t *ctx)
  *
  * Return: 0 on success, -1 on failure.
  */
-static int atmturb_wfs_read_layers(const char *fname, atmturb_wfs_context_t *ctx)
+static int atmturb_wfs_read_layers(
+    const char            *fname,
+    atmturb_wfs_context_t *ctx)
 {
     FILE *fp = fopen(fname, "r");
     if (fp == NULL)
     {
         if (strcmp(fname, "turbul.prof") == 0)
         {
-            printf("[milkatmturb] Notice: Profile \"%s\" not found, using built-in 7-layer profile.\n",
+            printf("[milkatmturb] Notice: Profile \"%s\" not found, "
+                   "using built-in 7-layer profile.\n",
                    fname);
             return atmturb_wfs_load_default_layers(ctx);
         }
@@ -315,7 +318,9 @@ static void atmturb_wfs_dispatch_render(const atmturb_wfs_context_t *ctx, long p
  *
  * Return: 0 on success, -1 on failure.
  */
-int make_AtmosphericTurbulence_wavefront_series(float slambdaum, long WFprecision)
+int make_AtmosphericTurbulence_wavefront_series(
+    float slambdaum,
+    long  WFprecision)
 {
     if (CONFFILE[0] != '\0')
     {

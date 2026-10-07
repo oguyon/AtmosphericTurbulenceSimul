@@ -109,48 +109,48 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
     double abscoeff_accum = 0.0;
 
     // Compressibility factors at STP (1.013 bar, 15 deg C; ref: Air Liquide Encyclopedia)
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_N2, 0.99971, initRIA_N2,
-                                                  RIA_N2_NBpts, RIA_N2_lambda, RIA_N2_ri,
-                                                  RIA_N2_abs, &lliprecompN2, "N2", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_O2, 0.99924, initRIA_O2,
-                                                  RIA_O2_NBpts, RIA_O2_lambda, RIA_O2_ri,
-                                                  RIA_O2_abs, &lliprecompO2, "O2", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_Ar, 0.99925, initRIA_Ar,
-                                                  RIA_Ar_NBpts, RIA_Ar_lambda, RIA_Ar_ri,
-                                                  RIA_Ar_abs, &lliprecompAr, "Ar", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_H2O, 1.0, initRIA_H2O,
-                                                  RIA_H2O_NBpts, RIA_H2O_lambda, RIA_H2O_ri,
-                                                  RIA_H2O_abs, &lliprecompH2O, "H2O", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_CO2, 0.99435, initRIA_CO2,
-                                                  RIA_CO2_NBpts, RIA_CO2_lambda, RIA_CO2_ri,
-                                                  RIA_CO2_abs, &lliprecompCO2, "CO2", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_Ne, 1.0005, initRIA_Ne,
-                                                  RIA_Ne_NBpts, RIA_Ne_lambda, RIA_Ne_ri,
-                                                  RIA_Ne_abs, &lliprecompNe, "Ne", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_He, 1.0005, initRIA_He,
-                                                  RIA_He_NBpts, RIA_He_lambda, RIA_He_ri,
-                                                  RIA_He_abs, &lliprecompHe, "He", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_CH4, 0.99802, initRIA_CH4,
-                                                  RIA_CH4_NBpts, RIA_CH4_lambda, RIA_CH4_ri,
-                                                  RIA_CH4_abs, &lliprecompCH4, "CH4", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_Kr, 0.99768, initRIA_Kr,
-                                                  RIA_Kr_NBpts, RIA_Kr_lambda, RIA_Kr_ri,
-                                                  RIA_Kr_abs, &lliprecompKr, "Kr", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_H2, 1.0006, initRIA_H2,
-                                                  RIA_H2_NBpts, RIA_H2_lambda, RIA_H2_ri,
-                                                  RIA_H2_abs, &lliprecompH2, "H2", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_O3, 1.0, initRIA_O3,
-                                                  RIA_O3_NBpts, RIA_O3_lambda, RIA_O3_ri,
-                                                  RIA_O3_abs, &lliprecompO3, "O3", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_N, 1.0, initRIA_N,
-                                                  RIA_N_NBpts, RIA_N_lambda, RIA_N_ri,
-                                                  RIA_N_abs, &lliprecompN, "N", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_O, 1.0, initRIA_O,
-                                                  RIA_O_NBpts, RIA_O_lambda, RIA_O_ri,
-                                                  RIA_O_abs, &lliprecompO, "O", &abscoeff_accum);
-    LL_total += atmmod_eval_species_lorentz_lorenz(lambda, dens_H, 1.0, initRIA_H,
-                                                  RIA_H_NBpts, RIA_H_lambda, RIA_H_ri,
-                                                  RIA_H_abs, &lliprecompH, "H", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_N2, 0.99971, initRIA_N2, RIA_N2_NBpts, RIA_N2_lambda,
+        RIA_N2_ri, RIA_N2_abs, &lliprecompN2, "N2", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_O2, 0.99924, initRIA_O2, RIA_O2_NBpts, RIA_O2_lambda,
+        RIA_O2_ri, RIA_O2_abs, &lliprecompO2, "O2", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_Ar, 0.99925, initRIA_Ar, RIA_Ar_NBpts, RIA_Ar_lambda,
+        RIA_Ar_ri, RIA_Ar_abs, &lliprecompAr, "Ar", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_H2O, 1.0, initRIA_H2O, RIA_H2O_NBpts, RIA_H2O_lambda,
+        RIA_H2O_ri, RIA_H2O_abs, &lliprecompH2O, "H2O", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_CO2, 0.99435, initRIA_CO2, RIA_CO2_NBpts, RIA_CO2_lambda,
+        RIA_CO2_ri, RIA_CO2_abs, &lliprecompCO2, "CO2", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_Ne, 1.0005, initRIA_Ne, RIA_Ne_NBpts, RIA_Ne_lambda,
+        RIA_Ne_ri, RIA_Ne_abs, &lliprecompNe, "Ne", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_He, 1.0005, initRIA_He, RIA_He_NBpts, RIA_He_lambda,
+        RIA_He_ri, RIA_He_abs, &lliprecompHe, "He", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_CH4, 0.99802, initRIA_CH4, RIA_CH4_NBpts, RIA_CH4_lambda,
+        RIA_CH4_ri, RIA_CH4_abs, &lliprecompCH4, "CH4", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_Kr, 0.99768, initRIA_Kr, RIA_Kr_NBpts, RIA_Kr_lambda,
+        RIA_Kr_ri, RIA_Kr_abs, &lliprecompKr, "Kr", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_H2, 1.0006, initRIA_H2, RIA_H2_NBpts, RIA_H2_lambda,
+        RIA_H2_ri, RIA_H2_abs, &lliprecompH2, "H2", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_O3, 1.0, initRIA_O3, RIA_O3_NBpts, RIA_O3_lambda,
+        RIA_O3_ri, RIA_O3_abs, &lliprecompO3, "O3", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_N, 1.0, initRIA_N, RIA_N_NBpts, RIA_N_lambda,
+        RIA_N_ri, RIA_N_abs, &lliprecompN, "N", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_O, 1.0, initRIA_O, RIA_O_NBpts, RIA_O_lambda,
+        RIA_O_ri, RIA_O_abs, &lliprecompO, "O", &abscoeff_accum);
+    LL_total += atmmod_eval_species_lorentz_lorenz(
+        lambda, dens_H, 1.0, initRIA_H, RIA_H_NBpts, RIA_H_lambda,
+        RIA_H_ri, RIA_H_abs, &lliprecompH, "H", &abscoeff_accum);
 
     v_ABSCOEFF = abscoeff_accum;
     double n = sqrt((2.0 * LL_total + 1.0) / (1.0 - LL_total));

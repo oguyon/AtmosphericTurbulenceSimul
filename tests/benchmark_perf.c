@@ -135,21 +135,25 @@ static void benchmark_extrusion(long pup_size, long nbframes, long nblayers)
     float *out_samp = (float *)malloc(sizeof(float) * total_pixels);
 
     // Warm up
-    run_extrusion_scalar((const float *const *)masters, msize, pup_size, 2, nblayers, vx, vy, cn2, out_pha);
+    run_extrusion_scalar((const float *const *)masters, msize, pup_size, 2,
+                         nblayers, vx, vy, cn2, out_pha);
 
     // 1. Scalar (1 thread)
     double t0 = get_time_sec();
-    run_extrusion_scalar((const float *const *)masters, msize, pup_size, nbframes, nblayers, vx, vy, cn2, out_pha);
+    run_extrusion_scalar((const float *const *)masters, msize, pup_size,
+                         nbframes, nblayers, vx, vy, cn2, out_pha);
     double t_scalar = get_time_sec() - t0;
 
     // 2. AVX2 (1 thread)
     t0 = get_time_sec();
-    run_extrusion_avx2_single((const float *const *)masters, msize, pup_size, nbframes, nblayers, vx, vy, cn2, out_pha);
+    run_extrusion_avx2_single((const float *const *)masters, msize, pup_size,
+                              nbframes, nblayers, vx, vy, cn2, out_pha);
     double t_avx2_single = get_time_sec() - t0;
 
     // 3. AVX2 + OpenMP (multi-threaded)
     t0 = get_time_sec();
-    run_extrusion_avx2_omp((const float *const *)masters, msize, pup_size, nbframes, nblayers, vx, vy, cn2, out_pha);
+    run_extrusion_avx2_omp((const float *const *)masters, msize, pup_size,
+                           nbframes, nblayers, vx, vy, cn2, out_pha);
     double t_avx2_omp = get_time_sec() - t0;
 
     // 4. CUDA GPU
@@ -188,7 +192,8 @@ static void benchmark_extrusion(long pup_size, long nbframes, long nblayers)
     printf("%-26s | %10.2f | %8.2f MP/s | %7.2fx\n", "Scalar (1 core)",
            t_scalar * 1000.0, (double)total_pixels / t_scalar / 1e6, 1.0);
     printf("%-26s | %10.2f | %8.2f MP/s | %7.2fx\n", "AVX2 SIMD (1 core)",
-           t_avx2_single * 1000.0, (double)total_pixels / t_avx2_single / 1e6, t_scalar / t_avx2_single);
+           t_avx2_single * 1000.0, (double)total_pixels / t_avx2_single / 1e6,
+           t_scalar / t_avx2_single);
     printf("%-26s | %10.2f | %8.2f MP/s | %7.2fx\n", "AVX2 + OpenMP (24 threads)",
            t_avx2_omp * 1000.0, (double)total_pixels / t_avx2_omp / 1e6, t_scalar / t_avx2_omp);
     if (have_gpu)
@@ -197,7 +202,10 @@ static void benchmark_extrusion(long pup_size, long nbframes, long nblayers)
                t_cuda * 1000.0, (double)total_pixels / t_cuda / 1e6, t_scalar / t_cuda);
     }
 
-    for (long k = 0; k < nblayers; k++) free(masters[k]);
+    for (long k = 0; k < nblayers; k++)
+    {
+        free(masters[k]);
+    }
     free(masters);
     free(vx);
     free(vy);
@@ -210,7 +218,12 @@ static void benchmark_extrusion(long pup_size, long nbframes, long nblayers)
 
 #include <fftw3.h>
 
-static void run_fresnel_cpu(complex_float *buf, long size, double pupil_scale, double z, double lambda)
+static void run_fresnel_cpu(
+    complex_float *buf,
+    long           size,
+    double         pupil_scale,
+    double         z,
+    double         lambda)
 {
     fftwf_plan forward = fftwf_plan_dft_2d((int)size, (int)size,
                                            (fftwf_complex *)buf, (fftwf_complex *)buf,
@@ -289,7 +302,9 @@ static void benchmark_fresnel(long size, int iters)
     int have_gpu = wfprop_fresnel_device_available();
     if (have_gpu)
     {
-        wfprop_fresnel_propagate_cuda(h_in, h_out, size, size, pupil_scale, z, lambda, 0); // warm up
+        // warm up
+        wfprop_fresnel_propagate_cuda(h_in, h_out, size, size, pupil_scale,
+                                      z, lambda, 0);
 
         t0 = get_time_sec();
         for (int it = 0; it < iters; it++)

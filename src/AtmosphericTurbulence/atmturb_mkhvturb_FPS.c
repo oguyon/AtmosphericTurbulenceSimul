@@ -24,9 +24,10 @@ static FPS_APP_INFO FPS_app_info = {
     .fps_name         = "atmturb_mkhvturb",
     .cmdkey           = "mkhvturb_fps",
     .description      = "Generate Hufnagel-Valley turbulence profile",
-    .description_long = "Computes a discretized Hufnagel-Valley vertical turbulence profile (Cn2, "
-                        "wind speed, direction, outer and inner scales) based on high-altitude wind "
-                        "speed, Fried parameter r0, site altitude, and layer count."
+    .description_long = "Computes a discretized Hufnagel-Valley vertical turbulence "
+                        "profile (Cn2, wind speed, direction, outer and inner scales) "
+                        "based on high-altitude wind speed, Fried parameter r0, "
+                        "site altitude, and layer count."
 };
 
 /* ================================================================

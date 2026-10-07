@@ -1,6 +1,10 @@
 # milkatmturb — Atmospheric Turbulence Simulation Plugin for milk
 
-`milkatmturb` is a high-performance atmospheric turbulence and wavefront propagation plugin for the [milk](https://github.com/milk-org/milk) framework (`framework-dev` branch). It simulates the dynamic optical effects of Earth's atmosphere on astronomical wavefronts across visible and near-infrared wavelengths, supporting multi-layer Fresnel diffraction, chromatic dispersion, real-time shared memory streaming, and linear predictive filtering.
+`milkatmturb` is a high-performance atmospheric turbulence and wavefront propagation plugin
+for the [milk](https://github.com/milk-org/milk) framework (`framework-dev` branch). It simulates
+the dynamic optical effects of Earth's atmosphere on astronomical wavefronts across visible and
+near-infrared wavelengths, supporting multi-layer Fresnel diffraction, chromatic dispersion,
+real-time shared memory streaming, and linear predictive filtering.
 
 ---
 
@@ -11,7 +15,8 @@
 You can run an end-to-end simulation in 2 simple commands:
 
 ```bash
-# Step 1: Generate a 20-layer Hufnagel-Valley turbulence profile (20 m/s wind, r0=0.15m at 4200m altitude)
+# Step 1: Generate a 20-layer Hufnagel-Valley turbulence profile
+# (20 m/s wind, r0=0.15m at 4200m altitude)
 milk-fpsexec-atmturb-mkhvturb exec 20.0 0.15 4200 20 turbHV.prof
 
 # Step 2: Run simulation at 1650 nm (H-band) in single precision
@@ -70,7 +75,10 @@ milk-cli > exitCLI
    ```bash
    cd /path/to/milk
    cmake -B _build -DCMAKE_BUILD_TYPE=Release
-   cmake --build _build --target milkatmturb milk-fpsexec-atmturb-mkwfs milk-fpsexec-atmturb-mkhvturb milk-fpsexec-atmturb-mkmastert milk-fpsexec-atmturb-mkvonkarman milk-fpsexec-wfprop-fresnel -j
+   cmake --build _build --target milkatmturb \
+       milk-fpsexec-atmturb-mkwfs milk-fpsexec-atmturb-mkhvturb \
+       milk-fpsexec-atmturb-mkmastert milk-fpsexec-atmturb-mkvonkarman \
+       milk-fpsexec-wfprop-fresnel -j
    ```
 
 3. **Install to system**:
@@ -84,10 +92,12 @@ milk-cli > exitCLI
 
 ### A. Standalone FPS Executables
 
-`milkatmturb` provides dedicated standalone executables using the `milk` FPS V2 (Function Parameter Structure) framework.
+`milkatmturb` provides dedicated standalone executables using the `milk` FPS V2
+(Function Parameter Structure) framework.
 
 #### `milk-fpsexec-atmturb-mkhvturb` — Generate Hufnagel-Valley Profile
-Computes a discretized vertical turbulence profile ($C_n^2$, wind velocity, direction, inner and outer scales).
+Computes a discretized vertical turbulence profile ($C_n^2$, wind velocity,
+direction, inner and outer scales).
 
 ```bash
 # Syntax: milk-fpsexec-atmturb-mkhvturb exec <wspeed> <r0> <sitealt> <nblayers> <outfile>
@@ -103,7 +113,8 @@ milk-fpsexec-atmturb-mkhvturb exec 20.0 0.15 4200 20 turbHV.prof
 | 4 | `.outfile` | `FILENAME`| `turbHV.prof` | Output profile filename |
 
 #### `milk-fpsexec-atmturb-mkwfs` — Generate Wavefront Series
-Simulates dynamic multi-layer turbulence, propagating light through layers and outputting FITS cubes or shared memory streams.
+Simulates dynamic multi-layer turbulence, propagating light through layers
+and outputting FITS cubes or shared memory streams.
 
 ```bash
 # Syntax: milk-fpsexec-atmturb-mkwfs exec <slambda> <precision> [conffile]
@@ -117,10 +128,12 @@ milk-fpsexec-atmturb-mkwfs exec 1650.0 0 WFsim.conf
 | - | `.conffile` | `FILENAME`| `WFsim.conf` | Simulation configuration file |
 
 #### `milk-fpsexec-atmturb-mkmastert` — Generate Master Turbulence Screens
-Generates a pair of normalized master phase screens in the Fourier domain with outer and inner scale filtering.
+Generates a pair of normalized master phase screens in the Fourier domain with
+outer and inner scale filtering.
 
 ```bash
-# Syntax: milk-fpsexec-atmturb-mkmastert exec <size> <outerscale> <innerscale> <precision> <screen0> <screen1>
+# Syntax: milk-fpsexec-atmturb-mkmastert exec <size> <outerscale> <innerscale> \
+#                                            <precision> <screen0> <screen1>
 milk-fpsexec-atmturb-mkmastert exec 2048 50.0 1.0 0 scr0 scr1
 ```
 
@@ -134,7 +147,8 @@ milk-fpsexec-atmturb-mkmastert exec 2048 50.0 1.0 0 scr0 scr1
 | 5 | `.screen1` | `STREAMNAME` | `turbm00_p1` | Output screen 1 image name |
 
 #### `milk-fpsexec-atmturb-mkvonkarman` — Generate von Karman Wind Velocity Series
-Synthesizes a 3-channel 1D time series $[u, v, w]$ representing longitudinal, transverse, and vertical turbulent wind fluctuations.
+Synthesizes a 3-channel 1D time series $[u, v, w]$ representing longitudinal,
+transverse, and vertical turbulent wind fluctuations.
 
 ```bash
 # Syntax: milk-fpsexec-atmturb-mkvonkarman exec <vksize> <pixscale> <sigmawind> <lwind> <outname>
@@ -150,7 +164,8 @@ milk-fpsexec-atmturb-mkvonkarman exec 8192 0.1 20.0 50.0 vkwind
 | 4 | `.outname` | `STREAMNAME` | `vKwind` | Output 3D image name ($v_{\text{size}} \times 1 \times 3$) |
 
 #### `milk-fpsexec-wfprop-fresnel` — Fresnel Wavefront Propagation
-Propagates a 2D complex optical field across distance $z$ using the Fourier Fresnel quadratic phase transfer function.
+Propagates a 2D complex optical field across distance $z$ using the Fourier
+Fresnel quadratic phase transfer function.
 
 ```bash
 # Syntax: milk-fpsexec-wfprop-fresnel exec <inname> <outname> <pupilscale> <distance> <lambda>
@@ -194,7 +209,8 @@ Helper scripts are located in `src/AtmosphericTurbulence/scripts/`:
   ```
 
 - **`runturb`**:
-  Automated driver script that generates `WFsim.conf`, builds the turbulence profile, and launches simulation:
+  Automated driver script that generates `WFsim.conf`, builds the turbulence profile,
+  and launches simulation:
   ```bash
   # Run simulation for 1.65 um with median seeing profile (0.65")
   ./src/AtmosphericTurbulence/scripts/runturb -T HVmed 1.65

@@ -21,9 +21,15 @@
  * @nz: Number of Z slices / frames.
  * @pfactor: Decimation factor along X and Y.
  */
-static void atmturb_bin_complex_wavefront(const float *in_amp, const float *in_pha,
-                                         float *out_amp, float *out_pha,
-                                         long nx, long ny, long nz, int pfactor)
+static void atmturb_bin_complex_wavefront(
+    const float *in_amp,
+    const float *in_pha,
+    float       *out_amp,
+    float       *out_pha,
+    long         nx,
+    long         ny,
+    long         nz,
+    int          pfactor)
 {
     long out_nx = nx / pfactor;
     long out_ny = ny / pfactor;
@@ -59,7 +65,8 @@ static void atmturb_bin_complex_wavefront(const float *in_amp, const float *in_p
                     pharef /= ampref;
                 }
                 float P = 2.0f * (float)PI *
-                          ((long)(0.5f + 1.0f * LARGE + (pharef - p_out) / (2.0f * (float)PI)) - LARGE);
+                          ((long)(0.5f + 1.0f * LARGE
+                                  + (pharef - p_out) / (2.0f * (float)PI)) - LARGE);
                 if (ampref < 0.01f)
                 {
                     P = 0.0f;
@@ -82,8 +89,13 @@ static void atmturb_bin_complex_wavefront(const float *in_amp, const float *in_p
  * @nz: Number of Z slices / frames.
  * @pfactor: Decimation factor along X and Y.
  */
-static void atmturb_bin_phaseonly_wavefront(const float *in_pha, float *out_pha,
-                                           long nx, long ny, long nz, int pfactor)
+static void atmturb_bin_phaseonly_wavefront(
+    const float *in_pha,
+    float       *out_pha,
+    long         nx,
+    long         ny,
+    long         nz,
+    int          pfactor)
 {
     long out_nx = nx / pfactor;
     long out_ny = ny / pfactor;
@@ -113,7 +125,8 @@ static void atmturb_bin_phaseonly_wavefront(const float *in_pha, float *out_pha,
                 float p_out = atan2f(im, re);
                 pharef /= (pfactor * pfactor);
                 float P = 2.0f * (float)PI *
-                          ((long)(0.5f + 1.0f * LARGE + (pharef - p_out) / (2.0f * (float)PI)) - LARGE);
+                          ((long)(0.5f + 1.0f * LARGE
+                                  + (pharef - p_out) / (2.0f * (float)PI)) - LARGE);
 
                 long out_idx = kk * out_nx * out_ny + jj * out_nx + ii;
                 out_pha[out_idx] = p_out + P;
@@ -132,8 +145,12 @@ static void atmturb_bin_phaseonly_wavefront(const float *in_pha, float *out_pha,
  *
  * Return: 0 on success.
  */
-int contract_wavefront_cube(char *ina_file, char *inp_file, char *outa_file,
-                           char *outp_file, int factor)
+int contract_wavefront_cube(
+    const char *ina_file,
+    const char *inp_file,
+    const char *outa_file,
+    const char *outp_file,
+    int         factor)
 {
     int pfactor = 1 << factor;
 
@@ -172,7 +189,10 @@ int contract_wavefront_cube(char *ina_file, char *inp_file, char *outa_file,
  *
  * Return: 0 on success.
  */
-int contract_wavefront_cube_phaseonly(char *inp_file, char *outp_file, int factor)
+int contract_wavefront_cube_phaseonly(
+    const char *inp_file,
+    const char *outp_file,
+    int         factor)
 {
     int pfactor = 1 << factor;
 
@@ -186,7 +206,7 @@ int contract_wavefront_cube_phaseonly(char *inp_file, char *outp_file, int facto
     imageID IDoutpha = create_3Dimage_ID("tmpwfop", nx / pfactor, ny / pfactor, nz);
 
     atmturb_bin_phaseonly_wavefront(dcimg[IDpha].array.F, dcimg[IDoutpha].array.F,
-                                   nx, ny, nz, pfactor);
+                                    nx, ny, nz, pfactor);
 
     save_fl_fits("tmpwfop", outp_file);
     delete_image_ID("tmpwfp");
@@ -203,7 +223,10 @@ int contract_wavefront_cube_phaseonly(char *inp_file, char *outp_file, int facto
  *
  * Return: 0 on success.
  */
-int contract_wavefront_series(char *in_prefix, char *out_prefix, long NB_files)
+int contract_wavefront_series(
+    const char *in_prefix,
+    const char *out_prefix,
+    long        NB_files)
 {
     char fname_p[200], fname_a[200];
     const double SLAMBDA = 1.65e-6;

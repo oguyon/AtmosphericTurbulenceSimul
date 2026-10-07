@@ -21,9 +21,13 @@
  *
  * Return: Solved boundary layer amplitude A.
  */
-static double atmturb_solve_hv_ground_amplitude(double wspeed, double r0, double sitealt,
-                                               double hmax, double *cn2sum_out,
-                                               double *r0val_out)
+static double atmturb_solve_hv_ground_amplitude(
+    double  wspeed,
+    double  r0,
+    double  sitealt,
+    double  hmax,
+    double *cn2sum_out,
+    double *r0val_out)
 {
     const double lambda = 0.55e-6;
     const double A0 = 1.7e-14;
@@ -73,8 +77,12 @@ static double atmturb_solve_hv_ground_amplitude(double wspeed, double r0, double
  *
  * Return: 0 on success, -1 on failure.
  */
-int AtmosphericTurbulence_makeHV_CN2prof(double wspeed, double r0, double sitealt,
-                                        long NBlayer, char *outfile)
+int AtmosphericTurbulence_makeHV_CN2prof(
+    double      wspeed,
+    double      r0,
+    double      sitealt,
+    long        NBlayer,
+    const char *outfile)
 {
     const double hmax = 30000.0;
     const double lambda = 0.55e-6;

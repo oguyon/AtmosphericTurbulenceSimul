@@ -33,10 +33,22 @@ int init_AtmosphereModel(void);
  * Lorentz-Lorenz relation and tabulated / Sellmeier dispersion values.
  * Absorption coefficient is accumulated into v_ABSCOEFF.
  */
-double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_Ar,
-                    double dens_H2O, double dens_CO2, double dens_Ne, double dens_He,
-                    double dens_CH4, double dens_Kr, double dens_H2, double dens_O3,
-                    double dens_N, double dens_O, double dens_H);
+double AirMixture_N(
+    double lambda,
+    double dens_N2,
+    double dens_O2,
+    double dens_Ar,
+    double dens_H2O,
+    double dens_CO2,
+    double dens_Ne,
+    double dens_He,
+    double dens_CH4,
+    double dens_Kr,
+    double dens_H2,
+    double dens_O3,
+    double dens_N,
+    double dens_O,
+    double dens_H);
 
 /**
  * AtmosphereModel_stdAtmModel_N - Refractive index minus 1 at specified altitude
@@ -46,7 +58,10 @@ double AirMixture_N(double lambda, double dens_N2, double dens_O2, double dens_A
  *
  * Return: Refractivity (n - 1).
  */
-float AtmosphereModel_stdAtmModel_N(float alt, float lambdaum, int mode);
+float AtmosphereModel_stdAtmModel_N(
+    float alt,
+    float lambdaum,
+    int   mode);
 
 /**
  * AtmosphereModel_H2O_Saturation - Water vapor saturation pressure
@@ -54,7 +69,8 @@ float AtmosphereModel_stdAtmModel_N(float alt, float lambdaum, int mode);
  *
  * Return: Saturation vapor pressure in Pascals using IAPWS-95 formulation.
  */
-double AtmosphereModel_H2O_Saturation(double T);
+double AtmosphereModel_H2O_Saturation(
+    double T);
 
 /**
  * AtmosphereModel_save_stdAtmModel - Save standard atmosphere profile to file
@@ -62,7 +78,8 @@ double AtmosphereModel_H2O_Saturation(double T);
  *
  * Return: 0 on success.
  */
-int AtmosphereModel_save_stdAtmModel(char *fname);
+int AtmosphereModel_save_stdAtmModel(
+    const char *fname);
 
 /**
  * AtmosphereModel_build_stdAtmModel - Generate profile from NRLMSISE-00
@@ -70,7 +87,8 @@ int AtmosphereModel_save_stdAtmModel(char *fname);
  *
  * Return: 0 on success.
  */
-int AtmosphereModel_build_stdAtmModel(char *fname);
+int AtmosphereModel_build_stdAtmModel(
+    const char *fname);
 
 /**
  * AtmosphereModel_load_stdAtmModel - Load atmosphere profile from file
@@ -78,7 +96,8 @@ int AtmosphereModel_build_stdAtmModel(char *fname);
  *
  * Return: 0 on success.
  */
-int AtmosphereModel_load_stdAtmModel(char *fname);
+int AtmosphereModel_load_stdAtmModel(
+    const char *fname);
 
 /**
  * AtmosphereModel_Create_from_CONF - Build model from configuration file
@@ -87,7 +106,9 @@ int AtmosphereModel_load_stdAtmModel(char *fname);
  *
  * Return: 0 on success.
  */
-int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda);
+int AtmosphereModel_Create_from_CONF(
+    const char *CONFFILE,
+    float       slambda);
 
 /**
  * AtmosphereModel_RefractionPath - Compute ray trajectory through atmospheric layers
@@ -97,7 +118,10 @@ int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda);
  *
  * Return: Atmospheric refraction deflection in arcseconds.
  */
-double AtmosphereModel_RefractionPath(double lambda, double Zangle, int WritePath);
+double AtmosphereModel_RefractionPath(
+    double lambda,
+    double Zangle,
+    int    WritePath);
 
 /**
  * ATMOSPHEREMODEL_loadRIA_readsize - Read header of RIA data file
@@ -105,7 +129,8 @@ double AtmosphereModel_RefractionPath(double lambda, double Zangle, int WritePat
  *
  * Return: 1 on success, 0 on file open failure.
  */
-int ATMOSPHEREMODEL_loadRIA_readsize(char *fname);
+int ATMOSPHEREMODEL_loadRIA_readsize(
+    const char *fname);
 
 /**
  * ATMOSPHEREMODEL_loadRIA - Load wavelength, index, and absorption arrays
@@ -116,7 +141,11 @@ int ATMOSPHEREMODEL_loadRIA_readsize(char *fname);
  *
  * Return: 0 on success.
  */
-int ATMOSPHEREMODEL_loadRIA(char *fname, double *lptr, double *RIptr, double *absptr);
+int ATMOSPHEREMODEL_loadRIA(
+    const char *fname,
+    double     *lptr,
+    double     *RIptr,
+    double     *absptr);
 
 #ifdef __cplusplus
 }

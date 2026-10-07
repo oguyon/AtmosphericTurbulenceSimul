@@ -59,5 +59,7 @@ The script takes a single argument, the wavelength [micron] :
 
 # Refractive index
 
-By default, Sellmeier equations are used to compute atmosphere refractive index. You can also edit the runturb script to point to the location of "RIA file" (Refractive Index Absorption). See file for details.
+By default, Sellmeier equations are used to compute atmosphere refractive index.
+You can also edit the runturb script to point to the location of "RIA file"
+(Refractive Index Absorption). See file for details.
 

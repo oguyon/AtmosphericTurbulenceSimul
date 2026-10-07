@@ -28,7 +28,8 @@ static FPS_APP_INFO FPS_app_info = {
     .cmdkey           = "mkwfs_fps",
     .description      = "Generate atmospheric turbulence wavefront series",
     .description_long = "Generates multi-layer atmospheric turbulence wavefront series using "
-                        "precomputed or generated phase screens and parameters from configuration file."
+                        "precomputed or generated phase screens and parameters from "
+                        "configuration file."
 };
 
 /* ================================================================
@@ -55,34 +56,36 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
  * 3.  UNIFIED PARAMETER TABLE (X-Macro)
  * ============================================================= */
 
-#define FPS_PARAMS(X)                                                                                  \
-    X(".slambda", &param_slambda, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT, "Wavelength [um or nm]")       \
-    X(".precision", &param_precision, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,                            \
-      "Precision (0=single, 1=double)")                                                                \
-    X(".wfsize", &param_wfsize, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT, "Output grid dimension [pix]")    \
-    X(".pupil_scale", &param_pupil_scale, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,                    \
-      "Pupil sampling scale [m/pix]")                                                                  \
-    X(".seeing", &param_seeing, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,                               \
-      "Zenith seeing at reference wavelength [arcsec]")                                                \
-    X(".time_step", &param_time_step, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,                        \
-      "Simulation time step between frames [s]")                                                       \
-    X(".time_span", &param_time_span, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,                        \
-      "Wavefront cube duration [s]")                                                                   \
-    X(".prof_file", &param_prof_file, FPTYPE_FILENAME, 0, FPFLAG_DEFAULT_INPUT,                        \
-      "Turbulence profile file (default: turbul.prof)")                                                \
-    X(".master_size", &param_master_size, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,                      \
-      "Master phase screen dimension [pix]")                                                           \
-    X(".save_fits", &param_save_fits, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,                          \
-      "Save FITS data cubes to disk (0=no, 1=yes)")                                                    \
-    X(".amplitude", &param_amplitude, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,                          \
-      "Compute amplitude in addition to phase (0/1)")                                                  \
-    X(".fresnel", &param_fresnel, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,                              \
-      "Diffractive Fresnel inter-layer propagation (0/1)")                                             \
-    X(".out_phase", &param_out_phase, FPTYPE_STREAMNAME, 0, FPFLAG_DEFAULT_INPUT,                      \
-      "Output phase stream name")                                                                      \
-    X(".out_ampl", &param_out_ampl, FPTYPE_STREAMNAME, 0, FPFLAG_DEFAULT_INPUT,                        \
-      "Output amplitude stream name")                                                                  \
-    X(".conffile", &param_conffile, FPTYPE_FILENAME, 0, FPFLAG_DEFAULT_INPUT,                          \
+#define FPS_PARAMS(X)                                                           \
+    X(".slambda", &param_slambda, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,       \
+      "Wavelength [um or nm]")                                                  \
+    X(".precision", &param_precision, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,    \
+      "Precision (0=single, 1=double)")                                         \
+    X(".wfsize", &param_wfsize, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,          \
+      "Output grid dimension [pix]")                                            \
+    X(".pupil_scale", &param_pupil_scale, FPTYPE_FLOAT32, 0,                    \
+      FPFLAG_DEFAULT_INPUT, "Pupil sampling scale [m/pix]")                     \
+    X(".seeing", &param_seeing, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,        \
+      "Zenith seeing at reference wavelength [arcsec]")                         \
+    X(".time_step", &param_time_step, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT, \
+      "Simulation time step between frames [s]")                                \
+    X(".time_span", &param_time_span, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT, \
+      "Wavefront cube duration [s]")                                            \
+    X(".prof_file", &param_prof_file, FPTYPE_FILENAME, 0, FPFLAG_DEFAULT_INPUT, \
+      "Turbulence profile file (default: turbul.prof)")                         \
+    X(".master_size", &param_master_size, FPTYPE_INT32, 0,                      \
+      FPFLAG_DEFAULT_INPUT, "Master phase screen dimension [pix]")              \
+    X(".save_fits", &param_save_fits, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,   \
+      "Save FITS data cubes to disk (0=no, 1=yes)")                             \
+    X(".amplitude", &param_amplitude, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,   \
+      "Compute amplitude in addition to phase (0/1)")                           \
+    X(".fresnel", &param_fresnel, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,       \
+      "Diffractive Fresnel inter-layer propagation (0/1)")                      \
+    X(".out_phase", &param_out_phase, FPTYPE_STREAMNAME, 0,                     \
+      FPFLAG_DEFAULT_INPUT, "Output phase stream name")                         \
+    X(".out_ampl", &param_out_ampl, FPTYPE_STREAMNAME, 0,                       \
+      FPFLAG_DEFAULT_INPUT, "Output amplitude stream name")                     \
+    X(".conffile", &param_conffile, FPTYPE_FILENAME, 0, FPFLAG_DEFAULT_INPUT,   \
       "Optional legacy WFsim.conf file")
 
 /* ================================================================

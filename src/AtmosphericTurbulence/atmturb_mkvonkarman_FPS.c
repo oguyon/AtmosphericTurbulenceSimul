@@ -44,15 +44,16 @@ static char    param_outname[FUNCTION_PARAMETER_STRMAXLEN] = "vKwind";
  * 3.  UNIFIED PARAMETER TABLE (X-Macro)
  * ============================================================= */
 
-#define FPS_PARAMS(X)                                                                                  \
-    X(".vksize", &param_vksize, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT, "Sample count of 1D series")     \
-    X(".pixscale", &param_pixscale, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,                            \
-      "Physical sampling step [m]")                                                                     \
-    X(".sigmawind", &param_sigmawind, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,                          \
-      "Velocity standard deviation [m/s]")                                                              \
-    X(".lwind", &param_lwind, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,                                  \
-      "Turbulence outer scale [m]")                                                                     \
-    X(".outname", &param_outname, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,                           \
+#define FPS_PARAMS(X)                                                          \
+    X(".vksize", &param_vksize, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,          \
+      "Sample count of 1D series")                                              \
+    X(".pixscale", &param_pixscale, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,     \
+      "Physical sampling step [m]")                                             \
+    X(".sigmawind", &param_sigmawind, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,   \
+      "Velocity standard deviation [m/s]")                                      \
+    X(".lwind", &param_lwind, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,           \
+      "Turbulence outer scale [m]")                                             \
+    X(".outname", &param_outname, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,    \
       "Output 3D image name (vksize x 1 x 3)")
 
 /* ================================================================

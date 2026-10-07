@@ -100,7 +100,12 @@ static void wfprop_fresnel_propagate_cpu(long ID, long nx, long ny, double coeff
  *
  * Return: 0 on success.
  */
-int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double z, double lambda)
+int Fresnel_propagate_wavefront(
+    const char *in,
+    const char *out,
+    double      PUPIL_SCALE,
+    double      z,
+    double      lambda)
 {
     long IDin = image_ID(in);
     if (IDin == -1)
@@ -127,7 +132,8 @@ int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double 
         void *h_out = is_double ? (void *)dcimg[IDout].array.CD
                                 : (void *)dcimg[IDout].array.CF;
 
-        if (wfprop_fresnel_propagate_cuda(h_in, h_out, nx, ny, PUPIL_SCALE, z, lambda, is_double) == 0)
+        if (wfprop_fresnel_propagate_cuda(h_in, h_out, nx, ny, PUPIL_SCALE,
+                                          z, lambda, is_double) == 0)
         {
             return 0;
         }
@@ -162,8 +168,14 @@ int Fresnel_propagate_wavefront(char *in, char *out, double PUPIL_SCALE, double 
  *
  * Return: 0 on success.
  */
-int Init_Fresnel_propagate_wavefront(char *Cim, long size, double PUPIL_SCALE, double z,
-                                    double lambda, double FPMASKRAD, int Precision)
+int Init_Fresnel_propagate_wavefront(
+    const char *Cim,
+    long        size,
+    double      PUPIL_SCALE,
+    double      z,
+    double      lambda,
+    double      FPMASKRAD,
+    int         Precision)
 {
     long ID;
     if (Precision == 0)
@@ -257,7 +269,10 @@ int Init_Fresnel_propagate_wavefront(char *Cim, long size, double PUPIL_SCALE, d
  *
  * Return: 0 on success.
  */
-int Fresnel_propagate_wavefront1(char *in, char *out, char *Cin)
+int Fresnel_propagate_wavefront1(
+    const char *in,
+    const char *out,
+    const char *Cin)
 {
     char fname[SBUFFERSIZE];
     long ID     = image_ID(in);

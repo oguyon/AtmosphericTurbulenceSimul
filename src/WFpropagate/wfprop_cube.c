@@ -31,9 +31,15 @@
  *
  * Return: 0 on success.
  */
-long Fresnel_propagate_cube(char *IDcin_name, char *IDout_name_amp, char *IDout_name_pha,
-                           double PUPIL_SCALE, double zstart, double zend, long NBzpts,
-                           double lambda)
+long Fresnel_propagate_cube(
+    const char *IDcin_name,
+    const char *IDout_name_amp,
+    const char *IDout_name_pha,
+    double      PUPIL_SCALE,
+    double      zstart,
+    double      zend,
+    long        NBzpts,
+    double      lambda)
 {
     long IDcin = image_ID(IDcin_name);
     long xsize = dcimg[IDcin].md[0].size[0];

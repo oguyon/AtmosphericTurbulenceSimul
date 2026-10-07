@@ -17,7 +17,8 @@
 
 /**
  * optmat_calc_refractive_index_gas - Calculate refractive index for gaseous materials
- * @material: Material code (100: Vacuum, 101: Air, 5: N2, 6: O2, 7: Ar, 8: He, 9: H2, 10: H2Og, 11: CO2, 12: Ne, 13: O)
+ * @material: Material code (100: Vacuum, 101: Air, 5: N2, 6: O2, 7: Ar, 8: He, 9: H2,
+ *            10: H2Og, 11: CO2, 12: Ne, 13: O)
  * @lambdaum: Wavelength in microns
  * @lambdaa: Wavelength in Angstroms
  *

@@ -141,7 +141,8 @@ void atmmod_reset_precomp_indices(void)
  *
  * Return: 1 on success, 0 on failure.
  */
-int ATMOSPHEREMODEL_loadRIA_readsize(char *fname)
+int ATMOSPHEREMODEL_loadRIA_readsize(
+    const char *fname)
 {
     FILE *fp = fopen(fname, "r");
     if (fp == NULL)
@@ -173,7 +174,11 @@ int ATMOSPHEREMODEL_loadRIA_readsize(char *fname)
  *
  * Return: 0 on success, -1 on failure.
  */
-int ATMOSPHEREMODEL_loadRIA(char *fname, double *lptr, double *RIptr, double *absptr)
+int ATMOSPHEREMODEL_loadRIA(
+    const char *fname,
+    double     *lptr,
+    double     *RIptr,
+    double     *absptr)
 {
     FILE *fp = fopen(fname, "r");
     if (fp == NULL)

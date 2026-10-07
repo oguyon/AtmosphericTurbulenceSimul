@@ -13,7 +13,8 @@
 #include "CLIcore.h"
 #include "milkatmturb.h"
 
-MODULE_DEPS("milkCOREMODmemory", "milkCOREMODarith", "milkCOREMODiofits", "milkCOREMODtools", "milkfft");
+MODULE_DEPS("milkCOREMODmemory", "milkCOREMODarith", "milkCOREMODiofits",
+            "milkCOREMODtools", "milkfft");
 
 errno_t CLIADDCMD_milkatmturb__atmturb_mkwfs_FPS(void);
 errno_t CLIADDCMD_milkatmturb__atmturb_mkhvturb_FPS(void);

@@ -68,7 +68,7 @@ float CONF_FRESNEL_PROPAGATION_BIN = 100.0f;
  *
  * Return: 0 on success.
  */
-int AtmosphericTurbulence_change_configuration_file(char *fname)
+int AtmosphericTurbulence_change_configuration_file(const char *fname)
 {
     snprintf(CONFFILE, sizeof(CONFFILE), "%s", fname);
     return 0;
@@ -140,7 +140,8 @@ double Z_N2(double P, double T)
     const double Cn = -1.07e-16;
 
     double tc = T - 273.15;
-    double Z = 1.0 - 101325.0 * (P / 101325.0) * (0.449805 - 0.01177 * tc + 0.00006 * tc * tc) * 1e-8;
+    double Z = 1.0 - 101325.0 * (P / 101325.0)
+               * (0.449805 - 0.01177 * tc + 0.00006 * tc * tc) * 1e-8;
     double Z0 = 1.0 - 101325.0 * (0.449805) * 1e-8;
 
     double rhocoeff1 = (101325.0 / P) * (T / 273.15) * (Z / Z0);

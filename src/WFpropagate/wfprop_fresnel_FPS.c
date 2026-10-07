@@ -43,13 +43,17 @@ static char   param_outname[FUNCTION_PARAMETER_STRMAXLEN] = "wfout";
  * 3.  UNIFIED PARAMETER TABLE (X-Macro)
  * ============================================================= */
 
-#define FPS_PARAMS(X)                                                                                  \
-    X(".inname", &param_inname, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT, "Input complex image")      \
-    X(".outname", &param_outname, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT, "Output complex image")   \
-    X(".pupilscale", &param_pupilscale, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT,                       \
-      "Pupil sampling scale [m/pixel]")                                                                 \
-    X(".distance", &param_z, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT, "Propagation distance [m]")      \
-    X(".lambda", &param_lambda, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT, "Optical wavelength [m]")
+#define FPS_PARAMS(X)                                                           \
+    X(".inname", &param_inname, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,     \
+      "Input complex image")                                                    \
+    X(".outname", &param_outname, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,    \
+      "Output complex image")                                                   \
+    X(".pupilscale", &param_pupilscale, FPTYPE_FLOAT64, 1,                      \
+      FPFLAG_DEFAULT_INPUT, "Pupil sampling scale [m/pixel]")                    \
+    X(".distance", &param_z, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT,           \
+      "Propagation distance [m]")                                               \
+    X(".lambda", &param_lambda, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT,         \
+      "Optical wavelength [m]")
 
 /* ================================================================
  * 4.  COMPUTATION LOGIC

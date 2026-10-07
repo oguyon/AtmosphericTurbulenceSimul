@@ -22,9 +22,14 @@
  *
  * Return: 0 on success.
  */
-int AtmosphericTurbulence_mkTestTTseq(double dt, long NBpts, long NBblocks,
-                                     double measnoise, int ACCmode,
-                                     double ACCnoise, int MODE)
+int AtmosphericTurbulence_mkTestTTseq(
+    double dt,
+    long   NBpts,
+    long   NBblocks,
+    double measnoise,
+    int    ACCmode,
+    double ACCnoise,
+    int    MODE)
 {
     (void)ACCmode;
     (void)ACCnoise;
@@ -74,10 +79,14 @@ int AtmosphericTurbulence_mkTestTTseq(double dt, long NBpts, long NBblocks,
  *
  * Return: 0 on success.
  */
-int AtmosphericTurbulence_Test_LinPredictor(long NB_WFstep, double WFphaNoise,
-                                          char *IDWFPfilt_name, long WFPlag,
-                                          long WFPiipix, long WFPjjpix,
-                                          float slambdaum)
+int AtmosphericTurbulence_Test_LinPredictor(
+    long        NB_WFstep,
+    double      WFphaNoise,
+    const char *IDWFPfilt_name,
+    long        WFPlag,
+    long        WFPiipix,
+    long        WFPjjpix,
+    float       slambdaum)
 {
     (void)NB_WFstep;
     (void)WFphaNoise;

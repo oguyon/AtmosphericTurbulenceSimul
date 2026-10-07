@@ -49,7 +49,8 @@ double AtmosphereModel_H2O_Saturation(double T)
  *
  * Return: 0 on success, -1 on failure.
  */
-int AtmosphereModel_save_stdAtmModel(char *fname)
+int AtmosphereModel_save_stdAtmModel(
+    const char *fname)
 {
     FILE *fp = fopen(fname, "w");
     if (fp == NULL)
@@ -81,7 +82,7 @@ int AtmosphereModel_save_stdAtmModel(char *fname)
  *
  * Return: 0 on success, -1 on failure.
  */
-int AtmosphereModel_load_stdAtmModel(char *fname)
+int AtmosphereModel_load_stdAtmModel(const char *fname)
 {
     printf("Loading atmosphere model \"%s\"\n", fname);
     fflush(stdout);
@@ -103,9 +104,11 @@ int AtmosphereModel_load_stdAtmModel(char *fname)
     for (long i = 0; i < ATMMOD_NB_BINS; i++)
     {
         float v[20];
-        if (fscanf(fp, "%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n",
-                   &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7], &v[8], &v[9],
-                   &v[10], &v[11], &v[12], &v[13], &v[14], &v[15], &v[16], &v[17], &v[18], &v[19]) == 20)
+        if (fscanf(fp,
+                   "%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n",
+                   &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7],
+                   &v[8], &v[9], &v[10], &v[11], &v[12], &v[13], &v[14],
+                   &v[15], &v[16], &v[17], &v[18], &v[19]) == 20)
         {
             denstot[i] = v[1];
             densN2[i] = v[2];
@@ -347,7 +350,8 @@ static void atmmod_compute_raw_profiles(FILE *fp, struct nrlmsise_input *input,
                             exp(-0.5 * pow((h - 25000.0) / 4250.0, 2.0)) * 1.0e-6);
 
         densCO2[i] = (h < 70000.0) ? (float)(CO2_ppm * 1e-6 * TotPart0[i])
-                                   : (float)((CO2_ppm - 0.007 * (h - 70000.0)) * 1e-6 * TotPart0[i]);
+                                   : (float)((CO2_ppm - 0.007 * (h - 70000.0))
+                                             * 1e-6 * TotPart0[i]);
         output[i].d[3] -= densCO2[i];
 
         if (i == 0)
@@ -502,7 +506,7 @@ static void atmmod_normalize_and_finalize(struct nrlmsise_output *output)
  *
  * Return: 0 on success.
  */
-int AtmosphereModel_build_stdAtmModel(char *fname)
+int AtmosphereModel_build_stdAtmModel(const char *fname)
 {
     struct nrlmsise_output *output = malloc(sizeof(struct nrlmsise_output) * ATMMOD_NB_BINS);
     struct nrlmsise_input *input = malloc(sizeof(struct nrlmsise_input) * ATMMOD_NB_BINS);

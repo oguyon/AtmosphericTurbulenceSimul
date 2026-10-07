@@ -39,7 +39,10 @@ typedef struct
  * @wf_size1: Sub-binned pupil linear dimension.
  * @tel_diam: Telescope primary diameter in meters.
  */
-static void atmturb_psf_sim_init_images(atmturb_ao_sim_state_t *st, long wf_size1, double tel_diam)
+static void atmturb_psf_sim_init_images(
+    atmturb_ao_sim_state_t *st,
+    long                    wf_size1,
+    double                  tel_diam)
 {
     st->wf_size1 = wf_size1;
     st->id_telpup = make_disk("TelPup", wf_size1, wf_size1, wf_size1 / 2, wf_size1 / 2,
@@ -83,8 +86,12 @@ static void atmturb_psf_sim_init_images(atmturb_ao_sim_state_t *st, long wf_size
  * @Kd: Derivative gain.
  * @dt: Time step duration in seconds.
  */
-static void atmturb_psf_sim_update_pid(atmturb_ao_sim_state_t *st, double Kp, double Ki,
-                                      double Kd, double dt)
+static void atmturb_psf_sim_update_pid(
+    atmturb_ao_sim_state_t *st,
+    double                  Kp,
+    double                  Ki,
+    double                  Kd,
+    double                  dt)
 {
     long ntot = st->wf_size1 * st->wf_size1;
     for (long i = 0; i < ntot; i++)
@@ -96,7 +103,8 @@ static void atmturb_psf_sim_update_pid(atmturb_ao_sim_state_t *st, double Kp, do
         dcimg[st->id_wfs_mes_opd_der].array.F[i] = der;
         dcimg[st->id_wfs_mes_opd_int].array.F[i] += err * (float)dt;
 
-        float corr = (float)(Kp * err + Ki * dcimg[st->id_wfs_mes_opd_int].array.F[i] + Kd * der);
+        float corr = (float)(Kp * err + Ki * dcimg[st->id_wfs_mes_opd_int].array.F[i]
+                             + Kd * der);
         dcimg[st->id_dm_opd_tmp].array.F[i] = corr;
         dcimg[st->id_wfs_mes_opd_prev].array.F[i] = err;
     }
@@ -107,7 +115,9 @@ static void atmturb_psf_sim_update_pid(atmturb_ao_sim_state_t *st, double Kp, do
  * @st: Simulation state pointer.
  * @scilambda: Science observing wavelength in meters.
  */
-static void atmturb_psf_sim_accumulate_psf(atmturb_ao_sim_state_t *st, double scilambda)
+static void atmturb_psf_sim_accumulate_psf(
+    atmturb_ao_sim_state_t *st,
+    double                  scilambda)
 {
     long ntot = st->wf_size1 * st->wf_size1;
     float coeff = (float)(2.0 * M_PI / scilambda);
@@ -148,7 +158,11 @@ static void atmturb_psf_sim_accumulate_psf(atmturb_ao_sim_state_t *st, double sc
  *
  * Return: Peak intensity or Strehl estimate.
  */
-double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdgain)
+double AtmosphericTurbulence_makePSF(
+    double Kp,
+    double Ki,
+    double Kd,
+    double Kdgain)
 {
     (void)Kdgain;
     AtmosphericTurbulence_ReadConf();
@@ -159,7 +173,10 @@ double AtmosphericTurbulence_makePSF(double Kp, double Ki, double Kd, double Kdg
     double scilambda = 1.65e-6;
 
     long wf_size1 = CONF_WFsize / 2;
-    if (wf_size1 < 64) wf_size1 = 64;
+    if (wf_size1 < 64)
+    {
+        wf_size1 = 64;
+    }
 
     atmturb_ao_sim_state_t st;
     atmturb_psf_sim_init_images(&st, wf_size1, TelDiam);

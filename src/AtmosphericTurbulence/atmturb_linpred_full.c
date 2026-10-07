@@ -18,8 +18,12 @@
  * @ny: Pupil linear height.
  * @nz: Number of time slices.
  */
-static void atmturb_remove_wavefront_piston(imageID id_wf, imageID id_mask,
-                                           long nx, long ny, long nz)
+static void atmturb_remove_wavefront_piston(
+    imageID id_wf,
+    imageID id_mask,
+    long    nx,
+    long    ny,
+    long    nz)
 {
     long nxy = nx * ny;
     double totm = 0.0;
@@ -30,7 +34,10 @@ static void atmturb_remove_wavefront_piston(imageID id_wf, imageID id_mask,
             totm += 1.0;
         }
     }
-    if (totm < 1.0) totm = 1.0;
+    if (totm < 1.0)
+    {
+        totm = 1.0;
+    }
 
     for (long kk = 0; kk < nz; kk++)
     {
@@ -61,7 +68,11 @@ static void atmturb_remove_wavefront_piston(imageID id_wf, imageID id_mask,
  *
  * Return: Allocated array of pixel indices.
  */
-static long *atmturb_extract_mask_indices(imageID id_mask, long nx, long ny, long *nbpix_out)
+static long *atmturb_extract_mask_indices(
+    imageID  id_mask,
+    long     nx,
+    long     ny,
+    long    *nbpix_out)
 {
     long count = 0;
     long nxy = nx * ny;
@@ -98,9 +109,13 @@ static long *atmturb_extract_mask_indices(imageID id_mask, long nx, long ny, lon
  *
  * Return: 0 on success, -1 on failure.
  */
-int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_name,
-                                                int PForder, float PFlag,
-                                                double SVDeps, double RegLambda)
+int AtmosphericTurbulence_Build_LinPredictor_Full(
+    const char *WFin_name,
+    const char *WFmask_name,
+    int         PForder,
+    float       PFlag,
+    double      SVDeps,
+    double      RegLambda)
 {
     imageID ID_WFin = image_ID(WFin_name);
     imageID ID_WFmask = image_ID(WFmask_name);
@@ -192,9 +207,14 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(char *WFin_name, char *WFmask_
  *
  * Return: 0 on success.
  */
-int AtmosphericTurbulence_Apply_LinPredictor_Full(int MODE, char *WFin_name, char *WFmask_name,
-                                                int PForder, float PFlag,
-                                                char *WFoutp_name, char *WFoutf_name)
+int AtmosphericTurbulence_Apply_LinPredictor_Full(
+    int         MODE,
+    const char *WFin_name,
+    const char *WFmask_name,
+    int         PForder,
+    float       PFlag,
+    const char *WFoutp_name,
+    const char *WFoutf_name)
 {
     (void)MODE;
     imageID ID_WFin = image_ID(WFin_name);

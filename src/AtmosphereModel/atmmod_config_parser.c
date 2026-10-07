@@ -17,7 +17,7 @@
  * atmmod_read_site_config - Read atmospheric and site parameters from file
  * @conffile: Path to configuration file.
  */
-static void atmmod_read_site_config(char *conffile)
+static void atmmod_read_site_config(const char *conffile)
 {
     char keyword[200];
     char content[200];
@@ -141,7 +141,9 @@ static void atmmod_write_site_dispersion(const char *fname)
  *
  * Return: 0 on success.
  */
-int AtmosphereModel_Create_from_CONF(char *CONFFILE, float slambda)
+int AtmosphereModel_Create_from_CONF(
+    const char *CONFFILE,
+    float       slambda)
 {
     if (access(CONFFILE, R_OK) != 0)
     {
