@@ -34,11 +34,13 @@ static FPS_APP_INFO FPS_app_info = {
  * 2.  LOCAL PARAMETER VARIABLES
  * ============================================================= */
 
-static double  param_wspeed  = 20.0;
-static double  param_r0      = 0.15;
-static double  param_sitealt = 4200.0;
-static int32_t param_nblayer = 20;
-static char    param_outfile[FUNCTION_PARAMETER_STRMAXLEN] = "turbHV.prof";
+static double   param_wspeed     = 20.0;
+static double   param_r0         = 0.15;
+static double   param_sitealt    = 4200.0;
+static int32_t  param_nblayer    = 20;
+static int32_t  param_wind_model = 1;
+static uint64_t param_seed       = 1;
+static char     param_outfile[FUNCTION_PARAMETER_STRMAXLEN] = "turbHV.prof";
 
 /* ================================================================
  * 3.  UNIFIED PARAMETER TABLE (X-Macro)
@@ -52,7 +54,11 @@ static char    param_outfile[FUNCTION_PARAMETER_STRMAXLEN] = "turbHV.prof";
     X(".sitealt", &param_sitealt, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT, "Site altitude [m]")  \
     X(".nblayers", &param_nblayer, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT, "Number of layers")    \
     X(".outfile", &param_outfile, FPTYPE_FILENAME, 1, FPFLAG_DEFAULT_INPUT,                      \
-      "Output profile filename (default: turbHV.prof)")
+      "Output profile filename (default: turbHV.prof)")                                          \
+    X(".wind_model", &param_wind_model, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,                  \
+      "Wind model (0 = legacy, 1 = Bufton)")                                                    \
+    X(".seed", &param_seed, FPTYPE_UINT64, 1, FPFLAG_DEFAULT_INPUT,                             \
+      "RNG seed (default: 1)")
 
 /* ================================================================
  * 4.  COMPUTATION LOGIC
@@ -60,8 +66,12 @@ static char    param_outfile[FUNCTION_PARAMETER_STRMAXLEN] = "turbHV.prof";
 
 static MILK_HOT errno_t fpsexec(void)
 {
-    AtmosphericTurbulence_makeHV_CN2prof(param_wspeed, param_r0, param_sitealt,
-                                        (long) param_nblayer, param_outfile);
+    if (AtmosphericTurbulence_makeHV_CN2prof_opt(param_wspeed, param_r0, param_sitealt,
+                                                (long) param_nblayer, param_outfile,
+                                                (int) param_wind_model, param_seed) != 0)
+    {
+        return RETURN_FAILURE;
+    }
 
     return RETURN_SUCCESS;
 }

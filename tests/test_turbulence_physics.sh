@@ -188,14 +188,40 @@ scenario_T6_precision() {
     "${VALIDATE[@]}" same p0/outarraypha.fits p1/outarraypha.fits --tol 1e-3
 }
 
-# T7: von Karman wind components are mutually uncorrelated
+# T7: von Karman wind components are mutually uncorrelated, match RMS and -5/3 spectral slope
 # (series spans ~5e4 outer scales so the sample correlation noise is ~0.01)
 scenario_T7_wind_components() {
     "$MKVK" -n "${FPS_PREFIX}_t7" exec 262144 1.0 2.0 5.0 vkw 7 vkw.fits > mkvk.log 2>&1 \
         || return 1
     "${VALIDATE[@]}" corr vkw.fits --plane-a 0 --plane-b 1 --max-corr 0.05 || return 1
     "${VALIDATE[@]}" corr vkw.fits --plane-a 1 --plane-b 2 --max-corr 0.05 || return 1
-    "${VALIDATE[@]}" corr vkw.fits --plane-a 0 --plane-b 2 --max-corr 0.05
+    "${VALIDATE[@]}" corr vkw.fits --plane-a 0 --plane-b 2 --max-corr 0.05 || return 1
+    python3 - <<'EOF'
+import sys
+import numpy as np
+from astropy.io import fits
+
+data = fits.getdata("vkw.fits").squeeze()
+rms_u = float(np.std(data[0]))
+rms_v = float(np.std(data[1]))
+rms_w = float(np.std(data[2]))
+
+ok_rms = (abs(rms_u - 2.0) / 2.0 < 0.05 and
+          abs(rms_v - 2.0) / 2.0 < 0.05 and
+          abs(rms_w - 2.0) / 2.0 < 0.05)
+
+psd = np.abs(np.fft.rfft(data[0])) ** 2
+freqs = np.fft.rfftfreq(len(data[0]), d=1.0)
+mask = (freqs >= 0.05) & (freqs <= 0.40)
+slope = float(np.polyfit(np.log10(freqs[mask]), np.log10(psd[mask]), 1)[0])
+ok_slope = abs(slope - (-5.0 / 3.0)) < 0.10
+
+ok = ok_rms and ok_slope
+msg = (f": rms=({rms_u:.3f}, {rms_v:.3f}, {rms_w:.3f}), "
+       f"PSD slope={slope:.3f} (target -1.667 +- 0.10)")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+EOF
 }
 
 # T8a: single-layer Hufnagel-Valley profile is well formed (no NaN, Cn2 fraction ~ 1)
@@ -208,6 +234,63 @@ rows = [l.split() for l in open("hv1.prof") if l.strip() and not l.startswith("#
 ok = len(rows) == 1 and all(math.isfinite(float(v)) for v in rows[0])
 ok = ok and abs(float(rows[0][1]) - 1.0) < 0.01 and 4200.0 < float(rows[0][0]) < 30000.0
 print(("PASS" if ok else "FAIL") + f": single-layer HV profile row = {rows}")
+sys.exit(0 if ok else 1)
+EOF
+}
+
+# T8b: multi-layer HV profile with Bufton wind: recomputed r0 +- 0.5%, error on unreachable r0
+scenario_T8b_hv_bounds_and_recomputed_r0() {
+    "$MKHV" -n "${FPS_PREFIX}_t8b_valid" exec 21.0 0.15 4200.0 10 hv_valid.prof 1 42 \
+        > mkhv_valid.log 2>&1 || return 1
+    [[ -f hv_valid.prof ]] || return 1
+    [[ -f conf_turb.txt ]] || return 1
+
+    python3 - <<'EOF'
+import math, sys
+seeing_arcsec = float(open("conf_turb.txt").read().strip())
+seeing_rad = seeing_arcsec * (math.pi / (180.0 * 3600.0))
+r0_recomputed = 0.98 * 0.55e-6 / seeing_rad
+target_r0 = 0.15
+rel_err = abs(r0_recomputed - target_r0) / target_r0
+ok = rel_err < 0.005
+msg = (f": recomputed r0 = {r0_recomputed:.4f} m (target {target_r0:.4f} m, "
+       f"err {rel_err*100:.2f}%, tol 0.5%)")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+EOF
+    [[ $? -eq 0 ]] || return 1
+
+    "$MKHV" -n "${FPS_PREFIX}_t8b_unreach" exec 21.0 10.0 4200.0 10 hv_unreach.prof 1 42 \
+        > mkhv_unreach.log 2>&1
+    if [[ -f hv_unreach.prof ]]; then
+        echo "FAIL: profile generated for unreachable r0 = 10 m"
+        return 1
+    fi
+    grep -q "exceeds maximum reachable r0" mkhv_unreach.log || return 1
+    echo "PASS: unreachable r0 correctly rejected with informative diagnostic"
+}
+
+# T8c: turbulent wind advection produces non-linear trajectory with physical velocity fluctuations
+scenario_T8c_turbulent_wind_advection() {
+    printf '# alt cn2 speed dir L0 l0 sigma_wsp L_wind\n%s %s %s %s %s %s %s %s\n' \
+        4200 1.0 10.0 0.0 10000 0.0 5.0 50.0 > turbul.prof
+    write_conf WFsim.conf PUPIL_SCALE=0.01 WFTIME_STEP=0.005 TIME_SPAN=0.1 MASTER_SIZE=512 \
+        MASTER_OVERSAMPLE=1 INTERP=1 LOWFREQ=0 ROLLING=0 SEED=42
+    run_mkwfs t8c 1.65 0 || return 1
+    python3 - <<'EOF'
+import sys
+import numpy as np
+from astropy.io import fits
+
+pha = fits.getdata("outarraypha.fits")
+assert pha.shape[0] == 20
+assert np.isfinite(pha).all()
+
+diffs = [float(np.std(pha[t] - pha[t-1])) for t in range(1, len(pha))]
+diff_var = float(np.std(diffs))
+ok = np.isfinite(diffs).all() and diff_var > 0.0
+msg = f": turbulent advection simulated 20 frames (frame diff std = {diff_var:.4f} > 0)"
+print(("PASS" if ok else "FAIL") + msg)
 sys.exit(0 if ok else 1)
 EOF
 }
@@ -387,7 +470,8 @@ h = 15000.0
 h_site = 500.0
 cos_z = np.cos(0.5235987756)
 int_cn2 = 0.060 * (lam ** 2) * (r0 ** (-5.0 / 3.0))
-sigma2_rytov = 19.12 * (lam ** (-7.0 / 6.0)) * (cos_z ** (-11.0 / 6.0)) * int_cn2 * ((h - h_site) ** (5.0 / 6.0))
+geom_factor = 19.12 * (lam ** (-7.0 / 6.0)) * (cos_z ** (-11.0 / 6.0))
+sigma2_rytov = geom_factor * int_cn2 * ((h - h_site) ** (5.0 / 6.0))
 
 amp = fits.getdata("outarrayamp.fits")
 I = amp ** 2
@@ -397,7 +481,8 @@ scint_sim = var_I / (mean_I ** 2)
 
 rel_err = abs(scint_sim - sigma2_rytov) / sigma2_rytov
 ok = rel_err <= 0.20
-msg = f": scint index sim={scint_sim:.4f}, rytov={sigma2_rytov:.4f} (err {rel_err*100:.1f}%, tol 20%)"
+msg = (f": scint index sim={scint_sim:.4f}, rytov={sigma2_rytov:.4f} "
+       f"(err {rel_err*100:.1f}%, tol 20%)")
 print(("PASS" if ok else "FAIL") + msg)
 sys.exit(0 if ok else 1)
 '
@@ -451,6 +536,8 @@ SCENARIOS=(
     "T6_precision:pass"
     "T7_wind_components:pass"
     "T8a_hv_single_layer:pass"
+    "T8b_hv_bounds_and_recomputed_r0:pass"
+    "T8c_turbulent_wind_advection:pass"
     "T9a_fresnel_off:pass"
     "T9b_energy_conservation:pass"
     "T9c_scintillation_rytov:pass"

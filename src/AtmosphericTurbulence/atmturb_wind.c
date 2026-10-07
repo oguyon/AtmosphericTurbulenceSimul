@@ -77,7 +77,7 @@ static void atmturb_synthesize_wind_component(
         }
         else
         {
-            double k = 2.678 * 2.0 * M_PI * r / length_total * Lwind;
+            double k = 1.339 * 2.0 * M_PI * r / length_total * Lwind;
             double num = 1.0 + (8.0 / 3.0) * (k * k);
             double den = pow(1.0 + k * k, 11.0 / 6.0);
             amp = sqrt(num / den);
@@ -152,3 +152,90 @@ long make_AtmosphericTurbulence_vonKarmanWind(
 
     return IDc;
 }
+
+/**
+ * atmturb_wind_synthesize_trajectory - Synthesize cumulative 2D trajectory with turbulent wind
+ * @params: Trajectory generation input parameters.
+ * @traj_x: Output buffer of size nbframes for cumulative x offset [pixels].
+ * @traj_y: Output buffer of size nbframes for cumulative y offset [pixels].
+ *
+ * Return: 0 on success, -1 on invalid arguments or memory allocation failure.
+ */
+int atmturb_wind_synthesize_trajectory(
+    const atmturb_wind_traj_params_t *params,
+    double                           *traj_x,
+    double                           *traj_y)
+{
+    if (params == NULL || traj_x == NULL || traj_y == NULL)
+    {
+        return -1;
+    }
+    if (params->nbframes <= 0 || !(params->dt_s > 0.0) || !(params->dx_master_m > 0.0))
+    {
+        return -1;
+    }
+
+    traj_x[0] = 0.0;
+    traj_y[0] = 0.0;
+    if (params->nbframes == 1)
+    {
+        return 0;
+    }
+
+    if (!(params->sigma_wind_mps > 0.0) || !(params->L_wind_m > 0.0))
+    {
+        for (long t = 1; t < params->nbframes; t++)
+        {
+            traj_x[t] = (double) t * params->vx_pix;
+            traj_y[t] = (double) t * params->vy_pix;
+        }
+        return 0;
+    }
+
+    float *u_fluc = (float *) malloc(sizeof(float) * (size_t) params->nbframes);
+    float *v_fluc = (float *) malloc(sizeof(float) * (size_t) params->nbframes);
+    if (u_fluc == NULL || v_fluc == NULL)
+    {
+        free(u_fluc);
+        free(v_fluc);
+        return -1;
+    }
+
+    double v_mean_pix = sqrt(params->vx_pix * params->vx_pix + params->vy_pix * params->vy_pix);
+    double v_mean_mps = v_mean_pix * params->dx_master_m / params->dt_s;
+    double ev_x = (v_mean_pix > 1e-6) ? (params->vx_pix / v_mean_pix) : 1.0;
+    double ev_y = (v_mean_pix > 1e-6) ? (params->vy_pix / v_mean_pix) : 0.0;
+    double ep_x = -ev_y;
+    double ep_y =  ev_x;
+    if (v_mean_mps < 0.1)
+    {
+        v_mean_mps = 0.1;
+    }
+
+    double dx_step = v_mean_mps * params->dt_s;
+    atmturb_wind_spec_t spec = {
+        .vksize    = params->nbframes,
+        .pixscale  = (float) dx_step,
+        .sigmawind = (float) params->sigma_wind_mps,
+        .Lwind     = (float) params->L_wind_m,
+        .seed      = atmturb_resolve_seed(params->seed)
+    };
+    atmturb_synthesize_wind_component(&spec, 0, u_fluc);
+    atmturb_synthesize_wind_component(&spec, 1, v_fluc);
+
+    double scale_pix = params->dt_s / params->dx_master_m;
+    for (long t = 1; t < params->nbframes; t++)
+    {
+        double u = v_mean_mps + (double) u_fluc[t - 1];
+        double v = (double) v_fluc[t - 1];
+        double step_x = (u * ev_x + v * ep_x) * scale_pix;
+        double step_y = (u * ev_y + v * ep_y) * scale_pix;
+        traj_x[t] = traj_x[t - 1] + step_x;
+        traj_y[t] = traj_y[t - 1] + step_y;
+    }
+
+    free(u_fluc);
+    free(v_fluc);
+    return 0;
+}
+

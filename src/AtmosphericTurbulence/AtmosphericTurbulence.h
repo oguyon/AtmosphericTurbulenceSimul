@@ -52,6 +52,43 @@ long make_AtmosphericTurbulence_vonKarmanWind(
     const char *IDout_name);
 
 /**
+ * struct atmturb_wind_traj_params_t - Trajectory generation parameters
+ * @nbframes: Number of frames in simulation series.
+ * @dt_s: Time step per frame in seconds.
+ * @vx_pix: Mean pupil-plane x velocity [master pixels / frame].
+ * @vy_pix: Mean pupil-plane y velocity [master pixels / frame].
+ * @dx_master_m: Physical master pixel scale in meters.
+ * @sigma_wind_mps: Wind velocity standard deviation [m/s].
+ * @L_wind_m: Wind turbulence outer scale [m].
+ * @seed: Resolved PRNG seed.
+ */
+typedef struct
+{
+    long     nbframes;
+    double   dt_s;
+    double   vx_pix;
+    double   vy_pix;
+    double   dx_master_m;
+    double   sigma_wind_mps;
+    double   L_wind_m;
+    uint64_t seed;
+} atmturb_wind_traj_params_t;
+
+/**
+ * atmturb_wind_synthesize_trajectory - Synthesize cumulative 2D trajectory with turbulent wind
+ * @params: Trajectory generation input parameters.
+ * @traj_x: Output buffer of size nbframes for cumulative x offset [pixels].
+ * @traj_y: Output buffer of size nbframes for cumulative y offset [pixels].
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_wind_synthesize_trajectory(
+    const atmturb_wind_traj_params_t *params,
+    double                           *traj_x,
+    double                           *traj_y);
+
+
+/**
  * struct atmturb_screen_spec_t - Specification for phase screen generation
  * @size: Grid dimension in pixels (N).
  * @r0_pix: Fried parameter in pixel units (>0, or <= 0 for default 6.88^0.6).
@@ -418,6 +455,27 @@ int AtmosphericTurbulence_makeHV_CN2prof(
     double      sitealt,
     long        NBlayer,
     const char *outfile);
+
+/**
+ * AtmosphericTurbulence_makeHV_CN2prof_opt - Generate HV profile with model options
+ * @wspeed: Upper atmospheric wind speed [m/s].
+ * @r0: Target Fried parameter in meters.
+ * @sitealt: Observatory elevation in meters.
+ * @NBlayer: Number of vertical discrete layers.
+ * @outfile: Destination profile file path.
+ * @wind_model: Wind velocity model (0 = legacy, 1 = Bufton).
+ * @seed: Master RNG seed value.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int AtmosphericTurbulence_makeHV_CN2prof_opt(
+    double      wspeed,
+    double      r0,
+    double      sitealt,
+    long        NBlayer,
+    const char *outfile,
+    int         wind_model,
+    uint64_t    seed);
 
 #ifdef __cplusplus
 }
