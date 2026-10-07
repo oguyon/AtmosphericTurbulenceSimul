@@ -149,4 +149,36 @@ static inline void atmturb_rng_gaussian_pair(uint64_t *state, double *g0, double
     *g1 = r * sin(theta);
 }
 
+/**
+ * atmturb_resolve_seed - Map a user seed to a non-zero RNG seed
+ * @seed: User seed; 0 requests a time-based seed.
+ *
+ * Return: @seed if non-zero, otherwise a seed derived from the real-time clock.
+ */
+static inline uint64_t atmturb_resolve_seed(uint64_t seed)
+{
+    if (seed != 0)
+    {
+        return seed;
+    }
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    uint64_t s = (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+    return atmturb_rng_splitmix64(&s) | 1ULL;
+}
+
+/**
+ * atmturb_rng_stream_seed - Derive a decorrelated RNG state for sub-stream @stream
+ * @seed: Base seed.
+ * @stream: Sub-stream index (component, layer, row, ...).
+ *
+ * Return: Initial PRNG state for the sub-stream.
+ */
+static inline uint64_t atmturb_rng_stream_seed(uint64_t seed, uint64_t stream)
+{
+    uint64_t s = seed ^ ((stream + 1ULL) * 0xd1b54a32d192ed03ULL);
+    atmturb_rng_splitmix64(&s);
+    return atmturb_rng_splitmix64(&s);
+}
+
 #endif // ATMTURB_TYPES_H

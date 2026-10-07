@@ -19,8 +19,6 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # Find OpenMP (required for multi-threaded turbulence simulation)
 find_package(OpenMP REQUIRED)
 
-# Find GSL (GNU Scientific Library, for atmospheric modeling)
-find_package(GSL REQUIRED)
 
 # Find FFTW3 (for Fourier domain phase screens)
 find_package(PkgConfig REQUIRED)
@@ -149,8 +147,6 @@ if(TARGET CLIcore)
         milkstatistic
         milklinoptimtools
         OpenMP::OpenMP_C
-        GSL::gsl
-        GSL::gslcblas
         ${FFTW_LIBRARIES}
         ${FFTWF_LIBRARIES}
         m
@@ -297,8 +293,6 @@ else()
     target_link_libraries(${LIBNAME} PUBLIC
         ${MILK_LIBRARIES}
         OpenMP::OpenMP_C
-        GSL::gsl
-        GSL::gslcblas
         ${FFTW_LIBRARIES}
         ${FFTWF_LIBRARIES}
         m
@@ -356,3 +350,19 @@ if(COMMAND add_milk_standalone)
     )
     target_link_libraries(milk-fpsexec-wfprop-fresnel PRIVATE ${LIBNAME})
 endif()
+
+# ── Statistical test validation executable ─────────────────────────
+add_executable(atmturb-validate-stats
+    tests/atmturb_validate_stats.c
+    tests/atmturb_validate_math.c
+)
+target_include_directories(atmturb-validate-stats PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+target_link_libraries(atmturb-validate-stats PRIVATE
+    ${LIBNAME}
+    ${FFTWF_LIBRARIES}
+    ${FFTW_LIBRARIES}
+    m
+)

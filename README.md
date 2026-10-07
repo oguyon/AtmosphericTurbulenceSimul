@@ -151,8 +151,9 @@ Synthesizes a 3-channel 1D time series $[u, v, w]$ representing longitudinal,
 transverse, and vertical turbulent wind fluctuations.
 
 ```bash
-# Syntax: milk-fpsexec-atmturb-mkvonkarman exec <vksize> <pixscale> <sigmawind> <lwind> <outname>
-milk-fpsexec-atmturb-mkvonkarman exec 8192 0.1 20.0 50.0 vkwind
+# Syntax: milk-fpsexec-atmturb-mkvonkarman exec <vksize> <pixscale> <sigmawind> <lwind> <outname> \
+#                                             [<seed>] [<fitsout>]
+milk-fpsexec-atmturb-mkvonkarman exec 8192 0.1 20.0 50.0 vkwind 1 vkwind.fits
 ```
 
 | Positional Arg | Keyword | Type | Default | Description |
@@ -162,6 +163,8 @@ milk-fpsexec-atmturb-mkvonkarman exec 8192 0.1 20.0 50.0 vkwind
 | 2 | `.sigmawind` | `FLOAT32` | `20.0` | Velocity standard deviation [m/s] |
 | 3 | `.lwind` | `FLOAT32` | `50.0` | Turbulence outer scale [m] |
 | 4 | `.outname` | `STREAMNAME` | `vKwind` | Output 3D image name ($v_{\text{size}} \times 1 \times 3$) |
+| 5 | `.seed` | `INT64` | `1` | RNG seed (`0` = time-based); $u$, $v$, $w$ use independent streams |
+| 6 | `.fitsout` | `STRING` | `""` | Optional FITS output file (empty = do not save) |
 
 #### `milk-fpsexec-wfprop-fresnel` — Fresnel Wavefront Propagation
 Propagates a 2D complex optical field across distance $z$ using the Fourier
@@ -251,7 +254,7 @@ milk-cli > cmd? atmturb.mkmastert
 | `atmturb.mkwfs_fps` | `<wavelength_nm> <precision>` | Generate wavefront series with FPS process tracking |
 | `atmturb.mkhvturb_fps` | `<wspeed> <r0> <sitealt> <nblayers> [outfile]` | Generate HV profile via FPS |
 | `atmturb.mkatmospheremodel` | `<conffile>` | Create vertical atmospheric composition model |
-| `atmturb.mkvonKarmanWind` | `<vKsize> <pixscale> <sigmawind> <Lwind> <size> <out>` | Generate von Kármán wind model screen |
+| `atmturb.mkvonKarmanWind` | `<vKsize> <pixscale> <sigmawind> <Lwind> <seed> <out>` | Generate von Kármán wind model screen |
 | `atmturb.fresnelpw` | `<in_re> <in_im> <z> <lambda> <out_re> <out_im>` | Fresnel propagate optical field |
 | `atmturb.atmturbmeasexpo` | `<etime_s> <out_name>` | Measure long-exposure PSF from wavefront series |
 | `atmturb.atmturbwfpredictf` | `<in> <mask> <order> <lag> <svdeps> <reglambda>` | Build linear predictor from wavefront series |

@@ -19,6 +19,7 @@ Before opening a PR or merging code:
    ```bash
    bash tests/test_fps_components.sh
    bash tests/test_wavefront_series.sh
+   bash tests/test_turbulence_physics.sh
    ```
 5. **Clean Git tree:** Keep commit history structured and focus each commit on a single change.
 6. **Agentic tool disclosure:** If agentic tools were used, disclose in the PR description with:

@@ -33,12 +33,36 @@ if [[ -z "$MKWFS_EXEC" || ! -x "$MKWFS_EXEC" ]]; then
     exit 1
 fi
 
+VALIDATE_EXEC="${MILK_VALIDATE_EXEC:-}"
+if [[ -z "$VALIDATE_EXEC" ]]; then
+    CANDIDATES=(
+        "$REPO_ROOT/../../_build/plugins/milkatmturb/atmturb-validate-stats"
+        "$REPO_ROOT/../_build/plugins/milkatmturb/atmturb-validate-stats"
+        "/home/oguyon/src/milk-framework-dev/_build/plugins/milkatmturb/atmturb-validate-stats"
+        "$(command -v atmturb-validate-stats 2>/dev/null || true)"
+    )
+    for c in "${CANDIDATES[@]}"; do
+        if [[ -x "$c" ]]; then
+            VALIDATE_EXEC="$c"
+            break
+        fi
+    done
+fi
+
+if [[ -z "$VALIDATE_EXEC" || ! -x "$VALIDATE_EXEC" ]]; then
+    echo "ERROR: atmturb-validate-stats executable not found." >&2
+    exit 1
+fi
+
 echo "=== Running milkatmturb wavefront series test ==="
 echo "Executable: $MKWFS_EXEC"
 
 # Create a temporary scratch workspace
 TEST_TMPDIR="$(mktemp -d /tmp/test_milkatmturb_XXXXXX)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
+MILK_SHM_DIR="${MILK_SHM_DIR:-/milk/shm}"
+FPS_NAME="twfs$$_mkwfs"
+# unique FPS name avoids reusing a stale parameter set; remove it on exit
+trap 'rm -rf "$TEST_TMPDIR"; rm -f "$MILK_SHM_DIR/${FPS_NAME}.fps.shm"' EXIT
 
 cd "$TEST_TMPDIR"
 
@@ -93,7 +117,7 @@ EOF
 
 # 3. Execute wavefront simulation
 echo "Starting simulation in $TEST_TMPDIR..."
-"$MKWFS_EXEC" exec 0.7 0
+"$MKWFS_EXEC" -n "$FPS_NAME" exec 0.7 0
 
 # 4. Verify expected output files exist
 EXPECTED_FILES=(
@@ -116,35 +140,20 @@ for f in "${EXPECTED_FILES[@]}"; do
     echo "  [OK] Found $f ($size bytes)"
 done
 
-# 5. Check data integrity using python3 if available
-if command -v python3 >/dev/null 2>&1; then
-    python3 -c "
-import sys
-try:
-    from astropy.io import fits
-    import numpy as np
-except ImportError:
-    print('  [INFO] astropy not installed, skipping detailed FITS checks.')
-    sys.exit(0)
+# 5. Check data integrity and statistical sanity via atmturb-validate-stats
+echo "Validating phase and amplitude cubes..."
+for f in outarraypha.fits outsarraypha.fits; do
+    "$VALIDATE_EXEC" finite "$f" --min-std 0.01 || {
+        echo "FAILED: statistical sanity check on $f" >&2
+        exit 1
+    }
+done
 
-# Check phase cubes
-for name in ['outarraypha.fits', 'outsarraypha.fits']:
-    with fits.open(name) as hdul:
-        data = hdul[0].data
-        assert data.shape == (5, 64, 64), f'Unexpected shape {data.shape} in {name}'
-        std = float(np.std(data))
-        assert std > 0.01, f'Phase data in {name} is flat (std={std})'
-        print(f'  [OK] {name}: shape={data.shape}, std={std:.4f} rad')
-
-# Check amplitude cubes
-for name in ['outarrayamp.fits', 'outsarrayamp.fits']:
-    with fits.open(name) as hdul:
-        data = hdul[0].data
-        assert data.shape == (5, 64, 64), f'Unexpected shape {data.shape} in {name}'
-        mean = float(np.mean(data))
-        assert abs(mean - 1.0) < 1e-4, f'Unexpected mean amplitude {mean} in {name}'
-        print(f'  [OK] {name}: shape={data.shape}, mean={mean:.4f}')
-"
-fi
+for f in outarrayamp.fits outsarrayamp.fits; do
+    "$VALIDATE_EXEC" scint "$f" --tol-mean 1e-4 --tol-sigma 1e-4 || {
+        echo "FAILED: amplitude check on $f" >&2
+        exit 1
+    }
+done
 
 echo "=== All tests passed successfully! ==="
