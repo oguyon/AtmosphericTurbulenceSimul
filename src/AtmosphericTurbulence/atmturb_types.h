@@ -41,6 +41,8 @@
 #include "linopt_imtools/linopt_imtools.h"
 #include "psf/psf.h"
 #include "statistic/statistic.h"
+#include "atmturb_profile.h"
+#include "atmturb_geometry.h"
 
 #ifndef PI
 #define PI 3.14159265358979323846264338328
@@ -60,6 +62,9 @@ extern float CONF_LAMBDA;
 extern float CONF_SEEING;
 extern char CONF_TURBULENCE_PROF_FILE[200];
 extern float CONF_ZANGLE;
+extern float CONF_PARALLACTIC_ANGLE;
+extern float CONF_SITE_ALT;
+extern uint64_t CONF_SEED;
 extern float CONF_SOURCE_Xpos;
 extern float CONF_SOURCE_Ypos;
 

@@ -7,253 +7,41 @@
  * @brief   Multi-layer atmospheric turbulence wavefront series simulation
  */
 
-#include <ctype.h>
 #include <math.h>
-#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "AtmosphereModel/AtmosphereModel.h"
-#include "AtmosphericTurbulence.h"
-#include "atmturb_types.h"
-#include "atmturb_simd.h"
-#if defined(HAVE_CUDA)
-#    include "atmturb_cuda.h"
+#ifdef _OPENMP
+#include <omp.h>
 #endif
 
+#include "AtmosphereModel/AtmosphereModel.h"
+#include "AtmosphericTurbulence.h"
+#include "atmturb_geometry.h"
+#include "atmturb_profile.h"
+#include "atmturb_simd.h"
+#include "atmturb_types.h"
+
+/**
+ * struct atmturb_wfs_images_t - Output 3D image handles container
+ * @ID_pha: Primary phase 3D image handle.
+ * @ID_amp: Primary amplitude 3D image handle.
+ * @ID_spha: Secondary phase 3D image handle.
+ * @ID_samp: Secondary amplitude 3D image handle.
+ */
 typedef struct
 {
-    long nblayers;
-    double *alt;
-    double *cn2;
-    double *spd;
-    double *dir;
-    double *outerscale;
-    double *innerscale;
-    double *sigmawspeed;
-    double *lwind;
-    double *xpos;
-    double *ypos;
-    double *vxpix;
-    double *vypix;
-    long *id_tm;
-} atmturb_wfs_context_t;
-
-/**
- * atmturb_wfs_free_context - Release dynamically allocated layer arrays
- * @ctx: Pointer to simulation context (arrays may be NULL).
- */
-static void atmturb_wfs_free_context(atmturb_wfs_context_t *ctx)
-{
-    free(ctx->alt);
-    free(ctx->cn2);
-    free(ctx->spd);
-    free(ctx->dir);
-    free(ctx->outerscale);
-    free(ctx->innerscale);
-    free(ctx->sigmawspeed);
-    free(ctx->lwind);
-    free(ctx->xpos);
-    free(ctx->ypos);
-    free(ctx->vxpix);
-    free(ctx->vypix);
-    free(ctx->id_tm);
-    memset(ctx, 0, sizeof(*ctx));
-}
-
-/**
- * atmturb_wfs_alloc_context - Allocate per-layer arrays and set default layer parameters
- * @ctx: Pointer to zero-initialized simulation context.
- * @count: Number of layers.
- *
- * Return: 0 on success, -1 on allocation failure (context left freed).
- */
-static int atmturb_wfs_alloc_context(
-    atmturb_wfs_context_t *ctx,
-    long                   count)
-{
-    ctx->nblayers = count;
-    ctx->alt = calloc(count, sizeof(double));
-    ctx->cn2 = calloc(count, sizeof(double));
-    ctx->spd = calloc(count, sizeof(double));
-    ctx->dir = calloc(count, sizeof(double));
-    ctx->outerscale = calloc(count, sizeof(double));
-    ctx->innerscale = calloc(count, sizeof(double));
-    ctx->sigmawspeed = calloc(count, sizeof(double));
-    ctx->lwind = calloc(count, sizeof(double));
-    ctx->xpos = calloc(count, sizeof(double));
-    ctx->ypos = calloc(count, sizeof(double));
-    ctx->vxpix = calloc(count, sizeof(double));
-    ctx->vypix = calloc(count, sizeof(double));
-    ctx->id_tm = calloc(count, sizeof(long));
-
-    if (!ctx->alt || !ctx->cn2 || !ctx->spd || !ctx->dir || !ctx->outerscale ||
-        !ctx->innerscale || !ctx->sigmawspeed || !ctx->lwind || !ctx->xpos || !ctx->ypos ||
-        !ctx->vxpix || !ctx->vypix || !ctx->id_tm)
-    {
-        printf("ERROR: cannot allocate turbulence layer arrays (%ld layers)\n", count);
-        atmturb_wfs_free_context(ctx);
-        return -1;
-    }
-
-    for (long k = 0; k < count; k++)
-    {
-        ctx->outerscale[k] = 50.0;
-        ctx->innerscale[k] = 0.01;
-        ctx->sigmawspeed[k] = 0.0;
-        ctx->lwind[k] = 500.0;
-    }
-    return 0;
-}
-
-/**
- * atmturb_wfs_load_default_layers - Load built-in 7-layer atmospheric turbulence profile
- * @ctx: Pointer to zero-initialized simulation context.
- *
- * Return: 0 on success, -1 on allocation failure.
- */
-static int atmturb_wfs_load_default_layers(atmturb_wfs_context_t *ctx)
-{
-    static const double def_alt[7] = {4215.0, 4230.0, 4349.0, 5007.0, 12000.0, 16200.0, 23701.0};
-    static const double def_cn2[7] = {5.32,   1.47,   1.08,   2.11,   1.83,    1.48,    0.697};
-    static const double def_spd[7] = {6.5,    6.55,   6.6,    6.7,   22.0,     9.5,     5.6};
-    static const double def_dir[7] = {1.47,   1.57,   1.67,   1.77,   3.10,    3.20,    3.30};
-
-    if (atmturb_wfs_alloc_context(ctx, 7) != 0)
-    {
-        return -1;
-    }
-    for (long k = 0; k < 7; k++)
-    {
-        ctx->alt[k] = def_alt[k];
-        ctx->cn2[k] = def_cn2[k];
-        ctx->spd[k] = def_spd[k];
-        ctx->dir[k] = def_dir[k];
-    }
-    return 0;
-}
-
-/**
- * atmturb_wfs_is_data_line - Test whether a profile line carries layer data
- * @line: NUL-terminated text line.
- *
- * Return: 1 if the line is neither blank nor a '#' comment, 0 otherwise.
- */
-static int atmturb_wfs_is_data_line(const char *line)
-{
-    while (*line != '\0' && isspace((unsigned char)*line))
-    {
-        line++;
-    }
-    return (*line != '\0' && *line != '#') ? 1 : 0;
-}
-
-/**
- * atmturb_wfs_parse_layer_line - Parse one profile line into layer slot k
- * @line: Profile text line.
- * @lineno: Line number in file (for diagnostics).
- * @k: Destination layer index.
- * @ctx: Pointer to allocated simulation context.
- *
- * Return: 0 on success, -1 if fewer than 4 fields or negative Cn2.
- */
-static int atmturb_wfs_parse_layer_line(
-    const char            *line,
-    long                   lineno,
-    long                   k,
-    atmturb_wfs_context_t *ctx)
-{
-    int nf = sscanf(line, "%lf %lf %lf %lf %lf %lf %lf %lf",
-                    &ctx->alt[k], &ctx->cn2[k], &ctx->spd[k], &ctx->dir[k],
-                    &ctx->outerscale[k], &ctx->innerscale[k],
-                    &ctx->sigmawspeed[k], &ctx->lwind[k]);
-    if (nf < 4)
-    {
-        printf("ERROR: profile line %ld: expected at least 4 fields "
-               "(alt cn2 speed dir), got %d\n", lineno, nf);
-        return -1;
-    }
-    if (ctx->cn2[k] < 0.0)
-    {
-        printf("ERROR: profile line %ld: negative Cn2 (%g)\n", lineno, ctx->cn2[k]);
-        return -1;
-    }
-    return 0;
-}
-
-/**
- * atmturb_wfs_read_layers - Read atmospheric profile file and allocate layer parameters
- * @fname: Path to turbulence profile text file.
- * @ctx: Pointer to zero-initialized simulation context.
- *
- * Return: 0 on success, -1 on failure (context left freed).
- */
-static int atmturb_wfs_read_layers(
-    const char            *fname,
-    atmturb_wfs_context_t *ctx)
-{
-    FILE *fp = fopen(fname, "r");
-    if (fp == NULL)
-    {
-        if (strcmp(fname, "turbul.prof") == 0)
-        {
-            printf("[milkatmturb] Notice: Profile \"%s\" not found, "
-                   "using built-in 7-layer profile.\n", fname);
-            return atmturb_wfs_load_default_layers(ctx);
-        }
-        printf("ERROR: cannot open profile \"%s\"\n", fname);
-        return -1;
-    }
-
-    int ret = -1;
-    char line[2000];
-    long count = 0;
-    while (fgets(line, sizeof(line), fp) != NULL)
-    {
-        count += atmturb_wfs_is_data_line(line);
-    }
-    if (count == 0)
-    {
-        printf("ERROR: profile \"%s\" contains no layer\n", fname);
-        goto cleanup;
-    }
-    if (atmturb_wfs_alloc_context(ctx, count) != 0)
-    {
-        goto cleanup;
-    }
-
-    rewind(fp);
-    long k = 0;
-    long lineno = 0;
-    while (fgets(line, sizeof(line), fp) != NULL && k < count)
-    {
-        lineno++;
-        if (!atmturb_wfs_is_data_line(line))
-        {
-            continue;
-        }
-        if (atmturb_wfs_parse_layer_line(line, lineno, k, ctx) != 0)
-        {
-            atmturb_wfs_free_context(ctx);
-            goto cleanup;
-        }
-        k++;
-    }
-    ret = 0;
-
-cleanup:
-    fclose(fp);
-    return ret;
-}
+    imageID ID_pha;
+    imageID ID_amp;
+    imageID ID_spha;
+    imageID ID_samp;
+} atmturb_wfs_images_t;
 
 /**
  * atmturb_wfs_ensure_float_screen - Validate a master screen and convert it to FP32 if needed
  * @name: Master screen image name.
  * @msize: Expected linear dimension in pixels.
- *
- * The SIMD and CUDA extrusion kernels read single-precision data only, so double-precision
- * screens (WFprecision=1 or user-loaded) are converted in place.
  *
  * Return: Image ID of the FP32 screen, or -1 on size/type mismatch or allocation failure.
  */
@@ -266,10 +54,10 @@ static imageID atmturb_wfs_ensure_float_screen(
     {
         return -1;
     }
-    if ((long)dcimg[id].md[0].size[0] != msize || (long)dcimg[id].md[0].size[1] != msize)
+    if ((long) dcimg[id].md[0].size[0] != msize || (long) dcimg[id].md[0].size[1] != msize)
     {
         printf("ERROR: master screen \"%s\" is %ld x %ld, expected %ld x %ld\n", name,
-               (long)dcimg[id].md[0].size[0], (long)dcimg[id].md[0].size[1], msize, msize);
+               (long) dcimg[id].md[0].size[0], (long) dcimg[id].md[0].size[1], msize, msize);
         return -1;
     }
     if (dcimg[id].md[0].datatype == _DATATYPE_FLOAT)
@@ -283,57 +71,78 @@ static imageID atmturb_wfs_ensure_float_screen(
     }
 
     long ntot = msize * msize;
-    float *tmp = malloc(sizeof(float) * ntot);
+    float *tmp = (float *) malloc(sizeof(float) * (size_t) ntot);
     if (tmp == NULL)
     {
         return -1;
     }
     for (long ii = 0; ii < ntot; ii++)
     {
-        tmp[ii] = (float)dcimg[id].array.D[ii];
+        tmp[ii] = (float) dcimg[id].array.D[ii];
     }
     delete_image_ID(name);
     id = create_2Dimage_ID(name, msize, msize);
-    memcpy(dcimg[id].array.F, tmp, sizeof(float) * ntot);
+    memcpy(dcimg[id].array.F, tmp, sizeof(float) * (size_t) ntot);
     free(tmp);
     return id;
 }
 
 /**
  * atmturb_wfs_load_screens - Load or synthesize FP32 master phase screens for each layer
- * @ctx: Pointer to simulation context.
- * @master_size: Dimension of master phase screens.
- * @precision: FFT precision used for screen synthesis (0=single, 1=double).
+ * @prof: Active turbulence profile.
+ * @geom: Computed observing geometry.
+ * @master_size: Master screen dimension in pixels.
+ * @precision: FFT precision flag (0=single, 1=double).
+ * @seed: Master PRNG seed.
+ * @id_tm: Output array of image IDs per layer.
  *
  * Return: 0 on success, -1 on failure.
  */
 static int atmturb_wfs_load_screens(
-    atmturb_wfs_context_t *ctx,
-    long                   master_size,
-    long                   precision)
+    const atmturb_profile_t *prof,
+    const atmturb_geom_t    *geom,
+    long                     master_size,
+    long                     precision,
+    uint64_t                 seed,
+    long                    *id_tm)
 {
-    for (long k = 0; k < ctx->nblayers; k++)
+    for (int k = 0; k < prof->nlayers; k++)
     {
         char sname[200];
-        snprintf(sname, sizeof(sname), "turbm%02ld_p0", k);
-        if (image_ID(sname) < 0)
+        snprintf(sname, sizeof(sname), "turbm%02d_p0", k);
+        if (!CONF_SKIP_EXISTING || image_ID(sname) < 0)
         {
             char sname2[200];
-            snprintf(sname2, sizeof(sname2), "turbm%02ld_p1", k);
+            snprintf(sname2, sizeof(sname2), "turbm%02d_p1", k);
 
-            // outer scale <= 0 means infinite (von Karman -> Kolmogorov)
-            float osc = (ctx->outerscale[k] > 0.0)
-                            ? (float)(ctx->outerscale[k] / CONF_PUPIL_SCALE) : 0.0f;
-            // inner scale well below one pixel has no effect on the grid: disable it
-            float isc = (float)(ctx->innerscale[k] / CONF_PUPIL_SCALE);
-            if (isc < 0.1f)
+            atmturb_screen_spec_t spec;
+            memset(&spec, 0, sizeof(spec));
+            spec.size = master_size;
+            spec.r0_pix = geom->r0_ref_pix;
+            spec.L0_pix = (prof->layers[k].L0_m > 0.0)
+                              ? (prof->layers[k].L0_m / geom->dx_master_m) : 0.0;
+            spec.l0_pix = (prof->layers[k].l0_m > 0.0)
+                              ? (prof->layers[k].l0_m / geom->dx_master_m) : 0.0;
+            spec.seed = atmturb_rng_stream_seed(seed, (uint64_t) k);
+            spec.precision = (int) precision;
+
+            delete_image_ID(sname);
+            delete_image_ID(sname2);
+            imageID id0 = create_2Dimage_ID(sname, master_size, master_size);
+            imageID id1 = create_2Dimage_ID(sname2, master_size, master_size);
+            if (id0 < 0 || id1 < 0)
             {
-                isc = 0.0f;
+                return -1;
             }
-            make_master_turbulence_screen(sname, sname2, master_size, osc, isc, precision);
+
+            int ret = atmturb_generate_screen_pair(&spec, dcimg[id0].array.F, dcimg[id1].array.F);
+            if (ret != 0)
+            {
+                return -1;
+            }
         }
-        ctx->id_tm[k] = atmturb_wfs_ensure_float_screen(sname, master_size);
-        if (ctx->id_tm[k] < 0)
+        id_tm[k] = atmturb_wfs_ensure_float_screen(sname, master_size);
+        if (id_tm[k] < 0)
         {
             return -1;
         }
@@ -343,19 +152,20 @@ static int atmturb_wfs_load_screens(
 
 /**
  * atmturb_wfs_render_frames - Multi-threaded SIMD rendering of simulation time steps
- * @ctx: Pointer to simulation context.
- * @pup_size: Linear dimension of the pupil grid.
- * @nbframes: Number of frames to synthesize.
- * @Scoeff: Chromatic dispersion scaling coefficient for secondary wavelength.
- * @IDout_pha: Primary phase 3D image ID.
- * @IDout_amp: Primary amplitude 3D image ID.
- * @IDout_spha: Secondary phase 3D image ID.
- * @IDout_samp: Secondary amplitude 3D image ID.
+ * @geom: Computed observing geometry.
+ * @id_tm: Array of master screen image IDs.
+ * @master_size: Master screen dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ * @nbframes: Number of simulation frames.
+ * @imgs: Container of output 3D image handles.
  */
-static void atmturb_wfs_render_frames(const atmturb_wfs_context_t *ctx, long pup_size,
-                                      long nbframes, double Scoeff, imageID IDout_pha,
-                                      imageID IDout_amp, imageID IDout_spha,
-                                      imageID IDout_samp)
+static void atmturb_wfs_render_frames(
+    const atmturb_geom_t       *geom,
+    const long                 *id_tm,
+    long                        master_size,
+    long                        pup_size,
+    long                        nbframes,
+    const atmturb_wfs_images_t *imgs)
 {
     long frame_pixels = pup_size * pup_size;
 
@@ -363,108 +173,68 @@ static void atmturb_wfs_render_frames(const atmturb_wfs_context_t *ctx, long pup
     for (long t = 0; t < nbframes; t++)
     {
         long slice = t * frame_pixels;
-        float *pha_slice  = &dcimg[IDout_pha].array.F[slice];
-        float *amp_slice  = &dcimg[IDout_amp].array.F[slice];
-        float *spha_slice = &dcimg[IDout_spha].array.F[slice];
-        float *samp_slice = &dcimg[IDout_samp].array.F[slice];
+        float *pha_slice  = &dcimg[imgs->ID_pha].array.F[slice];
+        float *amp_slice  = &dcimg[imgs->ID_amp].array.F[slice];
+        float *spha_slice = &dcimg[imgs->ID_spha].array.F[slice];
+        float *samp_slice = &dcimg[imgs->ID_samp].array.F[slice];
 
         atmturb_init_phase_amp(pha_slice, amp_slice, frame_pixels);
+        atmturb_init_phase_amp(spha_slice, samp_slice, frame_pixels);
 
-        for (long k = 0; k < ctx->nblayers; k++)
+        for (int k = 0; k < geom->nlayers; k++)
         {
-            double cur_x = (double)(t + 1) * ctx->vxpix[k];
-            double cur_y = (double)(t + 1) * ctx->vypix[k];
-            float weight = (float)sqrt(ctx->cn2[k]);
+            const atmturb_layer_geom_t *lg = &geom->layers[k];
+            const float *scr = dcimg[id_tm[k]].array.F;
 
-            atmturb_extrude_accumulate(dcimg[ctx->id_tm[k]].array.F, CONF_MASTER_SIZE,
-                                       cur_x, cur_y, pup_size, weight, pha_slice);
+            double cur_x = fmod(lg->x0 + (double) t * lg->vx_pix, (double) master_size);
+            if (cur_x < 0.0)
+            {
+                cur_x += (double) master_size;
+            }
+            double cur_y = fmod(lg->y0 + (double) t * lg->vy_pix, (double) master_size);
+            if (cur_y < 0.0)
+            {
+                cur_y += (double) master_size;
+            }
+
+            atmturb_extrude_accumulate(scr, master_size, cur_x, cur_y,
+                                       pup_size, (float) lg->weight, pha_slice);
+
+            double cur_sx = fmod(lg->xs0 + (double) t * lg->vx_pix, (double) master_size);
+            if (cur_sx < 0.0)
+            {
+                cur_sx += (double) master_size;
+            }
+            double cur_sy = fmod(lg->ys0 + (double) t * lg->vy_pix, (double) master_size);
+            if (cur_sy < 0.0)
+            {
+                cur_sy += (double) master_size;
+            }
+
+            atmturb_extrude_accumulate(scr, master_size, cur_sx, cur_sy,
+                                       pup_size, (float) lg->weight_s, spha_slice);
         }
-
-        atmturb_scale_float_array(spha_slice, pha_slice, (float)Scoeff, frame_pixels);
-        atmturb_scale_float_array(samp_slice, amp_slice, 1.0f, frame_pixels);
     }
 }
 
 /**
- * atmturb_wfs_dispatch_render - Dispatch rendering to CUDA GPU or multi-threaded CPU SIMD
- * @ctx: Pointer to simulation context.
- * @pup_size: Linear dimension of the pupil grid.
- * @nbframes: Number of frames to synthesize.
- * @Scoeff: Chromatic dispersion scaling coefficient for secondary wavelength.
- * @IDout_pha: Primary phase 3D image ID.
- * @IDout_amp: Primary amplitude 3D image ID.
- * @IDout_spha: Secondary phase 3D image ID.
- * @IDout_samp: Secondary amplitude 3D image ID.
- */
-static void atmturb_wfs_dispatch_render(const atmturb_wfs_context_t *ctx, long pup_size,
-                                        long nbframes, double Scoeff, imageID IDout_pha,
-                                        imageID IDout_amp, imageID IDout_spha,
-                                        imageID IDout_samp)
-{
-#if defined(HAVE_CUDA)
-    if (atmturb_cuda_device_available())
-    {
-        const float **h_masters = (const float **)malloc(sizeof(const float *) * ctx->nblayers);
-        for (long k = 0; k < ctx->nblayers; k++)
-        {
-            h_masters[k] = dcimg[ctx->id_tm[k]].array.F;
-        }
-
-        atmturb_cuda_sim_params_t params = {
-            .nblayers = ctx->nblayers,
-            .msize = CONF_MASTER_SIZE,
-            .pup_size = pup_size,
-            .nbframes = nbframes,
-            .Scoeff = Scoeff,
-            .h_masters = h_masters,
-            .vxpix = ctx->vxpix,
-            .vypix = ctx->vypix,
-            .cn2 = ctx->cn2
-        };
-
-        atmturb_cuda_sim_outputs_t outputs = {
-            .pha = dcimg[IDout_pha].array.F,
-            .amp = dcimg[IDout_amp].array.F,
-            .spha = dcimg[IDout_spha].array.F,
-            .samp = dcimg[IDout_samp].array.F
-        };
-
-        printf("Synthesizing %ld wavefront frames [CUDA GPU]\n", nbframes);
-        int res = atmturb_wfs_render_frames_cuda(&params, &outputs);
-        free(h_masters);
-        if (res == 0)
-        {
-            return;
-        }
-    }
-#endif
-
-    printf("Synthesizing %ld wavefront frames [%s SIMD]\n", nbframes,
-           atmturb_simd_active_isa());
-
-    atmturb_wfs_render_frames(ctx, pup_size, nbframes, Scoeff,
-                              IDout_pha, IDout_amp, IDout_spha, IDout_samp);
-}
-
-/**
- * atmturb_wfs_save_outputs - Write the requested wavefront cubes to FITS files
- * @pha_name: Primary phase image name.
- * @amp_name: Primary amplitude image name.
+ * atmturb_wfs_save_outputs - Write simulated phase and amplitude cubes to disk
+ * @pha_name: Primary phase image stream name.
+ * @amp_name: Primary amplitude image stream name.
  */
 static void atmturb_wfs_save_outputs(
     const char *pha_name,
     const char *amp_name)
 {
-    if (CONF_WFOUTPUT)
+    if (CONF_WFOUTPUT == 1)
     {
         char fname_pha[200], fname_amp[200];
         snprintf(fname_pha, sizeof(fname_pha), "%s.fits", pha_name);
-        snprintf(fname_amp, sizeof(fname_amp), "%s.fits", amp_name);
         save_fl_fits(pha_name, fname_pha);
+
+        snprintf(fname_amp, sizeof(fname_amp), "%s.fits", amp_name);
         save_fl_fits(amp_name, fname_amp);
-    }
-    if (CONF_SWF_WRITE2DISK)
-    {
+
         save_fl_fits("outsarraypha", "outsarraypha.fits");
         save_fl_fits("outsarrayamp", "outsarrayamp.fits");
     }
@@ -479,13 +249,13 @@ static int atmturb_wfs_validate_config(void)
 {
     if (!(CONF_PUPIL_SCALE > 0.0f))
     {
-        printf("ERROR: PUPIL_SCALE must be > 0 (got %g m/pix)\n", (double)CONF_PUPIL_SCALE);
+        printf("ERROR: PUPIL_SCALE must be > 0 (got %g m/pix)\n", (double) CONF_PUPIL_SCALE);
         return -1;
     }
     if (!(CONF_WFTIME_STEP > 0.0f) || !(CONF_TIME_SPAN > 0.0f))
     {
         printf("ERROR: WFTIME_STEP and TIME_SPAN must be > 0 (got %g s, %g s)\n",
-               (double)CONF_WFTIME_STEP, (double)CONF_TIME_SPAN);
+               (double) CONF_WFTIME_STEP, (double) CONF_TIME_SPAN);
         return -1;
     }
     if (CONF_WFsize < 1 || CONF_MASTER_SIZE < CONF_WFsize)
@@ -505,7 +275,7 @@ static int atmturb_wfs_validate_config(void)
 /**
  * make_AtmosphericTurbulence_wavefront_series - Run full atmospheric wavefront simulation series
  * @slambdaum: Secondary observing wavelength in um.
- * @WFprecision: Precision mode flag.
+ * @WFprecision: Precision mode flag (0=single, 1=double).
  *
  * Return: 0 on success, -1 on failure.
  */
@@ -522,47 +292,74 @@ int make_AtmosphericTurbulence_wavefront_series(
         return -1;
     }
 
-    int ret = -1;
-    atmturb_wfs_context_t ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    if (atmturb_wfs_read_layers(CONF_TURBULENCE_PROF_FILE, &ctx) != 0)
+    if (slambdaum > 20.0f)
+    {
+        slambdaum *= 1e-3f; // Convert nm to um
+    }
+
+    atmturb_profile_t prof;
+    memset(&prof, 0, sizeof(prof));
+    if (atmturb_profile_load(CONF_TURBULENCE_PROF_FILE, &prof) != 0)
     {
         return -1;
     }
-    if (atmturb_wfs_load_screens(&ctx, CONF_MASTER_SIZE, WFprecision) != 0)
+
+    atmturb_obs_params_t params;
+    memset(&params, 0, sizeof(params));
+    params.lambda_ref_m = (double) CONF_LAMBDA;
+    params.lambda_s_m = (double) slambdaum * 1e-6;
+    params.seeing_arcsec = (double) CONF_SEEING;
+    params.zenith_rad = (double) CONF_ZANGLE;
+    params.parallactic_rad = (double) CONF_PARALLACTIC_ANGLE;
+    params.site_alt_m = (double) CONF_SITE_ALT;
+    params.pupil_scale_m = (double) CONF_PUPIL_SCALE;
+    params.oversample = 1;
+    params.master_size = CONF_MASTER_SIZE;
+    params.time_step_s = (double) CONF_WFTIME_STEP;
+    params.source_x_rad = (double) CONF_SOURCE_Xpos;
+    params.source_y_rad = (double) CONF_SOURCE_Ypos;
+    params.seed = CONF_SEED;
+
+    atmturb_geom_t geom;
+    memset(&geom, 0, sizeof(geom));
+    if (atmturb_geometry_compute(&prof, &params, &geom) != 0)
     {
-        goto cleanup;
+        atmturb_profile_free(&prof);
+        return -1;
     }
 
-    long nbframes = (long)(CONF_TIME_SPAN / CONF_WFTIME_STEP + 0.5);
+    long *id_tm = (long *) calloc((size_t) prof.nlayers, sizeof(long));
+    if (id_tm == NULL || atmturb_wfs_load_screens(&prof, &geom, CONF_MASTER_SIZE,
+                                                  WFprecision, CONF_SEED, id_tm) != 0)
+    {
+        free(id_tm);
+        atmturb_geometry_free(&geom);
+        atmturb_profile_free(&prof);
+        return -1;
+    }
+
+    long nbframes = (long) (CONF_TIME_SPAN / CONF_WFTIME_STEP + 0.5);
     nbframes = (nbframes < 1) ? 1 : nbframes;
     long pup_size = CONF_WFsize;
 
     const char *pha_name = (CONF_WF_PHASE_NAME[0] != '\0') ? CONF_WF_PHASE_NAME : "outarraypha";
     const char *amp_name = (CONF_WF_AMPL_NAME[0] != '\0') ? CONF_WF_AMPL_NAME : "outarrayamp";
 
-    imageID IDout_pha = create_3Dimage_ID(pha_name, pup_size, pup_size, nbframes);
-    imageID IDout_amp = create_3Dimage_ID(amp_name, pup_size, pup_size, nbframes);
-    imageID IDout_spha = create_3Dimage_ID("outsarraypha", pup_size, pup_size, nbframes);
-    imageID IDout_samp = create_3Dimage_ID("outsarrayamp", pup_size, pup_size, nbframes);
+    atmturb_wfs_images_t imgs;
+    imgs.ID_pha  = create_3Dimage_ID(pha_name, pup_size, pup_size, nbframes);
+    imgs.ID_amp  = create_3Dimage_ID(amp_name, pup_size, pup_size, nbframes);
+    imgs.ID_spha = create_3Dimage_ID("outsarraypha", pup_size, pup_size, nbframes);
+    imgs.ID_samp = create_3Dimage_ID("outsarrayamp", pup_size, pup_size, nbframes);
 
-    double slambda = slambdaum * 1e-6;
-    double Nlambda = AtmosphereModel_stdAtmModel_N(0.0f, CONF_LAMBDA, 0);
-    double Nslambda = AtmosphereModel_stdAtmModel_N(0.0f, (float)slambda, 0);
-    double Scoeff = (Nlambda != 0.0) ? (CONF_LAMBDA / slambda) * (Nslambda / Nlambda) : 1.0;
+    printf("Synthesizing %ld wavefront frames [%s]\n", nbframes,
+           atmturb_simd_active_isa());
+    fflush(stdout);
 
-    for (long k = 0; k < ctx.nblayers; k++)
-    {
-        ctx.vxpix[k] = ctx.spd[k] * cos(ctx.dir[k]) * CONF_WFTIME_STEP / CONF_PUPIL_SCALE;
-        ctx.vypix[k] = ctx.spd[k] * sin(ctx.dir[k]) * CONF_WFTIME_STEP / CONF_PUPIL_SCALE;
-    }
-
-    atmturb_wfs_dispatch_render(&ctx, pup_size, nbframes, Scoeff,
-                                IDout_pha, IDout_amp, IDout_spha, IDout_samp);
+    atmturb_wfs_render_frames(&geom, id_tm, CONF_MASTER_SIZE, pup_size, nbframes, &imgs);
     atmturb_wfs_save_outputs(pha_name, amp_name);
-    ret = 0;
 
-cleanup:
-    atmturb_wfs_free_context(&ctx);
-    return ret;
+    free(id_tm);
+    atmturb_geometry_free(&geom);
+    atmturb_profile_free(&prof);
+    return 0;
 }

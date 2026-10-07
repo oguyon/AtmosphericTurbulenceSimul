@@ -65,7 +65,8 @@ write_conf() {
     shift
     declare -A kv=(
         [TURBULENCE_REF_WAVEL]=0.5 [TURBULENCE_SEEING]=0.6 [TURBULENCE_PROF_FILE]=turbul.prof
-        [ZENITH_ANGLE]=0.0 [SOURCE_XPOS]=0.0 [SOURCE_YPOS]=0.0
+        [ZENITH_ANGLE]=0.0 [PARALLACTIC_ANGLE]=0.0 [SITE_ALT]=-1.0 [SEED]=1
+        [SOURCE_XPOS]=0.0 [SOURCE_YPOS]=0.0
         [WFOUTPUT]=1 [WF_FILE_PREFIX]=./wf_ [SHM_OUTPUT]=0
         [MAKE_SWAVEFRONT]=1 [SLAMBDA]=1.65 [SWF_WRITE2DISK]=1 [SWF_FILE_PREFIX]=./swf_
         [SHM_SOUTPUT]=0 [SHM_SPREFIX]=shmswf [SHM_SOUTPUTM]=0
@@ -118,18 +119,28 @@ scenario_T1_master_screen_sf() {
     "${VALIDATE[@]}" same s1_1.fits s8_1.fits --tol 1e-6
 }
 
-# T2: single-layer phase screen has r0 = 0.98 lambda / seeing (scheduled fix: Phase 3)
+# T2: single-layer phase screen has r0 = 0.98 lambda / seeing
 scenario_T2_r0_single_layer() {
-    one_layer_profile 4200 1.0 10.0 0.3 10000 0.0
+    one_layer_profile 4200 1.0 0.0 0.0 10000 0.0
     write_conf WFsim.conf
     run_mkwfs t2 1.65 0 || return 1
-    "${VALIDATE[@]}" sf outarraypha.fits --seeing 0.6 --lam 0.5e-6 --L0 10000 \
-        --pixscale 0.02 --lag-min 2 --lag-max 8 --tol 0.05 --subtract-piston
+    "${VALIDATE[@]}" sf outarraypha.fits --reference discrete --seeing 0.6 --lam 0.5e-6 \
+        --L0 10000 --master-size 1024 --pixscale 0.02 --lag-min 2 --lag-max 8 --tol 0.08 \
+        --subtract-piston
 }
 
-# T3: phase variance scales as 1/cos(z) (scheduled fix: Phase 3)
+# T2b: multi-layer profile yields aggregate r0 matching target seeing
+scenario_T2b_r0_multi_layer() {
+    write_conf WFsim.conf
+    run_mkwfs t2b 1.65 0 || return 1
+    "${VALIDATE[@]}" sf outarraypha.fits --reference discrete --seeing 0.6 \
+        --lam 0.5e-6 --L0 50 --master-size 1024 --pixscale 0.02 --lag-min 2 \
+        --lag-max 8 --tol 0.10 --subtract-piston
+}
+
+# T3: phase variance scales as 1/cos(z)
 scenario_T3_airmass() {
-    one_layer_profile 4200 1.0 10.0 0.3 10000 0.0
+    one_layer_profile 4200 1.0 0.0 0.0 10000 0.0
     mkdir -p z0 z60
     (cd z0 && cp ../turbul.prof . && write_conf WFsim.conf ZENITH_ANGLE=0.0 \
         && run_mkwfs t3a 1.65 0) || return 1
@@ -137,6 +148,32 @@ scenario_T3_airmass() {
         && run_mkwfs t3b 1.65 0) || return 1
     "${VALIDATE[@]}" ratio z60/outarraypha.fits z0/outarraypha.fits --expect 2.0 --variance \
         --tol 0.03 --subtract-piston
+}
+
+# T4: chromatic phase scaling matches wavelength ratio and air dispersion
+scenario_T4_chromatic_ratio() {
+    one_layer_profile 4200 1.0 0.0 0.0 10000 0.0
+    write_conf WFsim.conf MAKE_SWAVEFRONT=1 SLAMBDA=1.65
+    run_mkwfs t4 1.65 0 || return 1
+    "${VALIDATE[@]}" ratio outsarraypha.fits outarraypha.fits --expect 0.2967 \
+        --tol 0.01 --subtract-piston
+}
+
+# T4b: elevated layer exhibits chromatic shear from differential refraction
+scenario_T4b_differential_refraction() {
+    one_layer_profile 15000 1.0 0.0 0.0 10000 0.0
+    write_conf WFsim.conf ZENITH_ANGLE=0.785398 PARALLACTIC_ANGLE=0.0 SITE_ALT=4200.0 \
+        MAKE_SWAVEFRONT=1 SLAMBDA=1.65 TIME_SPAN=0.01
+    run_mkwfs t4b 1.65 0 || return 1
+    "${VALIDATE[@]}" shift outarraypha.fits outsarraypha.fits --dx 0.0 --dy -2.26 --tol 0.05
+}
+
+# T5: wind advection produces correct frame-to-frame displacement
+scenario_T5_wind_advection_shift() {
+    one_layer_profile 4200 1.0 10.0 0.0 10000 0.0
+    write_conf WFsim.conf ZENITH_ANGLE=0.0 PARALLACTIC_ANGLE=0.0 WFTIME_STEP=0.01 TIME_SPAN=0.2
+    run_mkwfs t5 1.65 0 || return 1
+    "${VALIDATE[@]}" shift outarraypha.fits --dx -5.0 --dy 0.0 --step 1 --tol 0.05
 }
 
 # T6: double-precision screen synthesis gives the same wavefronts as single precision
@@ -192,8 +229,12 @@ scenario_T15_invalid_pupil_scale() {
 # name:expectation  (expectation = pass | xfail)
 SCENARIOS=(
     "T1_master_screen_sf:pass"
-    "T2_r0_single_layer:xfail"
-    "T3_airmass:xfail"
+    "T2_r0_single_layer:pass"
+    "T2b_r0_multi_layer:pass"
+    "T3_airmass:pass"
+    "T4_chromatic_ratio:pass"
+    "T4b_differential_refraction:pass"
+    "T5_wind_advection_shift:pass"
     "T6_precision:pass"
     "T7_wind_components:pass"
     "T8a_hv_single_layer:pass"

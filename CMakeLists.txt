@@ -38,6 +38,8 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/nrlmsise-00.20131225/nrlmsise-00_data.c
     src/AtmosphericTurbulence/AtmosphericTurbulence.c
     src/AtmosphericTurbulence/atmturb_config.c
+    src/AtmosphericTurbulence/atmturb_profile.c
+    src/AtmosphericTurbulence/atmturb_geometry.c
     src/AtmosphericTurbulence/atmturb_screens.c
     src/AtmosphericTurbulence/atmturb_wind.c
     src/AtmosphericTurbulence/atmturb_hvturb.c
@@ -72,6 +74,8 @@ set(INCLUDEFILES
     src/milkatmturb.h
     src/AtmosphereModel/AtmosphereModel.h
     src/AtmosphericTurbulence/AtmosphericTurbulence.h
+    src/AtmosphericTurbulence/atmturb_profile.h
+    src/AtmosphericTurbulence/atmturb_geometry.h
     src/AtmosphericTurbulence/atmturb_simd.h
     src/OpticsMaterials/OpticsMaterials.h
     src/WFpropagate/WFpropagate.h
@@ -364,5 +368,6 @@ target_link_libraries(atmturb-validate-stats PRIVATE
     ${LIBNAME}
     ${FFTWF_LIBRARIES}
     ${FFTW_LIBRARIES}
+    cfitsio
     m
 )

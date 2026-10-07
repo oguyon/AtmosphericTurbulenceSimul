@@ -26,6 +26,9 @@ float CONF_LAMBDA = 0.5e-6f;
 float CONF_SEEING = 0.8f;
 char CONF_TURBULENCE_PROF_FILE[200] = "turbul.prof";
 float CONF_ZANGLE = 0.0f;
+float CONF_PARALLACTIC_ANGLE = 0.0f;
+float CONF_SITE_ALT = -1.0f;
+uint64_t CONF_SEED = 1ULL;
 float CONF_SOURCE_Xpos = 0.0f;
 float CONF_SOURCE_Ypos = 0.0f;
 
@@ -176,6 +179,27 @@ static void atmturb_read_conf_turbulence(void)
     snprintf(keyword, sizeof(keyword), "ZENITH_ANGLE");
     read_config_parameter(CONFFILE, keyword, content);
     CONF_ZANGLE = (float)atof(content);
+
+    snprintf(keyword, sizeof(keyword), "PARALLACTIC_ANGLE");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_PARALLACTIC_ANGLE = (float)atof(content);
+    }
+
+    snprintf(keyword, sizeof(keyword), "SITE_ALT");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_SITE_ALT = (float)atof(content);
+    }
+
+    snprintf(keyword, sizeof(keyword), "SEED");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_SEED = (uint64_t)strtoull(content, NULL, 10);
+    }
 
     snprintf(keyword, sizeof(keyword), "SOURCE_XPOS");
     read_config_parameter(CONFFILE, keyword, content);
