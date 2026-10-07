@@ -15,12 +15,12 @@ simulation, Fresnel diffraction, chromatic dispersion, and real-time shared memo
 - **`src/AtmosphereModel/`**: Atmospheric profiles, standard model, RIA table, refraction.
 - **`src/AtmosphericTurbulence/`**: Phase screen generation (Kolmogorov / von Karman / FFTW),
   Hufnagel-Valley turbulence profiles, dynamic sub-pixel phase extrusion, and WFS/AO metrics.
-- **`src/OpticsMaterials/`**: Chromatic dispersion of solids, optical gases, and resists.
-- **`src/WFpropagate/`**: Multi-layer Fresnel diffraction, Lyot coronagraphy, and wavefront cubes.
 - **`src/milkatmturb.c`**: Plugin registration and interactive CLI commands (`atmturb.*`, etc.).
+- **Dependencies**: Links Level-1 shared modules `milkOpticsMaterials` (chromatic dispersion)
+  and `milkWFpropagate` (Fresnel diffraction and wavefront cubes).
 - **Standalone Executables**: Dedicated CLI runners using the `milk` FPS V2 framework:
   `milk-fpsexec-atmturb-mkwfs`, `milk-fpsexec-atmturb-mkhvturb`, `milk-fpsexec-atmturb-mkmastert`,
-  `milk-fpsexec-atmturb-mkvonkarman`, `milk-fpsexec-wfprop-fresnel`.
+  `milk-fpsexec-atmturb-mkvonkarman`, `milk-fpsexec-atmturb-aoloop`.
 
 ### Key Constraints:
 - **Zero Allocations in Simulation Loops**: Never call `malloc()`, `calloc()`, or `realloc()`

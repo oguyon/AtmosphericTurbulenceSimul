@@ -14,20 +14,18 @@
 #include "milkatmturb.h"
 
 MODULE_DEPS("milkCOREMODmemory", "milkCOREMODarith", "milkCOREMODiofits",
-            "milkCOREMODtools", "milkfft");
+            "milkCOREMODtools", "milkfft", "milkOpticsMaterials",
+            "milkWFpropagate");
 
 errno_t CLIADDCMD_milkatmturb__atmturb_mkwfs_FPS(void);
 errno_t CLIADDCMD_milkatmturb__atmturb_mkhvturb_FPS(void);
 errno_t CLIADDCMD_milkatmturb__atmturb_mkmastert_FPS(void);
 errno_t CLIADDCMD_milkatmturb__atmturb_mkvonkarman_FPS(void);
 errno_t CLIADDCMD_milkatmturb__atmturb_aoloop_FPS(void);
-errno_t CLIADDCMD_milkatmturb__wfprop_fresnel_FPS(void);
 
 static errno_t init_module_CLI(void)
 {
     init_AtmosphereModel();
-    init_OpticsMaterials();
-    init_WFpropagate();
     init_AtmosphericTurbulence();
 
     CLIADDCMD_milkatmturb__atmturb_mkwfs_FPS();
@@ -35,7 +33,6 @@ static errno_t init_module_CLI(void)
     CLIADDCMD_milkatmturb__atmturb_mkmastert_FPS();
     CLIADDCMD_milkatmturb__atmturb_mkvonkarman_FPS();
     CLIADDCMD_milkatmturb__atmturb_aoloop_FPS();
-    CLIADDCMD_milkatmturb__wfprop_fresnel_FPS();
 
     return RETURN_SUCCESS;
 }
