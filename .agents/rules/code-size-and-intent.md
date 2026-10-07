@@ -9,7 +9,8 @@ all C source files and functions must adhere to strict size and intent constrain
 
 ## 1. Size Constraints
 
-Excluding vendored third-party code (e.g. `src/shared/cjson/`, `src/AtmosphericTurbulence/nrlmsise-00.20131225/`), limits are enforced as follows:
+Excluding vendored third-party code (e.g. `src/shared/cjson/`,
+  `src/AtmosphericTurbulence/nrlmsise-00.20131225/`), limits are enforced as follows:
 
 | Metric | Soft Limit (refactor when editing) | Hard Limit (CI fails) |
 |---|---|---|
@@ -28,7 +29,7 @@ or growth in an existing baseline entry fails the CI build via `scripts/check_co
 - **Single Purpose**: Every non-trivial function must begin with a Kernel-Doc comment whose
   first line defines a single clear responsibility. If the summary requires "and" to chain
   multiple tasks, split the function into cohesive helpers.
-- **Naming Pattern**: Use `<module>_<verb>_<object>` (e.g., `knn_route_select_probes`). Avoid
+- **Naming Pattern**: Use `<module>_<verb>_<object>` (e.g., `atmturb_extrude_phase_screen`). Avoid
   uninformative verbs (`do_`, `process_`, `handle_`) without a precise object.
 - **Orchestrator Functions**: High-level workflow functions must read like a table of contents:
   a linear sequence of clear step calls, keeping mathematical loops in leaf compute modules.
