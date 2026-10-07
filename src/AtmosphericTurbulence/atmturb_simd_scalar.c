@@ -8,6 +8,7 @@
  */
 
 #include <math.h>
+#include "atmturb_lowfreq.h"
 #include "atmturb_simd.h"
 
 /**
@@ -214,3 +215,67 @@ void atmturb_init_phase_amp_scalar(
         amp[i] = 1.0f;
     }
 }
+
+/**
+ * atmturb_lowfreq_mode_accumulate_scalar - Accumulate one harmonic mode into pupil
+ * @params: Low-frequency configuration bundle.
+ * @kx: Mode spatial frequency along X [rad/master px].
+ * @ky: Mode spatial frequency along Y [rad/master px].
+ * @amp_re: Mode real amplitude.
+ * @amp_im: Mode imaginary amplitude.
+ */
+static void atmturb_lowfreq_mode_accumulate_scalar(
+    const atmturb_lowfreq_params_t *params,
+    float                           kx,
+    float                           ky,
+    float                           amp_re,
+    float                           amp_im)
+{
+    float h_re[1024], h_im[1024];
+    long n = (params->pup_size <= 1024) ? params->pup_size : 1024;
+    for (long i = 0; i < n; i++)
+    {
+        double th_x = (double) kx * (params->x0 + (double) (i * params->os));
+        h_re[i] = (float) cos(th_x);
+        h_im[i] = (float) sin(th_x);
+    }
+
+    for (long j = 0; j < params->pup_size; j++)
+    {
+        double th_y = (double) ky * (params->y0 + (double) (j * params->os));
+        float vy_re = (float) cos(th_y);
+        float vy_im = (float) sin(th_y);
+        float c_re = (amp_re * vy_re - amp_im * vy_im) * params->weight;
+        float c_im = (amp_re * vy_im + amp_im * vy_re) * params->weight;
+
+        long row = j * params->pup_size;
+        for (long i = 0; i < n; i++)
+        {
+            params->out_pha[row + i] += c_re * h_re[i] - c_im * h_im[i];
+        }
+    }
+}
+
+/**
+ * atmturb_extrude_lowfreq_scalar - Scalar separable low-order mode accumulation
+ * @params: Low-frequency configuration and data pointers.
+ */
+void atmturb_extrude_lowfreq_scalar(
+    const atmturb_lowfreq_params_t *params)
+{
+    const atmturb_lowfreq_t *lf = (const atmturb_lowfreq_t *) params->lf;
+    const float *are = params->custom_are;
+    const float *aim = params->custom_aim;
+    if (are == NULL || aim == NULL)
+    {
+        int is_s1 = (params->screen_idx == 1);
+        are = is_s1 ? lf->bre : lf->are;
+        aim = is_s1 ? lf->bim : lf->aim;
+    }
+
+    for (int m = 0; m < lf->nmodes; m++)
+    {
+        atmturb_lowfreq_mode_accumulate_scalar(params, lf->kx[m], lf->ky[m], are[m], aim[m]);
+    }
+}
+

@@ -19,7 +19,9 @@
 #include "AtmosphereModel/AtmosphereModel.h"
 #include "AtmosphericTurbulence.h"
 #include "atmturb_geometry.h"
+#include "atmturb_lowfreq.h"
 #include "atmturb_profile.h"
+#include "atmturb_rolling.h"
 #include "atmturb_simd.h"
 #include "atmturb_types.h"
 
@@ -37,118 +39,6 @@ typedef struct
     imageID ID_spha;
     imageID ID_samp;
 } atmturb_wfs_images_t;
-
-/**
- * atmturb_wfs_ensure_float_screen - Validate a master screen and convert it to FP32 if needed
- * @name: Master screen image name.
- * @msize: Expected linear dimension in pixels.
- *
- * Return: Image ID of the FP32 screen, or -1 on size/type mismatch or allocation failure.
- */
-static imageID atmturb_wfs_ensure_float_screen(
-    const char *name,
-    long        msize)
-{
-    imageID id = image_ID(name);
-    if (id < 0)
-    {
-        return -1;
-    }
-    if ((long) dcimg[id].md[0].size[0] != msize || (long) dcimg[id].md[0].size[1] != msize)
-    {
-        printf("ERROR: master screen \"%s\" is %ld x %ld, expected %ld x %ld\n", name,
-               (long) dcimg[id].md[0].size[0], (long) dcimg[id].md[0].size[1], msize, msize);
-        return -1;
-    }
-    if (dcimg[id].md[0].datatype == _DATATYPE_FLOAT)
-    {
-        return id;
-    }
-    if (dcimg[id].md[0].datatype != _DATATYPE_DOUBLE)
-    {
-        printf("ERROR: master screen \"%s\" must be FLOAT or DOUBLE\n", name);
-        return -1;
-    }
-
-    long ntot = msize * msize;
-    float *tmp = (float *) malloc(sizeof(float) * (size_t) ntot);
-    if (tmp == NULL)
-    {
-        return -1;
-    }
-    for (long ii = 0; ii < ntot; ii++)
-    {
-        tmp[ii] = (float) dcimg[id].array.D[ii];
-    }
-    delete_image_ID(name);
-    id = create_2Dimage_ID(name, msize, msize);
-    memcpy(dcimg[id].array.F, tmp, sizeof(float) * (size_t) ntot);
-    free(tmp);
-    return id;
-}
-
-/**
- * atmturb_wfs_load_screens - Load or synthesize FP32 master phase screens for each layer
- * @prof: Active turbulence profile.
- * @geom: Computed observing geometry.
- * @master_size: Master screen dimension in pixels.
- * @precision: FFT precision flag (0=single, 1=double).
- * @seed: Master PRNG seed.
- * @id_tm: Output array of image IDs per layer.
- *
- * Return: 0 on success, -1 on failure.
- */
-static int atmturb_wfs_load_screens(
-    const atmturb_profile_t *prof,
-    const atmturb_geom_t    *geom,
-    long                     master_size,
-    long                     precision,
-    uint64_t                 seed,
-    long                    *id_tm)
-{
-    for (int k = 0; k < prof->nlayers; k++)
-    {
-        char sname[200];
-        snprintf(sname, sizeof(sname), "turbm%02d_p0", k);
-        if (!CONF_SKIP_EXISTING || image_ID(sname) < 0)
-        {
-            char sname2[200];
-            snprintf(sname2, sizeof(sname2), "turbm%02d_p1", k);
-
-            atmturb_screen_spec_t spec;
-            memset(&spec, 0, sizeof(spec));
-            spec.size = master_size;
-            spec.r0_pix = geom->r0_ref_pix;
-            spec.L0_pix = (prof->layers[k].L0_m > 0.0)
-                              ? (prof->layers[k].L0_m / geom->dx_master_m) : 0.0;
-            spec.l0_pix = (prof->layers[k].l0_m > 0.0)
-                              ? (prof->layers[k].l0_m / geom->dx_master_m) : 0.0;
-            spec.seed = atmturb_rng_stream_seed(seed, (uint64_t) k);
-            spec.precision = (int) precision;
-
-            delete_image_ID(sname);
-            delete_image_ID(sname2);
-            imageID id0 = create_2Dimage_ID(sname, master_size, master_size);
-            imageID id1 = create_2Dimage_ID(sname2, master_size, master_size);
-            if (id0 < 0 || id1 < 0)
-            {
-                return -1;
-            }
-
-            int ret = atmturb_generate_screen_pair(&spec, dcimg[id0].array.F, dcimg[id1].array.F);
-            if (ret != 0)
-            {
-                return -1;
-            }
-        }
-        id_tm[k] = atmturb_wfs_ensure_float_screen(sname, master_size);
-        if (id_tm[k] < 0)
-        {
-            return -1;
-        }
-    }
-    return 0;
-}
 
 /**
  * atmturb_wfs_extrude_channel - Extrude a single turbulence layer phase into pupil
@@ -196,20 +86,81 @@ static inline void atmturb_wfs_extrude_channel(
 }
 
 /**
- * atmturb_wfs_render_frames - Multi-threaded SIMD rendering of simulation time steps
+ * atmturb_wfs_render_layer - Render one turbulence layer into phase slices for frame t
+ * @r: Rolling simulation context.
  * @geom: Computed observing geometry.
- * @id_tm: Array of master screen image IDs.
+ * @k: Layer index.
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @master_size: Master screen dimension.
+ * @pup_size: Pupil dimension.
+ * @pha_slice: Primary phase frame slice.
+ * @spha_slice: Secondary phase frame slice.
+ */
+static inline void atmturb_wfs_render_layer(
+    const atmturb_rolling_t *r,
+    const atmturb_geom_t    *geom,
+    int                      k,
+    long                     t,
+    double                   time_step_s,
+    long                     master_size,
+    long                     pup_size,
+    float                   *pha_slice,
+    float                   *spha_slice)
+{
+    const atmturb_layer_geom_t *lg = &geom->layers[k];
+    atmturb_rolling_eval_t rev;
+    atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
+
+    double x = lg->x0 + (double) t * lg->vx_pix;
+    double y = lg->y0 + (double) t * lg->vy_pix;
+    atmturb_wfs_extrude_channel(rev.scrA, master_size, x, y, pup_size, geom,
+                                (float) (lg->weight * (double) rev.wA), pha_slice);
+    if (rev.wB > 0.0f && rev.scrB != NULL)
+    {
+        atmturb_wfs_extrude_channel(rev.scrB, master_size, x, y, pup_size, geom,
+                                    (float) (lg->weight * (double) rev.wB), pha_slice);
+    }
+
+    double xs = lg->xs0 + (double) t * lg->vx_pix;
+    double ys = lg->ys0 + (double) t * lg->vy_pix;
+    atmturb_wfs_extrude_channel(rev.scrA, master_size, xs, ys, pup_size, geom,
+                                (float) (lg->weight_s * (double) rev.wA), spha_slice);
+    if (rev.wB > 0.0f && rev.scrB != NULL)
+    {
+        atmturb_wfs_extrude_channel(rev.scrB, master_size, xs, ys, pup_size, geom,
+                                    (float) (lg->weight_s * (double) rev.wB), spha_slice);
+    }
+
+    if (r->lowfreq)
+    {
+        atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
+                                          x, y, pup_size, (long) geom->oversample,
+                                          (float) lg->weight, pha_slice);
+
+        atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
+                                          xs, ys, pup_size, (long) geom->oversample,
+                                          (float) lg->weight_s, spha_slice);
+    }
+}
+
+/**
+ * atmturb_wfs_render_frames - Multi-threaded SIMD rendering of simulation time steps
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
  * @master_size: Master screen dimension in pixels.
  * @pup_size: Output pupil dimension in pixels.
  * @nbframes: Number of simulation frames.
+ * @time_step_s: Time step between frames in seconds.
  * @imgs: Container of output 3D image handles.
  */
 static void atmturb_wfs_render_frames(
+    const atmturb_rolling_t    *r,
     const atmturb_geom_t       *geom,
-    const long                 *id_tm,
     long                        master_size,
     long                        pup_size,
     long                        nbframes,
+    double                      time_step_s,
     const atmturb_wfs_images_t *imgs)
 {
     long frame_pixels = pup_size * pup_size;
@@ -228,18 +179,8 @@ static void atmturb_wfs_render_frames(
 
         for (int k = 0; k < geom->nlayers; k++)
         {
-            const atmturb_layer_geom_t *lg = &geom->layers[k];
-            const float *scr = dcimg[id_tm[k]].array.F;
-
-            atmturb_wfs_extrude_channel(scr, master_size,
-                                        lg->x0 + (double) t * lg->vx_pix,
-                                        lg->y0 + (double) t * lg->vy_pix,
-                                        pup_size, geom, (float) lg->weight, pha_slice);
-
-            atmturb_wfs_extrude_channel(scr, master_size,
-                                        lg->xs0 + (double) t * lg->vx_pix,
-                                        lg->ys0 + (double) t * lg->vy_pix,
-                                        pup_size, geom, (float) lg->weight_s, spha_slice);
+            atmturb_wfs_render_layer(r, geom, k, t, time_step_s, master_size,
+                                     pup_size, pha_slice, spha_slice);
         }
     }
 }
@@ -302,6 +243,35 @@ static int atmturb_wfs_validate_config(void)
 }
 
 /**
+ * atmturb_wfs_init_obs_params - Populate observation parameters from global configuration
+ * @slambdaum: Secondary observing wavelength in um.
+ * @params: Observation parameters container to populate.
+ */
+static void atmturb_wfs_init_obs_params(
+    float                 slambdaum,
+    atmturb_obs_params_t *params)
+{
+    memset(params, 0, sizeof(*params));
+    params->lambda_ref_m    = (double) CONF_LAMBDA;
+    params->lambda_s_m      = (double) slambdaum * 1e-6;
+    params->seeing_arcsec   = (double) CONF_SEEING;
+    params->zenith_rad      = (double) CONF_ZANGLE;
+    params->parallactic_rad = (double) CONF_PARALLACTIC_ANGLE;
+    params->site_alt_m      = (double) CONF_SITE_ALT;
+    params->pupil_scale_m   = (double) CONF_PUPIL_SCALE;
+    params->oversample      = (CONF_OVERSAMPLE > 1) ? CONF_OVERSAMPLE : 1;
+    params->interp          = CONF_INTERP;
+    params->lowfreq         = CONF_LOWFREQ;
+    params->rolling         = CONF_ROLLING;
+    params->boil_time_s     = (double) CONF_BOIL_TIME;
+    params->master_size     = CONF_MASTER_SIZE;
+    params->time_step_s     = (double) CONF_WFTIME_STEP;
+    params->source_x_rad    = (double) CONF_SOURCE_Xpos;
+    params->source_y_rad    = (double) CONF_SOURCE_Ypos;
+    params->seed            = CONF_SEED;
+}
+
+/**
  * make_AtmosphericTurbulence_wavefront_series - Run full atmospheric wavefront simulation series
  * @slambdaum: Secondary observing wavelength in um.
  * @WFprecision: Precision mode flag (0=single, 1=double).
@@ -320,7 +290,6 @@ int make_AtmosphericTurbulence_wavefront_series(
     {
         return -1;
     }
-
     if (slambdaum > 20.0f)
     {
         slambdaum *= 1e-3f; // Convert nm to um
@@ -334,21 +303,7 @@ int make_AtmosphericTurbulence_wavefront_series(
     }
 
     atmturb_obs_params_t params;
-    memset(&params, 0, sizeof(params));
-    params.lambda_ref_m = (double) CONF_LAMBDA;
-    params.lambda_s_m = (double) slambdaum * 1e-6;
-    params.seeing_arcsec = (double) CONF_SEEING;
-    params.zenith_rad = (double) CONF_ZANGLE;
-    params.parallactic_rad = (double) CONF_PARALLACTIC_ANGLE;
-    params.site_alt_m = (double) CONF_SITE_ALT;
-    params.pupil_scale_m = (double) CONF_PUPIL_SCALE;
-    params.oversample = (CONF_OVERSAMPLE > 1) ? CONF_OVERSAMPLE : 1;
-    params.interp = CONF_INTERP;
-    params.master_size = CONF_MASTER_SIZE;
-    params.time_step_s = (double) CONF_WFTIME_STEP;
-    params.source_x_rad = (double) CONF_SOURCE_Xpos;
-    params.source_y_rad = (double) CONF_SOURCE_Ypos;
-    params.seed = CONF_SEED;
+    atmturb_wfs_init_obs_params(slambdaum, &params);
 
     atmturb_geom_t geom;
     memset(&geom, 0, sizeof(geom));
@@ -358,19 +313,18 @@ int make_AtmosphericTurbulence_wavefront_series(
         return -1;
     }
 
-    long *id_tm = (long *) calloc((size_t) prof.nlayers, sizeof(long));
-    if (id_tm == NULL || atmturb_wfs_load_screens(&prof, &geom, CONF_MASTER_SIZE,
-                                                  WFprecision, CONF_SEED, id_tm) != 0)
+    long nbframes = (long) (CONF_TIME_SPAN / CONF_WFTIME_STEP + 0.5);
+    nbframes = (nbframes < 1) ? 1 : nbframes;
+    long pup_size = CONF_WFsize;
+
+    atmturb_rolling_t rsim;
+    if (atmturb_rolling_init(&rsim, &prof, &geom, CONF_MASTER_SIZE,
+                             nbframes, params.time_step_s, WFprecision, CONF_SEED) != 0)
     {
-        free(id_tm);
         atmturb_geometry_free(&geom);
         atmturb_profile_free(&prof);
         return -1;
     }
-
-    long nbframes = (long) (CONF_TIME_SPAN / CONF_WFTIME_STEP + 0.5);
-    nbframes = (nbframes < 1) ? 1 : nbframes;
-    long pup_size = CONF_WFsize;
 
     const char *pha_name = (CONF_WF_PHASE_NAME[0] != '\0') ? CONF_WF_PHASE_NAME : "outarraypha";
     const char *amp_name = (CONF_WF_AMPL_NAME[0] != '\0') ? CONF_WF_AMPL_NAME : "outarrayamp";
@@ -385,10 +339,11 @@ int make_AtmosphericTurbulence_wavefront_series(
            atmturb_simd_active_isa());
     fflush(stdout);
 
-    atmturb_wfs_render_frames(&geom, id_tm, CONF_MASTER_SIZE, pup_size, nbframes, &imgs);
+    atmturb_wfs_render_frames(&rsim, &geom, CONF_MASTER_SIZE, pup_size, nbframes,
+                              params.time_step_s, &imgs);
     atmturb_wfs_save_outputs(pha_name, amp_name);
 
-    free(id_tm);
+    atmturb_rolling_free(&rsim);
     atmturb_geometry_free(&geom);
     atmturb_profile_free(&prof);
     return 0;

@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "atmturb_lowfreq.h"
 #include "atmturb_simd.h"
 #include "atmturb_validate_math.h"
 
@@ -794,6 +795,43 @@ int val_check_simd_parity(
                     {
                         max_diff = diff;
                     }
+                }
+            }
+        }
+    }
+
+    atmturb_lowfreq_t lf;
+    atmturb_lowfreq_init(&lf, msize, 25.0, 100.0, 0.1, 42);
+
+    for (int sidx = 0; sidx <= 1; sidx++)
+    {
+        for (int os = 1; os <= 2; os++)
+        {
+            atmturb_lowfreq_params_t lp_s = {
+                .lf         = &lf,
+                .screen_idx = sidx,
+                .x0         = 12.34,
+                .y0         = 56.78,
+                .pup_size   = pup_size,
+                .os         = os,
+                .weight     = 1.15f,
+                .out_pha    = out_s
+            };
+            atmturb_lowfreq_params_t lp_v = lp_s;
+            lp_v.out_pha = out_v;
+
+            memset(out_s, 0, sizeof(float) * (size_t) ptot);
+            memset(out_v, 0, sizeof(float) * (size_t) ptot);
+
+            atmturb_extrude_lowfreq_scalar(&lp_s);
+            atmturb_extrude_lowfreq(&lp_v);
+
+            for (long i = 0; i < ptot; i++)
+            {
+                double diff = fabs((double) out_s[i] - (double) out_v[i]);
+                if (diff > max_diff)
+                {
+                    max_diff = diff;
                 }
             }
         }

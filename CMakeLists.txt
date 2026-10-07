@@ -50,6 +50,8 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_linpred_pixel.c
     src/AtmosphericTurbulence/atmturb_linpred_test.c
     src/AtmosphericTurbulence/atmturb_wfs_sim.c
+    src/AtmosphericTurbulence/atmturb_lowfreq.c
+    src/AtmosphericTurbulence/atmturb_rolling.c
     src/AtmosphericTurbulence/atmturb_simd_scalar.c
     src/AtmosphericTurbulence/atmturb_simd_avx2.c
     src/AtmosphericTurbulence/atmturb_simd_avx512.c
@@ -76,6 +78,8 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/AtmosphericTurbulence.h
     src/AtmosphericTurbulence/atmturb_profile.h
     src/AtmosphericTurbulence/atmturb_geometry.h
+    src/AtmosphericTurbulence/atmturb_lowfreq.h
+    src/AtmosphericTurbulence/atmturb_rolling.h
     src/AtmosphericTurbulence/atmturb_simd.h
     src/OpticsMaterials/OpticsMaterials.h
     src/WFpropagate/WFpropagate.h

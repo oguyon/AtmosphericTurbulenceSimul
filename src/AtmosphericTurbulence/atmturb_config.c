@@ -62,6 +62,9 @@ long CONF_WF_RAW_SIZE = 512;
 long CONF_MASTER_SIZE = 4096;
 int CONF_OVERSAMPLE = 2;
 int CONF_INTERP = 1;
+int CONF_LOWFREQ = 1;
+int CONF_ROLLING = 1;
+float CONF_BOIL_TIME = 0.0f;
 
 int CONF_FRESNEL_PROPAGATION = 0;
 int CONF_WAVEFRONT_AMPLITUDE = 0;
@@ -89,9 +92,6 @@ int AtmosphericTurbulence_change_configuration_file(const char *fname)
  */
 double Z_Air(double P, double T, double RH)
 {
-    const double An = 4.446e-6;
-    const double Bn = 6.4e-13;
-    const double Cn = -1.07e-16;
     const double P0 = 101325.0;
 
     const double A = 1.2378847e-5;
@@ -104,7 +104,7 @@ double Z_Air(double P, double T, double RH)
     const double gamma = 5.6e-7;
 
     const double a0 = 1.58123e-6, a1 = -2.9331e-8, a2 = 1.1043e-10;
-    const double b0 = 5.707e-6, b1 = -2.051e-8;
+    const double b1 = -2.051e-8;
     const double c0 = 1.9898e-4, c1 = -2.376e-6;
     const double d = 1.83e-11, e = -0.765e-8;
 
@@ -118,8 +118,6 @@ double Z_Air(double P, double T, double RH)
                P * P / TK / TK * (d + e * xv * xv);
 
     double TK0 = 273.15;
-    double Psv0 = exp(A * TK0 * TK0 + B * TK0 + C + D / TK0);
-    double f0 = alpha + beta * P0;
     double xv0 = 0.0;
     double Z0 = 1.0 - P0 / TK0 * (a0 + a1 * 0.0 + a2 * 0.0 + (c0) * xv0 +
                                  (c0) * xv0 * xv0) +
@@ -349,6 +347,27 @@ static void atmturb_read_conf_screen(void)
         read_config_parameter(CONFFILE, keyword, content);
         CONF_INTERP = atoi(content);
     }
+
+    snprintf(keyword, sizeof(keyword), "LOWFREQ");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_LOWFREQ = atoi(content);
+    }
+
+    snprintf(keyword, sizeof(keyword), "ROLLING");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_ROLLING = atoi(content);
+    }
+
+    snprintf(keyword, sizeof(keyword), "BOIL_TIME");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_BOIL_TIME = (float) atof(content);
+    }
 }
 
 /**
@@ -468,6 +487,9 @@ static int atmturb_write_default_config(const char *fname)
     fprintf(fp, "MASTER_SIZE               4096\n");
     fprintf(fp, "MASTER_OVERSAMPLE         2\n");
     fprintf(fp, "INTERP                    1\n");
+    fprintf(fp, "LOWFREQ                   1\n");
+    fprintf(fp, "ROLLING                   1\n");
+    fprintf(fp, "BOIL_TIME                 0.0\n");
     fprintf(fp, "WAVEFRONT_AMPLITUDE       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION_BIN   100.0\n");

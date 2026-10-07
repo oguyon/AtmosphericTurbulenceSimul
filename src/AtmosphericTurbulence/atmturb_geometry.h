@@ -67,6 +67,9 @@ typedef struct
     double               ez_y;
     int                  oversample;
     int                  interp;
+    int                  lowfreq;
+    int                  rolling;
+    double               boil_time_s;
     int                  nlayers;
     atmturb_layer_geom_t *layers;
 } atmturb_geom_t;
@@ -82,6 +85,9 @@ typedef struct
  * @pupil_scale_m: Pupil sampling scale [m/pixel].
  * @oversample: Master grid oversampling factor (1 or 2).
  * @interp: Interpolation scheme (0=bilinear, 1=Keys bicubic).
+ * @lowfreq: Enable analytic low-order subharmonic modes (0 or 1).
+ * @rolling: Enable rolling cross-faded screens (0 or 1).
+ * @boil_time_s: Maximum epoch duration [seconds] (0 for auto).
  * @master_size: Linear dimension of master screen [pixels].
  * @time_step_s: Time step between frames [seconds].
  * @source_x_rad: Off-axis source x angular position [radians].
@@ -99,6 +105,9 @@ typedef struct
     double   pupil_scale_m;
     int      oversample;
     int      interp;
+    int      lowfreq;
+    int      rolling;
+    double   boil_time_s;
     long     master_size;
     double   time_step_s;
     double   source_x_rad;
