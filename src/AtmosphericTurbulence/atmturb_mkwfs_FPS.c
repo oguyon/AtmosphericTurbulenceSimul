@@ -36,18 +36,25 @@ static FPS_APP_INFO FPS_app_info = {
  * 2.  LOCAL PARAMETER VARIABLES
  * ============================================================= */
 
-static float   param_slambda     = 1650.0f;
-static int32_t param_precision   = 0;
-static int32_t param_wfsize      = 256;
-static float   param_pupil_scale = 0.04f;
-static float   param_seeing      = 0.6f;
-static float   param_time_step   = 0.001f;
-static float   param_time_span   = 0.05f;
+static float   param_slambda           = 1650.0f;
+static int32_t param_precision         = 0;
+static int32_t param_wfsize            = 256;
+static float   param_pupil_scale       = 0.04f;
+static float   param_seeing            = 0.6f;
+static float   param_time_step         = 0.001f;
+static float   param_time_span         = 0.05f;
 static char    param_prof_file[FUNCTION_PARAMETER_STRMAXLEN] = "turbul.prof";
-static int32_t param_master_size = 2048;
-static int32_t param_save_fits   = 1;
-static int32_t param_amplitude   = 0;
-static int32_t param_fresnel     = 0;
+static int32_t param_master_size       = 2048;
+static int32_t param_save_fits         = 1;
+static int32_t param_amplitude         = 0;
+static int32_t param_fresnel           = 0;
+static float   param_ref_lambda        = 0.5f;
+static float   param_zenith_angle      = 0.0f;
+static float   param_parallactic_angle = 0.0f;
+static float   param_site_alt          = -1.0f;
+static float   param_source_x          = 0.0f;
+static float   param_source_y          = 0.0f;
+static int64_t param_seed              = 1;
 static char    param_out_phase[FUNCTION_PARAMETER_STRMAXLEN] = "outarraypha";
 static char    param_out_ampl[FUNCTION_PARAMETER_STRMAXLEN]  = "outarrayamp";
 static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
@@ -81,6 +88,20 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
       "Compute amplitude in addition to phase (0/1)")                           \
     X(".fresnel", &param_fresnel, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,       \
       "Diffractive Fresnel inter-layer propagation (0/1)")                      \
+    X(".ref_lambda", &param_ref_lambda, FPTYPE_FLOAT32, 0,                      \
+      FPFLAG_DEFAULT_INPUT, "Reference wavelength for seeing [um]")             \
+    X(".zenith_angle", &param_zenith_angle, FPTYPE_FLOAT32, 0,                 \
+      FPFLAG_DEFAULT_INPUT, "Zenith angle [rad]")                               \
+    X(".parallactic_angle", &param_parallactic_angle, FPTYPE_FLOAT32, 0,       \
+      FPFLAG_DEFAULT_INPUT, "Parallactic angle [rad]")                          \
+    X(".site_alt", &param_site_alt, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,    \
+      "Telescope altitude ASL [m] (-1 for auto)")                               \
+    X(".source_x", &param_source_x, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,    \
+      "Off-axis source X position [rad]")                                       \
+    X(".source_y", &param_source_y, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,    \
+      "Off-axis source Y position [rad]")                                       \
+    X(".seed", &param_seed, FPTYPE_INT64, 0, FPFLAG_DEFAULT_INPUT,              \
+      "Master PRNG seed (0 = time-based)")                                      \
     X(".out_phase", &param_out_phase, FPTYPE_STREAMNAME, 0,                     \
       FPFLAG_DEFAULT_INPUT, "Output phase stream name")                         \
     X(".out_ampl", &param_out_ampl, FPTYPE_STREAMNAME, 0,                       \
@@ -107,6 +128,18 @@ static void atmturb_mkwfs_sync_to_conf(void)
     CONF_FRESNEL_PROPAGATION = (int)param_fresnel;
     CONF_MASTER_SIZE         = (long)param_master_size;
 
+    if (param_ref_lambda > 0.0f)
+    {
+        CONF_LAMBDA = (param_ref_lambda > 10.0f) ? (param_ref_lambda * 1e-9f)
+                                                 : (param_ref_lambda * 1e-6f);
+    }
+    CONF_ZANGLE            = param_zenith_angle;
+    CONF_PARALLACTIC_ANGLE = param_parallactic_angle;
+    CONF_SITE_ALT          = param_site_alt;
+    CONF_SOURCE_Xpos       = param_source_x;
+    CONF_SOURCE_Ypos       = param_source_y;
+    CONF_SEED              = (uint64_t)param_seed;
+
     if (param_prof_file[0] != '\0')
     {
         strncpy(CONF_TURBULENCE_PROF_FILE, param_prof_file,
@@ -132,15 +165,22 @@ static void atmturb_mkwfs_sync_to_conf(void)
  */
 static void atmturb_mkwfs_sync_from_conf(void)
 {
-    param_wfsize      = (int32_t)CONF_WFsize;
-    param_pupil_scale = CONF_PUPIL_SCALE;
-    param_seeing      = CONF_SEEING;
-    param_time_step   = CONF_WFTIME_STEP;
-    param_time_span   = CONF_TIME_SPAN;
-    param_save_fits   = (int32_t)CONF_WFOUTPUT;
-    param_amplitude   = (int32_t)CONF_WAVEFRONT_AMPLITUDE;
-    param_fresnel     = (int32_t)CONF_FRESNEL_PROPAGATION;
-    param_master_size = (int32_t)CONF_MASTER_SIZE;
+    param_wfsize            = (int32_t)CONF_WFsize;
+    param_pupil_scale       = CONF_PUPIL_SCALE;
+    param_seeing            = CONF_SEEING;
+    param_time_step         = CONF_WFTIME_STEP;
+    param_time_span         = CONF_TIME_SPAN;
+    param_save_fits         = (int32_t)CONF_WFOUTPUT;
+    param_amplitude         = (int32_t)CONF_WAVEFRONT_AMPLITUDE;
+    param_fresnel           = (int32_t)CONF_FRESNEL_PROPAGATION;
+    param_master_size       = (int32_t)CONF_MASTER_SIZE;
+    param_ref_lambda        = CONF_LAMBDA * 1e6f;
+    param_zenith_angle      = CONF_ZANGLE;
+    param_parallactic_angle = CONF_PARALLACTIC_ANGLE;
+    param_site_alt          = CONF_SITE_ALT;
+    param_source_x          = CONF_SOURCE_Xpos;
+    param_source_y          = CONF_SOURCE_Ypos;
+    param_seed              = (int64_t)CONF_SEED;
 
     if (CONF_TURBULENCE_PROF_FILE[0] != '\0')
     {

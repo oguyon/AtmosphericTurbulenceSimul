@@ -439,49 +439,60 @@ double val_measure_tilt_variance(
 }
 
 /**
- * @brief Sub-pixel parabolic peak interpolation on a 2D cross-correlation map.
+ * @brief Compute normalized cross-correlation between two frames at integer shift.
  */
-static void parabolic_peak_offset(
-    const fftwf_complex *cc,
-    long                 nx,
-    long                 ny,
-    double              *out_dx,
-    double              *out_dy)
+static double val_xcorr_single_lag(
+    const double *f0,
+    const double *f1,
+    long          nx,
+    long          ny,
+    long          ix,
+    long          iy)
 {
-    long total = nx * ny;
-    long max_idx = 0;
-    float max_val = -1e30f;
-
-    for (long i = 0; i < total; i++)
+    long y0_a = (iy < 0) ? -iy : 0;
+    long y1_a = (iy < 0) ? ny : (ny - iy);
+    long x0_a = (ix < 0) ? -ix : 0;
+    long x1_a = (ix < 0) ? nx : (nx - ix);
+    long count = (y1_a - y0_a) * (x1_a - x0_a);
+    if (count <= 0)
     {
-        if (cc[i][0] > max_val)
-        {
-            max_val = cc[i][0];
-            max_idx = i;
-        }
+        return 0.0;
     }
 
-    long iy = max_idx / nx;
-    long ix = max_idx % nx;
+    double sum_a = 0.0, sum_b = 0.0;
+    for (long y = y0_a; y < y1_a; y++)
+    {
+        long row_a = y * nx;
+        long row_b = (y + iy) * nx + ix;
+        for (long x = x0_a; x < x1_a; x++)
+        {
+            sum_a += f0[row_a + x];
+            sum_b += f1[row_b + x];
+        }
+    }
+    double mean_a = sum_a / (double) count;
+    double mean_b = sum_b / (double) count;
 
-    float cm_x = cc[iy * nx + ((ix - 1 + nx) % nx)][0];
-    float c0_x = cc[iy * nx + ix][0];
-    float cp_x = cc[iy * nx + ((ix + 1) % nx)][0];
-    float den_x = cm_x - 2.0f * c0_x + cp_x;
-    double dx = (double) ix + ((den_x == 0.0f) ? 0.0 : 0.5 * (cm_x - cp_x) / den_x);
-
-    float cm_y = cc[((iy - 1 + ny) % ny) * nx + ix][0];
-    float c0_y = cc[iy * nx + ix][0];
-    float cp_y = cc[((iy + 1) % ny) * nx + ix][0];
-    float den_y = cm_y - 2.0f * c0_y + cp_y;
-    double dy = (double) iy + ((den_y == 0.0f) ? 0.0 : 0.5 * (cm_y - cp_y) / den_y);
-
-    *out_dx = (dx > (double) nx / 2.0) ? (dx - (double) nx) : dx;
-    *out_dy = (dy > (double) ny / 2.0) ? (dy - (double) ny) : dy;
+    double sum_ab = 0.0, sum_aa = 0.0, sum_bb = 0.0;
+    for (long y = y0_a; y < y1_a; y++)
+    {
+        long row_a = y * nx;
+        long row_b = (y + iy) * nx + ix;
+        for (long x = x0_a; x < x1_a; x++)
+        {
+            double da = f0[row_a + x] - mean_a;
+            double db = f1[row_b + x] - mean_b;
+            sum_ab += da * db;
+            sum_aa += da * da;
+            sum_bb += db * db;
+        }
+    }
+    double denom = sqrt(sum_aa * sum_bb);
+    return (denom > 0.0) ? (sum_ab / denom) : 0.0;
 }
 
 /**
- * @brief Sub-pixel shift between two 2D frames via FFT cross-correlation peak.
+ * @brief Sub-pixel shift between two 2D frames via normalized spatial cross-correlation.
  */
 void val_xcorr_shift(
     const double *f0,
@@ -491,55 +502,68 @@ void val_xcorr_shift(
     double       *out_dx,
     double       *out_dy)
 {
-    long total = nx * ny;
-    fftwf_complex *in0 = (fftwf_complex *) fftwf_alloc_complex(total);
-    fftwf_complex *in1 = (fftwf_complex *) fftwf_alloc_complex(total);
-    fftwf_complex *out0 = (fftwf_complex *) fftwf_alloc_complex(total);
-    fftwf_complex *out1 = (fftwf_complex *) fftwf_alloc_complex(total);
-    fftwf_complex *cc = (fftwf_complex *) fftwf_alloc_complex(total);
-
-    double sum0 = 0.0, sum1 = 0.0;
-    for (long i = 0; i < total; i++)
+    long r = (nx / 4 < 16) ? (nx / 4) : 16;
+    if (r < 4)
     {
-        sum0 += f0[i];
-        sum1 += f1[i];
-    }
-    double m0 = sum0 / (double) total, m1 = sum1 / (double) total;
-
-    for (long i = 0; i < total; i++)
-    {
-        in0[i][0] = (float) (f0[i] - m0);
-        in0[i][1] = 0.0f;
-        in1[i][0] = (float) (f1[i] - m1);
-        in1[i][1] = 0.0f;
+        r = 4;
     }
 
-    fftwf_plan p0 = fftwf_plan_dft_2d(ny, nx, in0, out0, FFTW_FORWARD, FFTW_ESTIMATE);
-    fftwf_plan p1 = fftwf_plan_dft_2d(ny, nx, in1, out1, FFTW_FORWARD, FFTW_ESTIMATE);
-    fftwf_plan p_cc = fftwf_plan_dft_2d(ny, nx, cc, cc, FFTW_BACKWARD, FFTW_ESTIMATE);
-
-    fftwf_execute(p0);
-    fftwf_execute(p1);
-
-    for (long i = 0; i < total; i++)
+    long grid_dim = 2 * r + 1;
+    double *grid = (double *) calloc((size_t) (grid_dim * grid_dim), sizeof(double));
+    if (grid == NULL)
     {
-        float r0 = out0[i][0], i0 = out0[i][1];
-        float r1 = out1[i][0], i1 = out1[i][1];
-        cc[i][0] = r0 * r1 + i0 * i1;
-        cc[i][1] = r0 * i1 - i0 * r1;
+        *out_dx = 0.0;
+        *out_dy = 0.0;
+        return;
     }
 
-    fftwf_execute(p_cc);
-    parabolic_peak_offset(cc, nx, ny, out_dx, out_dy);
+    double best_c = -1e30;
+    long best_dx = 0, best_dy = 0;
 
-    fftwf_destroy_plan(p0);
-    fftwf_destroy_plan(p1);
-    fftwf_destroy_plan(p_cc);
-    fftwf_free(in0);
-    fftwf_free(in1);
-    fftwf_free(out0);
-    fftwf_free(out1);
-    fftwf_free(cc);
+    for (long iy = -r; iy <= r; iy++)
+    {
+        for (long ix = -r; ix <= r; ix++)
+        {
+            double c = val_xcorr_single_lag(f0, f1, nx, ny, ix, iy);
+            grid[(iy + r) * grid_dim + (ix + r)] = c;
+            if (c > best_c)
+            {
+                best_c = c;
+                best_dx = ix;
+                best_dy = iy;
+            }
+        }
+    }
+
+    double dx_sub = (double) best_dx;
+    if (best_dx > -r && best_dx < r)
+    {
+        double cm = grid[(best_dy + r) * grid_dim + (best_dx - 1 + r)];
+        double c0 = grid[(best_dy + r) * grid_dim + (best_dx + r)];
+        double cp = grid[(best_dy + r) * grid_dim + (best_dx + 1 + r)];
+        double denom = cm - 2.0 * c0 + cp;
+        if (denom != 0.0)
+        {
+            dx_sub += 0.5 * (cm - cp) / denom;
+        }
+    }
+
+    double dy_sub = (double) best_dy;
+    if (best_dy > -r && best_dy < r)
+    {
+        double cm = grid[(best_dy - 1 + r) * grid_dim + (best_dx + r)];
+        double c0 = grid[(best_dy + r) * grid_dim + (best_dx + r)];
+        double cp = grid[(best_dy + 1 + r) * grid_dim + (best_dx + r)];
+        double denom = cm - 2.0 * c0 + cp;
+        if (denom != 0.0)
+        {
+            dy_sub += 0.5 * (cm - cp) / denom;
+        }
+    }
+
+    free(grid);
+    *out_dx = dx_sub;
+    *out_dy = dy_sub;
 }
 
 /**
