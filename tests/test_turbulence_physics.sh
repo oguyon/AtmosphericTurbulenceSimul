@@ -4,7 +4,7 @@
 # Quantitative physics regression tests for milkatmturb.
 #
 # Each scenario runs a standalone executable in a scratch directory and checks the output with
-# tests/validate_turbulence_stats.py. Scenarios marked "xfail" document known physics defects
+# tests/atmturb_validate_stats. Scenarios marked "xfail" document known physics defects
 # that are scheduled for a later fix: they are reported but do not fail the suite (an
 # unexpected pass is reported as XPASS so the marker can be removed).
 #
@@ -15,7 +15,6 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-VALIDATE=(python3 "$SCRIPT_DIR/validate_turbulence_stats.py")
 MILK_SHM_DIR="${MILK_SHM_DIR:-/milk/shm}"
 FPS_PREFIX="tphys$$"
 
@@ -36,16 +35,16 @@ find_executable() {
     return 1
 }
 
+VALIDATE_EXEC=$(find_executable atmturb-validate-stats) || {
+    echo "ERROR: atmturb-validate-stats not found. Please build the plugin." >&2
+    exit 1
+}
+VALIDATE=("$VALIDATE_EXEC")
+
 MKWFS=$(find_executable milk-fpsexec-atmturb-mkwfs) || { echo "mkwfs not found" >&2; exit 1; }
 MKVK=$(find_executable milk-fpsexec-atmturb-mkvonkarman) \
     || { echo "mkvonkarman not found" >&2; exit 1; }
 MKHV=$(find_executable milk-fpsexec-atmturb-mkhvturb) || { echo "mkhvturb not found" >&2; exit 1; }
-
-"${VALIDATE[@]}" --help >/dev/null 2>&1
-if [[ $? -eq 77 ]]; then
-    echo "SKIP: numpy/astropy/scipy not available"
-    exit 0
-fi
 
 TEST_TMPDIR="$(mktemp -d /tmp/test_turb_physics_XXXXXX)"
 cleanup() {

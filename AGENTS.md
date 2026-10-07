@@ -60,7 +60,7 @@ All C source code, header files, and markdown documentation must strictly comply
 
 Activate these skills when working on specialized areas:
 - `advanced-math-patterns`: FFTW3/FFTW3F, 2D phase grids, complex wavefronts, and SIMD math.
-- `diagnose-build-failure`: CMake, OpenMP, GSL, FFTW, and milk linkage troubleshooting.
+- `diagnose-build-failure`: CMake, OpenMP, FFTW, and milk linkage troubleshooting.
 - `feature-planner`: Guidelines for scoping and planning new features or refactorings.
 - `imagestream-internals`: ImageStreamIO shared memory layout and semaphore synchronization.
 - `optimize-compute-function`: Checklists and guidelines for hot simulation and propagation loops.

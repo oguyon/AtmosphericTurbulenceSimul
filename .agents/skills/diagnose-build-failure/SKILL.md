@@ -10,7 +10,6 @@ A guide for troubleshooting build and link errors in `milkatmturb`.
 ## 1. CMake Configuration Failures
 - **Missing packages:** Look for pkg-config or CMake errors:
   - "fftw3 or fftw3f not found" -> Install `libfftw3-dev`.
-  - "GSL not found" -> Install `libgsl-dev`.
   - "OpenMP not found" -> Install `libomp-dev`.
   - "CLIcore not found" -> Ensure `milk` is installed, or set `MILK_SOURCE_DIR` / `MILK_ROOT`.
 
@@ -24,4 +23,4 @@ A guide for troubleshooting build and link errors in `milkatmturb`.
 
 ## 3. Linker Errors
 - **Missing library linkage:** Ensure that the target library and executables link against
-  `${FFTW_LIBRARIES}`, `${FFTWF_LIBRARIES}`, `GSL::gsl`, `OpenMP::OpenMP_C`, and `m`.
+  `${FFTW_LIBRARIES}`, `${FFTWF_LIBRARIES}`, `OpenMP::OpenMP_C`, and `m`.

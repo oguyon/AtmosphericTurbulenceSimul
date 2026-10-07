@@ -13,7 +13,7 @@ Check this list before finalizing any generated code.
    the root `CMakeLists.txt`. If it is a public header, add it to `INCLUDEFILES`.
 2. **Not linking required libraries.**
    When adding mathematical or framework capabilities, ensure required libraries are linked:
-   `OpenMP::OpenMP_C`, `GSL::gsl`, `${FFTW_LIBRARIES}`, `${FFTWF_LIBRARIES}`, `ImageStreamIO`,
+   `OpenMP::OpenMP_C`, `${FFTW_LIBRARIES}`, `${FFTWF_LIBRARIES}`, `ImageStreamIO`,
    `CLIcore`, `m`.
 
 ## Simulation Loops & Performance
