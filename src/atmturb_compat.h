@@ -49,7 +49,12 @@
 static inline imageID atmturb_image_ID(
     const char *name)
 {
-    return image_ID(name, dcimg, dcnimg);
+    imageID ID = image_ID(name, dcimg, dcnimg);
+    if (ID < 0)
+    {
+        ID = read_sharedmem_image(name, dcimg, dcnimg);
+    }
+    return ID;
 }
 
 // delete_image_ID wrapper
@@ -183,7 +188,11 @@ static inline imageID atmturb_load_fits_2(
     const char *name)
 {
     imageID ID = -1;
-    load_fits(file, name, LOADFITS_ERRMODE_IGNORE, &ID);
+    errno_t ret = load_fits(file, name, LOADFITS_ERRMODE_IGNORE, &ID);
+    if (ID < 0 && ret == RETURN_SUCCESS)
+    {
+        ID = read_sharedmem_image(name, dcimg, dcnimg);
+    }
     return ID;
 }
 
@@ -193,7 +202,11 @@ static inline imageID atmturb_load_fits_3(
     int         errmode)
 {
     imageID ID = -1;
-    load_fits(file, name, errmode, &ID);
+    errno_t ret = load_fits(file, name, errmode, &ID);
+    if (ID < 0 && ret == RETURN_SUCCESS)
+    {
+        ID = read_sharedmem_image(name, dcimg, dcnimg);
+    }
     return ID;
 }
 

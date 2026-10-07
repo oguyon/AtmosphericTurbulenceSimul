@@ -47,6 +47,8 @@ MKVK=$(find_executable milk-fpsexec-atmturb-mkvonkarman) \
 MKHV=$(find_executable milk-fpsexec-atmturb-mkhvturb) || { echo "mkhvturb not found" >&2; exit 1; }
 MKMT=$(find_executable milk-fpsexec-atmturb-mkmastert) \
     || { echo "mkmastert not found" >&2; exit 1; }
+MKAOLOOP=$(find_executable milk-fpsexec-atmturb-aoloop) \
+    || { echo "aoloop not found" >&2; exit 1; }
 
 TEST_TMPDIR="$(mktemp -d /tmp/test_turb_physics_XXXXXX)"
 cleanup() {
@@ -92,6 +94,12 @@ write_conf() {
 # run_mkwfs <fpsname> <slambda_um> <precision> : run wavefront series in the current directory
 run_mkwfs() {
     "$MKWFS" -n "${FPS_PREFIX}_$1" exec "$2" "$3" > mkwfs.log 2>&1
+}
+
+# run_aoloop <fps> <wf> <psf> <fits> <mode> <gain> <leak> <delay> <scilam> <teldiam>
+run_aoloop() {
+    "$MKAOLOOP" -n "${FPS_PREFIX}_$1" exec "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" \
+        > aoloop.log 2>&1
 }
 
 # one_layer_profile <alt> <cn2> <speed> <dir> <L0> <l0>
@@ -520,6 +528,115 @@ sys.exit(0 if ok else 1)
 '
 }
 
+# T16a: Flat wavefront PSF produces normalized Strehl = 1.000 +- 1e-3 and centered peak
+scenario_T16a_zero_turb_strehl() {
+    run_aoloop t16a "none" "PSFflat" "psf_flat.fits" 0 0.0 0.0 0 1.65 8.0 || return 1
+    python3 -c '
+import sys, re
+from astropy.io import fits
+import numpy as np
+
+psf = fits.getdata("psf_flat.fits")
+ny, nx = psf.shape
+cy, cx = np.unravel_index(np.argmax(psf), psf.shape)
+centered = (abs(cy - ny // 2) <= 1) and (abs(cx - nx // 2) <= 1)
+
+with open("aoloop.log") as f:
+    log_text = f.read()
+m = re.search(r"Strehl = ([0-9.]+)", log_text)
+if not m:
+    print("FAIL: could not parse Strehl ratio from log")
+    sys.exit(1)
+strehl = float(m.group(1))
+
+ok = centered and abs(strehl - 1.0) < 1e-3
+msg = f": Strehl = {strehl:.4f}, peak at ({cy},{cx}) vs target ({ny//2},{nx//2})"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T16b: Open-loop seeing FWHM matches Kolmogorov 0.98 * lambda / r0 (+- 20%)
+scenario_T16b_open_loop_seeing() {
+    one_layer_profile 0 1.0 10.0 0.0 25.0 0.01
+    write_conf WFsim.conf TURBULENCE_SEEING=0.8 TIME_SPAN=0.2 WFTIME_STEP=0.01 \
+        WFsize=128 PUPIL_SCALE=0.02
+    run_mkwfs t16b 1.65 0 || return 1
+    run_aoloop t16b_ao "outarraypha.fits" "PSFol" "psf_ol.fits" 0 0.0 0.0 0 1.65 2.56 || return 1
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+psf = fits.getdata("psf_ol.fits")
+ny, nx = psf.shape
+cy, cx = np.unravel_index(np.argmax(psf), psf.shape)
+
+y, x = np.ogrid[:ny, :nx]
+r = np.hypot(x - cx, y - cy)
+half_max = 0.5 * np.max(psf)
+fwhm_meas = 2.0 * float(np.max(r[psf >= half_max]))
+
+lam_sci = 1.65e-6
+lam_ref = 0.5e-6
+seeing_ref_rad = 0.8 * (np.pi / (180.0 * 3600.0))
+r0_ref = 0.98 * lam_ref / seeing_ref_rad
+r0_sci = r0_ref * ((lam_sci / lam_ref) ** 1.2)
+theta_seeing = 0.98 * lam_sci / r0_sci
+
+dx = 0.02
+n_fft = 256
+dtheta = lam_sci / (n_fft * dx)
+fwhm_theo_pix = theta_seeing / dtheta
+
+rel_err = abs(fwhm_meas - fwhm_theo_pix) / fwhm_theo_pix
+ok = rel_err <= 0.20
+msg = (f": measured FWHM = {fwhm_meas:.2f} px, theoretical = {fwhm_theo_pix:.2f} px "
+       f"(err {rel_err*100:.1f}%, tol 20%)")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T16c: Closed-loop integrator increases Strehl over open-loop and converges
+scenario_T16c_closed_loop_strehl() {
+    one_layer_profile 0 1.0 10.0 0.0 25.0 0.01
+    write_conf WFsim.conf TURBULENCE_SEEING=0.5 TIME_SPAN=0.2 WFTIME_STEP=0.01 \
+        WFsize=128 PUPIL_SCALE=0.02
+    run_mkwfs t16c 1.65 0 || return 1
+    run_aoloop t16c_ol "outarraypha.fits" "PSFol" "psf_ol.fits" 0 0.0 0.0 0 1.65 2.56 || return 1
+    cp aoloop.log aoloop_ol.log
+    run_aoloop t16c_cl "outarraypha.fits" "PSFcl" "psf_cl.fits" 1 0.5 0.001 1 1.65 2.56 || return 1
+    cp aoloop.log aoloop_cl.log
+    python3 -c '
+import sys, re
+
+def parse_strehl(fname):
+    with open(fname) as f:
+        text = f.read()
+    m = re.search(r"Strehl = ([0-9.]+)\s+\(first = ([0-9.]+),\s+last = ([0-9.]+)\)", text)
+    if not m:
+        return None, None, None
+    return float(m.group(1)), float(m.group(2)), float(m.group(3))
+
+s_ol_cumul, s_ol_first, s_ol_last = parse_strehl("aoloop_ol.log")
+s_cl_cumul, s_cl_first, s_cl_last = parse_strehl("aoloop_cl.log")
+
+if s_ol_cumul is None or s_cl_cumul is None:
+    print("FAIL: failed to parse Strehl ratios from logs")
+    sys.exit(1)
+
+gain_ratio = s_cl_cumul / s_ol_cumul
+converged = s_cl_last > s_cl_first
+ok = (gain_ratio >= 1.30) and converged
+
+msg = (f": open-loop Strehl = {s_ol_cumul:.4f} (last {s_ol_last:.4f}), "
+       f"closed-loop Strehl = {s_cl_cumul:.4f} (last {s_cl_last:.4f}, ratio {gain_ratio:.2f}x)")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
 # ----------------------------------------------------------------------------------------------
 # Runner
 # ----------------------------------------------------------------------------------------------
@@ -549,6 +666,9 @@ SCENARIOS=(
     "T13_epoch_stability:pass"
     "T14_seam_absence:pass"
     "T15_invalid_pupil_scale:pass"
+    "T16a_zero_turb_strehl:pass"
+    "T16b_open_loop_seeing:pass"
+    "T16c_closed_loop_strehl:pass"
 )
 
 npass=0; nfail=0; nxfail=0; nxpass=0

@@ -425,6 +425,86 @@ int frame_select_PSF(
 int AtmosphericTurbulence_WFprocess(void);
 
 /**
+ * struct atmturb_ao_params_t - Configuration for AO closed-loop simulation
+ * @in_wfname: Input phase cube name or FITS file path (default: "outarraypha").
+ * @in_ampname: Optional input amplitude cube name or FITS file path (NULL = 1.0).
+ * @out_psfname: Output PSF cube or cumulative image name (default: "PSFcumul").
+ * @out_fitsname: Optional FITS file to write cumulative PSF (NULL = do not save).
+ * @pup_size: Linear dimension of pupil array [pixels] (0 = auto from cube).
+ * @nbframes: Number of frames to process (0 = all frames in cube).
+ * @lambda_ref_m: Reference wavelength of phase cube in meters (default: 0.55e-6).
+ * @lambda_sci_m: Science wavelength in meters (default: 1.65e-6).
+ * @tel_diam_m: Telescope primary mirror diameter in meters (default: 8.0).
+ * @pupil_scale_m: Pupil pixel scale in meters/pixel (<= 0 for auto).
+ * @loop_mode: 0 = Open loop, 1 = Leaky integrator, 2 = PID.
+ * @gain: Loop gain (default: 0.5).
+ * @leak: Integrator leak factor (default: 0.001).
+ * @loop_delay: Hardware latency delay in frames (default: 1).
+ * @Kp: Proportional gain for PID (default: 0.5).
+ * @Ki: Integral gain for PID (default: 0.0).
+ * @Kd: Derivative gain for PID (default: 0.0).
+ * @save_psfcube: 1 to save full 3D PSF cube, 0 for cumulative 2D PSF only.
+ */
+typedef struct
+{
+    const char *in_wfname;
+    const char *in_ampname;
+    const char *out_psfname;
+    const char *out_fitsname;
+    long        pup_size;
+    long        nbframes;
+    double      lambda_ref_m;
+    double      lambda_sci_m;
+    double      tel_diam_m;
+    double      pupil_scale_m;
+    int         loop_mode;
+    double      gain;
+    double      leak;
+    int         loop_delay;
+    double      Kp;
+    double      Ki;
+    double      Kd;
+    int         save_psfcube;
+} atmturb_ao_params_t;
+
+/**
+ * struct atmturb_ao_results_t - Simulation summary metrics
+ * @strehl_cumul: Long-exposure cumulative Strehl ratio.
+ * @strehl_first: First frame Strehl ratio.
+ * @strehl_last: Last frame Strehl ratio.
+ * @dl_peak: Peak intensity of diffraction-limited reference PSF.
+ * @open_loop_wfe_rms: Open-loop RMS wavefront error in meters.
+ * @closed_loop_wfe_rms: Closed-loop RMS residual wavefront error in meters.
+ */
+typedef struct
+{
+    double strehl_cumul;
+    double strehl_first;
+    double strehl_last;
+    double dl_peak;
+    double open_loop_wfe_rms;
+    double closed_loop_wfe_rms;
+} atmturb_ao_results_t;
+
+/**
+ * atmturb_ao_init_params - Populate default parameters for AO simulation
+ * @params: Structure to initialize.
+ */
+void atmturb_ao_init_params(
+    atmturb_ao_params_t *params);
+
+/**
+ * atmturb_ao_sim_run - Execute closed-loop AO simulation and generate science PSF
+ * @params: Simulation parameters.
+ * @results: Output results container (optional, can be NULL).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_ao_sim_run(
+    const atmturb_ao_params_t *params,
+    atmturb_ao_results_t      *results);
+
+/**
  * AtmosphericTurbulence_makePSF - Run closed-loop AO simulation and generate PSF
  * @Kp: Proportional feedback gain.
  * @Ki: Integral feedback gain.

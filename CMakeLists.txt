@@ -61,6 +61,7 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_mkhvturb_FPS.c
     src/AtmosphericTurbulence/atmturb_mkmastert_FPS.c
     src/AtmosphericTurbulence/atmturb_mkvonkarman_FPS.c
+    src/AtmosphericTurbulence/atmturb_aoloop_FPS.c
     src/OpticsMaterials/OpticsMaterials.c
     src/OpticsMaterials/optmat_solids.c
     src/OpticsMaterials/optmat_gases.c
@@ -354,6 +355,13 @@ if(COMMAND add_milk_standalone)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
     )
     target_link_libraries(milk-fpsexec-atmturb-mkvonkarman PRIVATE ${LIBNAME})
+
+    add_milk_standalone(atmturb-aoloop src/AtmosphericTurbulence/atmturb_aoloop_FPS.c)
+    target_include_directories(milk-fpsexec-atmturb-aoloop PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+    )
+    target_link_libraries(milk-fpsexec-atmturb-aoloop PRIVATE ${LIBNAME})
 
     add_milk_standalone(wfprop-fresnel src/WFpropagate/wfprop_fresnel_FPS.c)
     target_include_directories(milk-fpsexec-wfprop-fresnel PRIVATE

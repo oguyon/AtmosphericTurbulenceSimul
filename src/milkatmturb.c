@@ -20,6 +20,7 @@ errno_t CLIADDCMD_milkatmturb__atmturb_mkwfs_FPS(void);
 errno_t CLIADDCMD_milkatmturb__atmturb_mkhvturb_FPS(void);
 errno_t CLIADDCMD_milkatmturb__atmturb_mkmastert_FPS(void);
 errno_t CLIADDCMD_milkatmturb__atmturb_mkvonkarman_FPS(void);
+errno_t CLIADDCMD_milkatmturb__atmturb_aoloop_FPS(void);
 errno_t CLIADDCMD_milkatmturb__wfprop_fresnel_FPS(void);
 
 static errno_t init_module_CLI(void)
@@ -33,6 +34,7 @@ static errno_t init_module_CLI(void)
     CLIADDCMD_milkatmturb__atmturb_mkhvturb_FPS();
     CLIADDCMD_milkatmturb__atmturb_mkmastert_FPS();
     CLIADDCMD_milkatmturb__atmturb_mkvonkarman_FPS();
+    CLIADDCMD_milkatmturb__atmturb_aoloop_FPS();
     CLIADDCMD_milkatmturb__wfprop_fresnel_FPS();
 
     return RETURN_SUCCESS;
