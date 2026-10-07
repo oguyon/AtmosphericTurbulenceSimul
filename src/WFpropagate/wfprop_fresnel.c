@@ -89,6 +89,45 @@ static void wfprop_fresnel_propagate_cpu(long ID, long nx, long ny, double coeff
 }
 
 /**
+ * wfprop_fresnel_apply_engine_stream - Propagate single-precision field using Fresnel engine
+ * @IDin: Input complex image ID.
+ * @IDout: Output complex image ID.
+ * @n: Grid linear dimension in pixels.
+ * @scale: Physical pixel scale [m/pixel].
+ * @z: Propagation distance [m].
+ * @lambda: Optical wavelength [m].
+ *
+ * Return: 0 on success, -1 on allocation failure.
+ */
+static int wfprop_fresnel_apply_engine_stream(
+    long   IDin,
+    long   IDout,
+    long   n,
+    double scale,
+    double z,
+    double lambda)
+{
+    wfprop_fresnel_engine_t eng;
+    if (wfprop_fresnel_engine_init(&eng, n) != 0)
+    {
+        return -1;
+    }
+    size_t ntot = (size_t) (n * n);
+    fftwf_complex *tf = (fftwf_complex *) fftwf_alloc_complex(ntot);
+    if (tf == NULL)
+    {
+        wfprop_fresnel_engine_free(&eng);
+        return -1;
+    }
+    wfprop_fresnel_tf_build(tf, n, scale, z, lambda, 0.0);
+    memcpy(dcimg[IDout].array.CF, dcimg[IDin].array.CF, sizeof(fftwf_complex) * ntot);
+    wfprop_fresnel_engine_apply(&eng, (fftwf_complex *) dcimg[IDout].array.CF, tf);
+    fftwf_free(tf);
+    wfprop_fresnel_engine_free(&eng);
+    return 0;
+}
+
+/**
  * Fresnel_propagate_wavefront - Fresnel propagate complex optical field
  * @in: Name of input complex image
  * @out: Name of output complex image
@@ -118,15 +157,16 @@ int Fresnel_propagate_wavefront(
     int atype = dcimg[IDin].md[0].atype;
     int is_double = (atype == COMPLEX_DOUBLE) ? 1 : 0;
 
+    imageID IDout = image_ID(out);
+    if (IDout == -1)
+    {
+        IDout = is_double ? create_2DCimage_ID_double(out, nx, ny)
+                          : create_2DCimage_ID(out, nx, ny);
+    }
+
 #if defined(HAVE_CUDA)
     if (wfprop_fresnel_device_available())
     {
-        imageID IDout = image_ID(out);
-        if (IDout == -1)
-        {
-            IDout = is_double ? create_2DCimage_ID_double(out, nx, ny)
-                              : create_2DCimage_ID(out, nx, ny);
-        }
         const void *h_in = is_double ? (const void *)dcimg[IDin].array.CD
                                      : (const void *)dcimg[IDin].array.CF;
         void *h_out = is_double ? (void *)dcimg[IDout].array.CD
@@ -139,6 +179,14 @@ int Fresnel_propagate_wavefront(
         }
     }
 #endif
+
+    if (!is_double && nx == ny)
+    {
+        if (wfprop_fresnel_apply_engine_stream(IDin, IDout, nx, PUPIL_SCALE, z, lambda) == 0)
+        {
+            return 0;
+        }
+    }
 
     do2dfft(in, "tmp");
     permut("tmp");

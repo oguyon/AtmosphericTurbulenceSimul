@@ -315,6 +315,126 @@ scenario_T15_invalid_pupil_scale() {
     grep -q "PUPIL_SCALE must be > 0" mkwfs.log && echo "PASS: PUPIL_SCALE = 0 rejected"
 }
 
+# T9a: Fresnel off leaves amplitude identically 1.0 on all pixels and frames
+scenario_T9a_fresnel_off() {
+    one_layer_profile 5000 1.0 10.0 0.0 10000 0.0
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=0 FRESNEL_PROPAGATION=0 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01
+    run_mkwfs t9a 1.65 0 || return 1
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+amp = fits.getdata("outarrayamp.fits")
+samp = fits.getdata("outsarrayamp.fits")
+dev_pri = np.max(np.abs(amp - 1.0))
+dev_sec = np.max(np.abs(samp - 1.0))
+ok = (dev_pri < 1e-6) and (dev_sec < 1e-6)
+msg = f": amplitude identically 1.0 (dev {max(dev_pri, dev_sec):.1e})"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9b: Multi-layer diffractive propagation conserves total optical energy (<I> = 1.00 +- 0.01)
+scenario_T9b_energy_conservation() {
+    cat << 'EOF' > turbul.prof
+# alt cn2 speed dir L0 l0
+ 4215     5.32        6.5     1.47  10000 0.0
+ 4230     1.47        6.55    1.57  10000 0.0
+ 4349     1.08        6.6     1.67  10000 0.0
+ 5007     2.11        6.7     1.77  10000 0.0
+12000     1.83       22.0     3.10  10000 0.0
+16200     1.48        9.5     3.20  10000 0.0
+23701     0.697       5.6     3.30  10000 0.0
+EOF
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=1 \
+        FRESNEL_PROPAGATION_BIN=1000.0 TIME_SPAN=0.2 WFTIME_STEP=0.01
+    run_mkwfs t9b 1.65 0 || return 1
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+amp = fits.getdata("outarrayamp.fits")
+samp = fits.getdata("outsarrayamp.fits")
+mean_I_pri = float(np.mean(amp ** 2))
+mean_I_sec = float(np.mean(samp ** 2))
+ok = abs(mean_I_pri - 1.0) < 0.01 and abs(mean_I_sec - 1.0) < 0.01
+msg = f": mean intensity pri={mean_I_pri:.5f} sec={mean_I_sec:.5f} (tol 0.01)"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9c: High-altitude single layer scintillation index matches Rytov approximation (+- 20%)
+scenario_T9c_scintillation_rytov() {
+    one_layer_profile 15000 1.0 15.0 0.0 10000 0.0
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=1 \
+        SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 TURBULENCE_REF_WAVEL=0.5 \
+        TURBULENCE_SEEING=0.6 TIME_SPAN=0.4 WFTIME_STEP=0.01
+    run_mkwfs t9c 1.65 0 || return 1
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+lam = 0.5e-6
+seeing_rad = 0.6 * (np.pi / (180.0 * 3600.0))
+r0 = 0.98 * lam / seeing_rad
+h = 15000.0
+h_site = 500.0
+cos_z = np.cos(0.5235987756)
+int_cn2 = 0.060 * (lam ** 2) * (r0 ** (-5.0 / 3.0))
+sigma2_rytov = 19.12 * (lam ** (-7.0 / 6.0)) * (cos_z ** (-11.0 / 6.0)) * int_cn2 * ((h - h_site) ** (5.0 / 6.0))
+
+amp = fits.getdata("outarrayamp.fits")
+I = amp ** 2
+mean_I = float(np.mean(I))
+var_I = float(np.var(I))
+scint_sim = var_I / (mean_I ** 2)
+
+rel_err = abs(scint_sim - sigma2_rytov) / sigma2_rytov
+ok = rel_err <= 0.20
+msg = f": scint index sim={scint_sim:.4f}, rytov={sigma2_rytov:.4f} (err {rel_err*100:.1f}%, tol 20%)"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9d: Zero-distance Fresnel propagation reproduces geometric phase to < 1e-5 rad
+scenario_T9d_zero_distance_identity() {
+    one_layer_profile 500 1.0 10.0 0.0 10000 0.0
+    mkdir -p diff geo
+
+    write_conf diff/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=1 \
+        SITE_ALT=500.0 TIME_SPAN=0.05 WFTIME_STEP=0.01
+    (cd diff && cp ../turbul.prof . && run_mkwfs t9d_diff 1.65 0) || return 1
+
+    write_conf geo/WFsim.conf WAVEFRONT_AMPLITUDE=0 FRESNEL_PROPAGATION=0 \
+        SITE_ALT=500.0 TIME_SPAN=0.05 WFTIME_STEP=0.01
+    (cd geo && cp ../turbul.prof . && run_mkwfs t9d_geo 1.65 0) || return 1
+
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+p_diff = fits.getdata("diff/outarraypha.fits")
+p_geo  = fits.getdata("geo/outarraypha.fits")
+a_diff = fits.getdata("diff/outarrayamp.fits")
+
+max_p_diff = float(np.max(np.abs(p_diff - p_geo)))
+max_a_diff = float(np.max(np.abs(a_diff - 1.0)))
+
+ok = (max_p_diff < 1e-5) and (max_a_diff < 1e-5)
+msg = f": max |pha_diff - pha_geo| = {max_p_diff:.2e} rad, |amp - 1| = {max_a_diff:.2e} (tol 1e-5)"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
 # ----------------------------------------------------------------------------------------------
 # Runner
 # ----------------------------------------------------------------------------------------------
@@ -331,6 +451,10 @@ SCENARIOS=(
     "T6_precision:pass"
     "T7_wind_components:pass"
     "T8a_hv_single_layer:pass"
+    "T9a_fresnel_off:pass"
+    "T9b_energy_conservation:pass"
+    "T9c_scintillation_rytov:pass"
+    "T9d_zero_distance_identity:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
     "T11_tilt_variance:pass"
