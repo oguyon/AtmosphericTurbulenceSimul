@@ -113,8 +113,11 @@ void atmturb_wfs_render_layer(
     atmturb_rolling_eval_t rev;
     atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
 
-    double x = lg->x0 + (double) t * lg->vx_pix;
-    double y = lg->y0 + (double) t * lg->vy_pix;
+    double dx = (lg->traj_x != NULL) ? lg->traj_x[t] : ((double) t * lg->vx_pix);
+    double dy = (lg->traj_y != NULL) ? lg->traj_y[t] : ((double) t * lg->vy_pix);
+
+    double x = lg->x0 + dx;
+    double y = lg->y0 + dy;
     atmturb_wfs_extrude_channel(rev.scrA, master_size, x, y, pup_size, geom,
                                 (float) (lg->weight * (double) rev.wA), pha_slice);
     if (rev.wB > 0.0f && rev.scrB != NULL)
@@ -123,8 +126,8 @@ void atmturb_wfs_render_layer(
                                     (float) (lg->weight * (double) rev.wB), pha_slice);
     }
 
-    double xs = lg->xs0 + (double) t * lg->vx_pix;
-    double ys = lg->ys0 + (double) t * lg->vy_pix;
+    double xs = lg->xs0 + dx;
+    double ys = lg->ys0 + dy;
     atmturb_wfs_extrude_channel(rev.scrA, master_size, xs, ys, pup_size, geom,
                                 (float) (lg->weight_s * (double) rev.wA), spha_slice);
     if (rev.wB > 0.0f && rev.scrB != NULL)
@@ -387,6 +390,8 @@ static void atmturb_wfs_init_obs_params(
     params->rolling         = CONF_ROLLING;
     params->boil_time_s     = (double) CONF_BOIL_TIME;
     params->master_size     = CONF_MASTER_SIZE;
+    long nbframes           = (long) (CONF_TIME_SPAN / CONF_WFTIME_STEP + 0.5);
+    params->nbframes        = (nbframes < 1) ? 1 : nbframes;
     params->time_step_s     = (double) CONF_WFTIME_STEP;
     params->source_x_rad    = (double) CONF_SOURCE_Xpos;
     params->source_y_rad    = (double) CONF_SOURCE_Ypos;

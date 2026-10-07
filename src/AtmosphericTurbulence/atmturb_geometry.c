@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "AtmosphereModel/AtmosphereModel.h"
+#include "AtmosphericTurbulence.h"
 #include "atmturb_geometry.h"
 #include "atmturb_types.h"
 
@@ -27,6 +28,16 @@ void atmturb_geometry_free(
     if (geom == NULL)
     {
         return;
+    }
+    if (geom->layers != NULL)
+    {
+        for (int k = 0; k < geom->nlayers; k++)
+        {
+            free(geom->layers[k].traj_x);
+            free(geom->layers[k].traj_y);
+            geom->layers[k].traj_x = NULL;
+            geom->layers[k].traj_y = NULL;
+        }
     }
     free(geom->layers);
     geom->layers = NULL;
@@ -168,6 +179,55 @@ static inline double atmturb_wrap_coord(
 }
 
 /**
+ * atmturb_init_layer_turbulent_wind - Initialize wind trajectory table if layer has turbulent wind
+ * @layer: Layer physical specification.
+ * @params: Observing simulation parameters.
+ * @geom: Observing geometry context.
+ * @k: Layer index.
+ * @base_seed: Master PRNG seed.
+ * @lg: Layer geometry to populate with trajectory.
+ */
+static void atmturb_init_layer_turbulent_wind(
+    const atmturb_layer_t      *layer,
+    const atmturb_obs_params_t *params,
+    const atmturb_geom_t       *geom,
+    int                         k,
+    uint64_t                    base_seed,
+    atmturb_layer_geom_t       *lg)
+{
+    lg->traj_x = NULL;
+    lg->traj_y = NULL;
+
+    if (params->nbframes <= 0 || !(layer->sigma_wind_mps > 0.0) || !(layer->L_wind_m > 0.0))
+    {
+        return;
+    }
+
+    lg->traj_x = (double *) malloc(sizeof(double) * (size_t) params->nbframes);
+    lg->traj_y = (double *) malloc(sizeof(double) * (size_t) params->nbframes);
+    if (lg->traj_x == NULL || lg->traj_y == NULL)
+    {
+        free(lg->traj_x);
+        free(lg->traj_y);
+        lg->traj_x = NULL;
+        lg->traj_y = NULL;
+        return;
+    }
+
+    atmturb_wind_traj_params_t tp = {
+        .nbframes       = params->nbframes,
+        .dt_s           = params->time_step_s,
+        .vx_pix         = lg->vx_pix,
+        .vy_pix         = lg->vy_pix,
+        .dx_master_m    = geom->dx_master_m,
+        .sigma_wind_mps = layer->sigma_wind_mps,
+        .L_wind_m       = layer->L_wind_m,
+        .seed           = atmturb_rng_stream_seed(base_seed, (uint64_t) (5000 + k))
+    };
+    atmturb_wind_synthesize_trajectory(&tp, lg->traj_x, lg->traj_y);
+}
+
+/**
  * atmturb_geometry_compute - Derive all layer geometric parameters and scales
  * @prof: Active turbulence profile.
  * @params: Observing conditions and simulation parameters.
@@ -273,6 +333,8 @@ int atmturb_geometry_compute(
             t_dec = params->boil_time_s;
         }
         lg->t_dec_s = t_dec;
+
+        atmturb_init_layer_turbulent_wind(layer, params, geom, k, base_seed, lg);
     }
 
     printf("[milkatmturb] Geometry: r0_ref = %.4f m (%.2f pix), site_alt = %.1f m, cos(z) = %.4f\n",
