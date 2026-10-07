@@ -45,6 +45,8 @@ MKWFS=$(find_executable milk-fpsexec-atmturb-mkwfs) || { echo "mkwfs not found" 
 MKVK=$(find_executable milk-fpsexec-atmturb-mkvonkarman) \
     || { echo "mkvonkarman not found" >&2; exit 1; }
 MKHV=$(find_executable milk-fpsexec-atmturb-mkhvturb) || { echo "mkhvturb not found" >&2; exit 1; }
+MKMT=$(find_executable milk-fpsexec-atmturb-mkmastert) \
+    || { echo "mkmastert not found" >&2; exit 1; }
 
 TEST_TMPDIR="$(mktemp -d /tmp/test_turb_physics_XXXXXX)"
 cleanup() {
@@ -97,6 +99,24 @@ one_layer_profile() {
 # ----------------------------------------------------------------------------------------------
 # Scenarios (each runs in its own directory; return 0 = pass)
 # ----------------------------------------------------------------------------------------------
+
+# T1: master turbulence screen structure function matches discrete PSD expectation
+# and generation is thread-count invariant (1 vs 8 threads)
+scenario_T1_master_screen_sf() {
+    "$MKMT" -n "${FPS_PREFIX}_t1" exec 1024 100.0 0.0 0 scr0 scr1 42 scr0.fits scr1.fits \
+        > mkmt.log 2>&1 || return 1
+    "${VALIDATE[@]}" sf scr0.fits --reference discrete --pixscale 1.0 --r0 3.1788734 \
+        --L0 100.0 --master-size 1024 --oversample 1 --lag-min 2 --lag-max 16 --tol 0.03 || return 1
+    "${VALIDATE[@]}" sf scr1.fits --reference discrete --pixscale 1.0 --r0 3.1788734 \
+        --L0 100.0 --master-size 1024 --oversample 1 --lag-min 2 --lag-max 16 --tol 0.03 || return 1
+
+    OMP_NUM_THREADS=1 "$MKMT" -n "${FPS_PREFIX}_t1_th1" exec 512 100.0 0.0 0 s1_0 s1_1 12345 \
+        s1_0.fits s1_1.fits > mkmt_th1.log 2>&1 || return 1
+    OMP_NUM_THREADS=8 "$MKMT" -n "${FPS_PREFIX}_t1_th8" exec 512 100.0 0.0 0 s8_0 s8_1 12345 \
+        s8_0.fits s8_1.fits > mkmt_th8.log 2>&1 || return 1
+    "${VALIDATE[@]}" same s1_0.fits s8_0.fits --tol 1e-6 || return 1
+    "${VALIDATE[@]}" same s1_1.fits s8_1.fits --tol 1e-6
+}
 
 # T2: single-layer phase screen has r0 = 0.98 lambda / seeing (scheduled fix: Phase 3)
 scenario_T2_r0_single_layer() {
@@ -171,6 +191,7 @@ scenario_T15_invalid_pupil_scale() {
 
 # name:expectation  (expectation = pass | xfail)
 SCENARIOS=(
+    "T1_master_screen_sf:pass"
     "T2_r0_single_layer:xfail"
     "T3_airmass:xfail"
     "T6_precision:pass"

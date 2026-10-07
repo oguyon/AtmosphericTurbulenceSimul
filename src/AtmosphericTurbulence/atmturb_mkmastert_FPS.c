@@ -13,6 +13,7 @@
 #    include "CLIcore.h"
 #endif
 #include "fps.h"
+#include "COREMOD_iofits/COREMOD_iofits.h"
 #include "COREMOD_memory/COREMOD_memory.h"
 #include "AtmosphericTurbulence/AtmosphericTurbulence.h"
 #include "atmturb_mkmastert_FPS.h"
@@ -39,6 +40,9 @@ static float   param_innerscale = 1.0f;
 static int32_t param_precision  = 0;
 static char    param_screen0[FUNCTION_PARAMETER_STRMAXLEN] = "turbm00_p0";
 static char    param_screen1[FUNCTION_PARAMETER_STRMAXLEN] = "turbm00_p1";
+static int64_t param_seed       = 1;
+static char    param_fitsout0[FUNCTION_PARAMETER_STRMAXLEN] = "";
+static char    param_fitsout1[FUNCTION_PARAMETER_STRMAXLEN] = "";
 
 /* ================================================================
  * 3.  UNIFIED PARAMETER TABLE (X-Macro)
@@ -56,7 +60,13 @@ static char    param_screen1[FUNCTION_PARAMETER_STRMAXLEN] = "turbm00_p1";
     X(".screen0", &param_screen0, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,  \
       "Output screen 0 image name")                                            \
     X(".screen1", &param_screen1, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,  \
-      "Output screen 1 image name")
+      "Output screen 1 image name")                                            \
+    X(".seed", &param_seed, FPTYPE_INT64, 1, FPFLAG_DEFAULT_INPUT,             \
+      "RNG seed (0 = time-based)")                                             \
+    X(".fitsout0", &param_fitsout0, FPTYPE_STRING, 1, FPFLAG_DEFAULT_INPUT,    \
+      "Optional FITS output file for screen 0 (empty = do not save)")          \
+    X(".fitsout1", &param_fitsout1, FPTYPE_STRING, 1, FPFLAG_DEFAULT_INPUT,    \
+      "Optional FITS output file for screen 1 (empty = do not save)")
 
 /* ================================================================
  * 4.  COMPUTATION LOGIC
@@ -69,8 +79,18 @@ static char    param_screen1[FUNCTION_PARAMETER_STRMAXLEN] = "turbm00_p1";
  */
 static MILK_HOT errno_t fpsexec(void)
 {
-    make_master_turbulence_screen(param_screen0, param_screen1, (long) param_size,
-                                  param_outerscale, param_innerscale, (long) param_precision);
+    make_master_turbulence_screen_seeded(param_screen0, param_screen1, (long) param_size,
+                                         param_outerscale, param_innerscale,
+                                         (long) param_precision, (uint64_t) param_seed);
+
+    if (param_fitsout0[0] != '\0')
+    {
+        save_fits(param_screen0, param_fitsout0);
+    }
+    if (param_fitsout1[0] != '\0')
+    {
+        save_fits(param_screen1, param_fitsout1);
+    }
 
     return RETURN_SUCCESS;
 }

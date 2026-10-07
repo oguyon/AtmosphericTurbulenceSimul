@@ -20,7 +20,7 @@ constructs autoregressive linear predictors for predictive adaptive optics contr
 - `atmturb_config.c`: Configuration file reader (`AtmosphericTurbulence_ReadConf`) and air
   compressibility equations of state (`Z_Air`, `Z_N2`).
 - `atmturb_screens.c`: von Karman and power-law master phase screen generator
-  (`make_master_turbulence_screen`).
+  (`atmturb_generate_screen_pair`, `make_master_turbulence_screen_seeded`).
 - `atmturb_wind.c`: 1D von Karman turbulent wind velocity synthesis
   (`make_AtmosphericTurbulence_vonKarmanWind`).
 - `atmturb_hvturb.c`: Hufnagel-Valley $C_n^2$ vertical profile generator with Fried parameter
@@ -62,6 +62,9 @@ constructs autoregressive linear predictors for predictive adaptive optics contr
   - `int init_AtmosphericTurbulence(void)`
   - `int AtmosphericTurbulence_change_configuration_file(const char *fname)`
   - `long make_AtmosphericTurbulence_vonKarmanWind(...)`
+  - `int atmturb_generate_screen_pair(...)`
+  - `int make_master_turbulence_screen_seeded(...)`
+  - `double atmturb_measure_r0_pix(...)`
   - `int make_master_turbulence_screen(...)`
   - `int make_master_turbulence_screen_pow(...)`
   - `int contract_wavefront_series(...)`
