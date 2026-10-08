@@ -120,11 +120,42 @@ void atmturb_init_phase_amp(
     long   n);
 
 /**
+ * atmturb_add_float_array - Pointwise float array accumulation (dest[i] += src[i])
+ * @dest: Output/accumulator float array.
+ * @src: Input float array.
+ * @n: Number of elements.
+ */
+void atmturb_add_float_array(
+    float       *dest,
+    const float *src,
+    long         n);
+
+/**
+ * atmturb_complex_mul_array - Pointwise complex float array product
+ * @dest: Output complex float array (length 2 * n_complex).
+ * @src1: First input complex float array.
+ * @src2: Second input complex float array.
+ * @n_complex: Number of complex elements.
+ */
+void atmturb_complex_mul_array(
+    float       *dest,
+    const float *src1,
+    const float *src2,
+    long         n_complex);
+
+/**
  * atmturb_simd_active_isa - Query name of active vectorized ISA implementation
  *
- * Return: String name of active ISA ("AVX-512", "AVX2", or "Scalar").
+ * Return: String name of active ISA ("AVX-512", "AVX2", "CUDA GPU", or "Scalar").
  */
 const char *atmturb_simd_active_isa(void);
+
+/**
+ * atmturb_simd_is_gpu - Query if CUDA GPU execution is active
+ *
+ * Return: 1 if GPU mode is selected, 0 otherwise.
+ */
+int atmturb_simd_is_gpu(void);
 
 /* Scalar reference implementations */
 void atmturb_extrude_accumulate_scalar(
@@ -144,6 +175,15 @@ void atmturb_init_phase_amp_scalar(
     long   n);
 void atmturb_extrude_lowfreq_scalar(
     const atmturb_lowfreq_params_t *params);
+void atmturb_add_float_array_scalar(
+    float       *dest,
+    const float *src,
+    long         n);
+void atmturb_complex_mul_array_scalar(
+    float       *dest,
+    const float *src1,
+    const float *src2,
+    long         n_complex);
 
 /* AVX2 implementations */
 void atmturb_extrude_accumulate_avx2(
@@ -163,6 +203,15 @@ void atmturb_init_phase_amp_avx2(
     long   n);
 void atmturb_extrude_lowfreq_avx2(
     const atmturb_lowfreq_params_t *params);
+void atmturb_add_float_array_avx2(
+    float       *dest,
+    const float *src,
+    long         n);
+void atmturb_complex_mul_array_avx2(
+    float       *dest,
+    const float *src1,
+    const float *src2,
+    long         n_complex);
 
 /* AVX-512 implementations */
 void atmturb_extrude_accumulate_avx512(
@@ -182,6 +231,15 @@ void atmturb_init_phase_amp_avx512(
     long   n);
 void atmturb_extrude_lowfreq_avx512(
     const atmturb_lowfreq_params_t *params);
+void atmturb_add_float_array_avx512(
+    float       *dest,
+    const float *src,
+    long         n);
+void atmturb_complex_mul_array_avx512(
+    float       *dest,
+    const float *src1,
+    const float *src2,
+    long         n_complex);
 
 #ifdef __cplusplus
 }

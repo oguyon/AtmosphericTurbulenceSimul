@@ -12,7 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include "atmturb_fresnel.h"
+#include "atmturb_simd.h"
 
 /**
  * atmturb_fresnel_sort_layers - Sort layer indices descending by line-of-sight distance
@@ -387,11 +392,14 @@ void atmturb_fresnel_ctx_free(
  * @npix: Total number of pixels.
  */
 static void atmturb_fresnel_extract_unwrapped(
-    const fftwf_complex *field,
-    float               *pha,
-    float               *amp,
-    long                 npix)
+    const fftwf_complex *restrict field,
+    float               *restrict pha,
+    float               *restrict amp,
+    long                          npix)
 {
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
+#endif
     for (long i = 0; i < npix; i++)
     {
         float re = field[i][0];
@@ -416,10 +424,13 @@ static void atmturb_fresnel_extract_unwrapped(
  * @npix: Total number of pixels.
  */
 static void atmturb_fresnel_modulate_field(
-    fftwf_complex *field,
-    const float   *phase,
-    long           npix)
+    fftwf_complex *restrict field,
+    const float   *restrict phase,
+    long                    npix)
 {
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
+#endif
     for (long i = 0; i < npix; i++)
     {
         float p = phase[i];
@@ -486,11 +497,8 @@ void atmturb_fresnel_render_step(
                                      pup_size, ctx->super_pha, ctx->super_spha);
         }
 
-        for (long i = 0; i < npix; i++)
-        {
-            pha_slice[i]  += ctx->super_pha[i];
-            spha_slice[i] += ctx->super_spha[i];
-        }
+        atmturb_add_float_array(pha_slice, ctx->super_pha, npix);
+        atmturb_add_float_array(spha_slice, ctx->super_spha, npix);
 
         atmturb_fresnel_modulate_field(ctx->field_pri, ctx->super_pha, npix);
         wfprop_fresnel_engine_apply(&ctx->eng, ctx->field_pri, plan->tf_pri[m]);

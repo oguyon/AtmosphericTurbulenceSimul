@@ -279,3 +279,47 @@ void atmturb_extrude_lowfreq_scalar(
     }
 }
 
+/**
+ * atmturb_add_float_array_scalar - Scalar float array addition (dest[i] += src[i])
+ * @dest: In-out destination array.
+ * @src: Source array to add.
+ * @n: Array length.
+ */
+void atmturb_add_float_array_scalar(
+    float       *dest,
+    const float *src,
+    long         n)
+{
+    for (long i = 0; i < n; i++)
+    {
+        dest[i] += src[i];
+    }
+}
+
+/**
+ * atmturb_complex_mul_array_scalar - Scalar complex array point-wise product
+ * @dest: Output complex float array (length 2 * n_complex).
+ * @src1: First input complex float array.
+ * @src2: Second input complex float array.
+ * @n_complex: Number of complex elements.
+ */
+void atmturb_complex_mul_array_scalar(
+    float       *dest,
+    const float *src1,
+    const float *src2,
+    long         n_complex)
+{
+    for (long i = 0; i < n_complex; i++)
+    {
+        long idx = 2 * i;
+        float r1 = src1[idx];
+        float i1 = src1[idx + 1];
+        float r2 = src2[idx];
+        float i2 = src2[idx + 1];
+
+        dest[idx]     = r1 * r2 - i1 * i2;
+        dest[idx + 1] = r1 * i2 + i1 * r2;
+    }
+}
+
+

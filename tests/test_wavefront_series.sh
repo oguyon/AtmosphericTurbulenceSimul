@@ -14,6 +14,7 @@ MKWFS_EXEC="${MILK_MKWFS_EXEC:-}"
 
 if [[ -z "$MKWFS_EXEC" ]]; then
     CANDIDATES=(
+        "$REPO_ROOT/_build/milk-fpsexec-atmturb-mkwfs"
         "$REPO_ROOT/../../_build/plugins/milkatmturb/milk-fpsexec-atmturb-mkwfs"
         "$REPO_ROOT/../_build/plugins/milkatmturb/milk-fpsexec-atmturb-mkwfs"
         "/home/oguyon/src/milk-framework-dev/_build/plugins/milkatmturb/milk-fpsexec-atmturb-mkwfs"
@@ -36,6 +37,7 @@ fi
 VALIDATE_EXEC="${MILK_VALIDATE_EXEC:-}"
 if [[ -z "$VALIDATE_EXEC" ]]; then
     CANDIDATES=(
+        "$REPO_ROOT/_build/atmturb-validate-stats"
         "$REPO_ROOT/../../_build/plugins/milkatmturb/atmturb-validate-stats"
         "$REPO_ROOT/../_build/plugins/milkatmturb/atmturb-validate-stats"
         "/home/oguyon/src/milk-framework-dev/_build/plugins/milkatmturb/atmturb-validate-stats"

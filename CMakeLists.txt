@@ -16,6 +16,16 @@ project(lib_${LIBNAME}_project C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# Default to Release build type for maximum optimization (-O3)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
+# RPATH Configuration (preserve runtime search path in installed binaries)
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib;/usr/local/milk/lib;/usr/local/milk-1.03.00/lib;/usr/local/lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 # Find OpenMP (required for multi-threaded turbulence simulation)
 find_package(OpenMP REQUIRED)
 
@@ -24,6 +34,14 @@ find_package(OpenMP REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFTW REQUIRED fftw3)
 pkg_check_modules(FFTWF REQUIRED fftw3f)
+find_library(FFTWF_OMP_LIB NAMES fftw3f_omp fftw3f_threads)
+if(FFTWF_OMP_LIB)
+    list(APPEND FFTWF_LIBRARIES ${FFTWF_OMP_LIB})
+endif()
+find_library(FFTW_OMP_LIB NAMES fftw3_omp fftw3_threads)
+if(FFTW_OMP_LIB)
+    list(APPEND FFTW_LIBRARIES ${FFTW_OMP_LIB})
+endif()
 
 # Collect source files
 set(SOURCEFILES
@@ -50,6 +68,7 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_linpred_pixel.c
     src/AtmosphericTurbulence/atmturb_linpred_test.c
     src/AtmosphericTurbulence/atmturb_wfs_sim.c
+    src/AtmosphericTurbulence/atmturb_wfs_stream.c
     src/AtmosphericTurbulence/atmturb_fresnel.c
     src/AtmosphericTurbulence/atmturb_lowfreq.c
     src/AtmosphericTurbulence/atmturb_rolling.c
@@ -74,6 +93,7 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/atmturb_lowfreq.h
     src/AtmosphericTurbulence/atmturb_rolling.h
     src/AtmosphericTurbulence/atmturb_simd.h
+    src/AtmosphericTurbulence/atmturb_wfs_stream.h
 )
 
 file(GLOB SCRIPTS "src/AtmosphericTurbulence/scripts/*")
@@ -82,7 +102,7 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx2.c
         PROPERTIES COMPILE_FLAGS "-mavx2 -mfma")
     set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx512.c
-        PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq -mavx512bw -mfma")
+        PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq -mavx512bw -mavx512vl -mfma")
 endif()
 
 # CUDA GPU Acceleration
@@ -394,3 +414,26 @@ target_link_libraries(atmturb-validate-stats PRIVATE
     cfitsio
     m
 )
+
+# ── Performance benchmark executable ──────────────────────────────
+add_executable(atmturb-benchmark-perf
+    tests/benchmark_perf.c
+)
+target_include_directories(atmturb-benchmark-perf PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${MILK_STANDALONE_INCLUDES}
+)
+target_link_libraries(atmturb-benchmark-perf PRIVATE
+    ${LIBNAME}
+    ${MILK_LIBRARIES}
+    ${FFTWF_LIBRARIES}
+    ${FFTW_LIBRARIES}
+    OpenMP::OpenMP_C
+    m
+)
+if(USE_CUDA_ACCEL)
+    target_link_libraries(atmturb-benchmark-perf PRIVATE CUDA::cudart CUDA::cufft)
+endif()
+

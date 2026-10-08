@@ -7,6 +7,7 @@
  * @brief   AVX-512 accelerated compute kernels for atmospheric turbulence simulation
  */
 
+#define _GNU_SOURCE
 #include <math.h>
 #if defined(__x86_64__) || defined(_M_X64)
 #    include <immintrin.h>
@@ -118,10 +119,10 @@ void atmturb_extrude_accumulate_bilinear_avx512(
     const float *master = params->master;
     float *out_pha = params->out_pha;
 
-    float fx = (float)(params->x0 - floor(params->x0));
-    float fy = (float)(params->y0 - floor(params->y0));
-    long base_x = (long)floor(params->x0);
-    long base_y = (long)floor(params->y0);
+    float fx = (float) (params->x0 - floor(params->x0));
+    float fy = (float) (params->y0 - floor(params->y0));
+    long base_x = (long) floor(params->x0);
+    long base_y = (long) floor(params->y0);
 
     __m512 vw00 = _mm512_set1_ps((1.0f - fx) * (1.0f - fy) * weight);
     __m512 vw10 = _mm512_set1_ps(fx * (1.0f - fy) * weight);
@@ -134,13 +135,28 @@ void atmturb_extrude_accumulate_bilinear_avx512(
     __m512i vidx = _mm512_loadu_si512((const __m512i *) s_idx);
 
     long start_x = base_x % msize;
-    if (start_x < 0) start_x += msize;
+    if (start_x < 0)
+    {
+        start_x += msize;
+    }
+    long iy0 = base_y % msize;
+    if (iy0 < 0)
+    {
+        iy0 += msize;
+    }
+
+    float w00 = (1.0f - fx) * (1.0f - fy) * weight;
+    float w10 = fx * (1.0f - fy) * weight;
+    float w01 = (1.0f - fx) * fy * weight;
+    float w11 = fx * fy * weight;
 
     for (long jj = 0; jj < pup_size; jj++)
     {
-        long iy0 = (base_y + jj * os) % msize;
-        if (iy0 < 0) iy0 += msize;
-        long iy1 = (iy0 + 1) % msize;
+        long iy1 = iy0 + 1;
+        if (iy1 >= msize)
+        {
+            iy1 -= msize;
+        }
 
         const float *row0 = &master[iy0 * msize];
         const float *row1 = &master[iy1 * msize];
@@ -169,8 +185,6 @@ void atmturb_extrude_accumulate_bilinear_avx512(
                     _mm512_storeu_ps(&out_row[ii], _mm512_add_ps(out, acc));
                 }
             }
-            float w00 = _mm512_cvtss_f32(vw00), w10 = _mm512_cvtss_f32(vw10);
-            float w01 = _mm512_cvtss_f32(vw01), w11 = _mm512_cvtss_f32(vw11);
             for (; ii < pup_size; ii++)
             {
                 long ix0 = start_x + ii * os;
@@ -180,16 +194,22 @@ void atmturb_extrude_accumulate_bilinear_avx512(
         }
         else
         {
-            float w00 = _mm512_cvtss_f32(vw00), w10 = _mm512_cvtss_f32(vw10);
-            float w01 = _mm512_cvtss_f32(vw01), w11 = _mm512_cvtss_f32(vw11);
             for (long ii = 0; ii < pup_size; ii++)
             {
                 long ix0 = (start_x + ii * os) % msize;
-                if (ix0 < 0) ix0 += msize;
+                if (ix0 < 0)
+                {
+                    ix0 += msize;
+                }
                 long ix1 = (ix0 + 1) % msize;
                 out_row[ii] += w00 * row0[ix0] + w10 * row0[ix1] +
                                w01 * row1[ix0] + w11 * row1[ix1];
             }
+        }
+        iy0 += os;
+        if (iy0 >= msize)
+        {
+            iy0 -= msize;
         }
     }
 }
@@ -208,10 +228,10 @@ void atmturb_extrude_accumulate_bicubic_avx512(
     const float *master = params->master;
     float *out_pha = params->out_pha;
 
-    float fx = (float)(params->x0 - floor(params->x0));
-    float fy = (float)(params->y0 - floor(params->y0));
-    long base_x = (long)floor(params->x0);
-    long base_y = (long)floor(params->y0);
+    float fx = (float) (params->x0 - floor(params->x0));
+    float fy = (float) (params->y0 - floor(params->y0));
+    long base_x = (long) floor(params->x0);
+    long base_y = (long) floor(params->y0);
 
     float wx[4], wy[4];
     atmturb_keys_weights(fx, wx);
@@ -228,23 +248,30 @@ void atmturb_extrude_accumulate_bicubic_avx512(
     __m512i vidx = _mm512_loadu_si512((const __m512i *) s_idx);
 
     long start_x = base_x % msize;
-    if (start_x < 0) start_x += msize;
+    if (start_x < 0)
+    {
+        start_x += msize;
+    }
+    long cur_y = base_y % msize;
+    if (cur_y < 0)
+    {
+        cur_y += msize;
+    }
+
+    float wy0 = wy[0] * weight, wy1 = wy[1] * weight;
+    float wy2 = wy[2] * weight, wy3 = wy[3] * weight;
 
     for (long jj = 0; jj < pup_size; jj++)
     {
-        long by = base_y + jj * os;
-        long iy[4];
-        for (int n = 0; n < 4; n++)
-        {
-            long y = (by + n - 1) % msize;
-            if (y < 0) y += msize;
-            iy[n] = y;
-        }
+        long iy0 = (cur_y > 0) ? (cur_y - 1) : (msize - 1);
+        long iy1 = cur_y;
+        long iy2 = (cur_y + 1 < msize) ? (cur_y + 1) : 0;
+        long iy3 = (cur_y + 2 < msize) ? (cur_y + 2) : (cur_y + 2 - msize);
 
-        const float *row0 = &master[iy[0] * msize];
-        const float *row1 = &master[iy[1] * msize];
-        const float *row2 = &master[iy[2] * msize];
-        const float *row3 = &master[iy[3] * msize];
+        const float *row0 = &master[iy0 * msize];
+        const float *row1 = &master[iy1 * msize];
+        const float *row2 = &master[iy2 * msize];
+        const float *row3 = &master[iy3 * msize];
         float *out_row = &out_pha[jj * pup_size];
 
         if (start_x >= 1 && start_x + (pup_size - 1) * os + 2 < msize)
@@ -290,8 +317,6 @@ void atmturb_extrude_accumulate_bicubic_avx512(
                     _mm512_storeu_ps(&out_row[ii], _mm512_add_ps(out, acc));
                 }
             }
-            float wy0 = wy[0] * weight, wy1 = wy[1] * weight;
-            float wy2 = wy[2] * weight, wy3 = wy[3] * weight;
             for (; ii < pup_size; ii++)
             {
                 long bx = start_x + ii * os;
@@ -302,14 +327,12 @@ void atmturb_extrude_accumulate_bicubic_avx512(
                 float h2 = wx[0] * row2[bx - 1] + wx[1] * row2[bx] +
                            wx[2] * row2[bx + 1] + wx[3] * row2[bx + 2];
                 float h3 = wx[0] * row3[bx - 1] + wx[1] * row3[bx] +
-                           wx[2] * row3[bx + 2] + wx[3] * row3[bx + 2];
+                           wx[2] * row3[bx + 1] + wx[3] * row3[bx + 2];
                 out_row[ii] += wy0 * h0 + wy1 * h1 + wy2 * h2 + wy3 * h3;
             }
         }
         else
         {
-            float wy0 = wy[0] * weight, wy1 = wy[1] * weight;
-            float wy2 = wy[2] * weight, wy3 = wy[3] * weight;
             for (long ii = 0; ii < pup_size; ii++)
             {
                 long bx = start_x + ii * os;
@@ -329,6 +352,11 @@ void atmturb_extrude_accumulate_bicubic_avx512(
 
                 out_row[ii] += wy0 * h0 + wy1 * h1 + wy2 * h2 + wy3 * h3;
             }
+        }
+        cur_y += os;
+        if (cur_y >= msize)
+        {
+            cur_y -= msize;
         }
     }
 }
@@ -365,6 +393,18 @@ void atmturb_scale_float_array_avx512(
 {
     __m512 vscale = _mm512_set1_ps(scale);
     long i = 0;
+    for (; i <= n - 64; i += 64)
+    {
+        __m512 v0 = _mm512_loadu_ps(&src[i]);
+        __m512 v1 = _mm512_loadu_ps(&src[i + 16]);
+        __m512 v2 = _mm512_loadu_ps(&src[i + 32]);
+        __m512 v3 = _mm512_loadu_ps(&src[i + 48]);
+
+        _mm512_storeu_ps(&dest[i],      _mm512_mul_ps(v0, vscale));
+        _mm512_storeu_ps(&dest[i + 16], _mm512_mul_ps(v1, vscale));
+        _mm512_storeu_ps(&dest[i + 32], _mm512_mul_ps(v2, vscale));
+        _mm512_storeu_ps(&dest[i + 48], _mm512_mul_ps(v3, vscale));
+    }
     for (; i <= n - 16; i += 16)
     {
         __m512 v = _mm512_loadu_ps(&src[i]);
@@ -390,6 +430,13 @@ void atmturb_init_phase_amp_avx512(
     __m512 vzero = _mm512_setzero_ps();
     __m512 vone = _mm512_set1_ps(1.0f);
     long i = 0;
+    for (; i <= n - 32; i += 32)
+    {
+        _mm512_storeu_ps(&pha[i],      vzero);
+        _mm512_storeu_ps(&pha[i + 16], vzero);
+        _mm512_storeu_ps(&amp[i],      vone);
+        _mm512_storeu_ps(&amp[i + 16], vone);
+    }
     for (; i <= n - 16; i += 16)
     {
         _mm512_storeu_ps(&pha[i], vzero);
@@ -421,16 +468,15 @@ static void atmturb_lowfreq_mode_accumulate_avx512(
     long n = (params->pup_size <= 1024) ? params->pup_size : 1024;
     for (long i = 0; i < n; i++)
     {
-        double th_x = (double) kx * (params->x0 + (double) (i * params->os));
-        h_re[i] = (float) cos(th_x);
-        h_im[i] = (float) sin(th_x);
+        float th_x = kx * (float) (params->x0 + (double) (i * params->os));
+        sincosf(th_x, &h_im[i], &h_re[i]);
     }
 
     for (long j = 0; j < params->pup_size; j++)
     {
-        double th_y = (double) ky * (params->y0 + (double) (j * params->os));
-        float vy_re = (float) cos(th_y);
-        float vy_im = (float) sin(th_y);
+        float th_y = ky * (float) (params->y0 + (double) (j * params->os));
+        float vy_re, vy_im;
+        sincosf(th_y, &vy_im, &vy_re);
         float c_re = (amp_re * vy_re - amp_im * vy_im) * params->weight;
         float c_im = (amp_re * vy_im + amp_im * vy_re) * params->weight;
 
@@ -438,6 +484,23 @@ static void atmturb_lowfreq_mode_accumulate_avx512(
         __m512 v_cim = _mm512_set1_ps(c_im);
         long row = j * params->pup_size;
         long i = 0;
+        for (; i + 32 <= n; i += 32)
+        {
+            __m512 v_out0 = _mm512_loadu_ps(&params->out_pha[row + i]);
+            __m512 v_out1 = _mm512_loadu_ps(&params->out_pha[row + i + 16]);
+            __m512 v_hre0 = _mm512_loadu_ps(&h_re[i]);
+            __m512 v_hre1 = _mm512_loadu_ps(&h_re[i + 16]);
+            __m512 v_him0 = _mm512_loadu_ps(&h_im[i]);
+            __m512 v_him1 = _mm512_loadu_ps(&h_im[i + 16]);
+
+            v_out0 = _mm512_fmadd_ps(v_cre, v_hre0, v_out0);
+            v_out1 = _mm512_fmadd_ps(v_cre, v_hre1, v_out1);
+            v_out0 = _mm512_fnmadd_ps(v_cim, v_him0, v_out0);
+            v_out1 = _mm512_fnmadd_ps(v_cim, v_him1, v_out1);
+
+            _mm512_storeu_ps(&params->out_pha[row + i],      v_out0);
+            _mm512_storeu_ps(&params->out_pha[row + i + 16], v_out1);
+        }
         for (; i + 16 <= n; i += 16)
         {
             __m512 v_out = _mm512_loadu_ps(&params->out_pha[row + i]);
@@ -477,47 +540,151 @@ void atmturb_extrude_lowfreq_avx512(
     }
 }
 
+/**
+ * atmturb_add_float_array_avx512 - Vectorized array accumulation (dest[i] += src[i])
+ * @dest: Output/accumulator float array.
+ * @src: Input float array.
+ * @n: Number of elements.
+ */
+void atmturb_add_float_array_avx512(
+    float       *dest,
+    const float *src,
+    long         n)
+{
+    long i = 0;
+    for (; i <= n - 64; i += 64)
+    {
+        __m512 d0 = _mm512_loadu_ps(&dest[i]);
+        __m512 d1 = _mm512_loadu_ps(&dest[i + 16]);
+        __m512 d2 = _mm512_loadu_ps(&dest[i + 32]);
+        __m512 d3 = _mm512_loadu_ps(&dest[i + 48]);
+
+        __m512 s0 = _mm512_loadu_ps(&src[i]);
+        __m512 s1 = _mm512_loadu_ps(&src[i + 16]);
+        __m512 s2 = _mm512_loadu_ps(&src[i + 32]);
+        __m512 s3 = _mm512_loadu_ps(&src[i + 48]);
+
+        _mm512_storeu_ps(&dest[i],      _mm512_add_ps(d0, s0));
+        _mm512_storeu_ps(&dest[i + 16], _mm512_add_ps(d1, s1));
+        _mm512_storeu_ps(&dest[i + 32], _mm512_add_ps(d2, s2));
+        _mm512_storeu_ps(&dest[i + 48], _mm512_add_ps(d3, s3));
+    }
+    for (; i <= n - 16; i += 16)
+    {
+        __m512 d = _mm512_loadu_ps(&dest[i]);
+        __m512 s = _mm512_loadu_ps(&src[i]);
+        _mm512_storeu_ps(&dest[i], _mm512_add_ps(d, s));
+    }
+    for (; i < n; i++)
+    {
+        dest[i] += src[i];
+    }
+}
+
+/**
+ * atmturb_complex_mul_array_avx512 - Vectorized complex array product (AVX-512)
+ * @dest: Output complex float array (length 2 * n_complex).
+ * @src1: First input complex float array.
+ * @src2: Second input complex float array.
+ * @n_complex: Number of complex elements.
+ */
+void atmturb_complex_mul_array_avx512(
+    float       *dest,
+    const float *src1,
+    const float *src2,
+    long         n_complex)
+{
+    long i = 0;
+    for (; i <= n_complex - 16; i += 16)
+    {
+        long idx = 2 * i;
+        __m512 va0 = _mm512_loadu_ps(&src1[idx]);
+        __m512 va1 = _mm512_loadu_ps(&src1[idx + 16]);
+        __m512 vb0 = _mm512_loadu_ps(&src2[idx]);
+        __m512 vb1 = _mm512_loadu_ps(&src2[idx + 16]);
+
+        __m512 a0_re = _mm512_moveldup_ps(va0);
+        __m512 a0_im = _mm512_movehdup_ps(va0);
+        __m512 a1_re = _mm512_moveldup_ps(va1);
+        __m512 a1_im = _mm512_movehdup_ps(va1);
+
+        __m512 b0_sw = _mm512_permute_ps(vb0, _MM_SHUFFLE(2, 3, 0, 1));
+        __m512 b1_sw = _mm512_permute_ps(vb1, _MM_SHUFFLE(2, 3, 0, 1));
+
+        __m512 p0_im = _mm512_mul_ps(a0_im, b0_sw);
+        __m512 p1_im = _mm512_mul_ps(a1_im, b1_sw);
+
+        __m512 r0 = _mm512_fmaddsub_ps(a0_re, vb0, p0_im);
+        __m512 r1 = _mm512_fmaddsub_ps(a1_re, vb1, p1_im);
+
+        _mm512_storeu_ps(&dest[idx],      r0);
+        _mm512_storeu_ps(&dest[idx + 16], r1);
+    }
+    for (; i <= n_complex - 8; i += 8)
+    {
+        long idx = 2 * i;
+        __m512 va = _mm512_loadu_ps(&src1[idx]);
+        __m512 vb = _mm512_loadu_ps(&src2[idx]);
+        __m512 a_re = _mm512_moveldup_ps(va);
+        __m512 a_im = _mm512_movehdup_ps(va);
+        __m512 b_sw = _mm512_permute_ps(vb, _MM_SHUFFLE(2, 3, 0, 1));
+        __m512 p_im = _mm512_mul_ps(a_im, b_sw);
+        __m512 res  = _mm512_fmaddsub_ps(a_re, vb, p_im);
+        _mm512_storeu_ps(&dest[idx], res);
+    }
+    for (; i < n_complex; i++)
+    {
+        long idx = 2 * i;
+        float r1 = src1[idx];
+        float i1 = src1[idx + 1];
+        float r2 = src2[idx];
+        float i2 = src2[idx + 1];
+        dest[idx]     = r1 * r2 - i1 * i2;
+        dest[idx + 1] = r1 * i2 + i1 * r2;
+    }
+}
+
 #else
 
-void atmturb_extrude_accumulate_avx512(
-    const atmturb_extrude_params_t *params)
+void atmturb_extrude_accumulate_avx512(const atmturb_extrude_params_t *params)
 {
     atmturb_extrude_accumulate_scalar(params);
 }
 
-void atmturb_extrude_accumulate_bilinear_avx512(
-    const atmturb_extrude_params_t *params)
+void atmturb_extrude_accumulate_bilinear_avx512(const atmturb_extrude_params_t *params)
 {
     atmturb_extrude_accumulate_bilinear_scalar(params);
 }
 
-void atmturb_extrude_accumulate_bicubic_avx512(
-    const atmturb_extrude_params_t *params)
+void atmturb_extrude_accumulate_bicubic_avx512(const atmturb_extrude_params_t *params)
 {
     atmturb_extrude_accumulate_bicubic_scalar(params);
 }
 
-void atmturb_scale_float_array_avx512(
-    float       *dest,
-    const float *src,
-    float        scale,
-    long         n)
+void atmturb_scale_float_array_avx512(float *dest, const float *src, float scale, long n)
 {
     atmturb_scale_float_array_scalar(dest, src, scale, n);
 }
 
-void atmturb_init_phase_amp_avx512(
-    float *pha,
-    float *amp,
-    long   n)
+void atmturb_init_phase_amp_avx512(float *pha, float *amp, long n)
 {
     atmturb_init_phase_amp_scalar(pha, amp, n);
 }
 
-void atmturb_extrude_lowfreq_avx512(
-    const atmturb_lowfreq_params_t *params)
+void atmturb_extrude_lowfreq_avx512(const atmturb_lowfreq_params_t *params)
 {
     atmturb_extrude_lowfreq_scalar(params);
+}
+
+void atmturb_add_float_array_avx512(float *dest, const float *src, long n)
+{
+    atmturb_add_float_array_scalar(dest, src, n);
+}
+
+void atmturb_complex_mul_array_avx512(
+    float *dest, const float *src1, const float *src2, long n_complex)
+{
+    atmturb_complex_mul_array_scalar(dest, src1, src2, n_complex);
 }
 
 #endif

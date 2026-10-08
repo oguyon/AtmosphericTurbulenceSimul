@@ -241,6 +241,19 @@ int make_AtmosphericTurbulence_wavefront_series(
     long  WFprecision);
 
 /**
+ * make_AtmosphericTurbulence_wavefront_stream - Stream 2D wavefront frames to SHM
+ * @slambdaum: Secondary observing wavelength in um.
+ * @WFprecision: Precision mode flag.
+ * @stream_mode: Streaming mode (1=continuous stream, 2=finite stream, 3=unpaced continuous).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int make_AtmosphericTurbulence_wavefront_stream(
+    float slambdaum,
+    long  WFprecision,
+    int   stream_mode);
+
+/**
  * measure_wavefront_series - Process wavefront series and extract PSF metrics
  * @factor: Decimation/binning factor.
  *
