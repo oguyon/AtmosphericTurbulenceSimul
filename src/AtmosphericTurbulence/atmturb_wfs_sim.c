@@ -437,11 +437,19 @@ static void atmturb_wfs_save_outputs(
     const char *pha_name,
     const char *amp_name)
 {
-    if (CONF_WFOUTPUT == 1)
-    {
-        char fname[200];
+    int save_ref = (CONF_WFOUTPUT & 1);
+    int save_sci = (CONF_WFOUTPUT & 2);
 
-        printf("[milkatmturb] Writing output files to disk:\n");
+    if (!save_ref && !save_sci)
+    {
+        return;
+    }
+
+    char fname[200];
+
+    printf("[milkatmturb] Writing output files to disk:\n");
+    if (save_ref)
+    {
         snprintf(fname, sizeof(fname), "%s.fits", pha_name);
         printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", fname);
         save_fl_fits(pha_name, fname);
@@ -449,14 +457,17 @@ static void atmturb_wfs_save_outputs(
         snprintf(fname, sizeof(fname), "%s.fits", amp_name);
         printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", fname);
         save_fl_fits(amp_name, fname);
+    }
 
+    if (save_sci)
+    {
         printf("[milkatmturb]   - file:   \"outsarraypha.fits\" (FITS)\n");
         save_fl_fits("outsarraypha", "outsarraypha.fits");
 
         printf("[milkatmturb]   - file:   \"outsarrayamp.fits\" (FITS)\n");
         save_fl_fits("outsarrayamp", "outsarrayamp.fits");
-        fflush(stdout);
     }
+    fflush(stdout);
 }
 
 /**
@@ -624,14 +635,20 @@ static void atmturb_wfs_print_output_targets(
     printf("[milkatmturb]   - stream: \"outsarrayamp\" (3D SHM, %ldx%ldx%ld %s)\n",
            pup_size, pup_size, nbframes, prec_str);
 
-    if (CONF_WFOUTPUT == 1)
+    int save_ref = (CONF_WFOUTPUT & 1);
+    int save_sci = (CONF_WFOUTPUT & 2);
+
+    if (save_ref)
     {
         printf("[milkatmturb]   - file:   \"%s.fits\" (FITS 3D cube)\n", pha_name);
         printf("[milkatmturb]   - file:   \"%s.fits\" (FITS 3D cube)\n", amp_name);
+    }
+    if (save_sci)
+    {
         printf("[milkatmturb]   - file:   \"outsarraypha.fits\" (FITS 3D cube)\n");
         printf("[milkatmturb]   - file:   \"outsarrayamp.fits\" (FITS 3D cube)\n");
     }
-    else
+    if (!save_ref && !save_sci)
     {
         printf("[milkatmturb]   - file:   none (save_fits = 0)\n");
     }

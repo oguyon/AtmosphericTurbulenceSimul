@@ -247,8 +247,19 @@ static void atmturb_read_conf_output(void)
     CONF_MAKE_SWAVEFRONT = atoi(content);
 
     snprintf(keyword, sizeof(keyword), "SWF_WRITE2DISK");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_SWF_WRITE2DISK = atoi(content);
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_SWF_WRITE2DISK = atoi(content);
+        if (CONF_WFOUTPUT == 2)
+        {
+            CONF_WFOUTPUT = 0;
+        }
+        if (CONF_SWF_WRITE2DISK == 1)
+        {
+            CONF_WFOUTPUT |= 2;
+        }
+    }
 
     snprintf(keyword, sizeof(keyword), "SWF_FILE_PREFIX");
     read_config_parameter(CONFFILE, keyword, CONF_SWF_FILE_PREFIX);

@@ -90,7 +90,7 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
     X(".master_size", &param_master_size, FPTYPE_INT32, 0,                      \
       FPFLAG_DEFAULT_INPUT, "Master phase screen dimension [pix]")              \
     X(".save_fits", &param_save_fits, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,   \
-      "Save FITS data cubes to disk (0=no, 1=yes)")                             \
+      "Save FITS data cubes to disk (0=no, 1=ref, 2=sci, 3=all)")               \
     X(".stream_mode", &param_stream_mode, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT, \
       "2D SHM streaming mode (0=3D cube, 1=continuous stream, 2=finite stream)") \
     X(".amplitude", &param_amplitude, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,   \
@@ -143,6 +143,7 @@ static void atmturb_mkwfs_sync_to_conf(void)
     CONF_WFTIME_STEP         = param_time_step;
     CONF_TIME_SPAN           = param_time_span;
     CONF_WFOUTPUT            = (int)param_save_fits;
+    CONF_SWF_WRITE2DISK      = (param_save_fits & 2) ? 1 : 0;
     CONF_STREAM_MODE         = (int)param_stream_mode;
     CONF_WAVEFRONT_AMPLITUDE = (int)param_amplitude;
     CONF_FRESNEL_PROPAGATION = (int)param_fresnel;
