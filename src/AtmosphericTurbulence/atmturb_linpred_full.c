@@ -10,6 +10,10 @@
 #include "AtmosphericTurbulence.h"
 #include "atmturb_types.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 /**
  * atmturb_remove_wavefront_piston - Zero pupil-averaged piston in each frame of wavefront cube
  * @id_wf: Wavefront cube image ID.
@@ -172,17 +176,19 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(
     imageID ID_filt = image_ID(filtname);
 
     imageID ID_Ainv = image_ID("matA_inv");
+    #pragma omp parallel for schedule(dynamic)
     for (long p = 0; p < nbpix; p++)
     {
         for (long j = 0; j < mvecsize; j++)
         {
             double sum = 0.0;
+            const float *a_row = &dcimg[ID_Ainv].array.F[j * nbmvec];
             for (long m = 0; m < nbmvec; m++)
             {
-                sum += (double)dcimg[ID_Ainv].array.F[j * nbmvec + m] *
-                       (double)dcimg[IDmatC].array.F[m * nbpix + p];
+                sum += (double) a_row[m] *
+                       (double) dcimg[IDmatC].array.F[m * nbpix + p];
             }
-            dcimg[ID_filt].array.F[p * mvecsize + j] = (float)sum;
+            dcimg[ID_filt].array.F[p * mvecsize + j] = (float) sum;
         }
     }
 
@@ -239,6 +245,7 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(
     imageID ID_outp = create_3Dimage_ID(WFoutp_name, nx, ny, nz);
     imageID ID_outf = create_3Dimage_ID(WFoutf_name, nx, ny, nz);
 
+    #pragma omp parallel for schedule(dynamic)
     for (long t = PForder; t < nz - (long)PFlag; t++)
     {
         long target_t = t + (long)PFlag;

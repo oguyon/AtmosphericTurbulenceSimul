@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -25,6 +26,11 @@
 #include "atmturb_rolling.h"
 #include "atmturb_simd.h"
 #include "atmturb_types.h"
+#include "atmturb_wfs_stream.h"
+
+#ifdef HAVE_CUDA
+#include "atmturb_cuda.h"
+#endif
 
 /**
  * struct atmturb_wfs_images_t - Output 3D image handles container
@@ -276,6 +282,90 @@ static int atmturb_wfs_render_diffractive(
     return 0;
 }
 
+#ifdef HAVE_CUDA
+/**
+ * atmturb_wfs_render_cuda - Render simulation frames using CUDA GPU acceleration
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @master_size: Master screen dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ * @nbframes: Number of simulation frames.
+ * @imgs: Container of output 3D image handles.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+static int atmturb_wfs_render_cuda(
+    const atmturb_rolling_t    *r,
+    const atmturb_geom_t       *geom,
+    long                        master_size,
+    long                        pup_size,
+    long                        nbframes,
+    const atmturb_wfs_images_t *imgs)
+{
+    int nl = geom->nlayers;
+    size_t m_sz = (size_t) nl * sizeof(float *);
+    size_t d_sz = (size_t) nl * sizeof(double);
+    void *buf = malloc(m_sz + 5 * d_sz);
+    if (!buf)
+    {
+        return -1;
+    }
+    const float **masters = (const float **) buf;
+    double *vx  = (double *) ((char *) buf + m_sz);
+    double *vy  = vx + nl;
+    double *cn2 = vy + nl;
+    double *x0  = cn2 + nl;
+    double *y0  = x0 + nl;
+
+    for (int k = 0; k < nl; k++)
+    {
+        masters[k] = r->layers[k].screens[0].data;
+        vx[k]      = geom->layers[k].vx_pix;
+        vy[k]      = geom->layers[k].vy_pix;
+        cn2[k]     = geom->layers[k].weight * geom->layers[k].weight;
+        x0[k]      = geom->layers[k].x0;
+        y0[k]      = geom->layers[k].y0;
+    }
+
+    double w0 = geom->layers[0].weight;
+    double scoeff = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
+    atmturb_cuda_sim_params_t cparams = {
+        .nblayers  = nl,
+        .msize     = master_size,
+        .pup_size  = pup_size,
+        .nbframes  = nbframes,
+        .Scoeff    = scoeff,
+        .h_masters = (const float *const *) masters,
+        .vxpix     = vx,
+        .vypix     = vy,
+        .cn2       = cn2,
+        .x0        = x0,
+        .y0        = y0
+    };
+    long total_pixels = nbframes * pup_size * pup_size;
+    float *amp_ptr  = &dcimg[imgs->ID_amp].array.F[0];
+    float *samp_ptr = &dcimg[imgs->ID_samp].array.F[0];
+
+    #pragma omp parallel for
+    for (long i = 0; i < total_pixels; i++)
+    {
+        amp_ptr[i]  = 1.0f;
+        samp_ptr[i] = 1.0f;
+    }
+
+    atmturb_cuda_sim_outputs_t outputs = {
+        .pha  = &dcimg[imgs->ID_pha].array.F[0],
+        .amp  = NULL,
+        .spha = &dcimg[imgs->ID_spha].array.F[0],
+        .samp = NULL
+    };
+
+    int ret = atmturb_wfs_render_frames_cuda(&cparams, &outputs);
+    free(buf);
+    return ret;
+}
+#endif
+
 /**
  * atmturb_wfs_render_frames - Dispatch rendering to diffractive or geometric engine
  * @r: Rolling simulation context.
@@ -306,8 +396,36 @@ static void atmturb_wfs_render_frames(
         }
     }
 
+#ifdef HAVE_CUDA
+    if (atmturb_simd_is_gpu())
+    {
+        if (atmturb_wfs_render_cuda(r, geom, master_size, pup_size, nbframes, imgs) == 0)
+        {
+            return;
+        }
+    }
+#endif
+
     atmturb_wfs_render_geometric(r, geom, master_size, pup_size, nbframes,
                                  params->time_step_s, imgs);
+}
+
+/**
+ * atmturb_wfs_notify_streams - Signal shared memory semaphores and increment write counters
+ * @imgs: Container of output 3D image handles.
+ */
+static void atmturb_wfs_notify_streams(
+    const atmturb_wfs_images_t *imgs)
+{
+    const imageID ids[4] = {imgs->ID_pha, imgs->ID_amp, imgs->ID_spha, imgs->ID_samp};
+    for (int i = 0; i < 4; i++)
+    {
+        if (ids[i] >= 0)
+        {
+            dcimg[ids[i]].md[0].cnt0++;
+            COREMOD_MEMORY_image_set_sempost_byID(ids[i], -1);
+        }
+    }
 }
 
 /**
@@ -321,13 +439,11 @@ static void atmturb_wfs_save_outputs(
 {
     if (CONF_WFOUTPUT == 1)
     {
-        char fname_pha[200], fname_amp[200];
-        snprintf(fname_pha, sizeof(fname_pha), "%s.fits", pha_name);
-        save_fl_fits(pha_name, fname_pha);
-
-        snprintf(fname_amp, sizeof(fname_amp), "%s.fits", amp_name);
-        save_fl_fits(amp_name, fname_amp);
-
+        char fname[200];
+        snprintf(fname, sizeof(fname), "%s.fits", pha_name);
+        save_fl_fits(pha_name, fname);
+        snprintf(fname, sizeof(fname), "%s.fits", amp_name);
+        save_fl_fits(amp_name, fname);
         save_fl_fits("outsarraypha", "outsarraypha.fits");
         save_fl_fits("outsarrayamp", "outsarrayamp.fits");
     }
@@ -338,7 +454,7 @@ static void atmturb_wfs_save_outputs(
  *
  * Return: 0 if the configuration is usable, -1 otherwise (diagnostic printed).
  */
-static int atmturb_wfs_validate_config(void)
+int atmturb_wfs_validate_config(void)
 {
     if (!(CONF_PUPIL_SCALE > 0.0f))
     {
@@ -372,7 +488,7 @@ static int atmturb_wfs_validate_config(void)
  * @slambdaum: Secondary observing wavelength in um.
  * @params: Observation parameters container to populate.
  */
-static void atmturb_wfs_init_obs_params(
+void atmturb_wfs_init_obs_params(
     float                 slambdaum,
     atmturb_obs_params_t *params)
 {
@@ -399,6 +515,79 @@ static void atmturb_wfs_init_obs_params(
 }
 
 /**
+ * atmturb_wfs_setup_sim - Initialize atmospheric simulation structures
+ * @slambdaum: Secondary observing wavelength in um.
+ * @WFprecision: Precision mode flag.
+ * @nbframes: Number of frames (or estimated pool frames).
+ * @prof: Destination profile struct.
+ * @params: Destination observation params struct.
+ * @geom: Destination geometry struct.
+ * @rsim: Destination rolling screens struct.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_wfs_setup_sim(
+    float                 slambdaum,
+    long                  WFprecision,
+    long                  nbframes,
+    atmturb_profile_t    *prof,
+    atmturb_obs_params_t *params,
+    atmturb_geom_t       *geom,
+    atmturb_rolling_t    *rsim)
+{
+    if ((CONFFILE[0] != '\0' && AtmosphericTurbulence_ReadConf() != 0) ||
+        atmturb_wfs_validate_config() != 0 || !(slambdaum > 0.0f))
+    {
+        return -1;
+    }
+    if (slambdaum > 20.0f)
+    {
+        slambdaum *= 1e-3f;
+    }
+
+    memset(prof, 0, sizeof(*prof));
+    if (atmturb_profile_load(CONF_TURBULENCE_PROF_FILE, prof) != 0)
+    {
+        return -1;
+    }
+
+    atmturb_wfs_init_obs_params(slambdaum, params);
+
+    memset(geom, 0, sizeof(*geom));
+    if (atmturb_geometry_compute(prof, params, geom) != 0)
+    {
+        atmturb_profile_free(prof);
+        return -1;
+    }
+
+    long pool_frames = (nbframes > 0) ? nbframes : params->nbframes;
+    if (atmturb_rolling_init(rsim, prof, geom, CONF_MASTER_SIZE,
+                             pool_frames, params->time_step_s, WFprecision, CONF_SEED) != 0)
+    {
+        atmturb_geometry_free(geom);
+        atmturb_profile_free(prof);
+        return -1;
+    }
+    return 0;
+}
+
+/**
+ * atmturb_wfs_teardown_sim - Free atmospheric simulation structures
+ * @prof: Active profile struct.
+ * @geom: Active geometry struct.
+ * @rsim: Active rolling screens struct.
+ */
+void atmturb_wfs_teardown_sim(
+    atmturb_profile_t *prof,
+    atmturb_geom_t    *geom,
+    atmturb_rolling_t *rsim)
+{
+    atmturb_rolling_free(rsim);
+    atmturb_geometry_free(geom);
+    atmturb_profile_free(prof);
+}
+
+/**
  * make_AtmosphericTurbulence_wavefront_series - Run full atmospheric wavefront simulation series
  * @slambdaum: Secondary observing wavelength in um.
  * @WFprecision: Precision mode flag (0=single, 1=double).
@@ -409,49 +598,24 @@ int make_AtmosphericTurbulence_wavefront_series(
     float slambdaum,
     long  WFprecision)
 {
-    if (CONFFILE[0] != '\0' && AtmosphericTurbulence_ReadConf() != 0)
+    if (CONF_STREAM_MODE > 0)
     {
-        return -1;
-    }
-    if (atmturb_wfs_validate_config() != 0 || !(slambdaum > 0.0f))
-    {
-        return -1;
-    }
-    if (slambdaum > 20.0f)
-    {
-        slambdaum *= 1e-3f; // Convert nm to um
+        return make_AtmosphericTurbulence_wavefront_stream(slambdaum, WFprecision,
+                                                           CONF_STREAM_MODE);
     }
 
-    atmturb_profile_t prof;
-    memset(&prof, 0, sizeof(prof));
-    if (atmturb_profile_load(CONF_TURBULENCE_PROF_FILE, &prof) != 0)
-    {
-        return -1;
-    }
-
+    atmturb_profile_t    prof;
     atmturb_obs_params_t params;
-    atmturb_wfs_init_obs_params(slambdaum, &params);
+    atmturb_geom_t       geom;
+    atmturb_rolling_t    rsim;
 
-    atmturb_geom_t geom;
-    memset(&geom, 0, sizeof(geom));
-    if (atmturb_geometry_compute(&prof, &params, &geom) != 0)
+    if (atmturb_wfs_setup_sim(slambdaum, WFprecision, 0, &prof, &params, &geom, &rsim) != 0)
     {
-        atmturb_profile_free(&prof);
         return -1;
     }
 
-    long nbframes = (long) (CONF_TIME_SPAN / CONF_WFTIME_STEP + 0.5);
-    nbframes = (nbframes < 1) ? 1 : nbframes;
+    long nbframes = params.nbframes;
     long pup_size = CONF_WFsize;
-
-    atmturb_rolling_t rsim;
-    if (atmturb_rolling_init(&rsim, &prof, &geom, CONF_MASTER_SIZE,
-                             nbframes, params.time_step_s, WFprecision, CONF_SEED) != 0)
-    {
-        atmturb_geometry_free(&geom);
-        atmturb_profile_free(&prof);
-        return -1;
-    }
 
     const char *pha_name = (CONF_WF_PHASE_NAME[0] != '\0') ? CONF_WF_PHASE_NAME : "outarraypha";
     const char *amp_name = (CONF_WF_AMPL_NAME[0] != '\0') ? CONF_WF_AMPL_NAME : "outarrayamp";
@@ -466,12 +630,20 @@ int make_AtmosphericTurbulence_wavefront_series(
            atmturb_simd_active_isa());
     fflush(stdout);
 
+    struct timespec ts0, ts1;
+    clock_gettime(CLOCK_MONOTONIC, &ts0);
     atmturb_wfs_render_frames(&rsim, &geom, &prof, &params, CONF_MASTER_SIZE, pup_size,
                               nbframes, &imgs);
+    atmturb_wfs_notify_streams(&imgs);
+    clock_gettime(CLOCK_MONOTONIC, &ts1);
+    double render_time = (double) (ts1.tv_sec - ts0.tv_sec) +
+                         (double) (ts1.tv_nsec - ts0.tv_nsec) * 1e-9;
+    double fps = (render_time > 0.0) ? ((double) nbframes / render_time) : 0.0;
+    double mps = fps * (double) (pup_size * pup_size) * 1e-6;
+    printf("[milkatmturb] Rendered %ld frames (%ldx%ld) in %.3f s (%.1f fps, %.2f MP/s)\n",
+           nbframes, pup_size, pup_size, render_time, fps, mps);
+    fflush(stdout);
     atmturb_wfs_save_outputs(pha_name, amp_name);
-
-    atmturb_rolling_free(&rsim);
-    atmturb_geometry_free(&geom);
-    atmturb_profile_free(&prof);
+    atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
     return 0;
 }

@@ -19,6 +19,64 @@
  *
  * Return: Output image ID on success.
  */
+/**
+ * atmturb_linpred_build_pix_map - Build 2D coordinate lookup map for active pixels
+ * @id_mask: Pupil mask image ID.
+ * @nx: Pupil mask width.
+ * @ny: Pupil mask height.
+ * @nbpix: Maximum number of active pixels.
+ * @pix_x: Output array for X coordinates.
+ * @pix_y: Output array for Y coordinates.
+ * @count_out: Output count of populated active pixels.
+ *
+ * Return: Allocated 2D pixel index map (size nx * ny), or NULL on failure.
+ */
+static long *atmturb_linpred_build_pix_map(
+    imageID  id_mask,
+    long     nx,
+    long     ny,
+    long     nbpix,
+    long    *pix_x,
+    long    *pix_y,
+    long    *count_out)
+{
+    long *pix_map = (long *) malloc(sizeof(long) * (size_t) (nx * ny));
+    if (pix_map == NULL)
+    {
+        return NULL;
+    }
+    for (long i = 0; i < nx * ny; i++)
+    {
+        pix_map[i] = -1;
+    }
+
+    long count = 0;
+    for (long ii = 0; ii < nx; ii++)
+    {
+        for (long jj = 0; jj < ny; jj++)
+        {
+            if (dcimg[id_mask].array.F[jj * nx + ii] > 0.5f && count < nbpix)
+            {
+                pix_x[count] = ii;
+                pix_y[count] = jj;
+                pix_map[jj * nx + ii] = count;
+                count++;
+            }
+        }
+    }
+    *count_out = count;
+    return pix_map;
+}
+
+/**
+ * AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract - Extract shift-invariant 2D kernels
+ * @IDfilt_name: Input filter matrix image name.
+ * @IDmask_name: Active pupil mask image name.
+ * @krad: Extraction neighborhood radius in pixels.
+ * @IDkern_name: Output 3D kernel image name.
+ *
+ * Return: Output image ID on success.
+ */
 long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(
     const char *IDfilt_name,
     const char *IDmask_name,
@@ -39,19 +97,21 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(
 
     long *pix_x = malloc(sizeof(long) * nbpix);
     long *pix_y = malloc(sizeof(long) * nbpix);
+    if (pix_x == NULL || pix_y == NULL)
+    {
+        free(pix_x);
+        free(pix_y);
+        return -1;
+    }
 
     long count = 0;
-    for (long ii = 0; ii < nx; ii++)
+    long *pix_map = atmturb_linpred_build_pix_map(IDmask, nx, ny, nbpix,
+                                                  pix_x, pix_y, &count);
+    if (pix_map == NULL)
     {
-        for (long jj = 0; jj < ny; jj++)
-        {
-            if (dcimg[IDmask].array.F[jj * nx + ii] > 0.5f && count < nbpix)
-            {
-                pix_x[count] = ii;
-                pix_y[count] = jj;
-                count++;
-            }
-        }
+        free(pix_x);
+        free(pix_y);
+        return -1;
     }
 
     long ksize = 2 * krad + 1;
@@ -63,17 +123,32 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(
         long i0 = pix_x[p];
         long j0 = pix_y[p];
 
-        for (long dt = 0; dt < pforder; dt++)
+        for (long dj = -krad; dj <= krad; dj++)
         {
-            for (long q = 0; q < count; q++)
+            long y = j0 + dj;
+            if (y < 0 || y >= ny)
             {
-                long di = pix_x[q] - i0;
-                long dj = pix_y[q] - j0;
+                continue;
+            }
+            long kj = dj + krad;
+            long row_off = y * nx;
 
-                if (labs(di) <= krad && labs(dj) <= krad)
+            for (long di = -krad; di <= krad; di++)
+            {
+                long x = i0 + di;
+                if (x < 0 || x >= nx)
                 {
-                    long ki = di + krad;
-                    long kj = dj + krad;
+                    continue;
+                }
+                long q = pix_map[row_off + x];
+                if (q < 0)
+                {
+                    continue;
+                }
+                long ki = di + krad;
+
+                for (long dt = 0; dt < pforder; dt++)
+                {
                     long kidx = dt * ksize * ksize + kj * ksize + ki;
                     long fidx = dt * nbpix * nbpix + p * nbpix + q;
 
@@ -93,6 +168,7 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(
     }
 
     delete_image_ID("kerncnt");
+    free(pix_map);
     free(pix_x);
     free(pix_y);
     return IDkern;
@@ -125,23 +201,29 @@ long AtmosphericTurbulence_LinPredictor_filt_Expand(
     long nbpix = 0;
     for (long i = 0; i < nx * ny; i++)
     {
-        if (dcimg[IDmask].array.F[i] > 0.5f) nbpix++;
+        if (dcimg[IDmask].array.F[i] > 0.5f)
+        {
+            nbpix++;
+        }
     }
 
     long *pix_x = malloc(sizeof(long) * nbpix);
     long *pix_y = malloc(sizeof(long) * nbpix);
-    long idx = 0;
-    for (long ii = 0; ii < nx; ii++)
+    if (pix_x == NULL || pix_y == NULL)
     {
-        for (long jj = 0; jj < ny; jj++)
-        {
-            if (dcimg[IDmask].array.F[jj * nx + ii] > 0.5f)
-            {
-                pix_x[idx] = ii;
-                pix_y[idx] = jj;
-                idx++;
-            }
-        }
+        free(pix_x);
+        free(pix_y);
+        return -1;
+    }
+
+    long count = 0;
+    long *pix_map = atmturb_linpred_build_pix_map(IDmask, nx, ny, nbpix,
+                                                  pix_x, pix_y, &count);
+    if (pix_map == NULL)
+    {
+        free(pix_x);
+        free(pix_y);
+        return -1;
     }
 
     imageID IDout = create_3Dimage_ID("Pfilt_exp", nbpix, nbpix, pforder);
@@ -151,17 +233,32 @@ long AtmosphericTurbulence_LinPredictor_filt_Expand(
         long i0 = pix_x[p];
         long j0 = pix_y[p];
 
-        for (long dt = 0; dt < pforder; dt++)
+        for (long dj = -krad; dj <= krad; dj++)
         {
-            for (long q = 0; q < nbpix; q++)
+            long y = j0 + dj;
+            if (y < 0 || y >= ny)
             {
-                long di = pix_x[q] - i0;
-                long dj = pix_y[q] - j0;
+                continue;
+            }
+            long kj = dj + krad;
+            long row_off = y * nx;
 
-                if (labs(di) <= krad && labs(dj) <= krad)
+            for (long di = -krad; di <= krad; di++)
+            {
+                long x = i0 + di;
+                if (x < 0 || x >= nx)
                 {
-                    long ki = di + krad;
-                    long kj = dj + krad;
+                    continue;
+                }
+                long q = pix_map[row_off + x];
+                if (q < 0)
+                {
+                    continue;
+                }
+                long ki = di + krad;
+
+                for (long dt = 0; dt < pforder; dt++)
+                {
                     long kidx = dt * ksize * ksize + kj * ksize + ki;
                     long out_idx = dt * nbpix * nbpix + p * nbpix + q;
 
@@ -171,6 +268,7 @@ long AtmosphericTurbulence_LinPredictor_filt_Expand(
         }
     }
 
+    free(pix_map);
     free(pix_x);
     free(pix_y);
     return IDout;

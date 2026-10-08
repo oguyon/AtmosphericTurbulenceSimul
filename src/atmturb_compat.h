@@ -147,7 +147,8 @@ static inline imageID atmturb_create_3Dimage_ID(
     uint32_t    zsize)
 {
     imageID ID = -1;
-    create_3Dimage_ID(name, xsize, ysize, zsize, &ID);
+    uint32_t sz[3] = {xsize, ysize, zsize};
+    create_image_ID(name, 3, sz, _DATATYPE_FLOAT, 1, 10, 0, &ID);
     return ID;
 }
 

@@ -205,9 +205,17 @@ int atmturb_rolling_init(
         int nscreens = 1;
         if (r->rolling)
         {
-            double sim_duration = (double) (nbframes - 1) * time_step_s;
+            double sim_duration = (nbframes > 1) ? ((double) (nbframes - 1) * time_step_s) : 20.0;
             long max_epoch = (long) (sim_duration / rl->t_dec_s);
             nscreens = (int) (max_epoch + 2);
+            if (nscreens < 4)
+            {
+                nscreens = 4;
+            }
+            if (CONF_STREAM_MODE > 0 && nscreens > 6)
+            {
+                nscreens = 6;
+            }
         }
         rl->nscreens = nscreens;
         rl->screens  = (atmturb_rolling_screen_t *) calloc((size_t) (nscreens + 1),
@@ -275,9 +283,24 @@ void atmturb_rolling_get_frame(
 
     double t_time = (double) t * time_step_s;
     long epoch = (long) (t_time / rl->t_dec_s);
+    long idxA, idxB;
     if (epoch >= rl->nscreens - 1)
     {
-        epoch = rl->nscreens - 2;
+        if (rl->nscreens > 2)
+        {
+            idxA = epoch % rl->nscreens;
+            idxB = (epoch + 1) % rl->nscreens;
+        }
+        else
+        {
+            idxA = 0;
+            idxB = 1;
+        }
+    }
+    else
+    {
+        idxA = epoch;
+        idxB = epoch + 1;
     }
 
     double t_intra = t_time - (double) epoch * rl->t_dec_s;
@@ -285,17 +308,17 @@ void atmturb_rolling_get_frame(
     float wA = (float) cos(theta);
     float wB = (float) sin(theta);
 
-    out->scrA = rl->screens[epoch].data;
-    out->scrB = rl->screens[epoch + 1].data;
+    out->scrA = rl->screens[idxA].data;
+    out->scrB = rl->screens[idxB].data;
     out->wA   = wA;
     out->wB   = wB;
 
     if (r->lowfreq)
     {
-        const float *are0 = rl->screens[epoch].are;
-        const float *aim0 = rl->screens[epoch].aim;
-        const float *are1 = rl->screens[epoch + 1].are;
-        const float *aim1 = rl->screens[epoch + 1].aim;
+        const float *are0 = rl->screens[idxA].are;
+        const float *aim0 = rl->screens[idxA].aim;
+        const float *are1 = rl->screens[idxB].are;
+        const float *aim1 = rl->screens[idxB].aim;
 
         for (int m = 0; m < ATMTURB_LOWFREQ_NMODES; m++)
         {

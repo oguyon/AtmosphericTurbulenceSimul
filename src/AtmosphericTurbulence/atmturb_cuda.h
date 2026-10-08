@@ -25,18 +25,22 @@ extern "C" {
  * @vxpix: Array of X velocities in pupil pixels/frame.
  * @vypix: Array of Y velocities in pupil pixels/frame.
  * @cn2: Array of layer Cn2 weights.
+ * @x0: Optional array of initial X offsets in master pixels (NULL for vxpix).
+ * @y0: Optional array of initial Y offsets in master pixels (NULL for vypix).
  */
 typedef struct
 {
-    long nblayers;
-    long msize;
-    long pup_size;
-    long nbframes;
-    double Scoeff;
+    long                nblayers;
+    long                msize;
+    long                pup_size;
+    long                nbframes;
+    double              Scoeff;
     const float *const *h_masters;
-    const double *vxpix;
-    const double *vypix;
-    const double *cn2;
+    const double       *vxpix;
+    const double       *vypix;
+    const double       *cn2;
+    const double       *x0;
+    const double       *y0;
 } atmturb_cuda_sim_params_t;
 
 /**
@@ -68,8 +72,14 @@ int atmturb_cuda_device_available(void);
  *
  * Return: 0 on success, -1 on CUDA runtime error.
  */
-int atmturb_wfs_render_frames_cuda(const atmturb_cuda_sim_params_t *params,
-                                   atmturb_cuda_sim_outputs_t *outputs);
+int atmturb_wfs_render_frames_cuda(
+    const atmturb_cuda_sim_params_t *params,
+    atmturb_cuda_sim_outputs_t      *outputs);
+
+/**
+ * atmturb_cuda_cleanup - Release persistent GPU buffers and context
+ */
+void atmturb_cuda_cleanup(void);
 
 #ifdef __cplusplus
 }

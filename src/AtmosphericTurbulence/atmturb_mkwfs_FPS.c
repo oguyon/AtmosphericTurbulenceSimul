@@ -15,6 +15,7 @@
 #include "fps.h"
 #include "COREMOD_memory/COREMOD_memory.h"
 #include "AtmosphericTurbulence/AtmosphericTurbulence.h"
+#include "atmturb_wfs_stream.h"
 #include "atmturb_types.h"
 
 #include <unistd.h>
@@ -46,6 +47,7 @@ static float   param_time_span         = 0.05f;
 static char    param_prof_file[FUNCTION_PARAMETER_STRMAXLEN] = "turbul.prof";
 static int32_t param_master_size       = 2048;
 static int32_t param_save_fits         = 1;
+static int32_t param_stream_mode       = 0;
 static int32_t param_amplitude         = 0;
 static int32_t param_fresnel           = 0;
 static float   param_ref_lambda        = 0.5f;
@@ -89,6 +91,8 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
       FPFLAG_DEFAULT_INPUT, "Master phase screen dimension [pix]")              \
     X(".save_fits", &param_save_fits, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,   \
       "Save FITS data cubes to disk (0=no, 1=yes)")                             \
+    X(".stream_mode", &param_stream_mode, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT, \
+      "2D SHM streaming mode (0=3D cube, 1=continuous stream, 2=finite stream)") \
     X(".amplitude", &param_amplitude, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,   \
       "Compute amplitude in addition to phase (0/1)")                           \
     X(".fresnel", &param_fresnel, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,       \
@@ -139,6 +143,7 @@ static void atmturb_mkwfs_sync_to_conf(void)
     CONF_WFTIME_STEP         = param_time_step;
     CONF_TIME_SPAN           = param_time_span;
     CONF_WFOUTPUT            = (int)param_save_fits;
+    CONF_STREAM_MODE         = (int)param_stream_mode;
     CONF_WAVEFRONT_AMPLITUDE = (int)param_amplitude;
     CONF_FRESNEL_PROPAGATION = (int)param_fresnel;
     CONF_MASTER_SIZE         = (long)param_master_size;
@@ -191,6 +196,7 @@ static void atmturb_mkwfs_sync_from_conf(void)
     param_time_step         = CONF_WFTIME_STEP;
     param_time_span         = CONF_TIME_SPAN;
     param_save_fits         = (int32_t)CONF_WFOUTPUT;
+    param_stream_mode       = (int32_t)CONF_STREAM_MODE;
     param_amplitude         = (int32_t)CONF_WAVEFRONT_AMPLITUDE;
     param_fresnel           = (int32_t)CONF_FRESNEL_PROPAGATION;
     param_master_size       = (int32_t)CONF_MASTER_SIZE;

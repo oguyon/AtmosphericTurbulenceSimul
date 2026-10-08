@@ -31,15 +31,15 @@ static void atmturb_fill_spectrum_float(
     const atmturb_screen_spec_t *spec)
 {
     long size = spec->size;
-    double r0_pix = (spec->r0_pix > 0.0) ? spec->r0_pix : pow(6.88, 0.6);
-    double k0 = (spec->L0_pix > 0.0) ? ((double) size / spec->L0_pix) : 0.0;
-    double km = (spec->l0_pix > 0.0)
-                    ? ((5.92 / (2.0 * M_PI)) * (double) size / spec->l0_pix)
-                    : 0.0;
-    double pref = 0.023 * pow(r0_pix, -5.0 / 3.0) * pow((double) size, 5.0 / 3.0);
-    double sqrt_pref = sqrt(pref);
-    double inv_two_km2 = (km > 0.0) ? (0.5 / (km * km)) : 0.0;
-    double k0_sq = k0 * k0;
+    float r0_pix = (spec->r0_pix > 0.0) ? (float) spec->r0_pix : powf(6.88f, 0.6f);
+    float k0 = (spec->L0_pix > 0.0) ? ((float) size / (float) spec->L0_pix) : 0.0f;
+    float km = (spec->l0_pix > 0.0)
+                    ? ((5.92f / (2.0f * (float) M_PI)) * (float) size / (float) spec->l0_pix)
+                    : 0.0f;
+    float pref = 0.023f * powf(r0_pix, -5.0f / 3.0f) * powf((float) size, 5.0f / 3.0f);
+    float sqrt_pref = sqrtf(pref);
+    float inv_two_km2 = (km > 0.0f) ? (0.5f / (km * km)) : 0.0f;
+    float k0_sq = k0 * k0;
     uint64_t base_seed = atmturb_resolve_seed(spec->seed);
 
     #pragma omp parallel for schedule(static)
@@ -47,13 +47,13 @@ static void atmturb_fill_spectrum_float(
     {
         uint64_t rng = atmturb_rng_stream_seed(base_seed, (uint64_t) jj);
         long fy = (jj < size / 2) ? jj : (jj - size);
-        double fy2 = (double) (fy * fy);
+        float fy2 = (float) (fy * fy);
         long row = jj * size;
 
         for (long ii = 0; ii < size; ii++)
         {
             long fx = (ii < size / 2) ? ii : (ii - size);
-            double r2 = (double) (fx * fx) + fy2;
+            float r2 = (float) (fx * fx) + fy2;
             double g0, g1;
             atmturb_rng_gaussian_pair(&rng, &g0, &g1);
 
@@ -64,14 +64,14 @@ static void atmturb_fill_spectrum_float(
             }
             else
             {
-                double dist2 = r2 + k0_sq;
-                double amp = sqrt_pref * pow(dist2, -11.0 / 12.0);
-                if (inv_two_km2 > 0.0)
+                float dist2 = r2 + k0_sq;
+                float amp = sqrt_pref * powf(dist2, -11.0f / 12.0f);
+                if (inv_two_km2 > 0.0f)
                 {
-                    amp *= exp(-r2 * inv_two_km2);
+                    amp *= expf(-r2 * inv_two_km2);
                 }
-                buf[row + ii][0] = (float) (amp * g0);
-                buf[row + ii][1] = (float) (amp * g1);
+                buf[row + ii][0] = amp * (float) g0;
+                buf[row + ii][1] = amp * (float) g1;
             }
         }
     }
@@ -134,6 +134,68 @@ static void atmturb_fill_spectrum_double(
 }
 
 /**
+ * atmturb_fftwf_ensure_threads - Initialize FFTW single-precision multi-threading
+ */
+static void atmturb_fftwf_ensure_threads(void)
+{
+#ifdef _OPENMP
+    static int s_threads_init = 0;
+    if (!s_threads_init)
+    {
+        #pragma omp critical
+        {
+            if (!s_threads_init)
+            {
+                if (fftwf_init_threads())
+                {
+                    s_threads_init = 1;
+                }
+            }
+        }
+    }
+    if (s_threads_init)
+    {
+        int nth = omp_get_max_threads();
+        if (nth > 1)
+        {
+            fftwf_plan_with_nthreads(nth);
+        }
+    }
+#endif
+}
+
+/**
+ * atmturb_fftw_ensure_threads - Initialize FFTW double-precision multi-threading
+ */
+static void atmturb_fftw_ensure_threads(void)
+{
+#ifdef _OPENMP
+    static int s_threads_init = 0;
+    if (!s_threads_init)
+    {
+        #pragma omp critical
+        {
+            if (!s_threads_init)
+            {
+                if (fftw_init_threads())
+                {
+                    s_threads_init = 1;
+                }
+            }
+        }
+    }
+    if (s_threads_init)
+    {
+        int nth = omp_get_max_threads();
+        if (nth > 1)
+        {
+            fftw_plan_with_nthreads(nth);
+        }
+    }
+#endif
+}
+
+/**
  * atmturb_generate_screen_pair_float - Generate screen pair using single-precision FFT
  * @spec: Pointer to screen generation specifications.
  * @screen_a: Output buffer for screen 0 (size * size floats).
@@ -156,6 +218,7 @@ static int atmturb_generate_screen_pair_float(
 
     atmturb_fill_spectrum_float(buf, spec);
 
+    atmturb_fftwf_ensure_threads();
     fftwf_plan plan = fftwf_plan_dft_2d((int) size, (int) size, buf, buf,
                                         FFTW_FORWARD, FFTW_ESTIMATE);
     fftwf_execute(plan);
@@ -201,6 +264,7 @@ static int atmturb_generate_screen_pair_double(
 
     atmturb_fill_spectrum_double(buf, spec);
 
+    atmturb_fftw_ensure_threads();
     fftw_plan plan = fftw_plan_dft_2d((int) size, (int) size, buf, buf,
                                       FFTW_FORWARD, FFTW_ESTIMATE);
     fftw_execute(plan);
