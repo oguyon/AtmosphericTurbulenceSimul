@@ -19,11 +19,13 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # Default to Release build type for maximum optimization (-O3)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+        "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
 # RPATH Configuration (preserve runtime search path in installed binaries)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib;/usr/local/milk/lib;/usr/local/milk-1.03.00/lib;/usr/local/lib")
+set(CMAKE_INSTALL_RPATH
+    "${CMAKE_INSTALL_PREFIX}/lib;/usr/local/milk/lib;/usr/local/milk-1.03.00/lib;/usr/local/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Find OpenMP (required for multi-threaded turbulence simulation)
@@ -135,15 +137,32 @@ set_target_properties(${LIBNAME} PROPERTIES
 
 if(TARGET CLIcore)
     # In-tree build under milk framework
-    target_include_directories(${LIBNAME} PRIVATE
+    set(MILK_STANDALONE_INCLUDES
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphereModel
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
         ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence/nrlmsise-00.20131225
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/src/coremods
+        ${CMAKE_SOURCE_DIR}/plugins
         ${CMAKE_SOURCE_DIR}/plugins/milk-extra-src
+        ${CMAKE_SOURCE_DIR}/plugins/OpticsMaterials
+        ${CMAKE_SOURCE_DIR}/plugins/WFpropagate
+        ${CMAKE_SOURCE_DIR}/src/cli
+        ${CMAKE_SOURCE_DIR}/src/cli/CLIcore
+        ${CMAKE_SOURCE_DIR}/src/engine
+        ${CMAKE_SOURCE_DIR}/src/engine/libfps
+        ${CMAKE_SOURCE_DIR}/src/engine/libmilkcommon
+        ${CMAKE_SOURCE_DIR}/src/engine/libprocessinfo
+        ${CMAKE_SOURCE_DIR}/src/engine/libmilkdata
+        ${CMAKE_SOURCE_DIR}/src/engine/ImageStreamIO
         $<TARGET_PROPERTY:CLIcore,INTERFACE_INCLUDE_DIRECTORIES>
+    )
+
+    set(MILK_LIBRARIES "")
+
+    target_include_directories(${LIBNAME} PRIVATE
+        ${MILK_STANDALONE_INCLUDES}
     )
 
     target_link_libraries(${LIBNAME} PUBLIC
@@ -346,7 +365,8 @@ install(FILES ${INCLUDEFILES} DESTINATION include/${SRCNAME})
 install(PROGRAMS ${SCRIPTS} DESTINATION bin)
 
 # ── Standalone executables (FPS V2 pattern) ───────────────────────
-if(NOT COMMAND add_milk_standalone AND MILK_SOURCE_FOUND AND EXISTS "${MILK_SOURCE_FOUND}/cmake/milk_standalone.cmake")
+if(NOT COMMAND add_milk_standalone AND MILK_SOURCE_FOUND
+   AND EXISTS "${MILK_SOURCE_FOUND}/cmake/milk_standalone.cmake")
     if(EXISTS "${MILK_SOURCE_FOUND}/cmake/milk_extensions.cmake")
         include("${MILK_SOURCE_FOUND}/cmake/milk_extensions.cmake")
     endif()
@@ -405,6 +425,7 @@ target_include_directories(atmturb-validate-stats PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
     ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${MILK_STANDALONE_INCLUDES}
 )
 target_link_libraries(atmturb-validate-stats PRIVATE
     ${LIBNAME}

@@ -74,11 +74,21 @@ static char    param_fitsout[FUNCTION_PARAMETER_STRMAXLEN] = "";
  */
 static MILK_HOT errno_t fpsexec(void)
 {
+    printf("[milkatmturb] Outputs:\n");
+    printf("[milkatmturb]   - stream: \"%s\" (2D SHM, %ldx%ld float32)\n",
+           param_outname, (long) param_vksize, (long) param_vksize);
+    if (param_fitsout[0] != '\0')
+    {
+        printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", param_fitsout);
+    }
+    fflush(stdout);
+
     make_AtmosphericTurbulence_vonKarmanWind((long) param_vksize, param_pixscale,
                                             param_sigmawind, param_lwind, (long) param_seed,
                                             param_outname);
     if (param_fitsout[0] != '\0')
     {
+        printf("[milkatmturb] Writing file: \"%s\" (FITS)...\n", param_fitsout);
         save_fits(param_outname, param_fitsout);
     }
 

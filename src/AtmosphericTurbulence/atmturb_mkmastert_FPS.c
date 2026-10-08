@@ -79,16 +79,33 @@ static char    param_fitsout1[FUNCTION_PARAMETER_STRMAXLEN] = "";
  */
 static MILK_HOT errno_t fpsexec(void)
 {
+    printf("[milkatmturb] Outputs:\n");
+    printf("[milkatmturb]   - stream: \"%s\" (2D SHM, %ldx%ld float32)\n",
+           param_screen0, (long) param_size, (long) param_size);
+    printf("[milkatmturb]   - stream: \"%s\" (2D SHM, %ldx%ld float32)\n",
+           param_screen1, (long) param_size, (long) param_size);
+    if (param_fitsout0[0] != '\0')
+    {
+        printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", param_fitsout0);
+    }
+    if (param_fitsout1[0] != '\0')
+    {
+        printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", param_fitsout1);
+    }
+    fflush(stdout);
+
     make_master_turbulence_screen_seeded(param_screen0, param_screen1, (long) param_size,
                                          param_outerscale, param_innerscale,
                                          (long) param_precision, (uint64_t) param_seed);
 
     if (param_fitsout0[0] != '\0')
     {
+        printf("[milkatmturb] Writing file: \"%s\" (FITS)...\n", param_fitsout0);
         save_fits(param_screen0, param_fitsout0);
     }
     if (param_fitsout1[0] != '\0')
     {
+        printf("[milkatmturb] Writing file: \"%s\" (FITS)...\n", param_fitsout1);
         save_fits(param_screen1, param_fitsout1);
     }
 

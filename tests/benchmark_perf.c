@@ -19,7 +19,9 @@
 #include "atmturb_lowfreq.h"
 #include "atmturb_simd.h"
 #include "atmturb_cuda.h"
+#ifdef HAVE_CUDA
 #include "wfprop_fresnel_cuda.h"
+#endif
 
 #ifndef PI
 #    define PI 3.14159265358979323846264338328
@@ -399,7 +401,9 @@ static void benchmark_extrusion(
     // 5. CUDA GPU
     double t_cuda_cold = 0.0;
     double t_cuda_warm = 0.0;
-    int have_gpu = atmturb_cuda_device_available();
+    int have_gpu = 0;
+#ifdef HAVE_CUDA
+    have_gpu = atmturb_cuda_device_available();
     if (have_gpu)
     {
         atmturb_cuda_sim_params_t params = {
@@ -431,6 +435,7 @@ static void benchmark_extrusion(
         atmturb_wfs_render_frames_cuda(&params, &outputs);
         t_cuda_warm = get_time_sec() - t0;
     }
+#endif
 
     printf("%-30s | %10s | %12s | %8s\n", "Engine", "Time (ms)", "Throughput", "Speedup");
     printf("-------------------------------+------------+--------------+---------\n");
@@ -652,7 +657,9 @@ static void benchmark_fresnel(
 
     // 3. CUDA GPU (cuFFT)
     double t_cuda = 0.0;
-    int have_gpu = wfprop_fresnel_device_available();
+    int have_gpu = 0;
+#ifdef HAVE_CUDA
+    have_gpu = wfprop_fresnel_device_available();
     if (have_gpu)
     {
         wfprop_fresnel_propagate_cuda(h_in, h_out, size, size, pupil_scale, z, lambda, 0);
@@ -663,6 +670,7 @@ static void benchmark_fresnel(
         }
         t_cuda = (get_time_sec() - t0) / (double) iters;
     }
+#endif
 
     printf("%-32s | %10s | %14s | %8s\n", "Engine", "Time (ms)", "Props / sec", "Speedup");
     printf("---------------------------------+------------+----------------+---------\n");
@@ -715,7 +723,8 @@ static void benchmark_simd_kernels(
     {
         printf("%-30s | %10s | %10s | %10s | %8s\n", "Kernel Operation",
                "Scalar ms", "AVX2 ms", "AVX-512 ms", "Speedup");
-        printf("-------------------------------+------------+------------+------------+---------\n");
+        printf("%s\n",
+               "-------------------------------+------------+------------+------------+---------");
     }
     else
     {

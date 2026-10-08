@@ -58,6 +58,28 @@ typedef struct
     float *samp;
 } atmturb_cuda_sim_outputs_t;
 
+#ifndef HAVE_CUDA
+
+static inline int atmturb_cuda_device_available(void)
+{
+    return 0;
+}
+
+static inline int atmturb_wfs_render_frames_cuda(
+    const atmturb_cuda_sim_params_t *params,
+    atmturb_cuda_sim_outputs_t      *outputs)
+{
+    (void) params;
+    (void) outputs;
+    return -1;
+}
+
+static inline void atmturb_cuda_cleanup(void)
+{
+}
+
+#else
+
 /**
  * atmturb_cuda_device_available - Check if CUDA GPU is present and ready
  *
@@ -80,6 +102,8 @@ int atmturb_wfs_render_frames_cuda(
  * atmturb_cuda_cleanup - Release persistent GPU buffers and context
  */
 void atmturb_cuda_cleanup(void);
+
+#endif /* HAVE_CUDA */
 
 #ifdef __cplusplus
 }

@@ -295,6 +295,41 @@ static float *atmturb_wfs_stream_init_buffers(
 }
 
 /**
+ * atmturb_wfs_stream_print_output_targets - Display streaming output targets and types
+ * @pha_name: Phase stream name.
+ * @amp_name: Amplitude stream name.
+ * @pup_size: Linear pupil dimension.
+ * @st: Stream state container.
+ */
+static void atmturb_wfs_stream_print_output_targets(
+    const char                   *pha_name,
+    const char                   *amp_name,
+    long                          pup_size,
+    const atmturb_stream_state_t *st)
+{
+    printf("[milkatmturb] Outputs:\n");
+    printf("[milkatmturb]   - stream: \"%s\" (2D SHM, %ldx%ld float32)\n",
+           pha_name, pup_size, pup_size);
+    if (st->id_amp >= 0)
+    {
+        printf("[milkatmturb]   - stream: \"%s\" (2D SHM, %ldx%ld float32)\n",
+               amp_name, pup_size, pup_size);
+    }
+    if (st->id_spha >= 0)
+    {
+        printf("[milkatmturb]   - stream: \"outsarraypha\" (2D SHM, %ldx%ld float32)\n",
+               pup_size, pup_size);
+    }
+    if (st->id_samp >= 0)
+    {
+        printf("[milkatmturb]   - stream: \"outsarrayamp\" (2D SHM, %ldx%ld float32)\n",
+               pup_size, pup_size);
+    }
+    printf("[milkatmturb]   - file:   none (streaming mode)\n");
+    fflush(stdout);
+}
+
+/**
  * make_AtmosphericTurbulence_wavefront_stream - Stream 2D wavefront frames to SHM
  * @slambdaum: Secondary observing wavelength in um.
  * @WFprecision: Precision mode flag (0=single, 1=double).
@@ -332,6 +367,8 @@ int make_AtmosphericTurbulence_wavefront_stream(
         atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
         return -1;
     }
+
+    atmturb_wfs_stream_print_output_targets(pha_name, amp_name, pup_size, &st);
 
     atmturb_fresnel_plan_t fplan;
     atmturb_fresnel_ctx_t  fctx;

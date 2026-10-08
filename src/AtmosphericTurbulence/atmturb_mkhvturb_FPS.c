@@ -66,6 +66,10 @@ static char     param_outfile[FUNCTION_PARAMETER_STRMAXLEN] = "turbHV.prof";
 
 static MILK_HOT errno_t fpsexec(void)
 {
+    printf("[milkatmturb] Outputs:\n");
+    printf("[milkatmturb]   - file:   \"%s\" (profile text)\n", param_outfile);
+    fflush(stdout);
+
     if (AtmosphericTurbulence_makeHV_CN2prof_opt(param_wspeed, param_r0, param_sitealt,
                                                 (long) param_nblayer, param_outfile,
                                                 (int) param_wind_model, param_seed) != 0)

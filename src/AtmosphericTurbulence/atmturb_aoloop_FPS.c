@@ -80,6 +80,14 @@ static double  param_teldiam   = 8.0;
  */
 static MILK_HOT errno_t fpsexec(void)
 {
+    printf("[milkatmturb] Outputs:\n");
+    printf("[milkatmturb]   - stream: \"%s\" (2D/3D SHM PSF)\n", param_psfname);
+    if (param_fitsout[0] != '\0')
+    {
+        printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", param_fitsout);
+    }
+    fflush(stdout);
+
     atmturb_ao_params_t p;
     atmturb_ao_init_params(&p);
 

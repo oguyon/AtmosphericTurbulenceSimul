@@ -440,12 +440,22 @@ static void atmturb_wfs_save_outputs(
     if (CONF_WFOUTPUT == 1)
     {
         char fname[200];
+
+        printf("[milkatmturb] Writing output files to disk:\n");
         snprintf(fname, sizeof(fname), "%s.fits", pha_name);
+        printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", fname);
         save_fl_fits(pha_name, fname);
+
         snprintf(fname, sizeof(fname), "%s.fits", amp_name);
+        printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", fname);
         save_fl_fits(amp_name, fname);
+
+        printf("[milkatmturb]   - file:   \"outsarraypha.fits\" (FITS)\n");
         save_fl_fits("outsarraypha", "outsarraypha.fits");
+
+        printf("[milkatmturb]   - file:   \"outsarrayamp.fits\" (FITS)\n");
         save_fl_fits("outsarrayamp", "outsarrayamp.fits");
+        fflush(stdout);
     }
 }
 
@@ -588,6 +598,47 @@ void atmturb_wfs_teardown_sim(
 }
 
 /**
+ * atmturb_wfs_print_output_targets - Display planned simulation output targets and types
+ * @pha_name: Primary phase image stream name.
+ * @amp_name: Primary amplitude image stream name.
+ * @pup_size: Linear dimension of square pupil grid in pixels.
+ * @nbframes: Number of simulated 3D cube frames.
+ * @precision: Floating point precision flag (0=float32, 1=float64).
+ */
+static void atmturb_wfs_print_output_targets(
+    const char *pha_name,
+    const char *amp_name,
+    long        pup_size,
+    long        nbframes,
+    long        precision)
+{
+    const char *prec_str = (precision == 1) ? "float64" : "float32";
+
+    printf("[milkatmturb] Outputs:\n");
+    printf("[milkatmturb]   - stream: \"%s\" (3D SHM, %ldx%ldx%ld %s)\n",
+           pha_name, pup_size, pup_size, nbframes, prec_str);
+    printf("[milkatmturb]   - stream: \"%s\" (3D SHM, %ldx%ldx%ld %s)\n",
+           amp_name, pup_size, pup_size, nbframes, prec_str);
+    printf("[milkatmturb]   - stream: \"outsarraypha\" (3D SHM, %ldx%ldx%ld %s)\n",
+           pup_size, pup_size, nbframes, prec_str);
+    printf("[milkatmturb]   - stream: \"outsarrayamp\" (3D SHM, %ldx%ldx%ld %s)\n",
+           pup_size, pup_size, nbframes, prec_str);
+
+    if (CONF_WFOUTPUT == 1)
+    {
+        printf("[milkatmturb]   - file:   \"%s.fits\" (FITS 3D cube)\n", pha_name);
+        printf("[milkatmturb]   - file:   \"%s.fits\" (FITS 3D cube)\n", amp_name);
+        printf("[milkatmturb]   - file:   \"outsarraypha.fits\" (FITS 3D cube)\n");
+        printf("[milkatmturb]   - file:   \"outsarrayamp.fits\" (FITS 3D cube)\n");
+    }
+    else
+    {
+        printf("[milkatmturb]   - file:   none (save_fits = 0)\n");
+    }
+    fflush(stdout);
+}
+
+/**
  * make_AtmosphericTurbulence_wavefront_series - Run full atmospheric wavefront simulation series
  * @slambdaum: Secondary observing wavelength in um.
  * @WFprecision: Precision mode flag (0=single, 1=double).
@@ -625,6 +676,8 @@ int make_AtmosphericTurbulence_wavefront_series(
     imgs.ID_amp  = create_3Dimage_ID(amp_name, pup_size, pup_size, nbframes);
     imgs.ID_spha = create_3Dimage_ID("outsarraypha", pup_size, pup_size, nbframes);
     imgs.ID_samp = create_3Dimage_ID("outsarrayamp", pup_size, pup_size, nbframes);
+
+    atmturb_wfs_print_output_targets(pha_name, amp_name, pup_size, nbframes, WFprecision);
 
     printf("Synthesizing %ld wavefront frames [%s]\n", nbframes,
            atmturb_simd_active_isa());
