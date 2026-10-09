@@ -20,6 +20,7 @@
 #include "atmturb_rytov_internal.h"
 #include "atmturb_simd.h"
 #include "atmturb_superlayer.h"
+#include "atmturb_types.h"
 #include "atmturb_wfs_render.h"
 
 /**
@@ -170,7 +171,9 @@ int atmturb_rytov_plan_init(
     }
 
     memset(plan, 0, sizeof(*plan));
-    plan->grid_size    = pup_size;
+    plan->guard_pix    = (CONF_FRESNEL_GUARD_PIX > 0) ? (long) CONF_FRESNEL_GUARD_PIX : 0;
+    plan->pad_size     = pup_size + 2 * plan->guard_pix;
+    plan->grid_size    = plan->pad_size;
     plan->pixscale_m   = pixscale_m;
     plan->lambda_ref_m = lambda_ref_m;
     plan->lambda_s_m   = lambda_s_m;
@@ -209,7 +212,7 @@ int atmturb_rytov_plan_init(
         return -1;
     }
 
-    size_t npix = (size_t) (pup_size * (pup_size / 2 + 1));
+    size_t npix = (size_t) (plan->grid_size * (plan->grid_size / 2 + 1));
     for (int m = 0; m < ns; m++)
     {
         if (atmturb_rytov_build_layer_filters(plan, m, npix) != 0)
@@ -408,6 +411,42 @@ void atmturb_rytov_ctx_free(
 }
 
 /**
+ * atmturb_rytov_accumulate_geom - Accumulate geometric phase from superlayer scratchpad
+ * @pha: Destination primary phase slice.
+ * @spha: Destination secondary phase slice.
+ * @super_pha: Source padded superlayer primary phase.
+ * @super_spha: Source padded superlayer secondary phase.
+ * @pup_size: Linear dimension of pupil.
+ * @guard: Guard band margin in pixels.
+ * @pad_size: Linear dimension of padded compute grid.
+ */
+static void atmturb_rytov_accumulate_geom(
+    float       *pha,
+    float       *spha,
+    const float *super_pha,
+    const float *super_spha,
+    long         pup_size,
+    long         guard,
+    long         pad_size)
+{
+    long pup_pixels = pup_size * pup_size;
+    if (guard == 0)
+    {
+        atmturb_add_float_array(pha, super_pha, pup_pixels);
+        atmturb_add_float_array(spha, super_spha, pup_pixels);
+        return;
+    }
+
+    for (long y = 0; y < pup_size; y++)
+    {
+        long src_row = (y + guard) * pad_size + guard;
+        long dst_row = y * pup_size;
+        atmturb_add_float_array(&pha[dst_row], &super_pha[src_row], pup_size);
+        atmturb_add_float_array(&spha[dst_row], &super_spha[src_row], pup_size);
+    }
+}
+
+/**
  * atmturb_rytov_render_step - Render one frame using Fourier-space Rytov accumulation
  * @ctx: Thread-local execution context.
  * @plan: Precomputed Rytov propagation plan.
@@ -436,32 +475,40 @@ void atmturb_rytov_render_step(
     float                      *spha_slice,
     float                      *samp_slice)
 {
-    long npix = pup_size * pup_size;
-    long n_half = pup_size / 2 + 1;
-    long n_spec = pup_size * n_half;
+    long pup_pixels = pup_size * pup_size;
+    long guard = plan->guard_pix;
+    long pad_size = plan->pad_size;
+    long pad_pixels = pad_size * pad_size;
+    long n_half = pad_size / 2 + 1;
+    long n_spec = pad_size * n_half;
 
-    memset(pha_slice, 0, sizeof(float) * (size_t) npix);
-    memset(spha_slice, 0, sizeof(float) * (size_t) npix);
+    memset(pha_slice, 0, sizeof(float) * (size_t) pup_pixels);
+    memset(spha_slice, 0, sizeof(float) * (size_t) pup_pixels);
     memset(ctx->acc_dphi_pri, 0, sizeof(fftwf_complex) * (size_t) n_spec);
     memset(ctx->acc_chi_pri,  0, sizeof(fftwf_complex) * (size_t) n_spec);
     memset(ctx->acc_dphi_sec, 0, sizeof(fftwf_complex) * (size_t) n_spec);
     memset(ctx->acc_chi_sec,  0, sizeof(fftwf_complex) * (size_t) n_spec);
 
+    atmturb_wfs_render_target_t target;
+    target.pup_size  = pup_size;
+    target.guard_pix = guard;
+    target.pha       = ctx->super_pha;
+    target.spha      = ctx->super_spha;
+
     for (int m = 0; m < plan->nsuper; m++)
     {
-        memset(ctx->super_pha, 0, sizeof(float) * (size_t) npix);
-        memset(ctx->super_spha, 0, sizeof(float) * (size_t) npix);
+        memset(ctx->super_pha, 0, sizeof(float) * (size_t) pad_pixels);
+        memset(ctx->super_spha, 0, sizeof(float) * (size_t) pad_pixels);
 
         const atmturb_superlayer_t *sl = &plan->supers[m];
         for (int j = 0; j < sl->nlayers; j++)
         {
             int k = sl->layer_indices[j];
-            atmturb_wfs_render_layer(r, geom, k, t, time_step_s, master_size,
-                                     pup_size, ctx->super_pha, ctx->super_spha);
+            atmturb_wfs_render_layer_target(r, geom, k, t, time_step_s, master_size, &target);
         }
 
-        atmturb_add_float_array(pha_slice, ctx->super_pha, npix);
-        atmturb_add_float_array(spha_slice, ctx->super_spha, npix);
+        atmturb_rytov_accumulate_geom(pha_slice, spha_slice, ctx->super_pha,
+                                      ctx->super_spha, pup_size, guard, pad_size);
 
         atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_pha);
         atmturb_rytov_accumulate_filters(ctx->acc_dphi_pri, ctx->acc_chi_pri,
@@ -489,13 +536,14 @@ void atmturb_rytov_render_step(
 
     fftwf_execute_dft_c2r(ctx->plan_c2r, ctx->acc_dphi_pri, ctx->dphi_out);
     fftwf_execute_dft_c2r(ctx->plan_c2r, ctx->acc_chi_pri,  ctx->chi_out);
-    atmturb_rytov_assemble_output(pup_size, pha_slice, amp_slice, ctx->dphi_out, ctx->chi_out);
+    atmturb_rytov_assemble_output(pup_size, guard, pad_size,
+                                  pha_slice, amp_slice, ctx->dphi_out, ctx->chi_out);
 
     if (plan->lambda_s_m > 0.0)
     {
         fftwf_execute_dft_c2r(ctx->plan_c2r, ctx->acc_dphi_sec, ctx->dphi_out);
         fftwf_execute_dft_c2r(ctx->plan_c2r, ctx->acc_chi_sec,  ctx->chi_out);
-        atmturb_rytov_assemble_output(pup_size, spha_slice, samp_slice,
-                                      ctx->dphi_out, ctx->chi_out);
+        atmturb_rytov_assemble_output(pup_size, guard, pad_size,
+                                      spha_slice, samp_slice, ctx->dphi_out, ctx->chi_out);
     }
 }

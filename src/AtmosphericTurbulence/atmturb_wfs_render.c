@@ -78,6 +78,69 @@ static inline void atmturb_wfs_extrude_channel(
 }
 
 /**
+ * atmturb_wfs_render_layer_target - Render one turbulence layer into target buffer
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @k: Layer index.
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @master_size: Master screen dimension.
+ * @target: Render target specifications and buffers.
+ */
+void atmturb_wfs_render_layer_target(
+    const atmturb_rolling_t           *r,
+    const atmturb_geom_t              *geom,
+    int                                k,
+    long                               t,
+    double                             time_step_s,
+    long                               master_size,
+    const atmturb_wfs_render_target_t *target)
+{
+    long pup_size = target->pup_size;
+    long guard = target->guard_pix;
+    long pad_size = pup_size + 2 * guard;
+    double offset_os = (double) guard * (double) geom->oversample;
+
+    const atmturb_layer_geom_t *lg = &geom->layers[k];
+    atmturb_rolling_eval_t rev;
+    atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
+
+    double dx = (lg->traj_x != NULL) ? lg->traj_x[t] : ((double) t * lg->vx_pix);
+    double dy = (lg->traj_y != NULL) ? lg->traj_y[t] : ((double) t * lg->vy_pix);
+
+    double x = lg->x0 + dx - offset_os;
+    double y = lg->y0 + dy - offset_os;
+    atmturb_wfs_extrude_channel(rev.scrA, master_size, x, y, pad_size, geom,
+                                (float) (lg->weight * (double) rev.wA), target->pha);
+    if (rev.wB > 0.0f && rev.scrB != NULL)
+    {
+        atmturb_wfs_extrude_channel(rev.scrB, master_size, x, y, pad_size, geom,
+                                    (float) (lg->weight * (double) rev.wB), target->pha);
+    }
+
+    double xs = lg->xs0 + dx - offset_os;
+    double ys = lg->ys0 + dy - offset_os;
+    atmturb_wfs_extrude_channel(rev.scrA, master_size, xs, ys, pad_size, geom,
+                                (float) (lg->weight_s * (double) rev.wA), target->spha);
+    if (rev.wB > 0.0f && rev.scrB != NULL)
+    {
+        atmturb_wfs_extrude_channel(rev.scrB, master_size, xs, ys, pad_size, geom,
+                                    (float) (lg->weight_s * (double) rev.wB), target->spha);
+    }
+
+    if (r->lowfreq)
+    {
+        atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
+                                          x, y, pad_size, (long) geom->oversample,
+                                          (float) lg->weight, target->pha);
+
+        atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
+                                          xs, ys, pad_size, (long) geom->oversample,
+                                          (float) lg->weight_s, target->spha);
+    }
+}
+
+/**
  * atmturb_wfs_render_layer - Render one turbulence layer into phase slices for frame t
  * @r: Rolling simulation context.
  * @geom: Computed observing geometry.
@@ -100,43 +163,13 @@ void atmturb_wfs_render_layer(
     float                   *pha_slice,
     float                   *spha_slice)
 {
-    const atmturb_layer_geom_t *lg = &geom->layers[k];
-    atmturb_rolling_eval_t rev;
-    atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
+    atmturb_wfs_render_target_t target;
+    target.pup_size  = pup_size;
+    target.guard_pix = 0;
+    target.pha       = pha_slice;
+    target.spha      = spha_slice;
 
-    double dx = (lg->traj_x != NULL) ? lg->traj_x[t] : ((double) t * lg->vx_pix);
-    double dy = (lg->traj_y != NULL) ? lg->traj_y[t] : ((double) t * lg->vy_pix);
-
-    double x = lg->x0 + dx;
-    double y = lg->y0 + dy;
-    atmturb_wfs_extrude_channel(rev.scrA, master_size, x, y, pup_size, geom,
-                                (float) (lg->weight * (double) rev.wA), pha_slice);
-    if (rev.wB > 0.0f && rev.scrB != NULL)
-    {
-        atmturb_wfs_extrude_channel(rev.scrB, master_size, x, y, pup_size, geom,
-                                    (float) (lg->weight * (double) rev.wB), pha_slice);
-    }
-
-    double xs = lg->xs0 + dx;
-    double ys = lg->ys0 + dy;
-    atmturb_wfs_extrude_channel(rev.scrA, master_size, xs, ys, pup_size, geom,
-                                (float) (lg->weight_s * (double) rev.wA), spha_slice);
-    if (rev.wB > 0.0f && rev.scrB != NULL)
-    {
-        atmturb_wfs_extrude_channel(rev.scrB, master_size, xs, ys, pup_size, geom,
-                                    (float) (lg->weight_s * (double) rev.wB), spha_slice);
-    }
-
-    if (r->lowfreq)
-    {
-        atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
-                                          x, y, pup_size, (long) geom->oversample,
-                                          (float) lg->weight, pha_slice);
-
-        atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
-                                          xs, ys, pup_size, (long) geom->oversample,
-                                          (float) lg->weight_s, spha_slice);
-    }
+    atmturb_wfs_render_layer_target(r, geom, k, t, time_step_s, master_size, &target);
 }
 
 /**
@@ -408,7 +441,7 @@ static int atmturb_wfs_render_rytov(
 
     for (int tid = 0; tid < nthreads; tid++)
     {
-        if (atmturb_rytov_ctx_init(&ctxs[tid], pup_size) != 0)
+        if (atmturb_rytov_ctx_init(&ctxs[tid], plan.pad_size) != 0)
         {
             for (int j = 0; j < tid; j++)
             {

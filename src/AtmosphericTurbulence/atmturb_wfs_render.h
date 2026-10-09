@@ -36,6 +36,40 @@ typedef struct
 } atmturb_wfs_images_t;
 
 /**
+ * struct atmturb_wfs_render_target_t - Phase slice destination with guard margin
+ * @pup_size: Linear dimension of pupil.
+ * @guard_pix: Guard band margin in pixels (0 for unpadded).
+ * @pha: Destination primary phase array.
+ * @spha: Destination secondary phase array.
+ */
+typedef struct
+{
+    long   pup_size;
+    long   guard_pix;
+    float *pha;
+    float *spha;
+} atmturb_wfs_render_target_t;
+
+/**
+ * atmturb_wfs_render_layer_target - Render one turbulence layer into target buffer
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @k: Layer index.
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @master_size: Master screen dimension.
+ * @target: Render target specifications and buffers.
+ */
+void atmturb_wfs_render_layer_target(
+    const atmturb_rolling_t           *r,
+    const atmturb_geom_t              *geom,
+    int                                k,
+    long                               t,
+    double                             time_step_s,
+    long                               master_size,
+    const atmturb_wfs_render_target_t *target);
+
+/**
  * atmturb_wfs_render_layer - Render one turbulence layer into phase slices for frame t
  * @r: Rolling simulation context.
  * @geom: Computed observing geometry.

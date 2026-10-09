@@ -19,6 +19,8 @@ extern "C" {
 /**
  * atmturb_rytov_assemble_output - Add diffractive phase and normalize amplitude
  * @pup_size: Linear dimension of pupil.
+ * @guard_pix: Guard band margin in pixels.
+ * @pad_size: Linear dimension of padded compute grid.
  * @pha: Accumulated geometric phase (updated in-place with diffractive correction).
  * @amp: Destination amplitude array.
  * @dphi: Reconstructed diffractive phase correction.
@@ -26,6 +28,8 @@ extern "C" {
  */
 void atmturb_rytov_assemble_output(
     long         pup_size,
+    long         guard_pix,
+    long         pad_size,
     float       *pha,
     float       *amp,
     const float *dphi,

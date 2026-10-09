@@ -26,6 +26,8 @@ extern "C" {
  * @nsuper: Number of super-layers.
  * @supers: Array of super-layer definitions and statistics.
  * @grid_size: Linear dimension of wavefront grid in pixels.
+ * @guard_pix: Guard band margin in pixels (0 for unpadded).
+ * @pad_size: Linear dimension of padded compute grid.
  * @pixscale_m: Grid physical pixel size [meters/pixel].
  * @lambda_ref_m: Primary reference wavelength [meters].
  * @lambda_s_m: Secondary observing wavelength [meters].
@@ -44,6 +46,8 @@ typedef struct
     int                   nsuper;
     atmturb_superlayer_t *supers;
     long                  grid_size;
+    long                  guard_pix;
+    long                  pad_size;
     double                pixscale_m;
     double                lambda_ref_m;
     double                lambda_s_m;
