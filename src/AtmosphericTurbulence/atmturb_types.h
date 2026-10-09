@@ -106,6 +106,7 @@ extern float CONF_BOIL_TIME;
 extern int CONF_FRESNEL_PROPAGATION;
 extern int CONF_WAVEFRONT_AMPLITUDE;
 extern float CONF_FRESNEL_PROPAGATION_BIN;
+extern int CONF_FRESNEL_RYTOV_SEC_EXACT;
 
 // Layer configuration structure
 typedef struct
