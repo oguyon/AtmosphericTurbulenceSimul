@@ -18,156 +18,7 @@
 
 #include "atmturb_fresnel.h"
 #include "atmturb_simd.h"
-
-/**
- * atmturb_fresnel_sort_layers - Sort layer indices descending by line-of-sight distance
- * @order: Output array of sorted layer indices.
- * @geom: Computed observing geometry.
- * @nlayers: Total count of active turbulence layers.
- */
-static void atmturb_fresnel_sort_layers(
-    int                  *order,
-    const atmturb_geom_t *geom,
-    int                   nlayers)
-{
-    for (int i = 0; i < nlayers; i++)
-    {
-        order[i] = i;
-    }
-    for (int i = 0; i < nlayers - 1; i++)
-    {
-        for (int j = i + 1; j < nlayers; j++)
-        {
-            if (geom->layers[order[j]].dist_m > geom->layers[order[i]].dist_m)
-            {
-                int tmp  = order[i];
-                order[i] = order[j];
-                order[j] = tmp;
-            }
-        }
-    }
-}
-
-/**
- * atmturb_fresnel_count_superlayers - Determine number of super-layers based on distance bin
- * @order: Sorted layer index array.
- * @geom: Computed observing geometry.
- * @nlayers: Total count of active turbulence layers.
- * @z_bin_m: Altitude binning distance threshold [meters].
- *
- * Return: Number of super-layers.
- */
-static int atmturb_fresnel_count_superlayers(
-    const int            *order,
-    const atmturb_geom_t *geom,
-    int                   nlayers,
-    double                z_bin_m)
-{
-    if (nlayers <= 0)
-    {
-        return 0;
-    }
-    if (z_bin_m <= 0.0)
-    {
-        return nlayers;
-    }
-
-    int    nsuper      = 1;
-    double anchor_dist = geom->layers[order[0]].dist_m;
-
-    for (int i = 1; i < nlayers; i++)
-    {
-        double d = geom->layers[order[i]].dist_m;
-        if ((anchor_dist - d) > z_bin_m)
-        {
-            nsuper++;
-            anchor_dist = d;
-        }
-    }
-
-    return nsuper;
-}
-
-/**
- * atmturb_fresnel_build_superlayers - Group profile layers into super-layers with centroids
- * @supers: Array of super-layers to populate.
- * @order: Sorted layer index array.
- * @prof: Active turbulence profile.
- * @geom: Computed observing geometry.
- * @nlayers: Total count of active turbulence layers.
- * @z_bin_m: Altitude binning distance threshold [meters].
- *
- * Return: Number of successfully built super-layers, or -1 on allocation failure.
- */
-static int atmturb_fresnel_build_superlayers(
-    atmturb_superlayer_t    *supers,
-    const int               *order,
-    const atmturb_profile_t *prof,
-    const atmturb_geom_t    *geom,
-    int                      nlayers,
-    double                   z_bin_m)
-{
-    int    s           = 0;
-    int    idx_start   = 0;
-    double anchor_dist = geom->layers[order[0]].dist_m;
-
-    for (int i = 0; i < nlayers; i++)
-    {
-        int is_last = (i == nlayers - 1);
-        int split   = 0;
-
-        if (!is_last && z_bin_m > 0.0)
-        {
-            double next_dist = geom->layers[order[i + 1]].dist_m;
-            if ((anchor_dist - next_dist) > z_bin_m)
-            {
-                split = 1;
-            }
-        }
-
-        if (is_last || split)
-        {
-            int count = i - idx_start + 1;
-            supers[s].nlayers = count;
-            supers[s].layer_indices = (int *) malloc(sizeof(int) * (size_t) count);
-            if (supers[s].layer_indices == NULL)
-            {
-                return -1;
-            }
-
-            double sum_w  = 0.0;
-            double sum_wd = 0.0;
-            for (int j = 0; j < count; j++)
-            {
-                int k = order[idx_start + j];
-                supers[s].layer_indices[j] = k;
-                double w = prof->layers[k].cn2_frac;
-                double d = geom->layers[k].dist_m;
-                sum_w  += w;
-                sum_wd += w * d;
-            }
-
-            supers[s].dist_m = (sum_w > 0.0) ? (sum_wd / sum_w)
-                                             : geom->layers[order[idx_start]].dist_m;
-
-            s++;
-            idx_start = i + 1;
-            if (!is_last)
-            {
-                anchor_dist = geom->layers[order[idx_start]].dist_m;
-            }
-        }
-    }
-
-    for (int m = 0; m < s - 1; m++)
-    {
-        double step = supers[m].dist_m - supers[m + 1].dist_m;
-        supers[m].step_dist_m = (step > 0.0) ? step : 0.0;
-    }
-    supers[s - 1].step_dist_m = (supers[s - 1].dist_m > 0.0) ? supers[s - 1].dist_m : 0.0;
-
-    return s;
-}
+#include "atmturb_superlayer.h"
 
 /**
  * atmturb_fresnel_plan_init - Initialize super-layer binning and transfer functions
@@ -203,32 +54,12 @@ int atmturb_fresnel_plan_init(
     plan->lambda_ref_m = lambda_ref_m;
     plan->lambda_s_m   = lambda_s_m;
 
-    int nlayers = prof->nlayers;
-    int *order  = (int *) malloc(sizeof(int) * (size_t) nlayers);
-    if (order == NULL)
+    if (atmturb_superlayer_build(&plan->supers, &plan->nsuper, prof, geom,
+                                 z_bin_m, pixscale_m) != 0)
     {
         return -1;
     }
-
-    atmturb_fresnel_sort_layers(order, geom, nlayers);
-    int nsuper = atmturb_fresnel_count_superlayers(order, geom, nlayers, z_bin_m);
-    plan->nsuper = nsuper;
-
-    plan->supers = (atmturb_superlayer_t *) calloc((size_t) nsuper,
-                                                   sizeof(atmturb_superlayer_t));
-    if (plan->supers == NULL)
-    {
-        free(order);
-        return -1;
-    }
-
-    if (atmturb_fresnel_build_superlayers(plan->supers, order, prof, geom, nlayers, z_bin_m) < 0)
-    {
-        free(order);
-        atmturb_fresnel_plan_free(plan);
-        return -1;
-    }
-    free(order);
+    int nsuper = plan->nsuper;
 
     size_t npix = (size_t) (pup_size * pup_size);
     plan->tf_pri = (fftwf_complex **) calloc((size_t) nsuper, sizeof(fftwf_complex *));
@@ -280,11 +111,7 @@ void atmturb_fresnel_plan_free(
 
     if (plan->supers != NULL)
     {
-        for (int m = 0; m < plan->nsuper; m++)
-        {
-            free(plan->supers[m].layer_indices);
-        }
-        free(plan->supers);
+        atmturb_superlayer_free(plan->supers, plan->nsuper);
         plan->supers = NULL;
     }
 
@@ -387,7 +214,7 @@ void atmturb_fresnel_ctx_free(
 /**
  * atmturb_fresnel_extract_unwrapped - Extract amplitude and unwrapped phase using reference
  * @field: Diffracted complex optical field at pupil.
- * @pha: Phase slice holding accumulated geometric phase (updated in-place to unwrapped diffractive).
+ * @pha: Phase slice holding accumulated geometric phase (updated in-place).
  * @amp: Destination amplitude slice.
  * @npix: Total number of pixels.
  */

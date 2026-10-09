@@ -39,6 +39,16 @@ constructs autoregressive linear predictors for predictive adaptive optics contr
   (`AtmosphericTurbulence_mkTestTTseq`).
 - `atmturb_wfs_sim.c`: Multi-layer extruded wavefront time-series simulation engine
   (`make_AtmosphericTurbulence_wavefront_series`).
+- `atmturb_wfs_render.c` / `atmturb_wfs_render.h`: High-performance frame rendering orchestrator
+  dispatching between geometric, split-step Fresnel, CUDA GPU, and Rytov Fourier propagation.
+- `atmturb_wfs_stream.c` / `atmturb_wfs_stream.h`: Real-time streaming simulation engine with
+  ImageStreamIO shared memory synchronization and persistent propagation engines.
+- `atmturb_superlayer.c` / `atmturb_superlayer.h`: Vertical altitude binning and super-layer
+  centroid reduction for multi-layer diffractive propagation.
+- `atmturb_fresnel.c` / `atmturb_fresnel.h`: Multi-layer split-step Fresnel diffractive propagation
+  engine (`FRESNEL_PROPAGATION=1`).
+- `atmturb_rytov.c`, `atmturb_rytov_kernels.c`, `atmturb_rytov.h`: First-order Rytov Fourier-space
+  propagation engine (`FRESNEL_PROPAGATION=2`) with Moisan periodic-plus-smooth decomposition.
 - `atmturb_cuda.cu` / `atmturb_cuda.h`: CUDA GPU accelerated multi-layer wavefront extrusion kernel.
 - `atmturb_simd.h`: Declarations for SIMD-accelerated extrusion, scaling, initialization, and
   ISA queries.

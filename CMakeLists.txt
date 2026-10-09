@@ -70,8 +70,12 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_linpred_pixel.c
     src/AtmosphericTurbulence/atmturb_linpred_test.c
     src/AtmosphericTurbulence/atmturb_wfs_sim.c
+    src/AtmosphericTurbulence/atmturb_wfs_render.c
     src/AtmosphericTurbulence/atmturb_wfs_stream.c
+    src/AtmosphericTurbulence/atmturb_superlayer.c
     src/AtmosphericTurbulence/atmturb_fresnel.c
+    src/AtmosphericTurbulence/atmturb_rytov.c
+    src/AtmosphericTurbulence/atmturb_rytov_kernels.c
     src/AtmosphericTurbulence/atmturb_lowfreq.c
     src/AtmosphericTurbulence/atmturb_rolling.c
     src/AtmosphericTurbulence/atmturb_simd_scalar.c
@@ -91,10 +95,13 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/AtmosphericTurbulence.h
     src/AtmosphericTurbulence/atmturb_profile.h
     src/AtmosphericTurbulence/atmturb_geometry.h
+    src/AtmosphericTurbulence/atmturb_superlayer.h
     src/AtmosphericTurbulence/atmturb_fresnel.h
+    src/AtmosphericTurbulence/atmturb_rytov.h
     src/AtmosphericTurbulence/atmturb_lowfreq.h
     src/AtmosphericTurbulence/atmturb_rolling.h
     src/AtmosphericTurbulence/atmturb_simd.h
+    src/AtmosphericTurbulence/atmturb_wfs_render.h
     src/AtmosphericTurbulence/atmturb_wfs_stream.h
 )
 

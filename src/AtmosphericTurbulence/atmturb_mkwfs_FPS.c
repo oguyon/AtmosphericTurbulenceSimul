@@ -96,7 +96,7 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
     X(".amplitude", &param_amplitude, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,   \
       "Compute amplitude in addition to phase (0/1)")                           \
     X(".fresnel", &param_fresnel, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,       \
-      "Diffractive Fresnel inter-layer propagation (0/1)")                      \
+      "Diffractive Fresnel propagation (0=geom, 1=split-step, 2=Rytov)")       \
     X(".ref_lambda", &param_ref_lambda, FPTYPE_FLOAT32, 0,                      \
       FPFLAG_DEFAULT_INPUT, "Reference wavelength for seeing [um]")             \
     X(".zenith_angle", &param_zenith_angle, FPTYPE_FLOAT32, 0,                 \

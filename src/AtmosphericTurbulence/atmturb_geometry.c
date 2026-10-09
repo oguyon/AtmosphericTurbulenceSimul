@@ -304,6 +304,8 @@ int atmturb_geometry_compute(
         double delta_r = r_s - r_ref;
         double d_chrom_x = (delta_r / geom->dx_master_m) * geom->ez_x;
         double d_chrom_y = (delta_r / geom->dx_master_m) * geom->ez_y;
+        lg->d_chrom_x = d_chrom_x;
+        lg->d_chrom_y = d_chrom_y;
 
         double d_src_x = (params->source_x_rad * lg->dist_m) / geom->dx_master_m;
         double d_src_y = (params->source_y_rad * lg->dist_m) / geom->dx_master_m;

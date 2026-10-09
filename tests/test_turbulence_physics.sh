@@ -21,6 +21,7 @@ FPS_PREFIX="tphys$$"
 find_executable() {
     local name="$1"
     local candidates=(
+        "$REPO_ROOT/_build/$name"
         "$REPO_ROOT/../../_build/plugins/milkatmturb/$name"
         "$REPO_ROOT/../_build/plugins/milkatmturb/$name"
         "/home/oguyon/src/milk-framework-dev/_build/plugins/milkatmturb/$name"
@@ -528,6 +529,270 @@ sys.exit(0 if ok else 1)
 '
 }
 
+# T9e: Rytov vs split-step weak regime correlation (> 0.98 primary, > 0.95 secondary)
+scenario_T9e_rytov_vs_splitstep() {
+    one_layer_profile 5000 1.0 15.0 0.0 10000 0.0
+    mkdir -p split rytov
+
+    write_conf split/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=1 \
+        TURBULENCE_SEEING=0.1 SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 SEED=12345
+    (cd split && cp ../turbul.prof . && run_mkwfs t9e_split 1.65 0) || return 1
+
+    write_conf rytov/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        TURBULENCE_SEEING=0.1 SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 SEED=12345
+    (cd rytov && cp ../turbul.prof . && run_mkwfs t9e_rytov 1.65 0) || return 1
+
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+a1 = fits.getdata("split/outarrayamp.fits")[0]
+a2 = fits.getdata("rytov/outarrayamp.fits")[0]
+sa1 = fits.getdata("split/outsarrayamp.fits")[0]
+sa2 = fits.getdata("rytov/outsarrayamp.fits")[0]
+sp1 = fits.getdata("split/outsarraypha.fits")[0]
+sp2 = fits.getdata("rytov/outsarraypha.fits")[0]
+
+s = slice(16, -16)
+chi1_p = np.log(np.maximum(a1[s, s], 1e-6))
+chi2_p = np.log(np.maximum(a2[s, s], 1e-6))
+corr_p = float(np.corrcoef(chi1_p.ravel(), chi2_p.ravel())[0, 1])
+
+chi1_s = np.log(np.maximum(sa1[s, s], 1e-6))
+chi2_s = np.log(np.maximum(sa2[s, s], 1e-6))
+corr_s = float(np.corrcoef(chi1_s.ravel(), chi2_s.ravel())[0, 1])
+
+p_diff = float(np.std(sp1[s, s] - sp2[s, s]))
+p_rms  = float(np.std(sp1[s, s]))
+rel_p_diff = p_diff / p_rms if p_rms > 0 else 0.0
+
+ok = (corr_p > 0.98) and (corr_s > 0.95) and (rel_p_diff < 0.10)
+msg = f": corr pri={corr_p:.4f} sec={corr_s:.4f}, rel pha diff={rel_p_diff*100:.2f}%"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9f: Multi-layer Rytov Fourier propagation conserves total optical energy (<I> = 1.00 +- 0.01)
+scenario_T9f_energy_conservation_rytov() {
+    cat << 'EOF' > turbul.prof
+# alt cn2 speed dir L0 l0
+ 4215     5.32        6.5     1.47  10000 0.0
+ 4230     1.47        6.55    1.57  10000 0.0
+ 4349     1.08        6.6     1.67  10000 0.0
+ 5007     2.11        6.7     1.77  10000 0.0
+12000     1.83       22.0     3.10  10000 0.0
+16200     1.48        9.5     3.20  10000 0.0
+23701     0.697       5.6     3.30  10000 0.0
+EOF
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=1000.0 TIME_SPAN=0.2 WFTIME_STEP=0.01
+    run_mkwfs t9f 1.65 0 || return 1
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+amp = fits.getdata("outarrayamp.fits")
+samp = fits.getdata("outsarrayamp.fits")
+mean_I_pri = float(np.mean(amp ** 2))
+mean_I_sec = float(np.mean(samp ** 2))
+ok = abs(mean_I_pri - 1.0) < 0.01 and abs(mean_I_sec - 1.0) < 0.01
+msg = f": mean intensity pri={mean_I_pri:.5f} sec={mean_I_sec:.5f} (tol 0.01)"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9g: High-altitude single layer scintillation index in Mode 2 matches Rytov approximation (+- 20%)
+scenario_T9g_scintillation_rytov_mode2() {
+    one_layer_profile 15000 1.0 15.0 0.0 10000 0.0
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 TURBULENCE_REF_WAVEL=0.5 \
+        TURBULENCE_SEEING=0.6 TIME_SPAN=0.4 WFTIME_STEP=0.01
+    run_mkwfs t9g 1.65 0 || return 1
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+lam = 0.5e-6
+seeing_rad = 0.6 * (np.pi / (180.0 * 3600.0))
+r0 = 0.98 * lam / seeing_rad
+h = 15000.0
+h_site = 500.0
+cos_z = np.cos(0.5235987756)
+int_cn2 = 0.060 * (lam ** 2) * (r0 ** (-5.0 / 3.0))
+geom_factor = 19.12 * (lam ** (-7.0 / 6.0)) * (cos_z ** (-11.0 / 6.0))
+sigma2_rytov = geom_factor * int_cn2 * ((h - h_site) ** (5.0 / 6.0))
+
+amp = fits.getdata("outarrayamp.fits")
+chi = np.log(np.maximum(amp, 1e-6))
+sigma2_sim = 4.0 * float(np.var(chi))
+
+rel_err = abs(sigma2_sim - sigma2_rytov) / sigma2_rytov
+ok = rel_err <= 0.20
+msg = (f": Rytov variance 4*var(chi) sim={sigma2_sim:.4f}, rytov={sigma2_rytov:.4f} "
+       f"(err {rel_err*100:.1f}%, tol 20%)")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9h: Zero-distance Rytov propagation reproduces geometric phase to < 1e-5 rad
+scenario_T9h_zero_distance_mode2() {
+    one_layer_profile 500 1.0 10.0 0.0 10000 0.0
+    mkdir -p rytov geo
+
+    write_conf rytov/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        SITE_ALT=500.0 TIME_SPAN=0.05 WFTIME_STEP=0.01
+    (cd rytov && cp ../turbul.prof . && run_mkwfs t9h_rytov 1.65 0) || return 1
+
+    write_conf geo/WFsim.conf WAVEFRONT_AMPLITUDE=0 FRESNEL_PROPAGATION=0 \
+        SITE_ALT=500.0 TIME_SPAN=0.05 WFTIME_STEP=0.01
+    (cd geo && cp ../turbul.prof . && run_mkwfs t9h_geo 1.65 0) || return 1
+
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+p_rytov = fits.getdata("rytov/outarraypha.fits")
+p_geo   = fits.getdata("geo/outarraypha.fits")
+a_rytov = fits.getdata("rytov/outarrayamp.fits")
+
+max_p_diff = float(np.max(np.abs(p_rytov - p_geo)))
+max_a_diff = float(np.max(np.abs(a_rytov - 1.0)))
+
+ok = (max_p_diff < 1e-5) and (max_a_diff < 1e-5)
+msg = f": max |pha_rytov - pha_geo| = {max_p_diff:.2e} rad, |amp - 1| = {max_a_diff:.2e} (tol 1e-5)"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9l: Option B vs Option C agreement (corr > 0.95 at 30 deg, identity at z=0)
+scenario_T9l_rytov_option_b_vs_c() {
+    one_layer_profile 5000 1.0 15.0 0.0 10000 0.0
+    mkdir -p optB optC optB_z0 optC_z0
+
+    write_conf optB/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        TURBULENCE_SEEING=0.1 SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 SEED=12345
+    (cd optB && cp ../turbul.prof . && run_mkwfs t9l_b 1.65 0) || return 1
+
+    write_conf optC/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=3 \
+        TURBULENCE_SEEING=0.1 SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 SEED=12345
+    (cd optC && cp ../turbul.prof . && run_mkwfs t9l_c 1.65 0) || return 1
+
+    write_conf optB_z0/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        TURBULENCE_SEEING=0.1 SITE_ALT=500.0 ZENITH_ANGLE=0.0 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 SEED=12345
+    (cd optB_z0 && cp ../turbul.prof . && run_mkwfs t9l_bz0 1.65 0) || return 1
+
+    write_conf optC_z0/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=3 \
+        TURBULENCE_SEEING=0.1 SITE_ALT=500.0 ZENITH_ANGLE=0.0 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 SEED=12345
+    (cd optC_z0 && cp ../turbul.prof . && run_mkwfs t9l_cz0 1.65 0) || return 1
+
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+sa_b = fits.getdata("optB/outsarrayamp.fits")[0]
+sa_c = fits.getdata("optC/outsarrayamp.fits")[0]
+sa_bz0 = fits.getdata("optB_z0/outsarrayamp.fits")[0]
+sa_cz0 = fits.getdata("optC_z0/outsarrayamp.fits")[0]
+
+s = slice(16, -16)
+chi_b = np.log(np.maximum(sa_b[s, s], 1e-6))
+chi_c = np.log(np.maximum(sa_c[s, s], 1e-6))
+corr_30 = float(np.corrcoef(chi_b.ravel(), chi_c.ravel())[0, 1])
+
+chi_bz0 = np.log(np.maximum(sa_bz0[s, s], 1e-6))
+chi_cz0 = np.log(np.maximum(sa_cz0[s, s], 1e-6))
+corr_z0 = float(np.corrcoef(chi_bz0.ravel(), chi_cz0.ravel())[0, 1])
+rel_diff_z0 = float(np.std(chi_bz0 - chi_cz0) / np.std(chi_cz0))
+
+ok = (corr_30 > 0.95) and (corr_z0 > 0.999) and (rel_diff_z0 < 0.001)
+msg = (f": corr(z=30deg)={corr_30:.4f}, corr(z=0)={corr_z0:.5f}, "
+       f"rel diff(z=0)={rel_diff_z0*100:.3f}%")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9i: Moisan periodic-plus-smooth decomposition suppresses edge scintillation (ratio < 1.30)
+scenario_T9i_edge_artifact_suppression() {
+    one_layer_profile 10000 1.0 15.0 0.0 10000 0.0
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        SITE_ALT=500.0 TURBULENCE_SEEING=1.0 TIME_SPAN=0.1 WFTIME_STEP=0.01 SEED=42
+    run_mkwfs t9i 1.65 0 || return 1
+    python3 -c '
+import sys, numpy as np
+from astropy.io import fits
+amp = fits.getdata("outarrayamp.fits")[0]
+chi = np.log(np.maximum(amp, 1e-6))
+mask_edge = np.zeros_like(chi, dtype=bool)
+mask_edge[:4, :] = True
+mask_edge[-4:, :] = True
+mask_edge[:, :4] = True
+mask_edge[:, -4:] = True
+rms_edge = float(np.std(chi[mask_edge]))
+rms_int  = float(np.std(chi[~mask_edge]))
+ratio = rms_edge / rms_int if rms_int > 0 else 0.0
+ok = ratio < 1.30
+print(("PASS" if ok else "FAIL") + f": edge/int rms ratio = {ratio:.3f} (tol < 1.30)")
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9k: Strong scintillation warning emitted when sigma_R^2 > 0.30
+scenario_T9k_strong_scintillation_warning() {
+    one_layer_profile 15000 1.0 15.0 0.0 10000 0.0
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        SITE_ALT=500.0 ZENITH_ANGLE=1.0471975512 TURBULENCE_REF_WAVEL=0.5 \
+        TURBULENCE_SEEING=0.8 TIME_SPAN=0.05 WFTIME_STEP=0.01
+    run_mkwfs t9k 1.65 0 || return 1
+    if grep -q "Strong scintillation regime" mkwfs.log; then
+        echo "PASS: strong scintillation warning correctly emitted"
+        return 0
+    else
+        echo "FAIL: strong scintillation warning missing from mkwfs.log"
+        return 1
+    fi
+}
+
+# T9m: Differential refraction shifts secondary scintillation pattern by physical ray vector
+scenario_T9m_chromatic_refraction_consistency() {
+    one_layer_profile 15000 1.0 0.0 0.0 10000 0.0
+    write_conf WFsim.conf ZENITH_ANGLE=0.785398 PARALLACTIC_ANGLE=0.0 SITE_ALT=4200.0 \
+        TURBULENCE_SEEING=0.2 WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        MAKE_SWAVEFRONT=1 SLAMBDA=1.65 TIME_SPAN=0.01 SEED=42
+    run_mkwfs t9m 1.65 0 || return 1
+    "${VALIDATE[@]}" shift outarrayamp.fits outsarrayamp.fits --dx 0.0 --dy -2.26 --tol 0.15
+}
+
+# T9n: Option C fallback explicitly triggered via config keyword
+scenario_T9n_option_b_fallback() {
+    one_layer_profile 5000 1.0 15.0 0.0 10000 0.0
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=3 \
+        TURBULENCE_SEEING=0.1 TIME_SPAN=0.05 WFTIME_STEP=0.01 SEED=12345
+    run_mkwfs t9n 1.65 0 || return 1
+    if grep -q "Secondary wavelength using Option C" mkwfs.log; then
+        echo "PASS: Option C fallback confirmed in log"
+        return 0
+    else
+        echo "FAIL: Option C fallback not logged"
+        return 1
+    fi
+}
+
 # T16a: Flat wavefront PSF produces normalized Strehl = 1.000 +- 1e-3 and centered peak
 scenario_T16a_zero_turb_strehl() {
     run_aoloop t16a "none" "PSFflat" "psf_flat.fits" 0 0.0 0.0 0 1.65 8.0 || return 1
@@ -659,6 +924,15 @@ SCENARIOS=(
     "T9b_energy_conservation:pass"
     "T9c_scintillation_rytov:pass"
     "T9d_zero_distance_identity:pass"
+    "T9e_rytov_vs_splitstep:pass"
+    "T9f_energy_conservation_rytov:pass"
+    "T9g_scintillation_rytov_mode2:pass"
+    "T9h_zero_distance_mode2:pass"
+    "T9i_edge_artifact_suppression:pass"
+    "T9k_strong_scintillation_warning:pass"
+    "T9l_rytov_option_b_vs_c:pass"
+    "T9m_chromatic_refraction_consistency:pass"
+    "T9n_option_b_fallback:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
     "T11_tilt_variance:pass"
@@ -671,34 +945,36 @@ SCENARIOS=(
     "T16c_closed_loop_strehl:pass"
 )
 
-npass=0; nfail=0; nxfail=0; nxpass=0
-for entry in "${SCENARIOS[@]}"; do
-    name="${entry%%:*}"
-    expect="${entry##*:}"
-    if [[ $# -gt 0 && ! " $* " =~ " $name " ]]; then
-        continue
-    fi
-    dir="$TEST_TMPDIR/$name"
-    mkdir -p "$dir"
-    out=$(cd "$dir" && "scenario_$name" 2>&1)
-    status=$?
-    if [[ $status -eq 0 && $expect == pass ]]; then
-        result="PASS"; npass=$((npass + 1))
-    elif [[ $status -ne 0 && $expect == xfail ]]; then
-        result="XFAIL"; nxfail=$((nxfail + 1))
-    elif [[ $status -eq 0 && $expect == xfail ]]; then
-        result="XPASS"; nxpass=$((nxpass + 1))
-    else
-        result="FAIL"; nfail=$((nfail + 1))
-    fi
-    printf '[%-5s] %s\n' "$result" "$name"
-    echo "$out" | grep -E "^(PASS|FAIL|SKIP)" | sed 's/^/          /'
-    if [[ $result == FAIL ]]; then
-        for log in "$dir"/*.log "$dir"/*/*.log; do
-            [[ -f "$log" ]] && { echo "  --- $log (tail)"; tail -n 15 "$log"; }
-        done
-    fi
-done
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    npass=0; nfail=0; nxfail=0; nxpass=0
+    for entry in "${SCENARIOS[@]}"; do
+        name="${entry%%:*}"
+        expect="${entry##*:}"
+        if [[ $# -gt 0 && ! " $* " =~ " $name " ]]; then
+            continue
+        fi
+        dir="$TEST_TMPDIR/$name"
+        mkdir -p "$dir"
+        out=$(cd "$dir" && "scenario_$name" 2>&1)
+        status=$?
+        if [[ $status -eq 0 && $expect == pass ]]; then
+            result="PASS"; npass=$((npass + 1))
+        elif [[ $status -ne 0 && $expect == xfail ]]; then
+            result="XFAIL"; nxfail=$((nxfail + 1))
+        elif [[ $status -eq 0 && $expect == xfail ]]; then
+            result="XPASS"; nxpass=$((nxpass + 1))
+        else
+            result="FAIL"; nfail=$((nfail + 1))
+        fi
+        printf '[%-5s] %s\n' "$result" "$name"
+        echo "$out" | grep -E "^(PASS|FAIL|SKIP)" | sed 's/^/          /'
+        if [[ $result == FAIL ]]; then
+            for log in "$dir"/*.log "$dir"/*/*.log; do
+                [[ -f "$log" ]] && { echo "  --- $log (tail)"; tail -n 15 "$log"; }
+            done
+        fi
+    done
 
-echo "=== physics tests: $npass passed, $nfail failed, $nxfail xfail, $nxpass xpass ==="
-[[ $nfail -eq 0 ]]
+    echo "=== physics tests: $npass passed, $nfail failed, $nxfail xfail, $nxpass xpass ==="
+    [[ $nfail -eq 0 ]]
+fi

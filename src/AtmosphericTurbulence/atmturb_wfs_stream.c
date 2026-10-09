@@ -22,8 +22,10 @@
 #include "atmturb_geometry.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
+#include "atmturb_rytov.h"
 #include "atmturb_simd.h"
 #include "atmturb_types.h"
+#include "atmturb_wfs_render.h"
 #include "atmturb_wfs_stream.h"
 #include "ImageStreamIO/ImageStreamIO.h"
 
@@ -102,50 +104,79 @@ static inline void atmturb_wfs_stream_post(
 }
 
 /**
+ * struct atmturb_stream_state_t - Container for stream execution state
+ * @id_pha: Phase image ID.
+ * @id_amp: Amplitude image ID.
+ * @id_spha: Secondary phase image ID.
+ * @id_samp: Secondary amplitude image ID.
+ * @pha: Phase pointer.
+ * @amp: Amplitude pointer.
+ * @spha: Secondary phase pointer.
+ * @samp: Secondary amplitude pointer.
+ * @fplan: Fresnel plan pointer.
+ * @fctx: Fresnel context pointer.
+ * @rplan: Rytov plan pointer.
+ * @rctx: Rytov context pointer.
+ */
+typedef struct
+{
+    imageID                       id_pha;
+    imageID                       id_amp;
+    imageID                       id_spha;
+    imageID                       id_samp;
+    float                        *pha;
+    float                        *amp;
+    float                        *spha;
+    float                        *samp;
+    const atmturb_fresnel_plan_t *fplan;
+    atmturb_fresnel_ctx_t        *fctx;
+    const atmturb_rytov_plan_t   *rplan;
+    atmturb_rytov_ctx_t          *rctx;
+} atmturb_stream_state_t;
+
+/**
  * atmturb_wfs_stream_render_step - Compute a single simulation frame
  * @rsim: Rolling simulation context.
  * @geom: Computed observing geometry.
- * @fplan: Optional Fresnel propagation plan (or NULL).
- * @fctx: Optional Fresnel per-thread context (or NULL).
+ * @st: Stream state container.
  * @t: Frame index.
  * @time_step_s: Time step in seconds.
  * @master_size: Master screen linear dimension.
  * @pup_size: Linear pupil dimension.
- * @frame_pixels: Total pixels in frame.
- * @pha: Primary phase buffer.
- * @amp: Primary amplitude buffer.
- * @spha: Secondary phase buffer.
- * @samp: Secondary amplitude buffer.
  */
 static void atmturb_wfs_stream_render_step(
-    const atmturb_rolling_t      *rsim,
-    const atmturb_geom_t         *geom,
-    const atmturb_fresnel_plan_t *fplan,
-    atmturb_fresnel_ctx_t        *fctx,
-    long                          t,
-    double                        time_step_s,
-    long                          master_size,
-    long                          pup_size,
-    long                          frame_pixels,
-    float                        *pha,
-    float                        *amp,
-    float                        *spha,
-    float                        *samp)
+    const atmturb_rolling_t *rsim,
+    const atmturb_geom_t    *geom,
+    atmturb_stream_state_t  *st,
+    long                     t,
+    double                   time_step_s,
+    long                     master_size,
+    long                     pup_size)
 {
-    if (CONF_FRESNEL_PROPAGATION == 1 && fplan != NULL && fctx != NULL)
+    if (CONF_FRESNEL_PROPAGATION == 1 && st->fplan != NULL && st->fctx != NULL)
     {
-        atmturb_fresnel_render_step(fctx, fplan, rsim, geom, t, time_step_s,
-                                    master_size, pup_size, pha, amp, spha, samp);
+        atmturb_fresnel_render_step(st->fctx, st->fplan, rsim, geom, t, time_step_s,
+                                    master_size, pup_size, st->pha, st->amp,
+                                    st->spha, st->samp);
         return;
     }
 
-    atmturb_init_phase_amp(pha, amp, frame_pixels);
-    atmturb_init_phase_amp(spha, samp, frame_pixels);
+    if (CONF_FRESNEL_PROPAGATION == 2 && st->rplan != NULL && st->rctx != NULL)
+    {
+        atmturb_rytov_render_step(st->rctx, st->rplan, rsim, geom, t, time_step_s,
+                                  master_size, pup_size, st->pha, st->amp,
+                                  st->spha, st->samp);
+        return;
+    }
+
+    long frame_pixels = pup_size * pup_size;
+    atmturb_init_phase_amp(st->pha, st->amp, frame_pixels);
+    atmturb_init_phase_amp(st->spha, st->samp, frame_pixels);
 
     for (int k = 0; k < geom->nlayers; k++)
     {
         atmturb_wfs_render_layer(rsim, geom, k, t, time_step_s, master_size,
-                                 pup_size, pha, spha);
+                                 pup_size, st->pha, st->spha);
     }
 }
 
@@ -169,31 +200,70 @@ static inline void atmturb_wfs_stream_pace(
 }
 
 /**
- * struct atmturb_stream_state_t - Container for stream execution state
- * @id_pha: Phase image ID.
- * @id_amp: Amplitude image ID.
- * @id_spha: Secondary phase image ID.
- * @id_samp: Secondary amplitude image ID.
- * @pha: Phase pointer.
- * @amp: Amplitude pointer.
- * @spha: Secondary phase pointer.
- * @samp: Secondary amplitude pointer.
- * @fplan: Fresnel plan pointer.
- * @fctx: Fresnel context pointer.
+ * atmturb_wfs_stream_remove_piston - Zero pupil-averaged phase across frame
+ * @pha: Phase array to zero mean.
+ * @npix: Total pixel count.
  */
-typedef struct
+static void atmturb_wfs_stream_remove_piston(
+    float *pha,
+    long   npix)
 {
-    imageID                       id_pha;
-    imageID                       id_amp;
-    imageID                       id_spha;
-    imageID                       id_samp;
-    float                        *pha;
-    float                        *amp;
-    float                        *spha;
-    float                        *samp;
-    const atmturb_fresnel_plan_t *fplan;
-    atmturb_fresnel_ctx_t        *fctx;
-} atmturb_stream_state_t;
+    if (pha == NULL || npix <= 0)
+    {
+        return;
+    }
+    double sum = 0.0;
+    for (long i = 0; i < npix; i++)
+    {
+        sum += (double) pha[i];
+    }
+    float mean = (float) (sum / (double) npix);
+    for (long i = 0; i < npix; i++)
+    {
+        pha[i] -= mean;
+    }
+}
+
+/**
+ * atmturb_wfs_stream_publish - Commit scratch buffers to shared memory and notify readers
+ * @st: Stream state container.
+ * @frame_pixels: Total pixels in frame.
+ * @ts: Frame acquisition timestamp.
+ */
+static void atmturb_wfs_stream_publish(
+    const atmturb_stream_state_t *st,
+    long                          frame_pixels,
+    const struct timespec        *ts)
+{
+    size_t nbytes = (size_t) frame_pixels * sizeof(float);
+
+    if (st->id_pha >= 0)
+    {
+        atmturb_wfs_stream_remove_piston(st->pha, frame_pixels);
+        dcimg[st->id_pha].md[0].write = 1;
+        memcpy(dcimg[st->id_pha].array.F, st->pha, nbytes);
+        atmturb_wfs_stream_post(st->id_pha, ts);
+    }
+    if (st->id_amp >= 0)
+    {
+        dcimg[st->id_amp].md[0].write = 1;
+        memcpy(dcimg[st->id_amp].array.F, st->amp, nbytes);
+        atmturb_wfs_stream_post(st->id_amp, ts);
+    }
+    if (st->id_spha >= 0)
+    {
+        atmturb_wfs_stream_remove_piston(st->spha, frame_pixels);
+        dcimg[st->id_spha].md[0].write = 1;
+        memcpy(dcimg[st->id_spha].array.F, st->spha, nbytes);
+        atmturb_wfs_stream_post(st->id_spha, ts);
+    }
+    if (st->id_samp >= 0)
+    {
+        dcimg[st->id_samp].md[0].write = 1;
+        memcpy(dcimg[st->id_samp].array.F, st->samp, nbytes);
+        atmturb_wfs_stream_post(st->id_samp, ts);
+    }
+}
 
 /**
  * atmturb_wfs_stream_loop - Inner frame-by-frame streaming loop
@@ -228,22 +298,13 @@ static long atmturb_wfs_stream_loop(
             break;
         }
 
-        if (st->id_pha >= 0)  dcimg[st->id_pha].md[0].write = 1;
-        if (st->id_amp >= 0)  dcimg[st->id_amp].md[0].write = 1;
-        if (st->id_spha >= 0) dcimg[st->id_spha].md[0].write = 1;
-        if (st->id_samp >= 0) dcimg[st->id_samp].md[0].write = 1;
-
-        atmturb_wfs_stream_render_step(rsim, geom, st->fplan, st->fctx, t, params->time_step_s,
-                                       CONF_MASTER_SIZE, pup_size, frame_pixels,
-                                       st->pha, st->amp, st->spha, st->samp);
+        atmturb_wfs_stream_render_step(rsim, geom, st, t, params->time_step_s,
+                                       CONF_MASTER_SIZE, pup_size);
 
         struct timespec ts_now;
         clock_gettime(CLOCK_REALTIME, &ts_now);
 
-        atmturb_wfs_stream_post(st->id_pha, &ts_now);
-        if (st->id_amp >= 0)  atmturb_wfs_stream_post(st->id_amp, &ts_now);
-        if (st->id_spha >= 0) atmturb_wfs_stream_post(st->id_spha, &ts_now);
-        if (st->id_samp >= 0) atmturb_wfs_stream_post(st->id_samp, &ts_now);
+        atmturb_wfs_stream_publish(st, frame_pixels, &ts_now);
 
         if (pace && params->time_step_s > 0.0)
         {
@@ -287,10 +348,10 @@ static float *atmturb_wfs_stream_init_buffers(
     {
         return NULL;
     }
-    st->pha  = (st->id_pha >= 0)  ? dcimg[st->id_pha].array.F  : scratch;
-    st->amp  = (st->id_amp >= 0)  ? dcimg[st->id_amp].array.F  : scratch + frame_pixels;
-    st->spha = (st->id_spha >= 0) ? dcimg[st->id_spha].array.F : scratch + 2 * frame_pixels;
-    st->samp = (st->id_samp >= 0) ? dcimg[st->id_samp].array.F : scratch + 3 * frame_pixels;
+    st->pha  = scratch;
+    st->amp  = scratch + frame_pixels;
+    st->spha = scratch + 2 * frame_pixels;
+    st->samp = scratch + 3 * frame_pixels;
     return scratch;
 }
 
@@ -350,7 +411,8 @@ int make_AtmosphericTurbulence_wavefront_stream(
     long max_frames = (stream_mode == 2) ? (long) (CONF_TIME_SPAN / CONF_WFTIME_STEP + 0.5) : 0;
     long pool_frames = (max_frames > 0) ? max_frames : 200;
 
-    if (atmturb_wfs_setup_sim(slambdaum, WFprecision, pool_frames, &prof, &params, &geom, &rsim) != 0)
+    if (atmturb_wfs_setup_sim(slambdaum, WFprecision, pool_frames, &prof, &params,
+                              &geom, &rsim) != 0)
     {
         return -1;
     }
@@ -372,6 +434,8 @@ int make_AtmosphericTurbulence_wavefront_stream(
 
     atmturb_fresnel_plan_t fplan;
     atmturb_fresnel_ctx_t  fctx;
+    atmturb_rytov_plan_t   rplan;
+    atmturb_rytov_ctx_t    rctx;
     if (CONF_FRESNEL_PROPAGATION == 1)
     {
         double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
@@ -380,6 +444,16 @@ int make_AtmosphericTurbulence_wavefront_stream(
         atmturb_fresnel_ctx_init(&fctx, pup_size);
         st.fplan = &fplan;
         st.fctx  = &fctx;
+    }
+    else if (CONF_FRESNEL_PROPAGATION == 2)
+    {
+        double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
+        atmturb_rytov_plan_init(&rplan, &prof, &geom, pup_size, params.pupil_scale_m,
+                                params.lambda_ref_m, params.lambda_s_m, z_bin,
+                                CONF_FRESNEL_RYTOV_SEC_EXACT);
+        atmturb_rytov_ctx_init(&rctx, pup_size);
+        st.rplan = &rplan;
+        st.rctx  = &rctx;
     }
 
     g_stream_stop = 0;
@@ -414,6 +488,11 @@ int make_AtmosphericTurbulence_wavefront_stream(
     {
         atmturb_fresnel_ctx_free(&fctx);
         atmturb_fresnel_plan_free(&fplan);
+    }
+    else if (CONF_FRESNEL_PROPAGATION == 2)
+    {
+        atmturb_rytov_ctx_free(&rctx);
+        atmturb_rytov_plan_free(&rplan);
     }
     free(scratch);
     atmturb_wfs_teardown_sim(&prof, &geom, &rsim);

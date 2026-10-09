@@ -24,6 +24,8 @@
  * @vx_pix: Pupil-plane velocity in x [master pixels / frame].
  * @vy_pix: Pupil-plane velocity in y [master pixels / frame].
  * @dist_m: Line-of-sight slant distance from telescope pupil [meters].
+ * @d_chrom_x: Differential chromatic refraction shift in x [master pixels].
+ * @d_chrom_y: Differential chromatic refraction shift in y [master pixels].
  * @t_dec_s: Rolling screen epoch duration [seconds].
  * @traj_x: Cumulative x offset table in master pixels [nbframes] (or NULL).
  * @traj_y: Cumulative y offset table in master pixels [nbframes] (or NULL).
@@ -39,6 +41,8 @@ typedef struct
     double  vx_pix;
     double  vy_pix;
     double  dist_m;
+    double  d_chrom_x;
+    double  d_chrom_y;
     double  t_dec_s;
     double *traj_x;
     double *traj_y;

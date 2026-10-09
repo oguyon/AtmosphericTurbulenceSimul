@@ -70,6 +70,7 @@ float CONF_BOIL_TIME = 0.0f;
 int CONF_FRESNEL_PROPAGATION = 0;
 int CONF_WAVEFRONT_AMPLITUDE = 0;
 float CONF_FRESNEL_PROPAGATION_BIN = 100.0f;
+int CONF_FRESNEL_RYTOV_SEC_EXACT = 0;
 
 /**
  * AtmosphericTurbulence_change_configuration_file - Set active configuration file path
@@ -407,6 +408,11 @@ static void atmturb_read_conf_modes(void)
         snprintf(keyword, sizeof(keyword), "FRESNEL_PROPAGATION");
         read_config_parameter(CONFFILE, keyword, content);
         CONF_FRESNEL_PROPAGATION = atoi(content);
+        if (CONF_FRESNEL_PROPAGATION == 3)
+        {
+            CONF_FRESNEL_PROPAGATION     = 2;
+            CONF_FRESNEL_RYTOV_SEC_EXACT = 1;
+        }
     }
     else
     {
@@ -416,6 +422,22 @@ static void atmturb_read_conf_modes(void)
     snprintf(keyword, sizeof(keyword), "FRESNEL_PROPAGATION_BIN");
     read_config_parameter(CONFFILE, keyword, content);
     CONF_FRESNEL_PROPAGATION_BIN = (float)atof(content);
+
+    snprintf(keyword, sizeof(keyword), "FRESNEL_RYTOV_EXACT");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1 ||
+        read_config_parameter_exists(CONFFILE, "FRESNEL_RYTOV_SEC_EX") == 1)
+    {
+        read_config_parameter(CONFFILE, "FRESNEL_RYTOV_SEC_EXACT", content);
+        if (strcmp(content, "-") == 0)
+        {
+            read_config_parameter(CONFFILE, "FRESNEL_RYTOV_EXACT", content);
+        }
+        CONF_FRESNEL_RYTOV_SEC_EXACT = atoi(content);
+    }
+    else if (CONF_FRESNEL_RYTOV_SEC_EXACT != 1)
+    {
+        CONF_FRESNEL_RYTOV_SEC_EXACT = 0;
+    }
 
     snprintf(keyword, sizeof(keyword), "PUPIL_AMPL_FILE");
     if (read_config_parameter_exists(CONFFILE, keyword) == 1)

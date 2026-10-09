@@ -13,26 +13,12 @@
 #include "atmturb_geometry.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
+#include "atmturb_superlayer.h"
 #include "WFpropagate/wfprop_fresnel_engine.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * struct atmturb_superlayer_t - Grouped atmospheric layers for Fresnel diffraction
- * @nlayers: Count of profile layers binned into this super-layer.
- * @layer_indices: Array of indices in geom->layers / rsim->layers.
- * @dist_m: Line-of-sight centroid distance from telescope pupil [meters].
- * @step_dist_m: Propagation distance to the next super-layer or ground [meters].
- */
-typedef struct
-{
-    int     nlayers;
-    int    *layer_indices;
-    double  dist_m;
-    double  step_dist_m;
-} atmturb_superlayer_t;
 
 /**
  * struct atmturb_fresnel_plan_t - Precomputed diffractive propagation plan
