@@ -451,7 +451,7 @@ int make_AtmosphericTurbulence_wavefront_stream(
         atmturb_rytov_plan_init(&rplan, &prof, &geom, pup_size, params.pupil_scale_m,
                                 params.lambda_ref_m, params.lambda_s_m, z_bin,
                                 CONF_FRESNEL_RYTOV_SEC_EXACT);
-        atmturb_rytov_ctx_init(&rctx, pup_size);
+        atmturb_rytov_ctx_init(&rctx, rplan.pad_size);
         st.rplan = &rplan;
         st.rctx  = &rctx;
     }

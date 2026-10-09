@@ -22,6 +22,8 @@
 /**
  * atmturb_rytov_assemble_output - Add diffractive phase and normalize amplitude
  * @pup_size: Linear dimension of pupil.
+ * @guard_pix: Guard band margin in pixels.
+ * @pad_size: Linear dimension of padded compute grid.
  * @pha: Accumulated geometric phase (updated in-place with diffractive correction).
  * @amp: Destination amplitude array.
  * @dphi: Reconstructed diffractive phase correction.
@@ -29,6 +31,8 @@
  */
 void atmturb_rytov_assemble_output(
     long         pup_size,
+    long         guard_pix,
+    long         pad_size,
     float       *pha,
     float       *amp,
     const float *dphi,
@@ -37,12 +41,30 @@ void atmturb_rytov_assemble_output(
     long npix = pup_size * pup_size;
     double sum_i = 0.0;
 
-    for (long i = 0; i < npix; i++)
+    if (guard_pix == 0)
     {
-        pha[i] += dphi[i];
-        float a = expf(chi[i]);
-        amp[i]  = a;
-        sum_i  += (double) (a * a);
+        for (long i = 0; i < npix; i++)
+        {
+            pha[i] += dphi[i];
+            float a = expf(chi[i]);
+            amp[i]  = a;
+            sum_i  += (double) (a * a);
+        }
+    }
+    else
+    {
+        for (long y = 0; y < pup_size; y++)
+        {
+            long src_row = (y + guard_pix) * pad_size + guard_pix;
+            long dst_row = y * pup_size;
+            for (long x = 0; x < pup_size; x++)
+            {
+                pha[dst_row + x] += dphi[src_row + x];
+                float a = expf(chi[src_row + x]);
+                amp[dst_row + x] = a;
+                sum_i += (double) (a * a);
+            }
+        }
     }
 
     float norm = (sum_i > 0.0) ? (float) (1.0 / sqrt(sum_i / (double) npix)) : 1.0f;

@@ -79,7 +79,7 @@ write_conf() {
         [SKIP_EXISTING]=0 [WF_RAW_SIZE]=128 [MASTER_SIZE]=1024
         [MASTER_OVERSAMPLE]=2 [INTERP]=1
         [WAVEFRONT_AMPLITUDE]=0 [FRESNEL_PROPAGATION]=0 [FRESNEL_PROPAGATION_BIN]=1000.0
-        [LOWFREQ]=0 [ROLLING]=0
+        [LOWFREQ]=0 [ROLLING]=0 [FRESNEL_GUARD_PIX]=0
     )
     local arg
     for arg in "$@"; do
@@ -793,6 +793,62 @@ scenario_T9n_option_b_fallback() {
     fi
 }
 
+# T9o: Guard band margin padding eliminates boundary artifacts while preserving interior field
+scenario_T9o_guard_band_parity() {
+    one_layer_profile 15000 1.0 15.0 0.0 10000 0.0
+    mkdir -p g0 g16
+
+    write_conf g0/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_GUARD_PIX=0 SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 \
+        TURBULENCE_SEEING=0.6 TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 SEED=42
+
+    write_conf g16/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_GUARD_PIX=16 SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 \
+        TURBULENCE_SEEING=0.6 TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 SEED=42
+
+    (cd g0 && run_mkwfs t9o_g0 1.65 0) || return 1
+    (cd g16 && run_mkwfs t9o_g16 1.65 0) || return 1
+
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+p0 = fits.getdata("g0/outarraypha.fits")[0]
+p16 = fits.getdata("g16/outarraypha.fits")[0]
+a0 = fits.getdata("g0/outarrayamp.fits")[0]
+a16 = fits.getdata("g16/outarrayamp.fits")[0]
+
+i0_mean = float(np.mean(a0**2))
+i16_mean = float(np.mean(a16**2))
+energy_ok = abs(i0_mean - 1.0) < 0.01 and abs(i16_mean - 1.0) < 0.01
+
+int_p0 = p0[16:48, 16:48]
+int_p16 = p16[16:48, 16:48]
+corr_p = float(np.corrcoef(int_p0.ravel(), int_p16.ravel())[0, 1])
+
+int_a0 = a0[16:48, 16:48]
+int_a16 = a16[16:48, 16:48]
+corr_a = float(np.corrcoef(int_a0.ravel(), int_a16.ravel())[0, 1])
+
+chi16 = np.log(np.maximum(a16, 1e-6))
+mask_edge = np.zeros_like(chi16, dtype=bool)
+mask_edge[:4, :] = True
+mask_edge[-4:, :] = True
+mask_edge[:, :4] = True
+mask_edge[:, -4:] = True
+rms_edge = float(np.std(chi16[mask_edge]))
+rms_int = float(np.std(chi16[~mask_edge]))
+ratio16 = rms_edge / rms_int if rms_int > 0 else 0.0
+
+ok = energy_ok and corr_p > 0.999 and corr_a > 0.99 and abs(ratio16 - 1.0) < 0.12
+msg = (f": corr_pha={corr_p:.6f}, corr_amp={corr_a:.6f}, "
+       f"edge/int ratio={ratio16:.4f}, mean_I={i16_mean:.4f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
 # T16a: Flat wavefront PSF produces normalized Strehl = 1.000 +- 1e-3 and centered peak
 scenario_T16a_zero_turb_strehl() {
     run_aoloop t16a "none" "PSFflat" "psf_flat.fits" 0 0.0 0.0 0 1.65 8.0 || return 1
@@ -933,6 +989,7 @@ SCENARIOS=(
     "T9l_rytov_option_b_vs_c:pass"
     "T9m_chromatic_refraction_consistency:pass"
     "T9n_option_b_fallback:pass"
+    "T9o_guard_band_parity:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
     "T11_tilt_variance:pass"

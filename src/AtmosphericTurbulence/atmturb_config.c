@@ -71,6 +71,7 @@ int CONF_FRESNEL_PROPAGATION = 0;
 int CONF_WAVEFRONT_AMPLITUDE = 0;
 float CONF_FRESNEL_PROPAGATION_BIN = 100.0f;
 int CONF_FRESNEL_RYTOV_SEC_EXACT = 0;
+int CONF_FRESNEL_GUARD_PIX = 0;
 
 /**
  * AtmosphericTurbulence_change_configuration_file - Set active configuration file path
@@ -95,20 +96,10 @@ int AtmosphericTurbulence_change_configuration_file(const char *fname)
 double Z_Air(double P, double T, double RH)
 {
     const double P0 = 101325.0;
-
-    const double A = 1.2378847e-5;
-    const double B = -1.9121316e-2;
-    const double C = 33.93711047;
-    const double D = -6.3431645e3;
-
-    const double alpha = 1.00062;
-    const double beta = 3.14e-8;
-    const double gamma = 5.6e-7;
-
-    const double a0 = 1.58123e-6, a1 = -2.9331e-8, a2 = 1.1043e-10;
-    const double b1 = -2.051e-8;
-    const double c0 = 1.9898e-4, c1 = -2.376e-6;
-    const double d = 1.83e-11, e = -0.765e-8;
+    const double A = 1.2378847e-5, B = -1.9121316e-2, C = 33.93711047, D = -6.3431645e3;
+    const double alpha = 1.00062, beta = 3.14e-8, gamma = 5.6e-7;
+    const double a0 = 1.58123e-6, a1 = -2.9331e-8, a2 = 1.1043e-10, b1 = -2.051e-8;
+    const double c0 = 1.9898e-4, c1 = -2.376e-6, d = 1.83e-11, e = -0.765e-8;
 
     double TK = T + 273.15;
     double Psv = exp(A * TK * TK + B * TK + C + D / TK);
@@ -391,6 +382,28 @@ static void atmturb_read_conf_screen(void)
 }
 
 /**
+ * atmturb_read_conf_pupil_files - Read optional pupil mask FITS files
+ */
+static void atmturb_read_conf_pupil_files(void)
+{
+    char keyword[200], content[200];
+
+    snprintf(keyword, sizeof(keyword), "PUPIL_AMPL_FILE");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        load_fits(content, "ST_pa", 1);
+    }
+
+    snprintf(keyword, sizeof(keyword), "PUPIL_PHA_FILE");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        load_fits(content, "ST_pp", 1);
+    }
+}
+
+/**
  * atmturb_read_conf_modes - Read compute modes and pupil masks
  */
 static void atmturb_read_conf_modes(void)
@@ -439,19 +452,18 @@ static void atmturb_read_conf_modes(void)
         CONF_FRESNEL_RYTOV_SEC_EXACT = 0;
     }
 
-    snprintf(keyword, sizeof(keyword), "PUPIL_AMPL_FILE");
+    snprintf(keyword, sizeof(keyword), "FRESNEL_GUARD_PIX");
     if (read_config_parameter_exists(CONFFILE, keyword) == 1)
     {
         read_config_parameter(CONFFILE, keyword, content);
-        load_fits(content, "ST_pa", 1);
+        CONF_FRESNEL_GUARD_PIX = atoi(content);
+        if (CONF_FRESNEL_GUARD_PIX < 0)
+        {
+            CONF_FRESNEL_GUARD_PIX = 0;
+        }
     }
 
-    snprintf(keyword, sizeof(keyword), "PUPIL_PHA_FILE");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        load_fits(content, "ST_pp", 1);
-    }
+    atmturb_read_conf_pupil_files();
 }
 
 /**
@@ -534,6 +546,7 @@ static int atmturb_write_default_config(const char *fname)
     fprintf(fp, "WAVEFRONT_AMPLITUDE       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION_BIN   100.0\n");
+    fprintf(fp, "FRESNEL_GUARD_PIX         0\n");
     fclose(fp);
 
     printf("[milkatmturb] Created default simulation configuration \"%s\"\n", fname);
