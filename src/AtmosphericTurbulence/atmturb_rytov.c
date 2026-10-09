@@ -490,10 +490,11 @@ void atmturb_rytov_render_step(
     memset(ctx->acc_chi_sec,  0, sizeof(fftwf_complex) * (size_t) n_spec);
 
     atmturb_wfs_render_target_t target;
-    target.pup_size  = pup_size;
-    target.guard_pix = guard;
-    target.pha       = ctx->super_pha;
-    target.spha      = ctx->super_spha;
+    target.pup_size     = pup_size;
+    target.guard_pix    = guard;
+    target.pha          = ctx->super_pha;
+    target.spha         = ctx->super_spha;
+    target.weight_scale = 1.0f;
 
     for (int m = 0; m < plan->nsuper; m++)
     {
@@ -504,32 +505,36 @@ void atmturb_rytov_render_step(
         for (int j = 0; j < sl->nlayers; j++)
         {
             int k = sl->layer_indices[j];
+            target.weight_scale = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
             atmturb_wfs_render_layer_target(r, geom, k, t, time_step_s, master_size, &target);
         }
 
         atmturb_rytov_accumulate_geom(pha_slice, spha_slice, ctx->super_pha,
                                       ctx->super_spha, pup_size, guard, pad_size);
 
-        atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_pha);
-        atmturb_rytov_accumulate_filters(ctx->acc_dphi_pri, ctx->acc_chi_pri,
-                                         ctx->spec, plan->filter_a_pri[m],
-                                         plan->filter_b_pri[m], n_spec);
-
-        if (plan->lambda_s_m > 0.0)
+        if (sl->dist_m > 0.0)
         {
-            if (plan->sec_shared && plan->chrom_ramp != NULL && plan->chrom_ramp[m] != NULL)
+            atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_pha);
+            atmturb_rytov_accumulate_filters(ctx->acc_dphi_pri, ctx->acc_chi_pri,
+                                             ctx->spec, plan->filter_a_pri[m],
+                                             plan->filter_b_pri[m], n_spec);
+
+            if (plan->lambda_s_m > 0.0)
             {
-                atmturb_rytov_accumulate_filters_rotated(ctx->acc_dphi_sec, ctx->acc_chi_sec,
-                                                         ctx->spec, plan->chrom_ramp[m],
-                                                         plan->filter_a_sec[m],
-                                                         plan->filter_b_sec[m], n_spec);
-            }
-            else
-            {
-                atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_spha);
-                atmturb_rytov_accumulate_filters(ctx->acc_dphi_sec, ctx->acc_chi_sec,
-                                                 ctx->spec, plan->filter_a_sec[m],
-                                                 plan->filter_b_sec[m], n_spec);
+                if (plan->sec_shared && plan->chrom_ramp != NULL && plan->chrom_ramp[m] != NULL)
+                {
+                    atmturb_rytov_accumulate_filters_rotated(ctx->acc_dphi_sec, ctx->acc_chi_sec,
+                                                             ctx->spec, plan->chrom_ramp[m],
+                                                             plan->filter_a_sec[m],
+                                                             plan->filter_b_sec[m], n_spec);
+                }
+                else
+                {
+                    atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_spha);
+                    atmturb_rytov_accumulate_filters(ctx->acc_dphi_sec, ctx->acc_chi_sec,
+                                                     ctx->spec, plan->filter_a_sec[m],
+                                                     plan->filter_b_sec[m], n_spec);
+                }
             }
         }
     }

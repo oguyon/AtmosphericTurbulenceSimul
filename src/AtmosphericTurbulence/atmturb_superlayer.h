@@ -21,6 +21,7 @@ extern "C" {
  * struct atmturb_superlayer_t - Grouped atmospheric layers for Fresnel diffraction
  * @nlayers: Count of profile layers binned into this super-layer.
  * @layer_indices: Array of indices in geom->layers / rsim->layers.
+ * @layer_weights: Fractional layer weights (NULL for centroid binning, 1.0 default).
  * @dist_m: Line-of-sight centroid distance from telescope pupil [meters].
  * @step_dist_m: Propagation distance to the next super-layer or ground [meters].
  * @chrom_dx_px: Weighted chromatic offset along pupil X [pixels].
@@ -33,6 +34,7 @@ typedef struct
 {
     int     nlayers;
     int    *layer_indices;
+    float  *layer_weights;
     double  dist_m;
     double  step_dist_m;
     double  chrom_dx_px;

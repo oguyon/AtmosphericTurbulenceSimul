@@ -73,6 +73,7 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_wfs_render.c
     src/AtmosphericTurbulence/atmturb_wfs_stream.c
     src/AtmosphericTurbulence/atmturb_superlayer.c
+    src/AtmosphericTurbulence/atmturb_superlayer_nodes.c
     src/AtmosphericTurbulence/atmturb_fresnel.c
     src/AtmosphericTurbulence/atmturb_rytov.c
     src/AtmosphericTurbulence/atmturb_rytov_kernels.c

@@ -108,6 +108,7 @@ extern int CONF_WAVEFRONT_AMPLITUDE;
 extern float CONF_FRESNEL_PROPAGATION_BIN;
 extern int CONF_FRESNEL_RYTOV_SEC_EXACT;
 extern int CONF_FRESNEL_GUARD_PIX;
+extern int CONF_FRESNEL_RYTOV_ZINTERP;
 
 // Layer configuration structure
 typedef struct

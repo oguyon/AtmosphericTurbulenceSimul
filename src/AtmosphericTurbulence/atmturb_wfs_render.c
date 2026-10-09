@@ -108,35 +108,39 @@ void atmturb_wfs_render_layer_target(
     double dx = (lg->traj_x != NULL) ? lg->traj_x[t] : ((double) t * lg->vx_pix);
     double dy = (lg->traj_y != NULL) ? lg->traj_y[t] : ((double) t * lg->vy_pix);
 
+    double wscale = (target->weight_scale > 0.0f) ? (double) target->weight_scale : 1.0;
+    double w_pri  = lg->weight * wscale;
+    double w_sec  = lg->weight_s * wscale;
+
     double x = lg->x0 + dx - offset_os;
     double y = lg->y0 + dy - offset_os;
     atmturb_wfs_extrude_channel(rev.scrA, master_size, x, y, pad_size, geom,
-                                (float) (lg->weight * (double) rev.wA), target->pha);
+                                (float) (w_pri * (double) rev.wA), target->pha);
     if (rev.wB > 0.0f && rev.scrB != NULL)
     {
         atmturb_wfs_extrude_channel(rev.scrB, master_size, x, y, pad_size, geom,
-                                    (float) (lg->weight * (double) rev.wB), target->pha);
+                                    (float) (w_pri * (double) rev.wB), target->pha);
     }
 
     double xs = lg->xs0 + dx - offset_os;
     double ys = lg->ys0 + dy - offset_os;
     atmturb_wfs_extrude_channel(rev.scrA, master_size, xs, ys, pad_size, geom,
-                                (float) (lg->weight_s * (double) rev.wA), target->spha);
+                                (float) (w_sec * (double) rev.wA), target->spha);
     if (rev.wB > 0.0f && rev.scrB != NULL)
     {
         atmturb_wfs_extrude_channel(rev.scrB, master_size, xs, ys, pad_size, geom,
-                                    (float) (lg->weight_s * (double) rev.wB), target->spha);
+                                    (float) (w_sec * (double) rev.wB), target->spha);
     }
 
     if (r->lowfreq)
     {
         atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
                                           x, y, pad_size, (long) geom->oversample,
-                                          (float) lg->weight, target->pha);
+                                          (float) w_pri, target->pha);
 
         atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
                                           xs, ys, pad_size, (long) geom->oversample,
-                                          (float) lg->weight_s, target->spha);
+                                          (float) w_sec, target->spha);
     }
 }
 
@@ -164,10 +168,11 @@ void atmturb_wfs_render_layer(
     float                   *spha_slice)
 {
     atmturb_wfs_render_target_t target;
-    target.pup_size  = pup_size;
-    target.guard_pix = 0;
-    target.pha       = pha_slice;
-    target.spha      = spha_slice;
+    target.pup_size     = pup_size;
+    target.guard_pix    = 0;
+    target.pha          = pha_slice;
+    target.spha         = spha_slice;
+    target.weight_scale = 1.0f;
 
     atmturb_wfs_render_layer_target(r, geom, k, t, time_step_s, master_size, &target);
 }

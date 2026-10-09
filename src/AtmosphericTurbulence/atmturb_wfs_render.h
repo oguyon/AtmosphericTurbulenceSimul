@@ -41,6 +41,7 @@ typedef struct
  * @guard_pix: Guard band margin in pixels (0 for unpadded).
  * @pha: Destination primary phase array.
  * @spha: Destination secondary phase array.
+ * @weight_scale: Fractional extrusion weight multiplier (<=0 for 1.0 default).
  */
 typedef struct
 {
@@ -48,6 +49,7 @@ typedef struct
     long   guard_pix;
     float *pha;
     float *spha;
+    float  weight_scale;
 } atmturb_wfs_render_target_t;
 
 /**
