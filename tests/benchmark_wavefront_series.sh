@@ -234,10 +234,16 @@ EOF
         if [[ $m -eq 1 ]]; then
             t_base="$dur_s"
         fi
+        local ktime="N/A"
+        local kfps="N/A"
+        if echo "$out" | grep -q "Rendered .* frames"; then
+            ktime=$(echo "$out" | grep "Rendered .* frames" | sed -E 's/.* in ([0-9.]+) s.*/\1/')
+            kfps=$(echo "$out" | grep "Rendered .* frames" | sed -E 's/.*\(([0-9.]+) fps.*/\1/')
+        fi
         local sp=$(awk "BEGIN { printf \"%.2fx\", $t_base / $dur_s }")
 
-        printf "%-26s | %8s s | %10s /s | %8s MP/s | %10s\n" \
-               "${mode_labels[$m]}" "$dur_s" "$fps" "$mps" "$sp"
+        printf "%-26s | %8s s | %10s /s | %8s MP/s | %10s (render: %ss, %s fps)\n" \
+               "${mode_labels[$m]}" "$dur_s" "$fps" "$mps" "$sp" "$ktime" "$kfps"
     done
     echo ""
 }
