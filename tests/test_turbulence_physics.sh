@@ -1024,7 +1024,8 @@ p_ref = fits.getdata("refract/outarraypha.fits")[0]
 a_ref = fits.getdata("refract/outarrayamp.fits")[0]
 sa_ref = fits.getdata("refract/outsarrayamp.fits")[0]
 
-finite_ok = np.all(np.isfinite(p_ref)) and np.all(np.isfinite(a_ref)) and np.all(np.isfinite(sa_ref))
+finite_ok = (np.all(np.isfinite(p_ref)) and np.all(np.isfinite(a_ref)) and
+             np.all(np.isfinite(sa_ref)))
 
 mean_I_pri = float(np.mean(a_ref**2))
 mean_I_sec = float(np.mean(sa_ref**2))
@@ -1105,6 +1106,45 @@ mean_I_sci = float(np.mean(a_sci**2))
 ok = (corr_sci > 0.75) and (abs(mean_I_sci - 1.0) < 0.01) and (err_sci <= err_lin)
 msg = (f": var_tru={var_tru:.6f}, var_lin={var_lin:.6f} (err {err_lin*100:.2f}%), "
        f"var_scint={var_sci:.6f} (err {err_sci*100:.2f}%), corr={corr_sci:.4f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9s: Uncontrolled edge mitigation and energy normalization stability without guard band
+scenario_T9s_edge_normalization_stability() {
+    cat << 'EOF' > turbul.prof
+# alt(m) cn2 speed dir L0 l0
+ 5000.0   1.0 15.0  0.0 50.0 0.01
+ 12000.0  1.0 25.0  0.0 50.0 0.01
+EOF
+
+    mkdir -p g0_nomoisan
+    write_conf g0_nomoisan/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_GUARD_PIX=0 FRESNEL_RYTOV_MOISAN=0 \
+        SITE_ALT=0.0 ZENITH_ANGLE=0.0 TURBULENCE_SEEING=0.6 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.04 SEED=42
+
+    (cd g0_nomoisan && cp ../turbul.prof . && run_mkwfs t9s_g0 1.65 0) || return 1
+
+    python3 -c '
+import sys
+import numpy as np
+from astropy.io import fits
+
+amp = fits.getdata("g0_nomoisan/outarrayamp.fits")
+max_amp = float(np.max(amp))
+min_amp = float(np.min(amp))
+mean_I = [float(np.mean(frame**2)) for frame in amp]
+min_mean_I = min(mean_I)
+max_mean_I = max(mean_I)
+
+bounded = max_amp < 3.0 and min_amp > 0.1
+energy_ok = abs(min_mean_I - 1.0) < 0.01 and abs(max_mean_I - 1.0) < 0.01
+
+ok = bounded and energy_ok
+msg = (f": max_amp={max_amp:.4f} (<3.0), min_amp={min_amp:.4f} (>0.1), "
+       f"mean_I span=[{min_mean_I:.4f}, {max_mean_I:.4f}]")
 print(("PASS" if ok else "FAIL") + msg)
 sys.exit(0 if ok else 1)
 '
@@ -1254,6 +1294,7 @@ SCENARIOS=(
     "T9p_z_interpolation_scaling:pass"
     "T9q_refracted_path_length:pass"
     "T9r_scintillation_centroid:pass"
+    "T9s_edge_normalization_stability:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
     "T10c_cuda_rytov_parity:pass"
