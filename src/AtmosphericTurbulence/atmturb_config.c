@@ -73,6 +73,8 @@ float CONF_FRESNEL_PROPAGATION_BIN = 100.0f;
 int CONF_FRESNEL_RYTOV_SEC_EXACT = 0;
 int CONF_FRESNEL_GUARD_PIX = 0;
 int CONF_FRESNEL_RYTOV_ZINTERP = 0;
+int CONF_FRESNEL_REFRACT_PATH = 0;
+int CONF_FRESNEL_SCINT_WEIGHT = 0;
 
 /**
  * AtmosphericTurbulence_change_configuration_file - Set active configuration file path
@@ -450,21 +452,10 @@ static void atmturb_read_conf_modes(void)
         CONF_FRESNEL_GUARD_PIX = 0;
     }
 
-    snprintf(keyword, sizeof(keyword), "FRESNEL_RYTOV_ZINT");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1 ||
-        read_config_parameter_exists(CONFFILE, "FRESNEL_RYTOV_ZINTE") == 1)
-    {
-        read_config_parameter(CONFFILE, "FRESNEL_RYTOV_ZINTERP", content);
-        if (strcmp(content, "-") == 0)
-        {
-            read_config_parameter(CONFFILE, keyword, content);
-        }
-        CONF_FRESNEL_RYTOV_ZINTERP = atoi(content);
-    }
-    else
-    {
-        CONF_FRESNEL_RYTOV_ZINTERP = 0;
-    }
+    CONF_FRESNEL_RYTOV_ZINTERP = atmturb_read_param_int(
+        "FRESNEL_RYTOV_ZINTERP", atmturb_read_param_int("FRESNEL_RYTOV_ZINT", 0));
+    CONF_FRESNEL_REFRACT_PATH = atmturb_read_param_int("FRESNEL_REFRACT_PATH", 0);
+    CONF_FRESNEL_SCINT_WEIGHT = atmturb_read_param_int("FRESNEL_SCINT_WEIGHT", 0);
 
     atmturb_read_conf_pupil_files();
 }
@@ -551,6 +542,8 @@ static int atmturb_write_default_config(const char *fname)
     fprintf(fp, "FRESNEL_PROPAGATION_BIN   100.0\n");
     fprintf(fp, "FRESNEL_GUARD_PIX         0\n");
     fprintf(fp, "FRESNEL_RYTOV_ZINT        0\n");
+    fprintf(fp, "FRESNEL_REFRACT_PATH      0\n");
+    fprintf(fp, "FRESNEL_SCINT_WEIGHT      0\n");
     fclose(fp);
 
     printf("[milkatmturb] Created default simulation configuration \"%s\"\n", fname);

@@ -45,22 +45,37 @@ void atmturb_geometry_free(
 }
 
 /**
- * atmturb_refraction_ray_shift - Compute cumulative atmospheric refraction displacement
+ * atmturb_refraction_ray_shift_path - Compute refraction shift and curved ray path length
  * @h_layer: Layer altitude above sea level [m].
  * @h_site: Telescope site altitude above sea level [m].
  * @zenith_angle: Apparent zenith angle [rad].
  * @lambda_m: Optical wavelength [m].
+ * @path_len_out: Output pointer for curved ray path length in meters (or NULL).
  *
  * Return: Lateral deflection in meters relative to an unrefracted straight ray.
  */
-double atmturb_refraction_ray_shift(
-    double h_layer,
-    double h_site,
-    double zenith_angle,
-    double lambda_m)
+double atmturb_refraction_ray_shift_path(
+    double  h_layer,
+    double  h_site,
+    double  zenith_angle,
+    double  lambda_m,
+    double *path_len_out)
 {
+    double cos_z0 = cos(zenith_angle);
+    double straight_dist = (zenith_angle <= 1e-6)
+                               ? (h_layer - h_site)
+                               : ((cos_z0 > 1e-9) ? (h_layer - h_site) / cos_z0 : 0.0);
+    if (straight_dist < 0.0)
+    {
+        straight_dist = 0.0;
+    }
+
     if (zenith_angle <= 1e-6 || h_layer <= h_site)
     {
+        if (path_len_out != NULL)
+        {
+            *path_len_out = straight_dist;
+        }
         return 0.0;
     }
 
@@ -68,6 +83,7 @@ double atmturb_refraction_ray_shift(
     double tan_z0 = tan(zenith_angle);
     double h_curr = h_site;
     double shift = 0.0;
+    double path_len = 0.0;
     const double step = 10.0;
 
     while (h_curr < h_layer)
@@ -88,10 +104,33 @@ double atmturb_refraction_ray_shift(
         double cos_z = sqrt(1.0 - sin_z * sin_z);
         double tan_z = (cos_z > 1e-9) ? (sin_z / cos_z) : tan_z0;
         shift += (tan_z - tan_z0) * dh;
+        path_len += (cos_z > 1e-9) ? (dh / cos_z) : (dh / cos_z0);
         h_curr = next_h;
     }
 
+    if (path_len_out != NULL)
+    {
+        *path_len_out = path_len;
+    }
     return shift;
+}
+
+/**
+ * atmturb_refraction_ray_shift - Compute cumulative atmospheric refraction displacement
+ * @h_layer: Layer altitude above sea level [m].
+ * @h_site: Telescope site altitude above sea level [m].
+ * @zenith_angle: Apparent zenith angle [rad].
+ * @lambda_m: Optical wavelength [m].
+ *
+ * Return: Lateral deflection in meters relative to an unrefracted straight ray.
+ */
+double atmturb_refraction_ray_shift(
+    double h_layer,
+    double h_site,
+    double zenith_angle,
+    double lambda_m)
+{
+    return atmturb_refraction_ray_shift_path(h_layer, h_site, zenith_angle, lambda_m, NULL);
 }
 
 /**
@@ -285,7 +324,23 @@ int atmturb_geometry_compute(
         atmturb_layer_geom_t *lg = &geom->layers[k];
 
         double h_layer = (layer->alt_m >= geom->site_alt_m) ? layer->alt_m : geom->site_alt_m;
-        lg->dist_m = (h_layer - geom->site_alt_m) / geom->cos_z;
+        double path_ref = 0.0;
+        double path_s   = 0.0;
+        double r_ref = atmturb_refraction_ray_shift_path(h_layer, geom->site_alt_m,
+                                                         params->zenith_rad,
+                                                         params->lambda_ref_m,
+                                                         &path_ref);
+        double r_s   = atmturb_refraction_ray_shift_path(h_layer, geom->site_alt_m,
+                                                         params->zenith_rad,
+                                                         params->lambda_s_m,
+                                                         &path_s);
+        lg->path_m   = path_ref;
+        lg->path_s_m = path_s;
+
+        double straight_dist = (h_layer - geom->site_alt_m) / geom->cos_z;
+        lg->dist_m = (CONF_FRESNEL_REFRACT_PATH == 1 && path_ref > 0.0)
+                         ? path_ref
+                         : straight_dist;
         lg->weight = sqrt(layer->cn2_frac / geom->cos_z);
 
         double n_ref = (double) AtmosphereModel_stdAtmModel_N((float) h_layer,
@@ -296,11 +351,6 @@ int atmturb_geometry_compute(
                             ? (params->lambda_ref_m / params->lambda_s_m) * (n_s / n_ref)
                             : (params->lambda_ref_m / params->lambda_s_m);
         lg->weight_s = lg->weight * scoeff;
-
-        double r_ref = atmturb_refraction_ray_shift(h_layer, geom->site_alt_m,
-                                                    params->zenith_rad, params->lambda_ref_m);
-        double r_s   = atmturb_refraction_ray_shift(h_layer, geom->site_alt_m,
-                                                    params->zenith_rad, params->lambda_s_m);
         double delta_r = r_s - r_ref;
         double d_chrom_x = (delta_r / geom->dx_master_m) * geom->ez_x;
         double d_chrom_y = (delta_r / geom->dx_master_m) * geom->ez_y;
