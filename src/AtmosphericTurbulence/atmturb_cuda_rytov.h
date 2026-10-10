@@ -79,6 +79,7 @@ typedef struct
     int                                 sec_shared;
     int                                 os;
     int                                 interp;
+    int                                 use_moisan;
 
     const float *const                 *h_masters;
 

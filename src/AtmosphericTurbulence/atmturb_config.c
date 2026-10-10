@@ -72,6 +72,7 @@ int CONF_WAVEFRONT_AMPLITUDE = 0;
 float CONF_FRESNEL_PROPAGATION_BIN = 100.0f;
 int CONF_FRESNEL_RYTOV_SEC_EXACT = 0;
 int CONF_FRESNEL_GUARD_PIX = 0;
+int CONF_FRESNEL_RYTOV_MOISAN = -1;
 int CONF_FRESNEL_RYTOV_ZINTERP = 0;
 int CONF_FRESNEL_REFRACT_PATH = 0;
 int CONF_FRESNEL_SCINT_WEIGHT = 0;
@@ -451,6 +452,7 @@ static void atmturb_read_conf_modes(void)
     {
         CONF_FRESNEL_GUARD_PIX = 0;
     }
+    CONF_FRESNEL_RYTOV_MOISAN = atmturb_read_param_int("FRESNEL_RYTOV_MOISAN", -1);
 
     CONF_FRESNEL_RYTOV_ZINTERP = atmturb_read_param_int(
         "FRESNEL_RYTOV_ZINTERP", atmturb_read_param_int("FRESNEL_RYTOV_ZINT", 0));
@@ -541,6 +543,7 @@ static int atmturb_write_default_config(const char *fname)
     fprintf(fp, "FRESNEL_PROPAGATION       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION_BIN   100.0\n");
     fprintf(fp, "FRESNEL_GUARD_PIX         0\n");
+    fprintf(fp, "FRESNEL_RYTOV_MOISAN     -1\n");
     fprintf(fp, "FRESNEL_RYTOV_ZINT        0\n");
     fprintf(fp, "FRESNEL_REFRACT_PATH      0\n");
     fprintf(fp, "FRESNEL_SCINT_WEIGHT      0\n");

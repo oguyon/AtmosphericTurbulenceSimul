@@ -34,6 +34,7 @@ static int                            s_graph_has_sec     = 0;
 static int                            s_graph_sec_shared  = 0;
 static int                            s_graph_interp      = 0;
 static int                            s_graph_guard       = 0;
+static int                            s_graph_moisan      = -1;
 static int                            s_graph_os          = 0;
 static const float                   *s_graph_masters     = NULL;
 static atmturb_cuda_rytov_sublayer_t *s_d_active_sublayers = NULL;
@@ -664,6 +665,42 @@ static int atmturb_cuda_rytov_init_workspace(
     return 0;
 }
 
+/**
+ * atmturb_cuda_forward_spectrum - Compute 2D spectrum with optional Moisan adjustment
+ * @d_pha: Padded device phase grid.
+ * @use_moisan: 1 if Moisan boundary decomposition active, 0 to bypass.
+ * @pad: Grid linear dimension in pixels.
+ * @n_half: Half-complex dimension along X (pad / 2 + 1).
+ * @stream: Active CUDA execution stream.
+ */
+static void atmturb_cuda_forward_spectrum(
+    const float  *d_pha,
+    int           use_moisan,
+    int           pad,
+    int           n_half,
+    cudaStream_t  stream)
+{
+    if (use_moisan)
+    {
+        dim3 b_1d(256);
+        dim3 g_1d(((int) pad + b_1d.x - 1) / b_1d.x);
+        atmturb_cuda_extract_bounds_kernel<<<g_1d, b_1d, 0, stream>>>(d_pha, s_d_bounds, pad);
+
+        cufftExecR2C(s_plan_1d, (cufftReal *) s_d_bounds, (cufftComplex *) s_d_hat_bounds);
+        cufftExecR2C(s_plan_2d_r2c, (cufftReal *) d_pha, (cufftComplex *) s_d_spec);
+
+        dim3 b_spec(16, 16);
+        dim3 g_spec(((int) n_half + b_spec.x - 1) / b_spec.x,
+                    ((int) pad + b_spec.y - 1) / b_spec.y);
+        atmturb_cuda_moisan_adjust_kernel<<<g_spec, b_spec, 0, stream>>>(
+            s_d_spec, s_d_hat_bounds, s_d_exp_x, s_d_exp_y, s_d_laplace_inv, pad, n_half);
+    }
+    else
+    {
+        cufftExecR2C(s_plan_2d_r2c, (cufftReal *) d_pha, (cufftComplex *) s_d_spec);
+    }
+}
+
 static void atmturb_cuda_rytov_render_superlayer_stream(
     const atmturb_cuda_rytov_params_t *params,
     int                                m,
@@ -672,18 +709,7 @@ static void atmturb_cuda_rytov_render_superlayer_stream(
     int                                n_spec,
     cudaStream_t                       stream)
 {
-    dim3 b_1d(256);
-    dim3 g_1d(((int) pad + b_1d.x - 1) / b_1d.x);
-    atmturb_cuda_extract_bounds_kernel<<<g_1d, b_1d, 0, stream>>>(s_d_super_pha, s_d_bounds, pad);
-
-    cufftExecR2C(s_plan_1d, (cufftReal *) s_d_bounds, (cufftComplex *) s_d_hat_bounds);
-    cufftExecR2C(s_plan_2d_r2c, (cufftReal *) s_d_super_pha, (cufftComplex *) s_d_spec);
-
-    dim3 b_spec(16, 16);
-    dim3 g_spec(((int) n_half + b_spec.x - 1) / b_spec.x,
-                ((int) pad + b_spec.y - 1) / b_spec.y);
-    atmturb_cuda_moisan_adjust_kernel<<<g_spec, b_spec, 0, stream>>>(
-        s_d_spec, s_d_hat_bounds, s_d_exp_x, s_d_exp_y, s_d_laplace_inv, pad, n_half);
+    atmturb_cuda_forward_spectrum(s_d_super_pha, params->use_moisan, pad, n_half, stream);
 
     dim3 b_mac(256);
     dim3 g_mac(((int) n_spec + b_mac.x - 1) / b_mac.x);
@@ -703,12 +729,8 @@ static void atmturb_cuda_rytov_render_superlayer_stream(
         }
         else
         {
-            atmturb_cuda_extract_bounds_kernel<<<g_1d, b_1d, 0, stream>>>(
-                s_d_super_spha, s_d_bounds, pad);
-            cufftExecR2C(s_plan_1d, (cufftReal *) s_d_bounds, (cufftComplex *) s_d_hat_bounds);
-            cufftExecR2C(s_plan_2d_r2c, (cufftReal *) s_d_super_spha, (cufftComplex *) s_d_spec);
-            atmturb_cuda_moisan_adjust_kernel<<<g_spec, b_spec, 0, stream>>>(
-                s_d_spec, s_d_hat_bounds, s_d_exp_x, s_d_exp_y, s_d_laplace_inv, pad, n_half);
+            atmturb_cuda_forward_spectrum(s_d_super_spha, params->use_moisan,
+                                          pad, n_half, stream);
             atmturb_cuda_filter_mac_kernel<<<g_mac, b_mac, 0, stream>>>(
                 s_d_acc_dphi_sec, s_d_acc_chi_sec, s_d_spec,
                 s_d_filt_a_sec + off, s_d_filt_b_sec + off, n_spec);
@@ -814,6 +836,7 @@ static int atmturb_cuda_rytov_init_graph(
     int  sec_sh   = params->sec_shared;
     int  interp   = params->interp;
     int  guard    = (int) params->guard_pix;
+    int  moisan   = params->use_moisan;
     int  os       = (params->os > 1) ? params->os : 1;
 
     if (s_graph_exec != NULL &&
@@ -824,6 +847,7 @@ static int atmturb_cuda_rytov_init_graph(
         s_graph_sec_shared == sec_sh &&
         s_graph_interp == interp &&
         s_graph_guard == guard &&
+        s_graph_moisan == moisan &&
         s_graph_os == os &&
         s_graph_masters == d_masters)
     {
@@ -864,6 +888,7 @@ static int atmturb_cuda_rytov_init_graph(
     s_graph_sec_shared = sec_sh;
     s_graph_interp     = interp;
     s_graph_guard      = guard;
+    s_graph_moisan     = moisan;
     s_graph_os         = os;
     s_graph_masters    = d_masters;
     return 0;

@@ -177,6 +177,14 @@ int atmturb_rytov_plan_init(
     plan->pixscale_m   = pixscale_m;
     plan->lambda_ref_m = lambda_ref_m;
     plan->lambda_s_m   = lambda_s_m;
+    if (CONF_FRESNEL_RYTOV_MOISAN >= 0)
+    {
+        plan->use_moisan = CONF_FRESNEL_RYTOV_MOISAN;
+    }
+    else
+    {
+        plan->use_moisan = (plan->guard_pix < 8) ? 1 : 0;
+    }
 
     if (atmturb_superlayer_build(&plan->supers, &plan->nsuper, prof, geom,
                                  z_bin_m, pixscale_m) != 0)
@@ -514,7 +522,15 @@ void atmturb_rytov_render_step(
 
         if (sl->dist_m > 0.0)
         {
-            atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_pha);
+            if (plan->use_moisan)
+            {
+                atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_pha);
+            }
+            else
+            {
+                memcpy(ctx->real_in, ctx->super_pha, sizeof(float) * (size_t) pad_pixels);
+                fftwf_execute(ctx->plan_r2c);
+            }
             atmturb_rytov_accumulate_filters(ctx->acc_dphi_pri, ctx->acc_chi_pri,
                                              ctx->spec, plan->filter_a_pri[m],
                                              plan->filter_b_pri[m], n_spec);
@@ -530,7 +546,15 @@ void atmturb_rytov_render_step(
                 }
                 else
                 {
-                    atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_spha);
+                    if (plan->use_moisan)
+                    {
+                        atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_spha);
+                    }
+                    else
+                    {
+                        memcpy(ctx->real_in, ctx->super_spha, sizeof(float) * (size_t) pad_pixels);
+                        fftwf_execute(ctx->plan_r2c);
+                    }
                     atmturb_rytov_accumulate_filters(ctx->acc_dphi_sec, ctx->acc_chi_sec,
                                                      ctx->spec, plan->filter_a_sec[m],
                                                      plan->filter_b_sec[m], n_spec);

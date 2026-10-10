@@ -51,6 +51,7 @@ static int32_t param_stream_mode       = 0;
 static int32_t param_amplitude         = 0;
 static int32_t param_fresnel           = 0;
 static int32_t param_fresnel_guard     = 0;
+static int32_t param_fresnel_moisan    = -1;
 static int32_t param_fresnel_zinterp   = 0;
 static int32_t param_fresnel_refract_path = 0;
 static int32_t param_fresnel_scint_weight = 0;
@@ -103,6 +104,8 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
       "Diffractive Fresnel propagation (0=geom, 1=split-step, 2=Rytov)")       \
     X(".fresnel_guard", &param_fresnel_guard, FPTYPE_INT32, 0,                 \
       FPFLAG_DEFAULT_INPUT, "Rytov guard band margin [pix] (0=none)")          \
+    X(".fresnel_moisan", &param_fresnel_moisan, FPTYPE_INT32, 0,               \
+      FPFLAG_DEFAULT_INPUT, "Moisan decomposition (-1=auto, 0=bypass, 1=on)")   \
     X(".fresnel_zinterp", &param_fresnel_zinterp, FPTYPE_INT32, 0,             \
       FPFLAG_DEFAULT_INPUT, "Linear z-interpolation between nodes (0/1)")      \
     X(".fresnel_refract_path", &param_fresnel_refract_path, FPTYPE_INT32, 0,   \
@@ -160,6 +163,7 @@ static void atmturb_mkwfs_sync_to_conf(void)
     CONF_WAVEFRONT_AMPLITUDE = (int)param_amplitude;
     CONF_FRESNEL_PROPAGATION   = (int)param_fresnel;
     CONF_FRESNEL_GUARD_PIX     = (int)param_fresnel_guard;
+    CONF_FRESNEL_RYTOV_MOISAN  = (int)param_fresnel_moisan;
     CONF_FRESNEL_RYTOV_ZINTERP = (int)param_fresnel_zinterp;
     CONF_FRESNEL_REFRACT_PATH  = (int)param_fresnel_refract_path;
     CONF_FRESNEL_SCINT_WEIGHT  = (int)param_fresnel_scint_weight;
@@ -217,6 +221,7 @@ static void atmturb_mkwfs_sync_from_conf(void)
     param_amplitude         = (int32_t)CONF_WAVEFRONT_AMPLITUDE;
     param_fresnel           = (int32_t)CONF_FRESNEL_PROPAGATION;
     param_fresnel_guard     = (int32_t)CONF_FRESNEL_GUARD_PIX;
+    param_fresnel_moisan    = (int32_t)CONF_FRESNEL_RYTOV_MOISAN;
     param_fresnel_zinterp   = (int32_t)CONF_FRESNEL_RYTOV_ZINTERP;
     param_fresnel_refract_path = (int32_t)CONF_FRESNEL_REFRACT_PATH;
     param_fresnel_scint_weight = (int32_t)CONF_FRESNEL_SCINT_WEIGHT;
