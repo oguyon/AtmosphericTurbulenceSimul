@@ -849,6 +849,91 @@ sys.exit(0 if ok else 1)
 '
 }
 
+# T9p: Linear z-interpolation achieves O(Delta z^2) error convergence (~4x error reduction)
+scenario_T9p_z_interpolation_scaling() {
+    cat << 'EOF' > turbul.prof
+# altitude(m)   relativeCN2     speed(m/s)      direction(rad)
+ 2000     1.0        10.0     0.0
+ 3000     1.0        10.0     0.0
+ 4000     1.0        10.0     0.0
+ 5000     1.0        10.0     0.0
+ 6000     1.0        10.0     0.0
+ 7000     1.0        10.0     0.0
+ 8000     1.0        10.0     0.0
+ 9000     1.0        10.0     0.0
+10000     1.0        10.0     0.0
+EOF
+
+    mkdir -p truth c4 c2 z4 z2
+
+    write_conf truth/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=0 FRESNEL_RYTOV_ZINT=0 \
+        PUPIL_SCALE=0.03 SITE_ALT=0.0 MASTER_SIZE=2048 LOWFREQ=1 ROLLING=1 \
+        TURBULENCE_SEEING=0.5 TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 SEED=123456
+
+    write_conf c4/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=4000 FRESNEL_RYTOV_ZINT=0 \
+        PUPIL_SCALE=0.03 SITE_ALT=0.0 MASTER_SIZE=2048 LOWFREQ=1 ROLLING=1 \
+        TURBULENCE_SEEING=0.5 TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 SEED=123456
+
+    write_conf c2/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=2000 FRESNEL_RYTOV_ZINT=0 \
+        PUPIL_SCALE=0.03 SITE_ALT=0.0 MASTER_SIZE=2048 LOWFREQ=1 ROLLING=1 \
+        TURBULENCE_SEEING=0.5 TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 SEED=123456
+
+    write_conf z4/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=4000 FRESNEL_RYTOV_ZINT=1 \
+        PUPIL_SCALE=0.03 SITE_ALT=0.0 MASTER_SIZE=2048 LOWFREQ=1 ROLLING=1 \
+        TURBULENCE_SEEING=0.5 TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 SEED=123456
+
+    write_conf z2/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=2000 FRESNEL_RYTOV_ZINT=1 \
+        PUPIL_SCALE=0.03 SITE_ALT=0.0 MASTER_SIZE=2048 LOWFREQ=1 ROLLING=1 \
+        TURBULENCE_SEEING=0.5 TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 SEED=123456
+
+    (cd truth && cp ../turbul.prof . && run_mkwfs t9p_truth 0.5 0) || return 1
+    (cd c4 && cp ../turbul.prof . && run_mkwfs t9p_c4 0.5 0) || return 1
+    (cd c2 && cp ../turbul.prof . && run_mkwfs t9p_c2 0.5 0) || return 1
+    (cd z4 && cp ../turbul.prof . && run_mkwfs t9p_z4 0.5 0) || return 1
+    (cd z2 && cp ../turbul.prof . && run_mkwfs t9p_z2 0.5 0) || return 1
+
+    python3 -c '
+import sys
+from astropy.io import fits
+import numpy as np
+
+p_true = fits.getdata("truth/outarraypha.fits")[0]
+a_true = fits.getdata("truth/outarrayamp.fits")[0]
+p_c4 = fits.getdata("c4/outarraypha.fits")[0]
+p_c2 = fits.getdata("c2/outarraypha.fits")[0]
+p_z4 = fits.getdata("z4/outarraypha.fits")[0]
+p_z2 = fits.getdata("z2/outarraypha.fits")[0]
+a_z4 = fits.getdata("z4/outarrayamp.fits")[0]
+a_z2 = fits.getdata("z2/outarrayamp.fits")[0]
+
+s = slice(8, -8)
+
+err_c4 = float(np.std(p_c4[s, s] - p_true[s, s]))
+err_c2 = float(np.std(p_c2[s, s] - p_true[s, s]))
+ratio_c = err_c4 / err_c2 if err_c2 > 0 else 0.0
+
+err_z4 = float(np.std(p_z4[s, s] - p_true[s, s]))
+err_z2 = float(np.std(p_z2[s, s] - p_true[s, s]))
+ratio_z = err_z4 / err_z2 if err_z2 > 0 else 0.0
+
+mean_I_z4 = float(np.mean(a_z4**2))
+mean_I_z2 = float(np.mean(a_z2**2))
+energy_ok = abs(mean_I_z4 - 1.0) < 0.01 and abs(mean_I_z2 - 1.0) < 0.01
+
+ok = energy_ok and (ratio_z >= 3.0) and (err_z2 < err_c2 * 0.3)
+msg = (f": zinterp err 4000={err_z4:.4f} -> 2000={err_z2:.4f} "
+       f"(ratio {ratio_z:.2f}x, target >= 3.0x); "
+       f"centroid ratio={ratio_c:.2f}x; mean_I={mean_I_z2:.4f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
 # T16a: Flat wavefront PSF produces normalized Strehl = 1.000 +- 1e-3 and centered peak
 scenario_T16a_zero_turb_strehl() {
     run_aoloop t16a "none" "PSFflat" "psf_flat.fits" 0 0.0 0.0 0 1.65 8.0 || return 1
@@ -990,6 +1075,7 @@ SCENARIOS=(
     "T9m_chromatic_refraction_consistency:pass"
     "T9n_option_b_fallback:pass"
     "T9o_guard_band_parity:pass"
+    "T9p_z_interpolation_scaling:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
     "T11_tilt_variance:pass"

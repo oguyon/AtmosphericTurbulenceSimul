@@ -14,6 +14,8 @@
 #include "atmturb_geometry.h"
 #include "atmturb_profile.h"
 #include "atmturb_superlayer.h"
+#include "atmturb_superlayer_internal.h"
+#include "atmturb_types.h"
 
 /**
  * atmturb_superlayer_sort_layers - Sort layer indices descending by line-of-sight distance
@@ -21,7 +23,7 @@
  * @geom: Computed observing geometry.
  * @nlayers: Total count of active turbulence layers.
  */
-static void atmturb_superlayer_sort_layers(
+void atmturb_superlayer_sort_layers(
     int                  *order,
     const atmturb_geom_t *geom,
     int                   nlayers)
@@ -91,7 +93,7 @@ static int atmturb_superlayer_count_bins(
  * @geom: Computed observing geometry.
  * @sum_w: Sum of cn2 weights for this superlayer.
  */
-static void atmturb_superlayer_calc_chromatic(
+void atmturb_superlayer_calc_chromatic(
     atmturb_superlayer_t    *sl,
     const atmturb_profile_t *prof,
     const atmturb_geom_t    *geom,
@@ -106,6 +108,10 @@ static void atmturb_superlayer_calc_chromatic(
     {
         int k = sl->layer_indices[j];
         double w = prof->layers[k].cn2_frac;
+        if (sl->layer_weights != NULL)
+        {
+            w *= (double) sl->layer_weights[j];
+        }
         double dx_pup = geom->layers[k].d_chrom_x / os;
         double dy_pup = geom->layers[k].d_chrom_y / os;
         double wr = (geom->layers[k].weight > 0.0)
@@ -184,12 +190,19 @@ static int atmturb_superlayer_populate_bins(
         int is_last = (i == nlayers - 1);
         int split   = 0;
 
-        if (!is_last && z_bin_m > 0.0)
+        if (!is_last)
         {
-            double next_dist = geom->layers[order[i + 1]].dist_m;
-            if ((anchor_dist - next_dist) > z_bin_m)
+            if (z_bin_m <= 0.0)
             {
                 split = 1;
+            }
+            else
+            {
+                double next_dist = geom->layers[order[i + 1]].dist_m;
+                if ((anchor_dist - next_dist) > z_bin_m)
+                {
+                    split = 1;
+                }
             }
         }
 
@@ -273,7 +286,13 @@ int atmturb_superlayer_build(
     }
 
     atmturb_superlayer_sort_layers(order, geom, nlayers);
-    int nsuper = atmturb_superlayer_count_bins(order, geom, nlayers, z_bin_m);
+
+    int use_zinterp = (CONF_FRESNEL_PROPAGATION == 2 && CONF_FRESNEL_RYTOV_ZINTERP == 1 &&
+                       z_bin_m > 0.0);
+
+    int nsuper = use_zinterp
+                 ? atmturb_superlayer_count_nodes(order, geom, nlayers, z_bin_m)
+                 : atmturb_superlayer_count_bins(order, geom, nlayers, z_bin_m);
 
     atmturb_superlayer_t *supers = (atmturb_superlayer_t *) calloc((size_t) nsuper,
                                                                    sizeof(atmturb_superlayer_t));
@@ -283,7 +302,10 @@ int atmturb_superlayer_build(
         return -1;
     }
 
-    int s_built = atmturb_superlayer_populate_bins(supers, order, prof, geom, nlayers, z_bin_m);
+    int s_built = use_zinterp
+                  ? atmturb_superlayer_populate_nodes(supers, order, prof, geom, nlayers, z_bin_m)
+                  : atmturb_superlayer_populate_bins(supers, order, prof, geom, nlayers, z_bin_m);
+
     free(order);
     if (s_built < 0)
     {
@@ -314,6 +336,11 @@ void atmturb_superlayer_free(
     {
         free(supers[m].layer_indices);
         supers[m].layer_indices = NULL;
+        if (supers[m].layer_weights != NULL)
+        {
+            free(supers[m].layer_weights);
+            supers[m].layer_weights = NULL;
+        }
     }
     free(supers);
 }

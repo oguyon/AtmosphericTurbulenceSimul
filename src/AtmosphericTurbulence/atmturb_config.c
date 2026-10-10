@@ -72,6 +72,7 @@ int CONF_WAVEFRONT_AMPLITUDE = 0;
 float CONF_FRESNEL_PROPAGATION_BIN = 100.0f;
 int CONF_FRESNEL_RYTOV_SEC_EXACT = 0;
 int CONF_FRESNEL_GUARD_PIX = 0;
+int CONF_FRESNEL_RYTOV_ZINTERP = 0;
 
 /**
  * AtmosphericTurbulence_change_configuration_file - Set active configuration file path
@@ -319,6 +320,27 @@ static void atmturb_read_conf_timing(void)
 }
 
 /**
+ * atmturb_read_param_int - Read optional integer config parameter
+ * @key: Parameter keyword name.
+ * @default_val: Default value if parameter is not found in CONFFILE.
+ *
+ * Return: Parameter integer value or default_val.
+ */
+static int atmturb_read_param_int(
+    const char *key,
+    int         default_val)
+{
+    char content[200];
+
+    if (read_config_parameter_exists(CONFFILE, (char *) key) == 1)
+    {
+        read_config_parameter(CONFFILE, (char *) key, content);
+        return atoi(content);
+    }
+    return default_val;
+}
+
+/**
  * atmturb_read_conf_screen - Read phase screen sizing and interpolation settings
  */
 static void atmturb_read_conf_screen(void)
@@ -336,42 +358,12 @@ static void atmturb_read_conf_screen(void)
     read_config_parameter(CONFFILE, keyword, content);
     CONF_MASTER_SIZE = atol(content);
 
-    snprintf(keyword, sizeof(keyword), "MASTER_OVERSAMPLE");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_OVERSAMPLE = atoi(content);
-    }
-    else
-    {
-        snprintf(keyword, sizeof(keyword), "OVERSAMPLE");
-        if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-        {
-            read_config_parameter(CONFFILE, keyword, content);
-            CONF_OVERSAMPLE = atoi(content);
-        }
-    }
+    CONF_OVERSAMPLE = atmturb_read_param_int("MASTER_OVERSAMPLE", CONF_OVERSAMPLE);
+    CONF_OVERSAMPLE = atmturb_read_param_int("OVERSAMPLE", CONF_OVERSAMPLE);
 
-    snprintf(keyword, sizeof(keyword), "INTERP");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_INTERP = atoi(content);
-    }
-
-    snprintf(keyword, sizeof(keyword), "LOWFREQ");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_LOWFREQ = atoi(content);
-    }
-
-    snprintf(keyword, sizeof(keyword), "ROLLING");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_ROLLING = atoi(content);
-    }
+    CONF_INTERP  = atmturb_read_param_int("INTERP", CONF_INTERP);
+    CONF_LOWFREQ = atmturb_read_param_int("LOWFREQ", CONF_LOWFREQ);
+    CONF_ROLLING = atmturb_read_param_int("ROLLING", CONF_ROLLING);
 
     snprintf(keyword, sizeof(keyword), "BOIL_TIME");
     if (read_config_parameter_exists(CONFFILE, keyword) == 1)
@@ -452,15 +444,26 @@ static void atmturb_read_conf_modes(void)
         CONF_FRESNEL_RYTOV_SEC_EXACT = 0;
     }
 
-    snprintf(keyword, sizeof(keyword), "FRESNEL_GUARD_PIX");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    CONF_FRESNEL_GUARD_PIX = atmturb_read_param_int("FRESNEL_GUARD_PIX", CONF_FRESNEL_GUARD_PIX);
+    if (CONF_FRESNEL_GUARD_PIX < 0)
     {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_FRESNEL_GUARD_PIX = atoi(content);
-        if (CONF_FRESNEL_GUARD_PIX < 0)
+        CONF_FRESNEL_GUARD_PIX = 0;
+    }
+
+    snprintf(keyword, sizeof(keyword), "FRESNEL_RYTOV_ZINT");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1 ||
+        read_config_parameter_exists(CONFFILE, "FRESNEL_RYTOV_ZINTE") == 1)
+    {
+        read_config_parameter(CONFFILE, "FRESNEL_RYTOV_ZINTERP", content);
+        if (strcmp(content, "-") == 0)
         {
-            CONF_FRESNEL_GUARD_PIX = 0;
+            read_config_parameter(CONFFILE, keyword, content);
         }
+        CONF_FRESNEL_RYTOV_ZINTERP = atoi(content);
+    }
+    else
+    {
+        CONF_FRESNEL_RYTOV_ZINTERP = 0;
     }
 
     atmturb_read_conf_pupil_files();
@@ -547,6 +550,7 @@ static int atmturb_write_default_config(const char *fname)
     fprintf(fp, "FRESNEL_PROPAGATION       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION_BIN   100.0\n");
     fprintf(fp, "FRESNEL_GUARD_PIX         0\n");
+    fprintf(fp, "FRESNEL_RYTOV_ZINT        0\n");
     fclose(fp);
 
     printf("[milkatmturb] Created default simulation configuration \"%s\"\n", fname);
