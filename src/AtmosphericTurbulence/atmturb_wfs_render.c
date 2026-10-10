@@ -29,7 +29,7 @@
 #include "atmturb_wfs_render.h"
 
 #ifdef HAVE_CUDA
-#include "atmturb_cuda.h"
+#include "atmturb_wfs_render_cuda.h"
 #endif
 
 /**
@@ -305,89 +305,7 @@ static int atmturb_wfs_render_diffractive(
     return 0;
 }
 
-#ifdef HAVE_CUDA
-/**
- * atmturb_wfs_render_cuda - Render simulation frames using CUDA GPU acceleration
- * @r: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @master_size: Master screen dimension in pixels.
- * @pup_size: Output pupil dimension in pixels.
- * @nbframes: Number of simulation frames.
- * @imgs: Container of output 3D image handles.
- *
- * Return: 0 on success, -1 on failure.
- */
-static int atmturb_wfs_render_cuda(
-    const atmturb_rolling_t    *r,
-    const atmturb_geom_t       *geom,
-    long                        master_size,
-    long                        pup_size,
-    long                        nbframes,
-    const atmturb_wfs_images_t *imgs)
-{
-    int nl = geom->nlayers;
-    size_t m_sz = (size_t) nl * sizeof(float *);
-    size_t d_sz = (size_t) nl * sizeof(double);
-    void *buf = malloc(m_sz + 5 * d_sz);
-    if (!buf)
-    {
-        return -1;
-    }
-    const float **masters = (const float **) buf;
-    double *vx  = (double *) ((char *) buf + m_sz);
-    double *vy  = vx + nl;
-    double *cn2 = vy + nl;
-    double *x0  = cn2 + nl;
-    double *y0  = x0 + nl;
 
-    for (int k = 0; k < nl; k++)
-    {
-        masters[k] = r->layers[k].screens[0].data;
-        vx[k]      = geom->layers[k].vx_pix;
-        vy[k]      = geom->layers[k].vy_pix;
-        cn2[k]     = geom->layers[k].weight * geom->layers[k].weight;
-        x0[k]      = geom->layers[k].x0;
-        y0[k]      = geom->layers[k].y0;
-    }
-
-    double w0 = geom->layers[0].weight;
-    double scoeff = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
-    atmturb_cuda_sim_params_t cparams = {
-        .nblayers  = nl,
-        .msize     = master_size,
-        .pup_size  = pup_size,
-        .nbframes  = nbframes,
-        .Scoeff    = scoeff,
-        .h_masters = (const float *const *) masters,
-        .vxpix     = vx,
-        .vypix     = vy,
-        .cn2       = cn2,
-        .x0        = x0,
-        .y0        = y0
-    };
-    long total_pixels = nbframes * pup_size * pup_size;
-    float *amp_ptr  = &dcimg[imgs->ID_amp].array.F[0];
-    float *samp_ptr = &dcimg[imgs->ID_samp].array.F[0];
-
-    #pragma omp parallel for
-    for (long i = 0; i < total_pixels; i++)
-    {
-        amp_ptr[i]  = 1.0f;
-        samp_ptr[i] = 1.0f;
-    }
-
-    atmturb_cuda_sim_outputs_t outputs = {
-        .pha  = &dcimg[imgs->ID_pha].array.F[0],
-        .amp  = NULL,
-        .spha = &dcimg[imgs->ID_spha].array.F[0],
-        .samp = NULL
-    };
-
-    int ret = atmturb_wfs_render_frames_cuda(&cparams, &outputs);
-    free(buf);
-    return ret;
-}
-#endif
 
 /**
  * atmturb_wfs_render_frames - Dispatch rendering to diffractive or geometric engine
@@ -519,6 +437,16 @@ void atmturb_wfs_render_frames(
     }
     else if (CONF_FRESNEL_PROPAGATION == 2)
     {
+#ifdef HAVE_CUDA
+        if (atmturb_simd_is_gpu())
+        {
+            if (atmturb_wfs_render_rytov_cuda(r, geom, prof, params, master_size,
+                                              pup_size, nbframes, imgs) == 0)
+            {
+                return;
+            }
+        }
+#endif
         if (atmturb_wfs_render_rytov(r, geom, prof, params, master_size,
                                      pup_size, nbframes, imgs) == 0)
         {

@@ -115,8 +115,8 @@ EOF
     if grep -qE "avx512f" /proc/cpuinfo 2>/dev/null; then
         backends+=("AVX512")
     fi
-    if [[ "$fresnel" -eq 0 ]] && command -v nvidia-smi >/dev/null 2>&1 && \
-       nvidia-smi >/dev/null 2>&1; then
+    if [[ "$fresnel" -eq 0 || "$fresnel" -eq 2 ]] && \
+       command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
         backends+=("CUDA")
     fi
 
@@ -173,13 +173,29 @@ compare_modes_benchmark() {
     declare -A mode_labels=(
         [0]="Geometric (mode 0)"
         [1]="Split-Step Fresnel (mode 1)"
-        [2]="Rytov Option B (mode 2)"
-        [3]="Rytov Option C (mode 3)"
+        [2]="Rytov Option B CPU (mode 2)"
+        [3]="Rytov Option C CPU (mode 3)"
+        [4]="Rytov Option B CUDA (mode 2)"
     )
 
+    local modes=(1 0 2 3)
+    if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+        modes+=(4)
+    fi
+
     local t_base=1.0
-    for m in 1 0 2 3; do
-        local amp=$([[ $m -gt 0 ]] && echo 1 || echo 0)
+    for m in "${modes[@]}"; do
+        local prop_mode=$m
+        local simd_env="AVX2"
+        local sec_exact=0
+        if [[ $m -eq 3 ]]; then
+            prop_mode=2
+            sec_exact=1
+        elif [[ $m -eq 4 ]]; then
+            prop_mode=2
+            simd_env="CUDA"
+        fi
+        local amp=$([[ $prop_mode -gt 0 ]] && echo 1 || echo 0)
         cat > WFsim.conf << EOF
 TURBULENCE_REF_WAVEL       0.500000
 TURBULENCE_SEEING          0.60000
@@ -199,14 +215,15 @@ WFTIME_STEP                $tstep
 TIME_SPAN                  $tspan
 MASTER_SIZE                $msize
 WAVEFRONT_AMPLITUDE        $amp
-FRESNEL_PROPAGATION        $m
+FRESNEL_PROPAGATION        $prop_mode
 FRESNEL_PROPAGATION_BIN    1000.0
+FRESNEL_RYTOV_SEC_EXACT    $sec_exact
 EOF
 
         local fps_id="twfsbench_cmp_${wfsize}_${m}"
         local start_ns=$(date +%s%N)
         local out
-        out=$("$MKWFS_EXEC" -n "$fps_id" exec 1.65 0 2>&1)
+        out=$(ATMTURB_SIMD="$simd_env" "$MKWFS_EXEC" -n "$fps_id" exec 1.65 0 2>&1)
         local end_ns=$(date +%s%N)
         rm -f "$MILK_SHM_DIR/${fps_id}.fps.shm"
 

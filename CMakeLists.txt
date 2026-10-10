@@ -71,6 +71,7 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_linpred_test.c
     src/AtmosphericTurbulence/atmturb_wfs_sim.c
     src/AtmosphericTurbulence/atmturb_wfs_render.c
+    src/AtmosphericTurbulence/atmturb_wfs_render_cuda.c
     src/AtmosphericTurbulence/atmturb_wfs_stream.c
     src/AtmosphericTurbulence/atmturb_superlayer.c
     src/AtmosphericTurbulence/atmturb_superlayer_nodes.c
@@ -103,6 +104,7 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/atmturb_rolling.h
     src/AtmosphericTurbulence/atmturb_simd.h
     src/AtmosphericTurbulence/atmturb_wfs_render.h
+    src/AtmosphericTurbulence/atmturb_wfs_render_cuda.h
     src/AtmosphericTurbulence/atmturb_wfs_stream.h
 )
 
@@ -127,9 +129,11 @@ if(HAVE_CUDA OR USE_CUDA)
             add_compile_definitions(HAVE_CUDA)
             list(APPEND SOURCEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.cu
+                src/AtmosphericTurbulence/atmturb_cuda_rytov.cu
             )
             list(APPEND INCLUDEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.h
+                src/AtmosphericTurbulence/atmturb_cuda_rytov.h
             )
             message(STATUS "milkatmturb: CUDA GPU acceleration ENABLED")
         endif()

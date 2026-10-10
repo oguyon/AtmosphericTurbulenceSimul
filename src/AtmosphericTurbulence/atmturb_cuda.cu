@@ -153,19 +153,23 @@ void atmturb_cuda_cleanup(void)
 }
 
 /**
- * atmturb_cuda_sync_masters - Upload master screens if changed or not yet cached
- * @p: Simulation parameters.
+ * atmturb_cuda_sync_device_masters - Upload and cache master screens in GPU device memory
+ * @msize: Master screen dimension in pixels.
+ * @nblayers: Number of simulation layers.
+ * @h_masters: Array of host screen pointers.
  *
- * Return: 0 on success, -1 on allocation or copy failure.
+ * Return: Pointer to device master screens array, or NULL on failure.
  */
-static int atmturb_cuda_sync_masters(
-    const atmturb_cuda_sim_params_t *p)
+float *atmturb_cuda_sync_device_masters(
+    long                msize,
+    long                nblayers,
+    const float *const *h_masters)
 {
-    size_t screen_bytes = sizeof(float) * (size_t) (p->msize * p->msize);
-    size_t total_mbytes = screen_bytes * (size_t) p->nblayers;
+    size_t screen_bytes = sizeof(float) * (size_t) (msize * msize);
+    size_t total_mbytes = screen_bytes * (size_t) nblayers;
 
     if (s_d_m == NULL || s_cached_mbytes != total_mbytes ||
-        s_cached_h_masters != p->h_masters)
+        s_cached_h_masters != h_masters)
     {
         if (s_d_m != NULL)
         {
@@ -173,17 +177,24 @@ static int atmturb_cuda_sync_masters(
         }
         if (cudaMalloc((void **) &s_d_m, total_mbytes) != cudaSuccess)
         {
-            return -1;
+            return NULL;
         }
-        for (long k = 0; k < p->nblayers; k++)
+        for (long k = 0; k < nblayers; k++)
         {
-            cudaMemcpy(s_d_m + k * p->msize * p->msize, p->h_masters[k],
+            cudaMemcpy(s_d_m + k * msize * msize, h_masters[k],
                        screen_bytes, cudaMemcpyHostToDevice);
         }
         s_cached_mbytes = total_mbytes;
-        s_cached_h_masters = p->h_masters;
+        s_cached_h_masters = h_masters;
     }
-    return 0;
+    return s_d_m;
+}
+
+static int atmturb_cuda_sync_masters(
+    const atmturb_cuda_sim_params_t *p)
+{
+    return (atmturb_cuda_sync_device_masters(p->msize, p->nblayers,
+                                            p->h_masters) != NULL) ? 0 : -1;
 }
 
 /**

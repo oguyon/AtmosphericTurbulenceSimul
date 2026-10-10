@@ -318,6 +318,60 @@ scenario_T10b_simd_parity() {
     "${VALIDATE[@]}" simd-parity --tol 1e-4
 }
 
+# T10c: CUDA GPU vs AVX2 CPU parity for Rytov propagation (corr > 0.99999, max_diff < 1e-4)
+scenario_T10c_cuda_rytov_parity() {
+    if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi >/dev/null 2>&1; then
+        echo "PASS: skipped (no NVIDIA GPU available)"
+        return 0
+    fi
+    cat << 'EOF' > turbul.prof
+# alt cn2 speed dir L0 l0
+ 4215     5.32        6.5     1.47  10000 0.0
+ 4230     1.47        6.55    1.57  10000 0.0
+ 4349     1.08        6.6     1.67  10000 0.0
+ 5007     2.11        6.7     1.77  10000 0.0
+12000     1.83       22.0     3.10  10000 0.0
+16200     1.48        9.5     3.20  10000 0.0
+23701     0.697       5.6     3.30  10000 0.0
+EOF
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=1000.0 FRESNEL_GUARD_PIX=16 TIME_SPAN=0.05 WFTIME_STEP=0.01
+
+    ATMTURB_SIMD=AVX2 run_mkwfs t10c_cpu 1.65 0 || return 1
+    mv outarraypha.fits cpu_pha.fits
+    mv outarrayamp.fits cpu_amp.fits
+    mv outsarraypha.fits cpu_spha.fits
+    mv outsarrayamp.fits cpu_samp.fits
+
+    ATMTURB_SIMD=CUDA run_mkwfs t10c_gpu 1.65 0 || return 1
+    mv outarraypha.fits gpu_pha.fits
+    mv outarrayamp.fits gpu_amp.fits
+    mv outsarraypha.fits gpu_spha.fits
+    mv outsarrayamp.fits gpu_samp.fits
+
+    python3 - << 'EOF'
+import sys
+import numpy as np
+from astropy.io import fits
+
+all_ok = True
+details = []
+for tag in ["pha", "amp", "spha", "samp"]:
+    c = fits.getdata(f"cpu_{tag}.fits")
+    g = fits.getdata(f"gpu_{tag}.fits")
+    diff = float(np.max(np.abs(c - g)))
+    corr = float(np.corrcoef(c.ravel(), g.ravel())[0, 1])
+    ok = (diff < 1e-4) and (corr > 0.99999)
+    if not ok:
+        all_ok = False
+    details.append(f"{tag.upper()}: diff={diff:.2e} corr={corr:.7f}")
+
+msg = ": " + " ".join(details)
+print(("PASS" if all_ok else "FAIL") + msg)
+sys.exit(0 if all_ok else 1)
+EOF
+}
+
 # T11: analytic subharmonic modes restore tip/tilt variance within 15% of Noll theory
 scenario_T11_tilt_variance() {
     one_layer_profile 4200 1.0 10.0 0.0 0.0 0.0
@@ -1078,6 +1132,7 @@ SCENARIOS=(
     "T9p_z_interpolation_scaling:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
+    "T10c_cuda_rytov_parity:pass"
     "T11_tilt_variance:pass"
     "T12_wrap_decorrelation:pass"
     "T13_epoch_stability:pass"
