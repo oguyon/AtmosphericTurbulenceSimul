@@ -124,7 +124,7 @@ milk-fpsexec-atmturb-mkwfs exec 1650.0 0 WFsim.conf
 | Positional Arg | Keyword | Type | Default | Description |
 | :---: | :--- | :--- | :--- | :--- |
 | 0 | `.slambda` | `FLOAT32` | `1650.0` | Science wavelength [$\text{nm}$ or $\mu\text{m}$] |
-| 1 | `.precision`| `INT32` | `0` | Precision mode (`0` = single precision `float`, `1` = `double`) |
+| 1 | `.precision`| `INT32` | `0` | Precision mode (`0` = single `float`, `1` = `double`) |
 | - | `.conffile` | `FILENAME`| `WFsim.conf` | Simulation configuration file |
 
 #### `milk-fpsexec-atmturb-mkmastert` — Generate Master Turbulence Screens
@@ -162,7 +162,7 @@ milk-fpsexec-atmturb-mkvonkarman exec 8192 0.1 20.0 50.0 vkwind 1 vkwind.fits
 | 1 | `.pixscale` | `FLOAT32` | `0.1` | Physical sampling step [m] |
 | 2 | `.sigmawind` | `FLOAT32` | `20.0` | Velocity standard deviation [m/s] |
 | 3 | `.lwind` | `FLOAT32` | `50.0` | Turbulence outer scale [m] |
-| 4 | `.outname` | `STREAMNAME` | `vKwind` | Output 3D image name ($v_{\text{size}} \times 1 \times 3$) |
+| 4 | `.outname` | `STREAMNAME` | `vKwind` | Output image name ($v_{\text{sz}} \times 1 \times 3$) |
 | 5 | `.seed` | `INT64` | `1` | RNG seed (`0` = time-based); $u$, $v$, $w$ use independent streams |
 | 6 | `.fitsout` | `STRING` | `""` | Optional FITS output file (empty = do not save) |
 
@@ -248,17 +248,17 @@ milk-cli > cmd? atmturb.mkmastert
 
 | Command | Syntax | Description |
 | :--- | :--- | :--- |
-| `atmturb.mkHVturbprof` | `<wspeed> <r0> <sitealt> <nblayers> <outfile>` | Make Hufnagel-Valley turbulence profile |
-| `atmturb.mkmastert` | `<scr0> <scr1> <size> <outerscale> <innerscale>` | Generate 2 master phase screens |
-| `atmturb.mkwfs` | `<wavelength_nm> <precision>` | Generate wavefront series (`0`: float, `1`: double) |
-| `atmturb.mkwfs_fps` | `<wavelength_nm> <precision>` | Generate wavefront series with FPS process tracking |
-| `atmturb.mkhvturb_fps` | `<wspeed> <r0> <sitealt> <nblayers> [outfile]` | Generate HV profile via FPS |
-| `atmturb.mkatmospheremodel` | `<conffile>` | Create vertical atmospheric composition model |
-| `atmturb.mkvonKarmanWind` | `<vKsize> <pixscale> <sigmawind> <Lwind> <seed> <out>` | Generate von Kármán wind model screen |
-| `atmturb.fresnelpw` | `<in_re> <in_im> <z> <lambda> <out_re> <out_im>` | Fresnel propagate optical field |
-| `atmturb.atmturbmeasexpo` | `<etime_s> <out_name>` | Measure long-exposure PSF from wavefront series |
-| `atmturb.atmturbwfpredictf` | `<in> <mask> <order> <lag> <svdeps> <reglambda>` | Build linear predictor from wavefront series |
-| `atmturb.atmturbwfpapply` | `<mode> <in> <mask> <order> <lag> <outp> <outf>` | Apply linear predictor filter |
+| `atmturb.mkHVturbprof` | `<wspeed> <r0> <sitealt> <nb> <out>` | Make HV profile |
+| `atmturb.mkmastert` | `<scr0> <scr1> <sz> <L0> <l0>` | Generate 2 master screens |
+| `atmturb.mkwfs` | `<wavel_nm> <precision>` | Generate wavefront series |
+| `atmturb.mkwfs_fps` | `<wavel_nm> <precision>` | Wavefront series via FPS |
+| `atmturb.mkhvturb_fps` | `<wspeed> <r0> <sitealt> <nb> [out]` | Make HV profile via FPS |
+| `atmturb.mkatmospheremodel`| `<conffile>` | Create vertical atmosphere model |
+| `atmturb.mkvonKarmanWind` | `<sz> <scale> <sig> <L0> <seed> <out>` | Make von Karman wind screen |
+| `atmturb.fresnelpw` | `<in_re> <in_im> <z> <lambda> <out...>` | Fresnel propagate optical field |
+| `atmturb.atmturbmeasexpo` | `<etime_s> <out_name>` | Measure long-exposure PSF |
+| `atmturb.atmturbwfpredictf`| `<in> <mask> <order> <lag> <svd> <reg>` | Build linear predictor |
+| `atmturb.atmturbwfpapply` | `<mode> <in> <mask...>` | Apply linear predictor filter |
 
 ---
 
@@ -288,8 +288,62 @@ SHM_SOUTPUT                     1   # 1: Stream output to shared memory
 SHM_SPREFIX             wfsim_out   # Shared memory stream prefix
 SWF_WRITE2DISK                  0   # 1: Save wavefront cubes to FITS files
 WAVEFRONT_AMPLITUDE             1   # 1: Compute wavefront amplitude (scintillation)
-FRESNEL_PROPAGATION             1   # 1: Enable chromatic diffractive layer propagation
+FRESNEL_PROPAGATION             2   # 0: geometric, 1: split-step Fresnel, 2: Rytov Fourier
+FRESNEL_PROPAGATION_BIN    1000.0   # Vertical superlayer binning distance [meters]
+FRESNEL_GUARD_PIX              16   # Continuous guard band margin [pixels]
+FRESNEL_RYTOV_ZINT              1   # 1: 2nd-order piecewise-linear z-interpolation
+FRESNEL_REFRACT_PATH            0   # 1: Integrate curved ray path length s(lambda, h)
+FRESNEL_SCINT_WEIGHT            0   # 1: Scintillation-weighted centroid z_eff = (<z^5/6>)^6/5
 ```
+
+---
+
+## Wavefront Propagation & Scintillation Engines
+
+`milkatmturb` supports three propagation regimes selected by `FRESNEL_PROPAGATION`:
+
+- **Mode 0: Geometric Ray Tracing (`FRESNEL_PROPAGATION=0`)**:
+  Pure geometric phase accumulation along straight or refracted lines of sight with zero
+  diffractive amplitude scintillation. Fastest mode.
+- **Mode 1: Multi-Layer Split-Step Fresnel (`FRESNEL_PROPAGATION=1`)**:
+  Full optical field diffraction propagated iteratively between superlayers via
+  `milkWFpropagate`. Computes amplitude scintillation and phase distortion across thick layers.
+- **Mode 2: Fourier-Space Rytov Diffractive Approximation (`FRESNEL_PROPAGATION=2`)**:
+  High-speed analytical multi-layer diffractive propagation in Fourier space with:
+  - **Moisan Periodic-plus-Smooth Decomposition**: Decomposes extruded phases into periodic and
+    smooth harmonic components, eliminating boundary edge artifacts without artificial apodization.
+  - **Shared Primary/Secondary Spectrum (Option B)**: Evaluates a single forward FFT per superlayer
+    shared between primary and secondary wavelengths, applying a static chromatic phase ramp.
+  - **Continuous Guard Band Padding (`FRESNEL_GUARD_PIX`)**: Eliminates boundary wrap-around.
+  - **Piecewise-Linear $z$-Interpolation (`FRESNEL_RYTOV_ZINT`)**: Second-order $O(\Delta z^2)$
+    convergence between regular propagation nodes.
+  - **Refracted Ray Path Length (`FRESNEL_REFRACT_PATH`)**:
+    Integrates curved ray path length $s(\lambda, h) = \int dh / \cos z(h)$.
+  - **Scintillation-Weighted Centroid (`FRESNEL_SCINT_WEIGHT`)**: Concave $z^{5/6}$ weighting.
+  - **Hardware Acceleration**: Highly vectorized AVX2 CPU kernels and CUDA / cuFFT GPU acceleration
+    for both batch synthesis and real-time 2D shared-memory streaming.
+
+---
+
+## Performance & Benchmarks
+
+End-to-end runtime benchmarks measured with `tests/benchmark_wavefront_series.sh` on an Intel
+Xeon / NVIDIA RTX workstation:
+
+### Propagation Mode Comparison (Multi-Layer Turbulence, 5 Layers)
+
+| Grid | Split-Step | Geometric | Rytov AVX2 | Rytov CUDA |
+|---|---|---|---|---|
+| **256x256** (50 fr) | 116.8 fps (1.0x) | 183.8 fps (1.6x) | 152.0 fps (1.3x) | 124.4 fps (1.1x) |
+| **512x512** (20 fr) | 18.7 fps (1.0x) | 26.7 fps (1.4x) | 24.2 fps (1.3x) | 22.2 fps (1.2x) |
+
+### SIMD Vectorization Scaling (Geometric Extrusion)
+
+| Grid Size | SCALAR | AVX2 | CUDA (Render) |
+|---|---|---|---|
+| **64x64** (200 fr) | 1,242 fps (5.1 MP/s) | 1,258 fps (5.2 MP/s) | 2,131 fps |
+| **256x256** (100 fr) | 237 fps (15.5 MP/s) | 265 fps (17.4 MP/s) | 939 fps |
+| **512x512** (50 fr) | 52 fps (13.6 MP/s) | 58 fps (15.2 MP/s) | 424 fps |
 
 ---
 
