@@ -12,6 +12,8 @@
 
 #include <stdint.h>
 
+#include "atmturb_c23_compat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,7 +23,7 @@ extern "C" {
  *
  * Return: 0 on success.
  */
-int init_AtmosphericTurbulence(void);
+ATMTURB_NODISCARD int init_AtmosphericTurbulence(void);
 
 /**
  * AtmosphericTurbulence_change_configuration_file - Set active configuration file path

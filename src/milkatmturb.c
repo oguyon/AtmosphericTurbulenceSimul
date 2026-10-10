@@ -25,8 +25,14 @@ errno_t CLIADDCMD_milkatmturb__atmturb_aoloop_FPS(void);
 
 static errno_t init_module_CLI(void)
 {
-    init_AtmosphereModel();
-    init_AtmosphericTurbulence();
+    if (init_AtmosphereModel() != 0)
+    {
+        return RETURN_FAILURE;
+    }
+    if (init_AtmosphericTurbulence() != 0)
+    {
+        return RETURN_FAILURE;
+    }
 
     CLIADDCMD_milkatmturb__atmturb_mkwfs_FPS();
     CLIADDCMD_milkatmturb__atmturb_mkhvturb_FPS();

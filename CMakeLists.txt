@@ -12,9 +12,23 @@ message(" SRCNAME = ${SRCNAME} -> LIBNAME = ${LIBNAME}")
 # Project definition
 project(lib_${LIBNAME}_project C)
 
-# Set C standard
-set(CMAKE_C_STANDARD 11)
+# Set C standard: adopt C23 by default if supported by the compiler, otherwise fall back to C11
+if(NOT CMAKE_C_STANDARD)
+    include(CheckCCompilerFlag)
+    check_c_compiler_flag("-std=gnu23" COMPILER_SUPPORTS_GNU23)
+    if(COMPILER_SUPPORTS_GNU23)
+        set(CMAKE_C_STANDARD 23)
+    else()
+        check_c_compiler_flag("-std=c23" COMPILER_SUPPORTS_C23)
+        if(COMPILER_SUPPORTS_C23)
+            set(CMAKE_C_STANDARD 23)
+        else()
+            set(CMAKE_C_STANDARD 11)
+        endif()
+    endif()
+endif()
 set(CMAKE_C_STANDARD_REQUIRED ON)
+message(STATUS "milkatmturb: Using C standard C${CMAKE_C_STANDARD}")
 
 # Default to Release build type for maximum optimization (-O3)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -93,6 +107,7 @@ set(SOURCEFILES
 
 set(INCLUDEFILES
     src/milkatmturb.h
+    src/atmturb_c23_compat.h
     src/AtmosphereModel/AtmosphereModel.h
     src/AtmosphericTurbulence/AtmosphericTurbulence.h
     src/AtmosphericTurbulence/atmturb_profile.h

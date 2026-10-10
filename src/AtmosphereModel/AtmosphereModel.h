@@ -10,6 +10,8 @@
 #ifndef ATMOSPHEREMODEL_H
 #define ATMOSPHEREMODEL_H
 
+#include "atmturb_c23_compat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,7 +26,7 @@ extern float SiteAlt;
  *
  * Return: 0 on success.
  */
-int init_AtmosphereModel(void);
+ATMTURB_NODISCARD int init_AtmosphereModel(void);
 
 /**
  * AirMixture_N - Compute refractive index minus 1 for gas mixture
