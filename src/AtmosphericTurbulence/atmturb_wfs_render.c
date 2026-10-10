@@ -122,14 +122,23 @@ void atmturb_wfs_render_layer_target(
                                     (float) (w_pri * (double) rev.wB), target->pha);
     }
 
-    double xs = lg->xs0 + dx - offset_os;
-    double ys = lg->ys0 + dy - offset_os;
-    atmturb_wfs_extrude_channel(rev.scrA, master_size, xs, ys, pad_size, geom,
-                                (float) (w_sec * (double) rev.wA), target->spha);
-    if (rev.wB > 0.0f && rev.scrB != NULL)
+    if (target->spha != NULL)
     {
-        atmturb_wfs_extrude_channel(rev.scrB, master_size, xs, ys, pad_size, geom,
-                                    (float) (w_sec * (double) rev.wB), target->spha);
+        double xs = lg->xs0 + dx - offset_os;
+        double ys = lg->ys0 + dy - offset_os;
+        atmturb_wfs_extrude_channel(rev.scrA, master_size, xs, ys, pad_size, geom,
+                                    (float) (w_sec * (double) rev.wA), target->spha);
+        if (rev.wB > 0.0f && rev.scrB != NULL)
+        {
+            atmturb_wfs_extrude_channel(rev.scrB, master_size, xs, ys, pad_size, geom,
+                                        (float) (w_sec * (double) rev.wB), target->spha);
+        }
+        if (r->lowfreq)
+        {
+            atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
+                                              xs, ys, pad_size, (long) geom->oversample,
+                                              (float) w_sec, target->spha);
+        }
     }
 
     if (r->lowfreq)
@@ -137,10 +146,6 @@ void atmturb_wfs_render_layer_target(
         atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
                                           x, y, pad_size, (long) geom->oversample,
                                           (float) w_pri, target->pha);
-
-        atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
-                                          xs, ys, pad_size, (long) geom->oversample,
-                                          (float) w_sec, target->spha);
     }
 }
 

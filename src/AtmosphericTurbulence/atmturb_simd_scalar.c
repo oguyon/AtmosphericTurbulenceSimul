@@ -209,10 +209,19 @@ void atmturb_init_phase_amp_scalar(
     float *amp,
     long   n)
 {
-    for (long i = 0; i < n; i++)
+    if (pha != NULL)
     {
-        pha[i] = 0.0f;
-        amp[i] = 1.0f;
+        for (long i = 0; i < n; i++)
+        {
+            pha[i] = 0.0f;
+        }
+    }
+    if (amp != NULL)
+    {
+        for (long i = 0; i < n; i++)
+        {
+            amp[i] = 1.0f;
+        }
     }
 }
 
@@ -319,6 +328,34 @@ void atmturb_complex_mul_array_scalar(
 
         dest[idx]     = r1 * r2 - i1 * i2;
         dest[idx + 1] = r1 * i2 + i1 * r2;
+    }
+}
+
+/**
+ * atmturb_remove_piston_stream_scalar - Remove mean piston and stream write to destination
+ * @dst: Destination phase array.
+ * @src: Source phase array.
+ * @npix: Total number of pixels.
+ */
+void atmturb_remove_piston_stream_scalar(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix)
+{
+    if (dst == NULL || src == NULL || npix <= 0)
+    {
+        return;
+    }
+
+    double sum = 0.0;
+    for (long i = 0; i < npix; i++)
+    {
+        sum += (double) src[i];
+    }
+    float mean = (float) (sum / (double) npix);
+    for (long i = 0; i < npix; i++)
+    {
+        dst[i] = src[i] - mean;
     }
 }
 

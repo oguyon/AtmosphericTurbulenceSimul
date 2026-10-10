@@ -471,3 +471,25 @@ if(USE_CUDA_ACCEL)
     target_link_libraries(atmturb-benchmark-perf PRIVATE CUDA::cudart CUDA::cufft)
 endif()
 
+# ── Streaming performance benchmark executable ──────────────────────
+add_executable(atmturb-benchmark-stream
+    tests/benchmark_streaming.c
+)
+target_include_directories(atmturb-benchmark-stream PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphericTurbulence
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${MILK_STANDALONE_INCLUDES}
+)
+target_link_libraries(atmturb-benchmark-stream PRIVATE
+    ${LIBNAME}
+    ${MILK_LIBRARIES}
+    ${FFTWF_LIBRARIES}
+    ${FFTW_LIBRARIES}
+    OpenMP::OpenMP_C
+    m
+)
+if(USE_CUDA_ACCEL)
+    target_link_libraries(atmturb-benchmark-stream PRIVATE CUDA::cudart CUDA::cufft)
+endif()
+

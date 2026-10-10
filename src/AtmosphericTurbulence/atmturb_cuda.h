@@ -60,6 +60,8 @@ typedef struct
 
 #ifndef HAVE_CUDA
 
+typedef void atmturb_cuda_geom_stream_t;
+
 static inline int atmturb_cuda_device_available(void)
 {
     return 0;
@@ -78,7 +80,39 @@ static inline void atmturb_cuda_cleanup(void)
 {
 }
 
+static inline atmturb_cuda_geom_stream_t *atmturb_cuda_geom_stream_init(
+    const atmturb_cuda_sim_params_t *params)
+{
+    (void) params;
+    return NULL;
+}
+
+static inline int atmturb_cuda_geom_stream_render_step(
+    atmturb_cuda_geom_stream_t *ctx,
+    long                        t,
+    float                      *pha,
+    float                      *amp,
+    float                      *spha,
+    float                      *samp)
+{
+    (void) ctx;
+    (void) t;
+    (void) pha;
+    (void) amp;
+    (void) spha;
+    (void) samp;
+    return -1;
+}
+
+static inline void atmturb_cuda_geom_stream_free(
+    atmturb_cuda_geom_stream_t *ctx)
+{
+    (void) ctx;
+}
+
 #else
+
+typedef struct atmturb_cuda_geom_stream atmturb_cuda_geom_stream_t;
 
 /**
  * atmturb_cuda_device_available - Check if CUDA GPU is present and ready
@@ -115,6 +149,41 @@ float *atmturb_cuda_sync_device_masters(
  * atmturb_cuda_cleanup - Release persistent GPU buffers and context
  */
 void atmturb_cuda_cleanup(void);
+
+/**
+ * atmturb_cuda_geom_stream_init - Initialize GPU context for 2D geometric streaming
+ * @params: Simulation parameters and input screen pointers.
+ *
+ * Return: Allocated stream context, or NULL on failure.
+ */
+atmturb_cuda_geom_stream_t *atmturb_cuda_geom_stream_init(
+    const atmturb_cuda_sim_params_t *params);
+
+/**
+ * atmturb_cuda_geom_stream_render_step - Render a single geometric frame on GPU
+ * @ctx: Persistent stream context.
+ * @t: Simulation frame index.
+ * @pha: Destination host buffer for primary phase.
+ * @amp: Destination host buffer for primary amplitude (or NULL).
+ * @spha: Destination host buffer for secondary phase (or NULL).
+ * @samp: Destination host buffer for secondary amplitude (or NULL).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_geom_stream_render_step(
+    atmturb_cuda_geom_stream_t *ctx,
+    long                        t,
+    float                      *pha,
+    float                      *amp,
+    float                      *spha,
+    float                      *samp);
+
+/**
+ * atmturb_cuda_geom_stream_free - Release GPU geometric streaming context
+ * @ctx: Stream context to release.
+ */
+void atmturb_cuda_geom_stream_free(
+    atmturb_cuda_geom_stream_t *ctx);
 
 #endif /* HAVE_CUDA */
 

@@ -119,6 +119,7 @@ static inline void atmturb_wfs_stream_post(
  * @rplan: Rytov plan pointer.
  * @rctx: Rytov context pointer.
  * @cuda_rstream: GPU Rytov streaming context pointer.
+ * @cuda_gstream: GPU geometric streaming context pointer.
  */
 typedef struct
 {
@@ -135,6 +136,7 @@ typedef struct
     const atmturb_rytov_plan_t   *rplan;
     atmturb_rytov_ctx_t          *rctx;
     atmturb_cuda_rytov_stream_t  *cuda_rstream;
+    atmturb_cuda_geom_stream_t   *cuda_gstream;
 } atmturb_stream_state_t;
 
 /**
@@ -182,14 +184,30 @@ static void atmturb_wfs_stream_render_step(
         return;
     }
 
+    float *amp_dst  = (st->id_amp >= 0)  ? st->amp  : NULL;
+    float *spha_dst = (st->id_spha >= 0) ? st->spha : NULL;
+    float *samp_dst = (st->id_samp >= 0) ? st->samp : NULL;
+
+    if (CONF_FRESNEL_PROPAGATION == 0 && st->cuda_gstream != NULL)
+    {
+        if (atmturb_wfs_cuda_geom_stream_render_step(
+                st->cuda_gstream, t, st->pha, amp_dst, spha_dst, samp_dst) == 0)
+        {
+            return;
+        }
+    }
+
     long frame_pixels = pup_size * pup_size;
-    atmturb_init_phase_amp(st->pha, st->amp, frame_pixels);
-    atmturb_init_phase_amp(st->spha, st->samp, frame_pixels);
+    atmturb_init_phase_amp(st->pha, amp_dst, frame_pixels);
+    if (spha_dst != NULL || samp_dst != NULL)
+    {
+        atmturb_init_phase_amp(spha_dst, samp_dst, frame_pixels);
+    }
 
     for (int k = 0; k < geom->nlayers; k++)
     {
         atmturb_wfs_render_layer(rsim, geom, k, t, time_step_s, master_size,
-                                 pup_size, st->pha, st->spha);
+                                 pup_size, st->pha, spha_dst);
     }
 }
 
@@ -213,31 +231,6 @@ static inline void atmturb_wfs_stream_pace(
 }
 
 /**
- * atmturb_wfs_stream_remove_piston - Zero pupil-averaged phase across frame
- * @pha: Phase array to zero mean.
- * @npix: Total pixel count.
- */
-static void atmturb_wfs_stream_remove_piston(
-    float *pha,
-    long   npix)
-{
-    if (pha == NULL || npix <= 0)
-    {
-        return;
-    }
-    double sum = 0.0;
-    for (long i = 0; i < npix; i++)
-    {
-        sum += (double) pha[i];
-    }
-    float mean = (float) (sum / (double) npix);
-    for (long i = 0; i < npix; i++)
-    {
-        pha[i] -= mean;
-    }
-}
-
-/**
  * atmturb_wfs_stream_publish - Commit scratch buffers to shared memory and notify readers
  * @st: Stream state container.
  * @frame_pixels: Total pixels in frame.
@@ -252,9 +245,8 @@ static void atmturb_wfs_stream_publish(
 
     if (st->id_pha >= 0)
     {
-        atmturb_wfs_stream_remove_piston(st->pha, frame_pixels);
         dcimg[st->id_pha].md[0].write = 1;
-        memcpy(dcimg[st->id_pha].array.F, st->pha, nbytes);
+        atmturb_remove_piston_stream(st->pha, dcimg[st->id_pha].array.F, frame_pixels);
         atmturb_wfs_stream_post(st->id_pha, ts);
     }
     if (st->id_amp >= 0)
@@ -265,9 +257,8 @@ static void atmturb_wfs_stream_publish(
     }
     if (st->id_spha >= 0)
     {
-        atmturb_wfs_stream_remove_piston(st->spha, frame_pixels);
         dcimg[st->id_spha].md[0].write = 1;
-        memcpy(dcimg[st->id_spha].array.F, st->spha, nbytes);
+        atmturb_remove_piston_stream(st->spha, dcimg[st->id_spha].array.F, frame_pixels);
         atmturb_wfs_stream_post(st->id_spha, ts);
     }
     if (st->id_samp >= 0)
@@ -449,7 +440,15 @@ int make_AtmosphericTurbulence_wavefront_stream(
     atmturb_fresnel_ctx_t  fctx;
     atmturb_rytov_plan_t   rplan;
     atmturb_rytov_ctx_t    rctx;
-    if (CONF_FRESNEL_PROPAGATION == 1)
+    if (CONF_FRESNEL_PROPAGATION == 0)
+    {
+        if (atmturb_simd_is_gpu())
+        {
+            st.cuda_gstream = atmturb_wfs_cuda_geom_stream_init(
+                &rsim, &geom, CONF_MASTER_SIZE, pup_size);
+        }
+    }
+    else if (CONF_FRESNEL_PROPAGATION == 1)
     {
         double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
         atmturb_fresnel_plan_init(&fplan, &prof, &geom, pup_size, params.pupil_scale_m,
@@ -485,7 +484,8 @@ int make_AtmosphericTurbulence_wavefront_stream(
     sigaction(SIGTERM, &sa, &old_sa_term);
     sigaction(SIGQUIT, &sa, &old_sa_quit);
 
-    const char *isa_str = (st.cuda_rstream != NULL) ? "CUDA GPU" : atmturb_simd_active_isa();
+    const char *isa_str = (st.cuda_rstream != NULL || st.cuda_gstream != NULL)
+                              ? "CUDA GPU" : atmturb_simd_active_isa();
     printf("[milkatmturb] Streaming 2D wavefront frames (%ldx%ld pix) to SHM '%s'%s [%s]\n",
            pup_size, pup_size, pha_name, (st.id_amp >= 0) ? " and amplitude" : "",
            isa_str);
@@ -507,7 +507,15 @@ int make_AtmosphericTurbulence_wavefront_stream(
     printf("[milkatmturb] Streamed %ld frames in %.3f s (%.1f fps)\n", n_streamed, dt, fps);
     fflush(stdout);
 
-    if (CONF_FRESNEL_PROPAGATION == 1)
+    if (CONF_FRESNEL_PROPAGATION == 0)
+    {
+        if (st.cuda_gstream != NULL)
+        {
+            atmturb_wfs_cuda_geom_stream_free(st.cuda_gstream);
+            st.cuda_gstream = NULL;
+        }
+    }
+    else if (CONF_FRESNEL_PROPAGATION == 1)
     {
         atmturb_fresnel_ctx_free(&fctx);
         atmturb_fresnel_plan_free(&fplan);

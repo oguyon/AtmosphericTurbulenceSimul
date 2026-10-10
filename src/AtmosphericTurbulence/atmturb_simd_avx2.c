@@ -462,7 +462,15 @@ void atmturb_init_phase_amp_avx2(
     float *amp,
     long   n)
 {
-    memset(pha, 0, sizeof(float) * (size_t) n);
+    if (pha != NULL)
+    {
+        memset(pha, 0, sizeof(float) * (size_t) n);
+    }
+
+    if (amp == NULL)
+    {
+        return;
+    }
 
     __m256 vone = _mm256_set1_ps(1.0f);
     long i = 0;
@@ -749,6 +757,76 @@ void atmturb_extrude_lowfreq_avx2(
     }
 }
 
+/**
+ * atmturb_remove_piston_stream_avx2 - AVX2 vectorized piston removal with stream copy
+ * @dst: Destination phase array.
+ * @src: Source phase array.
+ * @npix: Total number of pixels.
+ */
+void atmturb_remove_piston_stream_avx2(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix)
+{
+    if (dst == NULL || src == NULL || npix <= 0)
+    {
+        return;
+    }
+
+    __m256 vsum0 = _mm256_setzero_ps();
+    __m256 vsum1 = _mm256_setzero_ps();
+    __m256 vsum2 = _mm256_setzero_ps();
+    __m256 vsum3 = _mm256_setzero_ps();
+
+    long i = 0;
+    for (; i <= npix - 32; i += 32)
+    {
+        vsum0 = _mm256_add_ps(vsum0, _mm256_loadu_ps(&src[i]));
+        vsum1 = _mm256_add_ps(vsum1, _mm256_loadu_ps(&src[i + 8]));
+        vsum2 = _mm256_add_ps(vsum2, _mm256_loadu_ps(&src[i + 16]));
+        vsum3 = _mm256_add_ps(vsum3, _mm256_loadu_ps(&src[i + 24]));
+    }
+    __m256 vsum = _mm256_add_ps(_mm256_add_ps(vsum0, vsum1), _mm256_add_ps(vsum2, vsum3));
+    for (; i <= npix - 8; i += 8)
+    {
+        vsum = _mm256_add_ps(vsum, _mm256_loadu_ps(&src[i]));
+    }
+    __m128 vlow    = _mm256_castps256_ps128(vsum);
+    __m128 vhigh   = _mm256_extractf128_ps(vsum, 1);
+    __m128 vsum128 = _mm_add_ps(vlow, vhigh);
+    vsum128 = _mm_hadd_ps(vsum128, vsum128);
+    vsum128 = _mm_hadd_ps(vsum128, vsum128);
+    double sum = (double) _mm_cvtss_f32(vsum128);
+    for (; i < npix; i++)
+    {
+        sum += (double) src[i];
+    }
+
+    float mean = (float) (sum / (double) npix);
+    __m256 vmean = _mm256_set1_ps(mean);
+
+    i = 0;
+    for (; i <= npix - 32; i += 32)
+    {
+        __m256 s0 = _mm256_sub_ps(_mm256_loadu_ps(&src[i]), vmean);
+        __m256 s1 = _mm256_sub_ps(_mm256_loadu_ps(&src[i + 8]), vmean);
+        __m256 s2 = _mm256_sub_ps(_mm256_loadu_ps(&src[i + 16]), vmean);
+        __m256 s3 = _mm256_sub_ps(_mm256_loadu_ps(&src[i + 24]), vmean);
+        _mm256_storeu_ps(&dst[i], s0);
+        _mm256_storeu_ps(&dst[i + 8], s1);
+        _mm256_storeu_ps(&dst[i + 16], s2);
+        _mm256_storeu_ps(&dst[i + 24], s3);
+    }
+    for (; i <= npix - 8; i += 8)
+    {
+        _mm256_storeu_ps(&dst[i], _mm256_sub_ps(_mm256_loadu_ps(&src[i]), vmean));
+    }
+    for (; i < npix; i++)
+    {
+        dst[i] = src[i] - mean;
+    }
+}
+
 #else
 
 void atmturb_extrude_accumulate_avx2(
@@ -807,6 +885,14 @@ void atmturb_complex_mul_array_avx2(
     long         n_complex)
 {
     atmturb_complex_mul_array_scalar(dest, src1, src2, n_complex);
+}
+
+void atmturb_remove_piston_stream_avx2(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix)
+{
+    atmturb_remove_piston_stream_scalar(dst, src, npix);
 }
 
 #endif
