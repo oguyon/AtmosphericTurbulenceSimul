@@ -109,6 +109,8 @@ extern float CONF_FRESNEL_PROPAGATION_BIN;
 extern int CONF_FRESNEL_RYTOV_SEC_EXACT;
 extern int CONF_FRESNEL_GUARD_PIX;
 extern int CONF_FRESNEL_RYTOV_ZINTERP;
+extern int CONF_FRESNEL_REFRACT_PATH;
+extern int CONF_FRESNEL_SCINT_WEIGHT;
 
 // Layer configuration structure
 typedef struct

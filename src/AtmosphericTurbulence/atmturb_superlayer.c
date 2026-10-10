@@ -216,20 +216,37 @@ static int atmturb_superlayer_populate_bins(
                 return -1;
             }
 
-            double sum_w  = 0.0;
-            double sum_wd = 0.0;
+            double sum_w        = 0.0;
+            double sum_wd       = 0.0;
+            double sum_wds      = 0.0;
+            double sum_w_scint  = 0.0;
+            double sum_ws_scint = 0.0;
             for (int j = 0; j < count; j++)
             {
                 int k = order[idx_start + j];
                 supers[s].layer_indices[j] = k;
-                double w = prof->layers[k].cn2_frac;
-                double d = geom->layers[k].dist_m;
-                sum_w  += w;
-                sum_wd += w * d;
+                double w  = prof->layers[k].cn2_frac;
+                double d  = geom->layers[k].dist_m;
+                double ds = (geom->layers[k].path_s_m > 0.0) ? geom->layers[k].path_s_m : d;
+                sum_w        += w;
+                sum_wd       += w * d;
+                sum_wds      += w * ds;
+                sum_w_scint  += w * pow(d, 5.0 / 6.0);
+                sum_ws_scint += w * pow(ds, 5.0 / 6.0);
             }
 
-            supers[s].dist_m = (sum_w > 0.0) ? (sum_wd / sum_w)
-                                             : geom->layers[order[idx_start]].dist_m;
+            if (CONF_FRESNEL_SCINT_WEIGHT == 1 && sum_w > 0.0)
+            {
+                supers[s].dist_m   = pow(sum_w_scint / sum_w, 6.0 / 5.0);
+                supers[s].dist_s_m = pow(sum_ws_scint / sum_w, 6.0 / 5.0);
+            }
+            else
+            {
+                supers[s].dist_m   = (sum_w > 0.0) ? (sum_wd / sum_w)
+                                                   : geom->layers[order[idx_start]].dist_m;
+                supers[s].dist_s_m = (sum_w > 0.0) ? (sum_wds / sum_w)
+                                                   : supers[s].dist_m;
+            }
 
             atmturb_superlayer_calc_chromatic(&supers[s], prof, geom, sum_w);
 

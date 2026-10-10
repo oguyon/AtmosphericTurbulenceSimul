@@ -152,6 +152,9 @@ static int atmturb_superlayer_populate_single_node(
 {
     sl->nlayers       = count;
     sl->dist_m        = geom->layers[order[idx_start]].dist_m;
+    sl->dist_s_m      = (geom->layers[order[idx_start]].path_s_m > 0.0)
+                            ? geom->layers[order[idx_start]].path_s_m
+                            : sl->dist_m;
     sl->layer_indices = (int *) malloc(sizeof(int) * (size_t) count);
     sl->layer_weights = (float *) malloc(sizeof(float) * (size_t) count);
     if (sl->layer_indices == NULL || sl->layer_weights == NULL)
@@ -201,7 +204,8 @@ static int atmturb_superlayer_init_node(
     int                      n_int,
     int                      node_idx)
 {
-    sl->dist_m = node_dist;
+    sl->dist_m   = node_dist;
+    sl->dist_s_m = node_dist;
 
     int n_contrib = 0;
     for (int l = 0; l < count; l++)

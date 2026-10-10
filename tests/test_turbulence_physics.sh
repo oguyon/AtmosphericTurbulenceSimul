@@ -15,7 +15,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-MILK_SHM_DIR="${MILK_SHM_DIR:-/milk/shm}"
+MILK_SHM_DIR="${MILK_SHM_DIR:-$([ -d /milk/shm-fdev ] && echo /milk/shm-fdev || echo /milk/shm)}"
+export MILK_SHM_DIR
 FPS_PREFIX="tphys$$"
 
 find_executable() {
@@ -80,6 +81,7 @@ write_conf() {
         [MASTER_OVERSAMPLE]=2 [INTERP]=1
         [WAVEFRONT_AMPLITUDE]=0 [FRESNEL_PROPAGATION]=0 [FRESNEL_PROPAGATION_BIN]=1000.0
         [LOWFREQ]=0 [ROLLING]=0 [FRESNEL_GUARD_PIX]=0
+        [FRESNEL_REFRACT_PATH]=0 [FRESNEL_SCINT_WEIGHT]=0
     )
     local arg
     for arg in "$@"; do
@@ -988,6 +990,126 @@ sys.exit(0 if ok else 1)
 '
 }
 
+# T9q: Curved ray refracted path length at high zenith angle
+scenario_T9q_refracted_path_length() {
+    cat << 'EOF' > turbul.prof
+# alt(m) cn2 speed dir L0 l0
+ 500.0   0.5 10.0  0.0 50.0 0.01
+ 18000.0 0.5 10.0  0.0 50.0 0.01
+EOF
+
+    mkdir -p straight refract
+
+    write_conf straight/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_REFRACT_PATH=0 SITE_ALT=500.0 ZENITH_ANGLE=1.0471975512 \
+        TURBULENCE_SEEING=0.5 TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 \
+        PUPIL_SCALE=0.03 SEED=12345
+
+    write_conf refract/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_REFRACT_PATH=1 SITE_ALT=500.0 ZENITH_ANGLE=1.0471975512 \
+        TURBULENCE_SEEING=0.5 TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 \
+        PUPIL_SCALE=0.03 SEED=12345
+
+    (cd straight && cp ../turbul.prof . && run_mkwfs t9q_str 1.65 0) || return 1
+    (cd refract && cp ../turbul.prof . && run_mkwfs t9q_ref 1.65 0) || return 1
+
+    python3 -c '
+import sys
+import numpy as np
+from astropy.io import fits
+
+p_str = fits.getdata("straight/outarraypha.fits")[0]
+a_str = fits.getdata("straight/outarrayamp.fits")[0]
+p_ref = fits.getdata("refract/outarraypha.fits")[0]
+a_ref = fits.getdata("refract/outarrayamp.fits")[0]
+sa_ref = fits.getdata("refract/outsarrayamp.fits")[0]
+
+finite_ok = np.all(np.isfinite(p_ref)) and np.all(np.isfinite(a_ref)) and np.all(np.isfinite(sa_ref))
+
+mean_I_pri = float(np.mean(a_ref**2))
+mean_I_sec = float(np.mean(sa_ref**2))
+energy_ok = abs(mean_I_pri - 1.0) < 0.01 and abs(mean_I_sec - 1.0) < 0.01
+
+s = slice(8, -8)
+chi_str = np.log(np.maximum(a_str[s, s], 1e-6))
+chi_ref = np.log(np.maximum(a_ref[s, s], 1e-6))
+
+diff_std = float(np.std(chi_ref - chi_str))
+chi_std = float(np.std(chi_ref))
+rel_diff = diff_std / chi_std if chi_std > 0 else 0.0
+corr = float(np.corrcoef(chi_str.ravel(), chi_ref.ravel())[0, 1])
+
+path_effect_ok = (corr > 0.999) and (rel_diff > 1e-5) and (rel_diff < 0.02)
+ok = finite_ok and energy_ok and path_effect_ok
+msg = (f": corr={corr:.6f}, rel_diff={rel_diff*100:.4f}%, "
+       f"mean_I_pri={mean_I_pri:.4f}, mean_I_sec={mean_I_sec:.4f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T9r: Scintillation-weighted superlayer centroid (z^(5/6)) preserves multi-layer Rytov variance
+scenario_T9r_scintillation_centroid() {
+    cat << 'EOF' > turbul.prof
+# alt(m) cn2 speed dir L0 l0
+ 5000.0   1.0 10.0  0.0 50.0 0.01
+ 10000.0  1.0 10.0  0.0 50.0 0.01
+ 15000.0  1.0 10.0  0.0 50.0 0.01
+EOF
+
+    mkdir -p truth lin scint
+
+    write_conf truth/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=0 FRESNEL_SCINT_WEIGHT=0 \
+        SITE_ALT=0.0 ZENITH_ANGLE=0.0 TURBULENCE_SEEING=0.5 \
+        TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=98765
+
+    write_conf lin/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=20000.0 FRESNEL_SCINT_WEIGHT=0 \
+        SITE_ALT=0.0 ZENITH_ANGLE=0.0 TURBULENCE_SEEING=0.5 \
+        TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=98765
+
+    write_conf scint/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_PROPAGATION_BIN=20000.0 FRESNEL_SCINT_WEIGHT=1 \
+        SITE_ALT=0.0 ZENITH_ANGLE=0.0 TURBULENCE_SEEING=0.5 \
+        TIME_SPAN=0.02 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=98765
+
+    (cd truth && cp ../turbul.prof . && run_mkwfs t9r_tru 0.5 0) || return 1
+    (cd lin && cp ../turbul.prof . && run_mkwfs t9r_lin 0.5 0) || return 1
+    (cd scint && cp ../turbul.prof . && run_mkwfs t9r_sci 0.5 0) || return 1
+
+    python3 -c '
+import sys
+import numpy as np
+from astropy.io import fits
+
+a_tru = fits.getdata("truth/outarrayamp.fits")[0]
+a_lin = fits.getdata("lin/outarrayamp.fits")[0]
+a_sci = fits.getdata("scint/outarrayamp.fits")[0]
+
+s = slice(10, -10)
+chi_tru = np.log(np.maximum(a_tru[s, s], 1e-6))
+chi_lin = np.log(np.maximum(a_lin[s, s], 1e-6))
+chi_sci = np.log(np.maximum(a_sci[s, s], 1e-6))
+
+var_tru = float(np.var(chi_tru))
+var_lin = float(np.var(chi_lin))
+var_sci = float(np.var(chi_sci))
+
+err_lin = abs(var_lin - var_tru) / var_tru if var_tru > 0 else 0.0
+err_sci = abs(var_sci - var_tru) / var_tru if var_tru > 0 else 0.0
+
+corr_sci = float(np.corrcoef(chi_sci.ravel(), chi_tru.ravel())[0, 1])
+mean_I_sci = float(np.mean(a_sci**2))
+
+ok = (corr_sci > 0.75) and (abs(mean_I_sci - 1.0) < 0.01) and (err_sci <= err_lin)
+msg = (f": var_tru={var_tru:.6f}, var_lin={var_lin:.6f} (err {err_lin*100:.2f}%), "
+       f"var_scint={var_sci:.6f} (err {err_sci*100:.2f}%), corr={corr_sci:.4f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
 # T16a: Flat wavefront PSF produces normalized Strehl = 1.000 +- 1e-3 and centered peak
 scenario_T16a_zero_turb_strehl() {
     run_aoloop t16a "none" "PSFflat" "psf_flat.fits" 0 0.0 0.0 0 1.65 8.0 || return 1
@@ -1130,6 +1252,8 @@ SCENARIOS=(
     "T9n_option_b_fallback:pass"
     "T9o_guard_band_parity:pass"
     "T9p_z_interpolation_scaling:pass"
+    "T9q_refracted_path_length:pass"
+    "T9r_scintillation_centroid:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
     "T10c_cuda_rytov_parity:pass"

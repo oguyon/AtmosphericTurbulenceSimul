@@ -24,6 +24,8 @@
  * @vx_pix: Pupil-plane velocity in x [master pixels / frame].
  * @vy_pix: Pupil-plane velocity in y [master pixels / frame].
  * @dist_m: Line-of-sight slant distance from telescope pupil [meters].
+ * @path_m: Curved ray path length at reference wavelength [meters].
+ * @path_s_m: Curved ray path length at secondary wavelength [meters].
  * @d_chrom_x: Differential chromatic refraction shift in x [master pixels].
  * @d_chrom_y: Differential chromatic refraction shift in y [master pixels].
  * @t_dec_s: Rolling screen epoch duration [seconds].
@@ -41,6 +43,8 @@ typedef struct
     double  vx_pix;
     double  vy_pix;
     double  dist_m;
+    double  path_m;
+    double  path_s_m;
     double  d_chrom_x;
     double  d_chrom_y;
     double  t_dec_s;
@@ -159,5 +163,22 @@ double atmturb_refraction_ray_shift(
     double h_site,
     double zenith_angle,
     double lambda_m);
+
+/**
+ * atmturb_refraction_ray_shift_path - Compute refraction shift and curved ray path length
+ * @h_layer: Layer altitude above sea level [m].
+ * @h_site: Telescope site altitude above sea level [m].
+ * @zenith_angle: Apparent zenith angle [rad].
+ * @lambda_m: Optical wavelength [m].
+ * @path_len_out: Output pointer for curved ray path length in meters (or NULL).
+ *
+ * Return: Lateral deflection in meters relative to an unrefracted straight ray.
+ */
+double atmturb_refraction_ray_shift_path(
+    double  h_layer,
+    double  h_site,
+    double  zenith_angle,
+    double  lambda_m,
+    double *path_len_out);
 
 #endif // ATMTURB_GEOMETRY_H

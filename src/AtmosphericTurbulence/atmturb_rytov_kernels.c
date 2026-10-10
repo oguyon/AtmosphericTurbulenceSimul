@@ -303,8 +303,10 @@ int atmturb_rytov_build_layer_filters(
     long n_half = n / 2 + 1;
     double l_grid = (double) n * plan->pixscale_m;
     double inv_n2 = 1.0 / (double) (n * n);
+    double dist_s = (plan->supers[m].dist_s_m > 0.0) ? plan->supers[m].dist_s_m
+                                                     : plan->supers[m].dist_m;
     double coeff_pri = M_PI * plan->supers[m].dist_m * plan->lambda_ref_m / (l_grid * l_grid);
-    double coeff_sec = M_PI * plan->supers[m].dist_m * plan->lambda_s_m / (l_grid * l_grid);
+    double coeff_sec = M_PI * dist_s * plan->lambda_s_m / (l_grid * l_grid);
 
     double dx = plan->supers[m].chrom_dx_px;
     double dy = plan->supers[m].chrom_dy_px;

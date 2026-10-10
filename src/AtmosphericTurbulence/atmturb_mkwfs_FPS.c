@@ -52,6 +52,8 @@ static int32_t param_amplitude         = 0;
 static int32_t param_fresnel           = 0;
 static int32_t param_fresnel_guard     = 0;
 static int32_t param_fresnel_zinterp   = 0;
+static int32_t param_fresnel_refract_path = 0;
+static int32_t param_fresnel_scint_weight = 0;
 static float   param_ref_lambda        = 0.5f;
 static float   param_zenith_angle      = 0.0f;
 static float   param_parallactic_angle = 0.0f;
@@ -103,6 +105,10 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
       FPFLAG_DEFAULT_INPUT, "Rytov guard band margin [pix] (0=none)")          \
     X(".fresnel_zinterp", &param_fresnel_zinterp, FPTYPE_INT32, 0,             \
       FPFLAG_DEFAULT_INPUT, "Linear z-interpolation between nodes (0/1)")      \
+    X(".fresnel_refract_path", &param_fresnel_refract_path, FPTYPE_INT32, 0,   \
+      FPFLAG_DEFAULT_INPUT, "Curved ray refracted path length (0/1)")          \
+    X(".fresnel_scint_weight", &param_fresnel_scint_weight, FPTYPE_INT32, 0,   \
+      FPFLAG_DEFAULT_INPUT, "Scintillation-weighted superlayer centroid (0/1)") \
     X(".ref_lambda", &param_ref_lambda, FPTYPE_FLOAT32, 0,                      \
       FPFLAG_DEFAULT_INPUT, "Reference wavelength for seeing [um]")             \
     X(".zenith_angle", &param_zenith_angle, FPTYPE_FLOAT32, 0,                 \
@@ -155,6 +161,8 @@ static void atmturb_mkwfs_sync_to_conf(void)
     CONF_FRESNEL_PROPAGATION   = (int)param_fresnel;
     CONF_FRESNEL_GUARD_PIX     = (int)param_fresnel_guard;
     CONF_FRESNEL_RYTOV_ZINTERP = (int)param_fresnel_zinterp;
+    CONF_FRESNEL_REFRACT_PATH  = (int)param_fresnel_refract_path;
+    CONF_FRESNEL_SCINT_WEIGHT  = (int)param_fresnel_scint_weight;
     CONF_MASTER_SIZE           = (long)param_master_size;
 
     if (param_ref_lambda > 0.0f)
@@ -210,6 +218,8 @@ static void atmturb_mkwfs_sync_from_conf(void)
     param_fresnel           = (int32_t)CONF_FRESNEL_PROPAGATION;
     param_fresnel_guard     = (int32_t)CONF_FRESNEL_GUARD_PIX;
     param_fresnel_zinterp   = (int32_t)CONF_FRESNEL_RYTOV_ZINTERP;
+    param_fresnel_refract_path = (int32_t)CONF_FRESNEL_REFRACT_PATH;
+    param_fresnel_scint_weight = (int32_t)CONF_FRESNEL_SCINT_WEIGHT;
     param_master_size       = (int32_t)CONF_MASTER_SIZE;
     param_ref_lambda        = CONF_LAMBDA * 1e6f;
     param_zenith_angle      = CONF_ZANGLE;
