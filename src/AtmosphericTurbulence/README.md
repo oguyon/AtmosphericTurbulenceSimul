@@ -43,12 +43,18 @@ constructs autoregressive linear predictors for predictive adaptive optics contr
   dispatching between geometric, split-step Fresnel, CUDA GPU, and Rytov Fourier propagation.
 - `atmturb_wfs_stream.c` / `atmturb_wfs_stream.h`: Real-time streaming simulation engine with
   ImageStreamIO shared memory synchronization and persistent propagation engines.
-- `atmturb_superlayer.c` / `atmturb_superlayer.h`: Vertical altitude binning and super-layer
-  centroid reduction for multi-layer diffractive propagation.
+- `atmturb_geometry.c` / `atmturb_geometry.h`: Chromatic atmospheric refraction ray bending,
+  dispersion offsets, and curved ray path length integration.
+- `atmturb_superlayer.c` / `atmturb_superlayer.h`: Vertical altitude binning, scintillation-weighted
+  centroids, and super-layer reduction for multi-layer diffractive propagation.
+- `atmturb_superlayer_nodes.c`: Piecewise-linear hat interpolation node generation for
+  2nd-order $O(\Delta z^2)$ distance convergence.
 - `atmturb_fresnel.c` / `atmturb_fresnel.h`: Multi-layer split-step Fresnel diffractive propagation
   engine (`FRESNEL_PROPAGATION=1`).
 - `atmturb_rytov.c`, `atmturb_rytov_kernels.c`, `atmturb_rytov.h`: First-order Rytov Fourier-space
   propagation engine (`FRESNEL_PROPAGATION=2`) with Moisan periodic-plus-smooth decomposition.
+- `atmturb_rytov_cuda.cu` / `atmturb_rytov_cuda.h`: CUDA and cuFFT GPU acceleration for Rytov
+  wavefront synthesis and real-time 2D shared memory streaming.
 - `atmturb_cuda.cu` / `atmturb_cuda.h`: CUDA GPU accelerated multi-layer wavefront extrusion kernel.
 - `atmturb_simd.h`: Declarations for SIMD-accelerated extrusion, scaling, initialization, and
   ISA queries.
