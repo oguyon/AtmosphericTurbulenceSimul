@@ -144,6 +144,17 @@ void atmturb_complex_mul_array(
     long         n_complex);
 
 /**
+ * atmturb_remove_piston_stream - Remove mean piston and stream write to destination
+ * @dst: Destination phase array (can be equal to src for in-place).
+ * @src: Source phase array.
+ * @npix: Total number of pixels.
+ */
+void atmturb_remove_piston_stream(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix);
+
+/**
  * atmturb_simd_active_isa - Query name of active vectorized ISA implementation
  *
  * Return: String name of active ISA ("AVX-512", "AVX2", "CUDA GPU", or "Scalar").
@@ -184,6 +195,10 @@ void atmturb_complex_mul_array_scalar(
     const float *src1,
     const float *src2,
     long         n_complex);
+void atmturb_remove_piston_stream_scalar(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix);
 
 /* AVX2 implementations */
 void atmturb_extrude_accumulate_avx2(
@@ -212,6 +227,10 @@ void atmturb_complex_mul_array_avx2(
     const float *src1,
     const float *src2,
     long         n_complex);
+void atmturb_remove_piston_stream_avx2(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix);
 
 /* AVX-512 implementations */
 void atmturb_extrude_accumulate_avx512(
@@ -240,6 +259,10 @@ void atmturb_complex_mul_array_avx512(
     const float *src1,
     const float *src2,
     long         n_complex);
+void atmturb_remove_piston_stream_avx512(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix);
 
 #ifdef __cplusplus
 }

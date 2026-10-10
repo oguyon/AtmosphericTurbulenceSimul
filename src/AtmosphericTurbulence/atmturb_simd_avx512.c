@@ -427,25 +427,42 @@ void atmturb_init_phase_amp_avx512(
     float *amp,
     long   n)
 {
-    __m512 vzero = _mm512_setzero_ps();
-    __m512 vone = _mm512_set1_ps(1.0f);
-    long i = 0;
-    for (; i <= n - 32; i += 32)
+    if (pha != NULL)
     {
-        _mm512_storeu_ps(&pha[i],      vzero);
-        _mm512_storeu_ps(&pha[i + 16], vzero);
-        _mm512_storeu_ps(&amp[i],      vone);
-        _mm512_storeu_ps(&amp[i + 16], vone);
+        __m512 vzero = _mm512_setzero_ps();
+        long i = 0;
+        for (; i <= n - 32; i += 32)
+        {
+            _mm512_storeu_ps(&pha[i],      vzero);
+            _mm512_storeu_ps(&pha[i + 16], vzero);
+        }
+        for (; i <= n - 16; i += 16)
+        {
+            _mm512_storeu_ps(&pha[i], vzero);
+        }
+        for (; i < n; i++)
+        {
+            pha[i] = 0.0f;
+        }
     }
-    for (; i <= n - 16; i += 16)
+
+    if (amp != NULL)
     {
-        _mm512_storeu_ps(&pha[i], vzero);
-        _mm512_storeu_ps(&amp[i], vone);
-    }
-    for (; i < n; i++)
-    {
-        pha[i] = 0.0f;
-        amp[i] = 1.0f;
+        __m512 vone = _mm512_set1_ps(1.0f);
+        long i = 0;
+        for (; i <= n - 32; i += 32)
+        {
+            _mm512_storeu_ps(&amp[i],      vone);
+            _mm512_storeu_ps(&amp[i + 16], vone);
+        }
+        for (; i <= n - 16; i += 16)
+        {
+            _mm512_storeu_ps(&amp[i], vone);
+        }
+        for (; i < n; i++)
+        {
+            amp[i] = 1.0f;
+        }
     }
 }
 
@@ -644,6 +661,63 @@ void atmturb_complex_mul_array_avx512(
     }
 }
 
+/**
+ * atmturb_remove_piston_stream_avx512 - AVX-512 vectorized piston removal with stream copy
+ * @dst: Destination phase array.
+ * @src: Source phase array.
+ * @npix: Total number of pixels.
+ */
+void atmturb_remove_piston_stream_avx512(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix)
+{
+    if (dst == NULL || src == NULL || npix <= 0)
+    {
+        return;
+    }
+
+    __m512 vsum0 = _mm512_setzero_ps();
+    __m512 vsum1 = _mm512_setzero_ps();
+
+    long i = 0;
+    for (; i <= npix - 32; i += 32)
+    {
+        vsum0 = _mm512_add_ps(vsum0, _mm512_loadu_ps(&src[i]));
+        vsum1 = _mm512_add_ps(vsum1, _mm512_loadu_ps(&src[i + 16]));
+    }
+    __m512 vsum = _mm512_add_ps(vsum0, vsum1);
+    for (; i <= npix - 16; i += 16)
+    {
+        vsum = _mm512_add_ps(vsum, _mm512_loadu_ps(&src[i]));
+    }
+    double sum = (double) _mm512_reduce_add_ps(vsum);
+    for (; i < npix; i++)
+    {
+        sum += (double) src[i];
+    }
+
+    float mean = (float) (sum / (double) npix);
+    __m512 vmean = _mm512_set1_ps(mean);
+
+    i = 0;
+    for (; i <= npix - 32; i += 32)
+    {
+        __m512 s0 = _mm512_sub_ps(_mm512_loadu_ps(&src[i]), vmean);
+        __m512 s1 = _mm512_sub_ps(_mm512_loadu_ps(&src[i + 16]), vmean);
+        _mm512_storeu_ps(&dst[i], s0);
+        _mm512_storeu_ps(&dst[i + 16], s1);
+    }
+    for (; i <= npix - 16; i += 16)
+    {
+        _mm512_storeu_ps(&dst[i], _mm512_sub_ps(_mm512_loadu_ps(&src[i]), vmean));
+    }
+    for (; i < npix; i++)
+    {
+        dst[i] = src[i] - mean;
+    }
+}
+
 #else
 
 void atmturb_extrude_accumulate_avx512(const atmturb_extrude_params_t *params)
@@ -685,6 +759,14 @@ void atmturb_complex_mul_array_avx512(
     float *dest, const float *src1, const float *src2, long n_complex)
 {
     atmturb_complex_mul_array_scalar(dest, src1, src2, n_complex);
+}
+
+void atmturb_remove_piston_stream_avx512(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix)
+{
+    atmturb_remove_piston_stream_scalar(dst, src, npix);
 }
 
 #endif

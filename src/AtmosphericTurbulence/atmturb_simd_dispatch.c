@@ -25,6 +25,7 @@ typedef struct
     void (*extrude_lowfreq)(const atmturb_lowfreq_params_t *params);
     void (*add_float_array)(float *dest, const float *src, long n);
     void (*complex_mul_array)(float *dest, const float *src1, const float *src2, long n);
+    void (*remove_piston_stream)(float *restrict dst, const float *restrict src, long npix);
     const char *isa_name;
 } atmturb_simd_ops_t;
 
@@ -81,54 +82,58 @@ static void atmturb_simd_init_dispatch(void)
 
 #ifdef HAVE_CUDA
 use_cuda:
-    g_simd_ops.extrude_bilinear  = atmturb_extrude_accumulate_bilinear_avx2;
-    g_simd_ops.extrude_bicubic   = atmturb_extrude_accumulate_bicubic_avx2;
-    g_simd_ops.scale_float_array = atmturb_scale_float_array_avx2;
-    g_simd_ops.init_phase_amp    = atmturb_init_phase_amp_avx2;
-    g_simd_ops.extrude_lowfreq   = atmturb_extrude_lowfreq_avx2;
-    g_simd_ops.add_float_array   = atmturb_add_float_array_avx2;
-    g_simd_ops.complex_mul_array = atmturb_complex_mul_array_avx2;
-    g_simd_ops.isa_name          = "CUDA GPU";
-    g_simd_initialized           = 1;
+    g_simd_ops.extrude_bilinear     = atmturb_extrude_accumulate_bilinear_avx2;
+    g_simd_ops.extrude_bicubic      = atmturb_extrude_accumulate_bicubic_avx2;
+    g_simd_ops.scale_float_array    = atmturb_scale_float_array_avx2;
+    g_simd_ops.init_phase_amp       = atmturb_init_phase_amp_avx2;
+    g_simd_ops.extrude_lowfreq      = atmturb_extrude_lowfreq_avx2;
+    g_simd_ops.add_float_array      = atmturb_add_float_array_avx2;
+    g_simd_ops.complex_mul_array    = atmturb_complex_mul_array_avx2;
+    g_simd_ops.remove_piston_stream = atmturb_remove_piston_stream_avx2;
+    g_simd_ops.isa_name             = "CUDA GPU";
+    g_simd_initialized              = 1;
     return;
 #endif
 
 use_avx512:
-    g_simd_ops.extrude_bilinear  = atmturb_extrude_accumulate_bilinear_avx512;
-    g_simd_ops.extrude_bicubic   = atmturb_extrude_accumulate_bicubic_avx512;
-    g_simd_ops.scale_float_array = atmturb_scale_float_array_avx512;
-    g_simd_ops.init_phase_amp    = atmturb_init_phase_amp_avx512;
-    g_simd_ops.extrude_lowfreq   = atmturb_extrude_lowfreq_avx512;
-    g_simd_ops.add_float_array   = atmturb_add_float_array_avx512;
-    g_simd_ops.complex_mul_array = atmturb_complex_mul_array_avx512;
-    g_simd_ops.isa_name          = "AVX-512";
-    g_simd_initialized           = 1;
+    g_simd_ops.extrude_bilinear     = atmturb_extrude_accumulate_bilinear_avx512;
+    g_simd_ops.extrude_bicubic      = atmturb_extrude_accumulate_bicubic_avx512;
+    g_simd_ops.scale_float_array    = atmturb_scale_float_array_avx512;
+    g_simd_ops.init_phase_amp       = atmturb_init_phase_amp_avx512;
+    g_simd_ops.extrude_lowfreq      = atmturb_extrude_lowfreq_avx512;
+    g_simd_ops.add_float_array      = atmturb_add_float_array_avx512;
+    g_simd_ops.complex_mul_array    = atmturb_complex_mul_array_avx512;
+    g_simd_ops.remove_piston_stream = atmturb_remove_piston_stream_avx512;
+    g_simd_ops.isa_name             = "AVX-512";
+    g_simd_initialized              = 1;
     return;
 
 use_avx2:
-    g_simd_ops.extrude_bilinear  = atmturb_extrude_accumulate_bilinear_avx2;
-    g_simd_ops.extrude_bicubic   = atmturb_extrude_accumulate_bicubic_avx2;
-    g_simd_ops.scale_float_array = atmturb_scale_float_array_avx2;
-    g_simd_ops.init_phase_amp    = atmturb_init_phase_amp_avx2;
-    g_simd_ops.extrude_lowfreq   = atmturb_extrude_lowfreq_avx2;
-    g_simd_ops.add_float_array   = atmturb_add_float_array_avx2;
-    g_simd_ops.complex_mul_array = atmturb_complex_mul_array_avx2;
-    g_simd_ops.isa_name          = "AVX2";
-    g_simd_initialized           = 1;
+    g_simd_ops.extrude_bilinear     = atmturb_extrude_accumulate_bilinear_avx2;
+    g_simd_ops.extrude_bicubic      = atmturb_extrude_accumulate_bicubic_avx2;
+    g_simd_ops.scale_float_array    = atmturb_scale_float_array_avx2;
+    g_simd_ops.init_phase_amp       = atmturb_init_phase_amp_avx2;
+    g_simd_ops.extrude_lowfreq      = atmturb_extrude_lowfreq_avx2;
+    g_simd_ops.add_float_array      = atmturb_add_float_array_avx2;
+    g_simd_ops.complex_mul_array    = atmturb_complex_mul_array_avx2;
+    g_simd_ops.remove_piston_stream = atmturb_remove_piston_stream_avx2;
+    g_simd_ops.isa_name             = "AVX2";
+    g_simd_initialized              = 1;
     return;
 
 use_scalar:
 #endif
 
-    g_simd_ops.extrude_bilinear  = atmturb_extrude_accumulate_bilinear_scalar;
-    g_simd_ops.extrude_bicubic   = atmturb_extrude_accumulate_bicubic_scalar;
-    g_simd_ops.scale_float_array = atmturb_scale_float_array_scalar;
-    g_simd_ops.init_phase_amp    = atmturb_init_phase_amp_scalar;
-    g_simd_ops.extrude_lowfreq   = atmturb_extrude_lowfreq_scalar;
-    g_simd_ops.add_float_array   = atmturb_add_float_array_scalar;
-    g_simd_ops.complex_mul_array = atmturb_complex_mul_array_scalar;
-    g_simd_ops.isa_name          = "Scalar";
-    g_simd_initialized           = 1;
+    g_simd_ops.extrude_bilinear     = atmturb_extrude_accumulate_bilinear_scalar;
+    g_simd_ops.extrude_bicubic      = atmturb_extrude_accumulate_bicubic_scalar;
+    g_simd_ops.scale_float_array    = atmturb_scale_float_array_scalar;
+    g_simd_ops.init_phase_amp       = atmturb_init_phase_amp_scalar;
+    g_simd_ops.extrude_lowfreq      = atmturb_extrude_lowfreq_scalar;
+    g_simd_ops.add_float_array      = atmturb_add_float_array_scalar;
+    g_simd_ops.complex_mul_array    = atmturb_complex_mul_array_scalar;
+    g_simd_ops.remove_piston_stream = atmturb_remove_piston_stream_scalar;
+    g_simd_ops.isa_name             = "Scalar";
+    g_simd_initialized              = 1;
 }
 
 __attribute__((constructor)) static void atmturb_simd_constructor(void)
@@ -265,6 +270,24 @@ void atmturb_complex_mul_array(
         atmturb_simd_init_dispatch();
     }
     g_simd_ops.complex_mul_array(dest, src1, src2, n_complex);
+}
+
+/**
+ * atmturb_remove_piston_stream - Dispatch piston removal to optimal CPU kernel
+ * @dst: Destination phase array (can be equal to src for in-place).
+ * @src: Source phase array.
+ * @npix: Total number of pixels.
+ */
+void atmturb_remove_piston_stream(
+    float       *restrict dst,
+    const float *restrict src,
+    long                  npix)
+{
+    if (__builtin_expect(!g_simd_initialized, 0))
+    {
+        atmturb_simd_init_dispatch();
+    }
+    g_simd_ops.remove_piston_stream(dst, src, npix);
 }
 
 

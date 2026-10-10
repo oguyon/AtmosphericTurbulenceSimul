@@ -22,6 +22,7 @@ extern "C" {
 #ifdef HAVE_CUDA
 
 typedef struct atmturb_cuda_rytov_stream atmturb_cuda_rytov_stream_t;
+typedef struct atmturb_cuda_geom_stream  atmturb_cuda_geom_stream_t;
 
 /**
  * atmturb_wfs_render_cuda - Render geometric simulation frames on GPU
@@ -116,9 +117,87 @@ int atmturb_cuda_rytov_stream_render_step(
 void atmturb_cuda_rytov_stream_free(
     atmturb_cuda_rytov_stream_t *ctx);
 
+/**
+ * atmturb_wfs_cuda_geom_stream_init - Initialize persistent GPU geometric streaming context
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @master_size: Master screen linear dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ *
+ * Return: Allocated stream context, or NULL on failure.
+ */
+atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
+    const atmturb_rolling_t *r,
+    const atmturb_geom_t    *geom,
+    long                     master_size,
+    long                     pup_size);
+
+/**
+ * atmturb_wfs_cuda_geom_stream_render_step - Render one geometric stream frame on GPU
+ * @ctx: Persistent stream context.
+ * @t: Frame index.
+ * @pha: Destination primary phase frame buffer.
+ * @amp: Destination primary amplitude frame buffer (or NULL).
+ * @spha: Destination secondary phase frame buffer (or NULL).
+ * @samp: Destination secondary amplitude frame buffer (or NULL).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_wfs_cuda_geom_stream_render_step(
+    atmturb_cuda_geom_stream_t *ctx,
+    long                        t,
+    float                      *pha,
+    float                      *amp,
+    float                      *spha,
+    float                      *samp);
+
+/**
+ * atmturb_wfs_cuda_geom_stream_free - Free persistent GPU geometric streaming context
+ * @ctx: Stream context to release.
+ */
+void atmturb_wfs_cuda_geom_stream_free(
+    atmturb_cuda_geom_stream_t *ctx);
+
 #else /* !HAVE_CUDA */
 
 typedef void atmturb_cuda_rytov_stream_t;
+typedef void atmturb_cuda_geom_stream_t;
+
+static inline atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
+    const atmturb_rolling_t *r,
+    const atmturb_geom_t    *geom,
+    long                     master_size,
+    long                     pup_size)
+{
+    (void) r;
+    (void) geom;
+    (void) master_size;
+    (void) pup_size;
+    return NULL;
+}
+
+static inline int atmturb_wfs_cuda_geom_stream_render_step(
+    atmturb_cuda_geom_stream_t *ctx,
+    long                        t,
+    float                      *pha,
+    float                      *amp,
+    float                      *spha,
+    float                      *samp)
+{
+    (void) ctx;
+    (void) t;
+    (void) pha;
+    (void) amp;
+    (void) spha;
+    (void) samp;
+    return -1;
+}
+
+static inline void atmturb_wfs_cuda_geom_stream_free(
+    atmturb_cuda_geom_stream_t *ctx)
+{
+    (void) ctx;
+}
 
 static inline atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     const atmturb_rolling_t    *r,

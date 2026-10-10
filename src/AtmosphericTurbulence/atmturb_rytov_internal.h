@@ -56,12 +56,12 @@ void atmturb_rytov_decompose_periodic(
  * @ntot: Elements in half-spectrum.
  */
 void atmturb_rytov_accumulate_filters(
-    fftwf_complex       *acc_dphi,
-    fftwf_complex       *acc_chi,
-    const fftwf_complex *spec,
-    const float         *filt_a,
-    const float         *filt_b,
-    long                 ntot);
+    fftwf_complex *restrict       acc_dphi,
+    fftwf_complex *restrict       acc_chi,
+    const fftwf_complex *restrict spec,
+    const float *restrict         filt_a,
+    const float *restrict         filt_b,
+    long                          ntot);
 
 /**
  * atmturb_rytov_accumulate_filters_rotated - Apply chromatic ramp and accumulate filters
@@ -74,13 +74,13 @@ void atmturb_rytov_accumulate_filters(
  * @ntot: Elements in half-spectrum.
  */
 void atmturb_rytov_accumulate_filters_rotated(
-    fftwf_complex       *acc_dphi,
-    fftwf_complex       *acc_chi,
-    const fftwf_complex *spec,
-    const fftwf_complex *ramp,
-    const float         *filt_a,
-    const float         *filt_b,
-    long                 ntot);
+    fftwf_complex *restrict       acc_dphi,
+    fftwf_complex *restrict       acc_chi,
+    const fftwf_complex *restrict spec,
+    const fftwf_complex *restrict ramp,
+    const float *restrict         filt_a,
+    const float *restrict         filt_b,
+    long                          ntot);
 
 /**
  * atmturb_rytov_init_tables - Build Poisson solver lookup tables
