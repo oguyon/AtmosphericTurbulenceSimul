@@ -18,13 +18,26 @@
 
 #define ATMTURB_CUDA_MAX_SUB_LAYERS 64
 
-__constant__ atmturb_cuda_rytov_sublayer_t c_sublayers[ATMTURB_CUDA_MAX_SUB_LAYERS];
-
 // Persistent cuFFT plans and configuration cache
 static cufftHandle s_plan_1d     = 0;
 static cufftHandle s_plan_2d_r2c = 0;
 static cufftHandle s_plan_2d_c2r = 0;
 static long        s_cached_pad  = 0;
+
+// Persistent CUDA stream and Graph execution instance
+static cudaStream_t                   s_stream            = 0;
+static cudaGraphExec_t                s_graph_exec        = NULL;
+static long                           s_graph_pad         = 0;
+static long                           s_graph_pup         = 0;
+static int                            s_graph_nsuper      = 0;
+static int                            s_graph_has_sec     = 0;
+static int                            s_graph_sec_shared  = 0;
+static int                            s_graph_interp      = 0;
+static int                            s_graph_guard       = 0;
+static int                            s_graph_os          = 0;
+static const float                   *s_graph_masters     = NULL;
+static atmturb_cuda_rytov_sublayer_t *s_d_active_sublayers = NULL;
+static size_t                         s_cached_active_sub = 0;
 
 // Persistent device precomputed filter buffers
 static float        *s_d_laplace_inv  = NULL;
@@ -177,18 +190,19 @@ __device__ static inline float atmturb_cuda_sample_screen_bicubic(
 
 template <int interp_mode>
 __global__ static void atmturb_cuda_extrude_sl_kernel(
-    const float *d_masters,
-    int          msize,
-    int          pad_size,
-    int          pup_size,
-    int          guard,
-    int          n_sub,
-    int          has_sec,
-    int          os,
-    float       *d_super_pha,
-    float       *d_super_spha,
-    float       *d_frame_pha,
-    float       *d_frame_spha)
+    const float                         *d_masters,
+    int                                  msize,
+    int                                  pad_size,
+    int                                  pup_size,
+    int                                  guard,
+    int                                  n_sub,
+    int                                  has_sec,
+    int                                  os,
+    const atmturb_cuda_rytov_sublayer_t *d_sublayers,
+    float                               *d_super_pha,
+    float                               *d_super_spha,
+    float                               *d_frame_pha,
+    float                               *d_frame_spha)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
@@ -205,7 +219,7 @@ __global__ static void atmturb_cuda_extrude_sl_kernel(
 
     for (int l = 0; l < n_sub; l++)
     {
-        atmturb_cuda_rytov_sublayer_t info = c_sublayers[l];
+        atmturb_cuda_rytov_sublayer_t info = d_sublayers[l];
         float cur_x  = info.x + (float) (i * os);
         float cur_y  = info.y + (float) (j * os);
         if (interp_mode == 1)
@@ -448,6 +462,33 @@ void atmturb_cuda_rytov_cleanup(void)
     if (s_plan_2d_c2r != 0) { cufftDestroy(s_plan_2d_c2r); s_plan_2d_c2r = 0; }
     s_cached_pad = 0;
 
+    if (s_graph_exec != NULL)
+    {
+        cudaGraphExecDestroy(s_graph_exec);
+        s_graph_exec = NULL;
+    }
+    if (s_stream != 0)
+    {
+        cudaStreamDestroy(s_stream);
+        s_stream = 0;
+    }
+    s_graph_pad         = 0;
+    s_graph_pup         = 0;
+    s_graph_nsuper      = 0;
+    s_graph_has_sec     = 0;
+    s_graph_sec_shared  = 0;
+    s_graph_interp      = 0;
+    s_graph_guard       = 0;
+    s_graph_os          = 0;
+    s_graph_masters     = NULL;
+
+    if (s_d_active_sublayers != NULL)
+    {
+        cudaFree(s_d_active_sublayers);
+        s_d_active_sublayers = NULL;
+    }
+    s_cached_active_sub = 0;
+
     if (s_d_laplace_inv != NULL) { cudaFree(s_d_laplace_inv); s_d_laplace_inv = NULL; }
     if (s_d_exp_x != NULL)       { cudaFree(s_d_exp_x);       s_d_exp_x = NULL; }
     if (s_d_exp_y != NULL)       { cudaFree(s_d_exp_y);       s_d_exp_y = NULL; }
@@ -479,11 +520,24 @@ void atmturb_cuda_rytov_cleanup(void)
 
 static int atmturb_cuda_rytov_init_plans(long pad_size)
 {
+    if (s_stream == 0)
+    {
+        if (cudaStreamCreate(&s_stream) != cudaSuccess)
+        {
+            return -1;
+        }
+    }
+
     if (s_plan_1d != 0 && s_cached_pad == pad_size)
     {
         return 0;
     }
     atmturb_cuda_rytov_cleanup();
+
+    if (cudaStreamCreate(&s_stream) != cudaSuccess)
+    {
+        return -1;
+    }
 
     if (cufftPlan1d(&s_plan_1d, (int) pad_size, CUFFT_R2C, 2) != CUFFT_SUCCESS ||
         cufftPlan2d(&s_plan_2d_r2c, (int) pad_size, (int) pad_size, CUFFT_R2C) != CUFFT_SUCCESS ||
@@ -492,6 +546,11 @@ static int atmturb_cuda_rytov_init_plans(long pad_size)
         atmturb_cuda_rytov_cleanup();
         return -1;
     }
+
+    cufftSetStream(s_plan_1d, s_stream);
+    cufftSetStream(s_plan_2d_r2c, s_stream);
+    cufftSetStream(s_plan_2d_c2r, s_stream);
+
     s_cached_pad = pad_size;
     return 0;
 }
@@ -553,13 +612,31 @@ static int atmturb_cuda_rytov_init_filters(
 }
 
 static int atmturb_cuda_rytov_init_workspace(
-    long pad_size,
-    long pup_size)
+    const atmturb_cuda_rytov_params_t *params)
 {
+    long pad_size   = params->pad_size;
+    long pup_size   = params->pup_size;
     long pad_pixels = pad_size * pad_size;
     long pup_pixels = pup_size * pup_size;
     long n_half     = pad_size / 2 + 1;
     long n_spec     = pad_size * n_half;
+    size_t sub_bytes = (size_t) (params->nsuper * params->max_sublayers) *
+                       sizeof(atmturb_cuda_rytov_sublayer_t);
+
+    if (s_d_active_sublayers != NULL && s_cached_active_sub < sub_bytes)
+    {
+        cudaFree(s_d_active_sublayers);
+        s_d_active_sublayers = NULL;
+        s_cached_active_sub = 0;
+    }
+    if (s_d_active_sublayers == NULL)
+    {
+        if (cudaMalloc((void **) &s_d_active_sublayers, sub_bytes) != cudaSuccess)
+        {
+            return -1;
+        }
+        s_cached_active_sub = sub_bytes;
+    }
 
     if (s_d_super_pha != NULL && s_cached_work == (size_t) pad_pixels)
     {
@@ -587,16 +664,17 @@ static int atmturb_cuda_rytov_init_workspace(
     return 0;
 }
 
-static void atmturb_cuda_rytov_render_superlayer(
+static void atmturb_cuda_rytov_render_superlayer_stream(
     const atmturb_cuda_rytov_params_t *params,
     int                                m,
     int                                pad,
     int                                n_half,
-    int                                n_spec)
+    int                                n_spec,
+    cudaStream_t                       stream)
 {
     dim3 b_1d(256);
     dim3 g_1d(((int) pad + b_1d.x - 1) / b_1d.x);
-    atmturb_cuda_extract_bounds_kernel<<<g_1d, b_1d>>>(s_d_super_pha, s_d_bounds, pad);
+    atmturb_cuda_extract_bounds_kernel<<<g_1d, b_1d, 0, stream>>>(s_d_super_pha, s_d_bounds, pad);
 
     cufftExecR2C(s_plan_1d, (cufftReal *) s_d_bounds, (cufftComplex *) s_d_hat_bounds);
     cufftExecR2C(s_plan_2d_r2c, (cufftReal *) s_d_super_pha, (cufftComplex *) s_d_spec);
@@ -604,13 +682,13 @@ static void atmturb_cuda_rytov_render_superlayer(
     dim3 b_spec(16, 16);
     dim3 g_spec(((int) n_half + b_spec.x - 1) / b_spec.x,
                 ((int) pad + b_spec.y - 1) / b_spec.y);
-    atmturb_cuda_moisan_adjust_kernel<<<g_spec, b_spec>>>(
+    atmturb_cuda_moisan_adjust_kernel<<<g_spec, b_spec, 0, stream>>>(
         s_d_spec, s_d_hat_bounds, s_d_exp_x, s_d_exp_y, s_d_laplace_inv, pad, n_half);
 
     dim3 b_mac(256);
     dim3 g_mac(((int) n_spec + b_mac.x - 1) / b_mac.x);
     size_t off = (size_t) (m * n_spec);
-    atmturb_cuda_filter_mac_kernel<<<g_mac, b_mac>>>(
+    atmturb_cuda_filter_mac_kernel<<<g_mac, b_mac, 0, stream>>>(
         s_d_acc_dphi_pri, s_d_acc_chi_pri, s_d_spec,
         s_d_filt_a_pri + off, s_d_filt_b_pri + off, n_spec);
 
@@ -619,22 +697,176 @@ static void atmturb_cuda_rytov_render_superlayer(
         if (params->sec_shared && params->h_chrom_ramp != NULL &&
             params->h_chrom_ramp[m] != NULL)
         {
-            atmturb_cuda_filter_mac_rotated_kernel<<<g_mac, b_mac>>>(
+            atmturb_cuda_filter_mac_rotated_kernel<<<g_mac, b_mac, 0, stream>>>(
                 s_d_acc_dphi_sec, s_d_acc_chi_sec, s_d_spec, s_d_chrom_ramp + off,
                 s_d_filt_a_sec + off, s_d_filt_b_sec + off, n_spec);
         }
         else
         {
-            atmturb_cuda_extract_bounds_kernel<<<g_1d, b_1d>>>(s_d_super_spha, s_d_bounds, pad);
+            atmturb_cuda_extract_bounds_kernel<<<g_1d, b_1d, 0, stream>>>(
+                s_d_super_spha, s_d_bounds, pad);
             cufftExecR2C(s_plan_1d, (cufftReal *) s_d_bounds, (cufftComplex *) s_d_hat_bounds);
             cufftExecR2C(s_plan_2d_r2c, (cufftReal *) s_d_super_spha, (cufftComplex *) s_d_spec);
-            atmturb_cuda_moisan_adjust_kernel<<<g_spec, b_spec>>>(
+            atmturb_cuda_moisan_adjust_kernel<<<g_spec, b_spec, 0, stream>>>(
                 s_d_spec, s_d_hat_bounds, s_d_exp_x, s_d_exp_y, s_d_laplace_inv, pad, n_half);
-            atmturb_cuda_filter_mac_kernel<<<g_mac, b_mac>>>(
+            atmturb_cuda_filter_mac_kernel<<<g_mac, b_mac, 0, stream>>>(
                 s_d_acc_dphi_sec, s_d_acc_chi_sec, s_d_spec,
                 s_d_filt_a_sec + off, s_d_filt_b_sec + off, n_spec);
         }
     }
+}
+
+static void atmturb_cuda_rytov_step_ops(
+    const atmturb_cuda_rytov_params_t *params,
+    const float                       *d_masters,
+    cudaStream_t                       stream)
+{
+    long pad        = params->pad_size;
+    long guard      = params->guard_pix;
+    long pup_size   = params->pup_size;
+    long pup_pixels = pup_size * pup_size;
+    long n_half     = pad / 2 + 1;
+    long n_spec     = pad * n_half;
+    int  has_sec    = params->has_sec;
+    int  os         = (params->os > 1) ? params->os : 1;
+
+    cudaMemsetAsync(s_d_frame_pha, 0, sizeof(float) * (size_t) pup_pixels, stream);
+    cudaMemsetAsync(s_d_frame_spha, 0, sizeof(float) * (size_t) pup_pixels, stream);
+    cudaMemsetAsync(s_d_acc_dphi_pri, 0, sizeof(cufftComplex) * (size_t) n_spec, stream);
+    cudaMemsetAsync(s_d_acc_chi_pri, 0, sizeof(cufftComplex) * (size_t) n_spec, stream);
+    if (has_sec)
+    {
+        cudaMemsetAsync(s_d_acc_dphi_sec, 0, sizeof(cufftComplex) * (size_t) n_spec, stream);
+        cudaMemsetAsync(s_d_acc_chi_sec, 0, sizeof(cufftComplex) * (size_t) n_spec, stream);
+    }
+
+    dim3 b_ext(16, 16);
+    dim3 g_ext(((int) pad + b_ext.x - 1) / b_ext.x, ((int) pad + b_ext.y - 1) / b_ext.y);
+
+    for (int m = 0; m < params->nsuper; m++)
+    {
+        int n_sub = params->super_nlayers[m];
+        const atmturb_cuda_rytov_sublayer_t *sl_ptr =
+            s_d_active_sublayers + (size_t) (m * params->max_sublayers);
+
+        if (params->interp == 1)
+        {
+            atmturb_cuda_extrude_sl_kernel<1><<<g_ext, b_ext, 0, stream>>>(
+                d_masters, (int) params->msize, (int) pad, (int) pup_size, (int) guard,
+                n_sub, has_sec, os, sl_ptr, s_d_super_pha, s_d_super_spha,
+                s_d_frame_pha, s_d_frame_spha);
+        }
+        else
+        {
+            atmturb_cuda_extrude_sl_kernel<0><<<g_ext, b_ext, 0, stream>>>(
+                d_masters, (int) params->msize, (int) pad, (int) pup_size, (int) guard,
+                n_sub, has_sec, os, sl_ptr, s_d_super_pha, s_d_super_spha,
+                s_d_frame_pha, s_d_frame_spha);
+        }
+
+        if (params->super_dist_m[m] > 0.0)
+        {
+            atmturb_cuda_rytov_render_superlayer_stream(params, m, (int) pad, (int) n_half,
+                                                        (int) n_spec, stream);
+        }
+    }
+
+    cufftExecC2R(s_plan_2d_c2r, (cufftComplex *) s_d_acc_dphi_pri, (cufftReal *) s_d_dphi_out);
+    cufftExecC2R(s_plan_2d_c2r, (cufftComplex *) s_d_acc_chi_pri, (cufftReal *) s_d_chi_out);
+
+    dim3 b_ass(16, 16);
+    dim3 g_ass(((int) pup_size + b_ass.x - 1) / b_ass.x,
+               ((int) pup_size + b_ass.y - 1) / b_ass.y);
+    dim3 b_norm(256);
+    dim3 g_norm(((int) pup_pixels + b_norm.x - 1) / b_norm.x);
+
+    cudaMemsetAsync(s_d_sum_I, 0, sizeof(float), stream);
+    atmturb_cuda_assemble_kernel<<<g_ass, b_ass, 0, stream>>>(
+        (int) pup_size, (int) guard, (int) pad, s_d_frame_pha, s_d_frame_amp,
+        s_d_dphi_out, s_d_chi_out, s_d_sum_I);
+    atmturb_cuda_normalize_kernel<<<g_norm, b_norm, 0, stream>>>(
+        s_d_frame_amp, (int) pup_pixels, s_d_sum_I);
+
+    if (has_sec)
+    {
+        cufftExecC2R(s_plan_2d_c2r, (cufftComplex *) s_d_acc_dphi_sec,
+                     (cufftReal *) s_d_dphi_out);
+        cufftExecC2R(s_plan_2d_c2r, (cufftComplex *) s_d_acc_chi_sec,
+                     (cufftReal *) s_d_chi_out);
+
+        cudaMemsetAsync(s_d_sum_I, 0, sizeof(float), stream);
+        atmturb_cuda_assemble_kernel<<<g_ass, b_ass, 0, stream>>>(
+            (int) pup_size, (int) guard, (int) pad, s_d_frame_spha, s_d_frame_samp,
+            s_d_dphi_out, s_d_chi_out, s_d_sum_I);
+        atmturb_cuda_normalize_kernel<<<g_norm, b_norm, 0, stream>>>(
+            s_d_frame_samp, (int) pup_pixels, s_d_sum_I);
+    }
+}
+
+static int atmturb_cuda_rytov_init_graph(
+    const atmturb_cuda_rytov_params_t *params,
+    const float                       *d_masters)
+{
+    long pad      = params->pad_size;
+    long pup_size = params->pup_size;
+    int  ns       = params->nsuper;
+    int  has_sec  = params->has_sec;
+    int  sec_sh   = params->sec_shared;
+    int  interp   = params->interp;
+    int  guard    = (int) params->guard_pix;
+    int  os       = (params->os > 1) ? params->os : 1;
+
+    if (s_graph_exec != NULL &&
+        s_graph_pad == pad &&
+        s_graph_pup == pup_size &&
+        s_graph_nsuper == ns &&
+        s_graph_has_sec == has_sec &&
+        s_graph_sec_shared == sec_sh &&
+        s_graph_interp == interp &&
+        s_graph_guard == guard &&
+        s_graph_os == os &&
+        s_graph_masters == d_masters)
+    {
+        return 0;
+    }
+
+    if (s_graph_exec != NULL)
+    {
+        cudaGraphExecDestroy(s_graph_exec);
+        s_graph_exec = NULL;
+    }
+
+    cudaGraph_t graph;
+    if (cudaStreamBeginCapture(s_stream, cudaStreamCaptureModeGlobal) != cudaSuccess)
+    {
+        return -1;
+    }
+
+    atmturb_cuda_rytov_step_ops(params, d_masters, s_stream);
+
+    if (cudaStreamEndCapture(s_stream, &graph) != cudaSuccess)
+    {
+        return -1;
+    }
+
+    if (cudaGraphInstantiate(&s_graph_exec, graph, NULL, NULL, 0) != cudaSuccess)
+    {
+        cudaGraphDestroy(graph);
+        s_graph_exec = NULL;
+        return -1;
+    }
+
+    cudaGraphDestroy(graph);
+    s_graph_pad        = pad;
+    s_graph_pup        = pup_size;
+    s_graph_nsuper     = ns;
+    s_graph_has_sec    = has_sec;
+    s_graph_sec_shared = sec_sh;
+    s_graph_interp     = interp;
+    s_graph_guard      = guard;
+    s_graph_os         = os;
+    s_graph_masters    = d_masters;
+    return 0;
 }
 
 int atmturb_cuda_rytov_render(
@@ -653,106 +885,89 @@ int atmturb_cuda_rytov_render(
     }
 
     long pad        = params->pad_size;
-    long guard      = params->guard_pix;
     long pup_size   = params->pup_size;
     long pup_pixels = pup_size * pup_size;
-    long n_half     = pad / 2 + 1;
-    long n_spec     = pad * n_half;
     int  has_sec    = params->has_sec;
-    int  os         = (params->os > 1) ? params->os : 1;
 
     if (atmturb_cuda_rytov_init_plans(pad) != 0 ||
         atmturb_cuda_rytov_init_filters(params) != 0 ||
-        atmturb_cuda_rytov_init_workspace(pad, pup_size) != 0)
+        atmturb_cuda_rytov_init_workspace(params) != 0)
     {
         return -1;
     }
 
-    dim3 b_ext(16, 16);
-    dim3 g_ext(((int) pad + b_ext.x - 1) / b_ext.x, ((int) pad + b_ext.y - 1) / b_ext.y);
-    dim3 b_ass(16, 16);
-    dim3 g_ass(((int) pup_size + b_ass.x - 1) / b_ass.x,
-               ((int) pup_size + b_ass.y - 1) / b_ass.y);
-    dim3 b_norm(256);
-    dim3 g_norm(((int) pup_pixels + b_norm.x - 1) / b_norm.x);
+    atmturb_cuda_rytov_init_graph(params, d_masters);
+
+    size_t frame_sub_bytes = (size_t) (params->nsuper * params->max_sublayers) *
+                             sizeof(atmturb_cuda_rytov_sublayer_t);
+
+    if (params->nbframes == 1)
+    {
+        cudaMemcpyAsync(s_d_active_sublayers, params->frame_sublayers,
+                        frame_sub_bytes, cudaMemcpyHostToDevice, s_stream);
+
+        if (s_graph_exec != NULL)
+        {
+            cudaGraphLaunch(s_graph_exec, s_stream);
+        }
+        else
+        {
+            atmturb_cuda_rytov_step_ops(params, d_masters, s_stream);
+        }
+
+        cudaMemcpyAsync(params->pha, s_d_frame_pha,
+                        sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
+        cudaMemcpyAsync(params->amp, s_d_frame_amp,
+                        sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
+        if (has_sec)
+        {
+            cudaMemcpyAsync(params->spha, s_d_frame_spha,
+                            sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
+            cudaMemcpyAsync(params->samp, s_d_frame_samp,
+                            sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
+        }
+        cudaStreamSynchronize(s_stream);
+        return 0;
+    }
+
+    size_t n_sub_tot = (size_t) (params->nbframes * params->nsuper * params->max_sublayers);
+    atmturb_cuda_rytov_sublayer_t *d_all_sublayers = NULL;
+    cudaMalloc((void **) &d_all_sublayers, n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t));
+    cudaMemcpyAsync(d_all_sublayers, params->frame_sublayers,
+                    n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t),
+                    cudaMemcpyHostToDevice, s_stream);
 
     for (long t = 0; t < params->nbframes; t++)
     {
-        cudaMemset(s_d_frame_pha, 0, sizeof(float) * (size_t) pup_pixels);
-        cudaMemset(s_d_frame_spha, 0, sizeof(float) * (size_t) pup_pixels);
-        cudaMemset(s_d_acc_dphi_pri, 0, sizeof(cufftComplex) * (size_t) n_spec);
-        cudaMemset(s_d_acc_chi_pri, 0, sizeof(cufftComplex) * (size_t) n_spec);
-        if (has_sec)
+        size_t frame_sub_offset = (size_t) (t * params->nsuper * params->max_sublayers);
+
+        cudaMemcpyAsync(s_d_active_sublayers, d_all_sublayers + frame_sub_offset,
+                        frame_sub_bytes, cudaMemcpyDeviceToDevice, s_stream);
+
+        if (s_graph_exec != NULL)
         {
-            cudaMemset(s_d_acc_dphi_sec, 0, sizeof(cufftComplex) * (size_t) n_spec);
-            cudaMemset(s_d_acc_chi_sec, 0, sizeof(cufftComplex) * (size_t) n_spec);
+            cudaGraphLaunch(s_graph_exec, s_stream);
         }
-
-        for (int m = 0; m < params->nsuper; m++)
+        else
         {
-            int n_sub = params->super_nlayers[m];
-            size_t sub_idx = (size_t) ((t * params->nsuper + m) * params->max_sublayers);
-            cudaMemcpyToSymbol(c_sublayers, params->frame_sublayers + sub_idx,
-                               sizeof(atmturb_cuda_rytov_sublayer_t) * (size_t) n_sub);
-
-            if (params->interp == 1)
-            {
-                atmturb_cuda_extrude_sl_kernel<1><<<g_ext, b_ext>>>(
-                    d_masters, (int) params->msize, (int) pad, (int) pup_size, (int) guard,
-                    n_sub, has_sec, os, s_d_super_pha, s_d_super_spha,
-                    s_d_frame_pha, s_d_frame_spha);
-            }
-            else
-            {
-                atmturb_cuda_extrude_sl_kernel<0><<<g_ext, b_ext>>>(
-                    d_masters, (int) params->msize, (int) pad, (int) pup_size, (int) guard,
-                    n_sub, has_sec, os, s_d_super_pha, s_d_super_spha,
-                    s_d_frame_pha, s_d_frame_spha);
-            }
-
-            if (params->super_dist_m[m] > 0.0)
-            {
-                atmturb_cuda_rytov_render_superlayer(params, m, (int) pad, (int) n_half,
-                                                     (int) n_spec);
-            }
+            atmturb_cuda_rytov_step_ops(params, d_masters, s_stream);
         }
-
-        cufftExecC2R(s_plan_2d_c2r, (cufftComplex *) s_d_acc_dphi_pri, (cufftReal *) s_d_dphi_out);
-        cufftExecC2R(s_plan_2d_c2r, (cufftComplex *) s_d_acc_chi_pri, (cufftReal *) s_d_chi_out);
-
-        cudaMemset(s_d_sum_I, 0, sizeof(float));
-        atmturb_cuda_assemble_kernel<<<g_ass, b_ass>>>(
-            (int) pup_size, (int) guard, (int) pad, s_d_frame_pha, s_d_frame_amp,
-            s_d_dphi_out, s_d_chi_out, s_d_sum_I);
-        atmturb_cuda_normalize_kernel<<<g_norm, b_norm>>>(
-            s_d_frame_amp, (int) pup_pixels, s_d_sum_I);
 
         size_t slice_off = (size_t) (t * pup_pixels);
-        cudaMemcpy(params->pha + slice_off, s_d_frame_pha,
-                   sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost);
-        cudaMemcpy(params->amp + slice_off, s_d_frame_amp,
-                   sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost);
-
+        cudaMemcpyAsync(params->pha + slice_off, s_d_frame_pha,
+                        sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
+        cudaMemcpyAsync(params->amp + slice_off, s_d_frame_amp,
+                        sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
         if (has_sec)
         {
-            cufftExecC2R(s_plan_2d_c2r, (cufftComplex *) s_d_acc_dphi_sec,
-                         (cufftReal *) s_d_dphi_out);
-            cufftExecC2R(s_plan_2d_c2r, (cufftComplex *) s_d_acc_chi_sec,
-                         (cufftReal *) s_d_chi_out);
-
-            cudaMemset(s_d_sum_I, 0, sizeof(float));
-            atmturb_cuda_assemble_kernel<<<g_ass, b_ass>>>(
-                (int) pup_size, (int) guard, (int) pad, s_d_frame_spha, s_d_frame_samp,
-                s_d_dphi_out, s_d_chi_out, s_d_sum_I);
-            atmturb_cuda_normalize_kernel<<<g_norm, b_norm>>>(
-                s_d_frame_samp, (int) pup_pixels, s_d_sum_I);
-
-            cudaMemcpy(params->spha + slice_off, s_d_frame_spha,
-                       sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost);
-            cudaMemcpy(params->samp + slice_off, s_d_frame_samp,
-                       sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost);
+            cudaMemcpyAsync(params->spha + slice_off, s_d_frame_spha,
+                            sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
+            cudaMemcpyAsync(params->samp + slice_off, s_d_frame_samp,
+                            sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
         }
     }
 
+    cudaStreamSynchronize(s_stream);
+    cudaFree(d_all_sublayers);
     return 0;
 }
