@@ -31,6 +31,7 @@
  * @t_dec_s: Rolling screen epoch duration [seconds].
  * @traj_x: Cumulative x offset table in master pixels [nbframes] (or NULL).
  * @traj_y: Cumulative y offset table in master pixels [nbframes] (or NULL).
+ * @nbframes: Number of precomputed trajectory frames.
  */
 typedef struct
 {
@@ -50,6 +51,7 @@ typedef struct
     double  t_dec_s;
     double *traj_x;
     double *traj_y;
+    long    nbframes;
 } atmturb_layer_geom_t;
 
 /**
@@ -180,5 +182,27 @@ double atmturb_refraction_ray_shift_path(
     double  zenith_angle,
     double  lambda_m,
     double *path_len_out);
+
+/**
+ * atmturb_geom_get_layer_dx - Evaluate cumulative x translation for layer at frame t
+ * @lg: Layer geometry structure.
+ * @t: Simulation frame index.
+ *
+ * Return: Cumulative x offset in master pixels.
+ */
+double atmturb_geom_get_layer_dx(
+    const atmturb_layer_geom_t *lg,
+    long                        t);
+
+/**
+ * atmturb_geom_get_layer_dy - Evaluate cumulative y translation for layer at frame t
+ * @lg: Layer geometry structure.
+ * @t: Simulation frame index.
+ *
+ * Return: Cumulative y offset in master pixels.
+ */
+double atmturb_geom_get_layer_dy(
+    const atmturb_layer_geom_t *lg,
+    long                        t);
 
 #endif // ATMTURB_GEOMETRY_H

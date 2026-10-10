@@ -160,17 +160,20 @@ __global__ static void atmturb_cuda_extrude_sl_kernel(
         atmturb_cuda_rytov_sublayer_t info = d_sublayers[l];
         float cur_x  = info.x + (float) (i * os);
         float cur_y  = info.y + (float) (j * os);
-        if (interp_mode == 1)
+        if (info.w_pri != 0.0f)
         {
-            p_val += info.w_pri * atmturb_cuda_sample_screen_bicubic(
-                d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
+            if (interp_mode == 1)
+            {
+                p_val += info.w_pri * atmturb_cuda_sample_screen_bicubic(
+                    d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
+            }
+            else
+            {
+                p_val += info.w_pri * atmturb_cuda_sample_screen(
+                    d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
+            }
         }
-        else
-        {
-            p_val += info.w_pri * atmturb_cuda_sample_screen(
-                d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
-        }
-        if (has_sec)
+        if (has_sec && info.w_sec != 0.0f)
         {
             float cur_xs = info.xs + (float) (i * os);
             float cur_ys = info.ys + (float) (j * os);

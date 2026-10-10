@@ -234,8 +234,9 @@ static void atmturb_init_layer_turbulent_wind(
     uint64_t                    base_seed,
     atmturb_layer_geom_t       *lg)
 {
-    lg->traj_x = NULL;
-    lg->traj_y = NULL;
+    lg->traj_x   = NULL;
+    lg->traj_y   = NULL;
+    lg->nbframes = 0;
 
     if (params->nbframes <= 0 || !(layer->sigma_wind_mps > 0.0) || !(layer->L_wind_m > 0.0))
     {
@@ -252,6 +253,7 @@ static void atmturb_init_layer_turbulent_wind(
         lg->traj_y = NULL;
         return;
     }
+    lg->nbframes = params->nbframes;
 
     atmturb_wind_traj_params_t tp = {
         .nbframes       = params->nbframes,
@@ -394,4 +396,54 @@ int atmturb_geometry_compute(
     fflush(stdout);
 
     return 0;
+}
+
+/**
+ * atmturb_geom_get_layer_dx - Evaluate cumulative x translation for layer at frame t
+ * @lg: Layer geometry structure.
+ * @t: Simulation frame index.
+ *
+ * Return: Cumulative x offset in master pixels.
+ */
+double atmturb_geom_get_layer_dx(
+    const atmturb_layer_geom_t *lg,
+    long                        t)
+{
+    if (lg == NULL)
+    {
+        return 0.0;
+    }
+    if (lg->traj_x == NULL || lg->nbframes <= 1)
+    {
+        return (double) t * lg->vx_pix;
+    }
+    long span  = lg->nbframes - 1;
+    long cycle = t / span;
+    long rem   = t % span;
+    return (double) cycle * lg->traj_x[span] + lg->traj_x[rem];
+}
+
+/**
+ * atmturb_geom_get_layer_dy - Evaluate cumulative y translation for layer at frame t
+ * @lg: Layer geometry structure.
+ * @t: Simulation frame index.
+ *
+ * Return: Cumulative y offset in master pixels.
+ */
+double atmturb_geom_get_layer_dy(
+    const atmturb_layer_geom_t *lg,
+    long                        t)
+{
+    if (lg == NULL)
+    {
+        return 0.0;
+    }
+    if (lg->traj_y == NULL || lg->nbframes <= 1)
+    {
+        return (double) t * lg->vy_pix;
+    }
+    long span  = lg->nbframes - 1;
+    long cycle = t / span;
+    long rem   = t % span;
+    return (double) cycle * lg->traj_y[span] + lg->traj_y[rem];
 }
