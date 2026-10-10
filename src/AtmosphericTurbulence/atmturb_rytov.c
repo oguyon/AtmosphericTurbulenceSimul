@@ -177,13 +177,17 @@ int atmturb_rytov_plan_init(
     plan->pixscale_m   = pixscale_m;
     plan->lambda_ref_m = lambda_ref_m;
     plan->lambda_s_m   = lambda_s_m;
-    if (CONF_FRESNEL_RYTOV_MOISAN >= 0)
+    if (plan->guard_pix < 8)
+    {
+        plan->use_moisan = 1;
+    }
+    else if (CONF_FRESNEL_RYTOV_MOISAN >= 0)
     {
         plan->use_moisan = CONF_FRESNEL_RYTOV_MOISAN;
     }
     else
     {
-        plan->use_moisan = (plan->guard_pix < 8) ? 1 : 0;
+        plan->use_moisan = 0;
     }
 
     if (atmturb_superlayer_build(&plan->supers, &plan->nsuper, prof, geom,

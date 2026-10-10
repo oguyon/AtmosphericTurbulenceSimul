@@ -43,30 +43,37 @@ void atmturb_rytov_assemble_output(
 {
     long npix = pup_size * pup_size;
     double sum_i = 0.0;
+    long max_clamp = (pup_size > 2) ? (pup_size - 2) : 0;
 
-    if (guard_pix == 0)
+    for (long y = 0; y < pup_size; y++)
     {
-        for (long i = 0; i < npix; i++)
+        long sy = (guard_pix == 0 && (y == 0 || y == pup_size - 1))
+                      ? ((y == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
+                      : y;
+        long src_row = (sy + guard_pix) * pad_size + guard_pix;
+        long dst_row = y * pup_size;
+
+        for (long x = 0; x < pup_size; x++)
         {
-            pha[i] += dphi[i];
-            float a = expf(chi[i]);
-            amp[i]  = a;
-            sum_i  += (double) (a * a);
-        }
-    }
-    else
-    {
-        for (long y = 0; y < pup_size; y++)
-        {
-            long src_row = (y + guard_pix) * pad_size + guard_pix;
-            long dst_row = y * pup_size;
-            for (long x = 0; x < pup_size; x++)
+            long sx = (guard_pix == 0 && (x == 0 || x == pup_size - 1))
+                          ? ((x == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
+                          : x;
+            long src_idx = src_row + sx;
+            long dst_idx = dst_row + x;
+
+            pha[dst_idx] += dphi[src_idx];
+            float c = chi[src_idx];
+            if (c > 3.0f)
             {
-                pha[dst_row + x] += dphi[src_row + x];
-                float a = expf(chi[src_row + x]);
-                amp[dst_row + x] = a;
-                sum_i += (double) (a * a);
+                c = 3.0f;
             }
+            else if (c < -3.0f)
+            {
+                c = -3.0f;
+            }
+            float a = expf(c);
+            amp[dst_idx] = a;
+            sum_i += (double) (a * a);
         }
     }
 

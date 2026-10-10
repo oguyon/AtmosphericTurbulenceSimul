@@ -496,11 +496,27 @@ __global__ static void atmturb_cuda_assemble_kernel(
     float a_sq = 0.0f;
     if (x < pup_size && y < pup_size)
     {
-        int src_idx = (y + guard) * pad_size + (x + guard);
+        int max_clamp = (pup_size > 2) ? (pup_size - 2) : 0;
+        int sx = (guard == 0 && (x == 0 || x == pup_size - 1))
+                     ? ((x == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
+                     : x;
+        int sy = (guard == 0 && (y == 0 || y == pup_size - 1))
+                     ? ((y == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
+                     : y;
+        int src_idx = (sy + guard) * pad_size + (sx + guard);
         int dst_idx = y * pup_size + x;
 
         d_frame_pha[dst_idx] += d_dphi_out[src_idx];
-        float a = expf(d_chi_out[src_idx]);
+        float c = d_chi_out[src_idx];
+        if (c > 3.0f)
+        {
+            c = 3.0f;
+        }
+        else if (c < -3.0f)
+        {
+            c = -3.0f;
+        }
+        float a = expf(c);
         d_frame_amp[dst_idx] = a;
         a_sq = a * a;
     }
