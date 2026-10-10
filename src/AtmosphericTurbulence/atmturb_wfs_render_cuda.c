@@ -240,6 +240,7 @@ int atmturb_wfs_render_rytov_cuda(
         .sec_shared      = plan.sec_shared,
         .os              = (int) geom->oversample,
         .interp          = geom->interp,
+        .use_moisan      = plan.use_moisan,
         .h_masters       = masters,
         .h_laplace_inv   = plan.laplace_inv,
         .h_exp_x         = (const void *) plan.exp_x,
@@ -374,6 +375,7 @@ atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     ctx->cparams.sec_shared      = ctx->plan.sec_shared;
     ctx->cparams.os              = (int) geom->oversample;
     ctx->cparams.interp          = geom->interp;
+    ctx->cparams.use_moisan      = ctx->plan.use_moisan;
     ctx->cparams.h_masters       = ctx->masters;
     ctx->cparams.h_laplace_inv   = ctx->plan.laplace_inv;
     ctx->cparams.h_exp_x         = (const void *) ctx->plan.exp_x;

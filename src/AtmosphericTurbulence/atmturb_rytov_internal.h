@@ -104,6 +104,16 @@ int atmturb_rytov_build_layer_filters(
     int                   m,
     size_t                npix);
 
+/**
+ * atmturb_rytov_wisdom_load - Import pre-computed FFTW wisdom from disk
+ */
+void atmturb_rytov_wisdom_load(void);
+
+/**
+ * atmturb_rytov_wisdom_save - Export updated FFTW wisdom to disk
+ */
+void atmturb_rytov_wisdom_save(void);
+
 #ifdef __cplusplus
 }
 #endif

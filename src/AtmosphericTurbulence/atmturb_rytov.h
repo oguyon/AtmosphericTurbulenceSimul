@@ -40,6 +40,7 @@ extern "C" {
  * @laplace_inv: Precomputed inverse discrete Laplacian lookup table.
  * @exp_y: Precomputed vertical boundary Fourier factor array.
  * @exp_x: Precomputed horizontal boundary Fourier factor array.
+ * @use_moisan: 1 if Moisan periodic-plus-smooth decomposition active, 0 to bypass.
  */
 typedef struct
 {
@@ -48,6 +49,7 @@ typedef struct
     long                  grid_size;
     long                  guard_pix;
     long                  pad_size;
+    int                   use_moisan;
     double                pixscale_m;
     double                lambda_ref_m;
     double                lambda_s_m;

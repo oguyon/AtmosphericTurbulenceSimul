@@ -130,6 +130,7 @@ if(HAVE_CUDA OR USE_CUDA)
             list(APPEND SOURCEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov.cu
+                src/AtmosphericTurbulence/atmturb_cuda_rytov_kernels.cu
             )
             list(APPEND INCLUDEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.h

@@ -53,8 +53,8 @@ constructs autoregressive linear predictors for predictive adaptive optics contr
   engine (`FRESNEL_PROPAGATION=1`).
 - `atmturb_rytov.c`, `atmturb_rytov_kernels.c`, `atmturb_rytov.h`: First-order Rytov Fourier-space
   propagation engine (`FRESNEL_PROPAGATION=2`) with Moisan periodic-plus-smooth decomposition.
-- `atmturb_rytov_cuda.cu` / `atmturb_rytov_cuda.h`: CUDA and cuFFT GPU acceleration for Rytov
-  wavefront synthesis and real-time 2D shared memory streaming.
+- `atmturb_cuda_rytov.cu`, `atmturb_cuda_rytov_kernels.cu`, `atmturb_cuda_rytov.h`: CUDA and cuFFT
+  GPU acceleration for Rytov wavefront synthesis, batched transforms, and CUDA Graph execution.
 - `atmturb_cuda.cu` / `atmturb_cuda.h`: CUDA GPU accelerated multi-layer wavefront extrusion kernel.
 - `atmturb_simd.h`: Declarations for SIMD-accelerated extrusion, scaling, initialization, and
   ISA queries.

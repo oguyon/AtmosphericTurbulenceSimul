@@ -9,8 +9,11 @@
 
 #define _GNU_SOURCE
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "atmturb_rytov.h"
 #include "atmturb_rytov_internal.h"
@@ -348,4 +351,67 @@ int atmturb_rytov_build_layer_filters(
         }
     }
     return 0;
+}
+
+/**
+ * atmturb_rytov_get_wisdom_path - Determine persistent FFTW wisdom file path
+ * @path: Output string buffer.
+ * @maxlen: Size of output buffer in bytes.
+ *
+ * Return: 0 on success.
+ */
+static int atmturb_rytov_get_wisdom_path(
+    char  *path,
+    size_t maxlen)
+{
+    const char *env_path = getenv("ATMTURB_FFTW_WISDOM");
+    if (env_path != NULL && env_path[0] != '\0')
+    {
+        snprintf(path, maxlen, "%s", env_path);
+        return 0;
+    }
+
+    const char *home = getenv("HOME");
+    if (home != NULL && home[0] != '\0')
+    {
+        char milk_dir[512];
+        snprintf(milk_dir, sizeof(milk_dir), "%s/.milk", home);
+        mkdir(milk_dir, 0755);
+        snprintf(path, maxlen, "%s/.milk/atmturb_fftw_wisdom.txt", home);
+        return 0;
+    }
+
+    snprintf(path, maxlen, ".atmturb_fftw_wisdom.txt");
+    return 0;
+}
+
+/**
+ * atmturb_rytov_wisdom_load - Import pre-computed FFTW wisdom from disk
+ */
+void atmturb_rytov_wisdom_load(void)
+{
+    static int s_loaded = 0;
+    if (s_loaded != 0)
+    {
+        return;
+    }
+    s_loaded = 1;
+
+    char path[512];
+    if (atmturb_rytov_get_wisdom_path(path, sizeof(path)) == 0)
+    {
+        fftwf_import_wisdom_from_filename(path);
+    }
+}
+
+/**
+ * atmturb_rytov_wisdom_save - Export updated FFTW wisdom to disk
+ */
+void atmturb_rytov_wisdom_save(void)
+{
+    char path[512];
+    if (atmturb_rytov_get_wisdom_path(path, sizeof(path)) == 0)
+    {
+        fftwf_export_wisdom_to_filename(path);
+    }
 }
