@@ -246,7 +246,7 @@ static void atmturb_wfs_stream_publish(
     if (st->id_pha >= 0)
     {
         dcimg[st->id_pha].md[0].write = 1;
-        atmturb_remove_piston_stream(st->pha, dcimg[st->id_pha].array.F, frame_pixels);
+        atmturb_remove_piston_stream(dcimg[st->id_pha].array.F, st->pha, frame_pixels);
         atmturb_wfs_stream_post(st->id_pha, ts);
     }
     if (st->id_amp >= 0)
@@ -258,7 +258,7 @@ static void atmturb_wfs_stream_publish(
     if (st->id_spha >= 0)
     {
         dcimg[st->id_spha].md[0].write = 1;
-        atmturb_remove_piston_stream(st->spha, dcimg[st->id_spha].array.F, frame_pixels);
+        atmturb_remove_piston_stream(dcimg[st->id_spha].array.F, st->spha, frame_pixels);
         atmturb_wfs_stream_post(st->id_spha, ts);
     }
     if (st->id_samp >= 0)

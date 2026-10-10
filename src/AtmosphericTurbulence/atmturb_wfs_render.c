@@ -105,8 +105,8 @@ void atmturb_wfs_render_layer_target(
     atmturb_rolling_eval_t rev;
     atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
 
-    double dx = (lg->traj_x != NULL) ? lg->traj_x[t] : ((double) t * lg->vx_pix);
-    double dy = (lg->traj_y != NULL) ? lg->traj_y[t] : ((double) t * lg->vy_pix);
+    double dx = atmturb_geom_get_layer_dx(lg, t);
+    double dy = atmturb_geom_get_layer_dy(lg, t);
 
     double wscale = (target->weight_scale > 0.0f) ? (double) target->weight_scale : 1.0;
     double w_pri  = lg->weight * wscale;

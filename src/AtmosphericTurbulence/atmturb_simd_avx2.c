@@ -366,7 +366,7 @@ void atmturb_extrude_accumulate_bicubic_avx2(
                 float h2 = wx[0] * row2[bx - 1] + wx[1] * row2[bx] +
                            wx[2] * row2[bx + 1] + wx[3] * row2[bx + 2];
                 float h3 = wx[0] * row3[bx - 1] + wx[1] * row3[bx] +
-                           wx[2] * row3[bx + 2] + wx[3] * row3[bx + 2];
+                           wx[2] * row3[bx + 1] + wx[3] * row3[bx + 2];
                 out_row[ii] += wy0 * h0 + wy1 * h1 + wy2 * h2 + wy3 * h3;
             }
         }

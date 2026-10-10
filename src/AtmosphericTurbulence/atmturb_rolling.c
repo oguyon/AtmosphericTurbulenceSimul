@@ -273,6 +273,8 @@ void atmturb_rolling_get_frame(
         out->scrB = NULL;
         out->wA   = 1.0f;
         out->wB   = 0.0f;
+        out->idxA = 0;
+        out->idxB = 0;
         if (r->lowfreq)
         {
             memcpy(out->are_eff, rl->screens[0].are, sizeof(out->are_eff));
@@ -286,16 +288,8 @@ void atmturb_rolling_get_frame(
     long idxA, idxB;
     if (epoch >= rl->nscreens - 1)
     {
-        if (rl->nscreens > 2)
-        {
-            idxA = epoch % rl->nscreens;
-            idxB = (epoch + 1) % rl->nscreens;
-        }
-        else
-        {
-            idxA = 0;
-            idxB = 1;
-        }
+        idxA = epoch % rl->nscreens;
+        idxB = (epoch + 1) % rl->nscreens;
     }
     else
     {
@@ -312,6 +306,8 @@ void atmturb_rolling_get_frame(
     out->scrB = rl->screens[idxB].data;
     out->wA   = wA;
     out->wB   = wB;
+    out->idxA = (int) idxA;
+    out->idxB = (int) idxB;
 
     if (r->lowfreq)
     {

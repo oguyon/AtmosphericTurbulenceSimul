@@ -68,6 +68,8 @@ typedef struct
  * @scrB: Pointer to secondary active screen array (NULL if wB == 0).
  * @wA: Cross-fading weight for screen A (cos(theta)).
  * @wB: Cross-fading weight for screen B (sin(theta)).
+ * @idxA: Index of primary active screen in layer screens array.
+ * @idxB: Index of secondary active screen in layer screens array.
  * @are_eff: Blended lowfreq real amplitudes (ATMTURB_LOWFREQ_NMODES floats).
  * @aim_eff: Blended lowfreq imaginary amplitudes (ATMTURB_LOWFREQ_NMODES floats).
  */
@@ -77,6 +79,8 @@ typedef struct
     const float *scrB;
     float        wA;
     float        wB;
+    int          idxA;
+    int          idxB;
     float        are_eff[ATMTURB_LOWFREQ_NMODES];
     float        aim_eff[ATMTURB_LOWFREQ_NMODES];
 } atmturb_rolling_eval_t;
