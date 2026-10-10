@@ -97,6 +97,48 @@ int atmturb_wfs_render_cuda(
     return ret;
 }
 
+static inline void atmturb_wfs_cuda_build_frame_sublayers(
+    const atmturb_rolling_t       *r,
+    const atmturb_geom_t          *geom,
+    const atmturb_rytov_plan_t    *plan,
+    long                           t,
+    double                         time_step_s,
+    double                         offset_os,
+    int                            max_sublayers,
+    atmturb_cuda_rytov_sublayer_t *sublayers)
+{
+    for (int m = 0; m < plan->nsuper; m++)
+    {
+        const atmturb_superlayer_t *sl = &plan->supers[m];
+        size_t base = (size_t) (m * max_sublayers);
+
+        for (int j = 0; j < sl->nlayers; j++)
+        {
+            int k = sl->layer_indices[j];
+            float ws = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
+            atmturb_rolling_eval_t rev;
+            atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
+
+            double dx = (geom->layers[k].traj_x != NULL)
+                        ? geom->layers[k].traj_x[t]
+                        : ((double) t * geom->layers[k].vx_pix);
+            double dy = (geom->layers[k].traj_y != NULL)
+                        ? geom->layers[k].traj_y[t]
+                        : ((double) t * geom->layers[k].vy_pix);
+
+            sublayers[base + j].k     = k;
+            sublayers[base + j].w_pri = (float) (geom->layers[k].weight * (double) ws *
+                                                 (double) rev.wA);
+            sublayers[base + j].w_sec = (float) (geom->layers[k].weight_s * (double) ws *
+                                                 (double) rev.wA);
+            sublayers[base + j].x     = (float) (geom->layers[k].x0 + dx - offset_os);
+            sublayers[base + j].y     = (float) (geom->layers[k].y0 + dy - offset_os);
+            sublayers[base + j].xs    = (float) (geom->layers[k].xs0 + dx - offset_os);
+            sublayers[base + j].ys    = (float) (geom->layers[k].ys0 + dy - offset_os);
+        }
+    }
+}
+
 static void atmturb_wfs_cuda_build_sublayers(
     const atmturb_rolling_t       *r,
     const atmturb_geom_t          *geom,
@@ -107,40 +149,14 @@ static void atmturb_wfs_cuda_build_sublayers(
     atmturb_cuda_rytov_sublayer_t *sublayers)
 {
     double offset_os = (double) plan->guard_pix * (double) geom->oversample;
+    size_t frame_stride = (size_t) (plan->nsuper * max_sublayers);
 
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for
     for (long t = 0; t < nbframes; t++)
     {
-        for (int m = 0; m < plan->nsuper; m++)
-        {
-            const atmturb_superlayer_t *sl = &plan->supers[m];
-            size_t base = (size_t) ((t * plan->nsuper + m) * max_sublayers);
-
-            for (int j = 0; j < sl->nlayers; j++)
-            {
-                int k = sl->layer_indices[j];
-                float ws = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
-                atmturb_rolling_eval_t rev;
-                atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
-
-                double dx = (geom->layers[k].traj_x != NULL)
-                            ? geom->layers[k].traj_x[t]
-                            : ((double) t * geom->layers[k].vx_pix);
-                double dy = (geom->layers[k].traj_y != NULL)
-                            ? geom->layers[k].traj_y[t]
-                            : ((double) t * geom->layers[k].vy_pix);
-
-                sublayers[base + j].k     = k;
-                sublayers[base + j].w_pri = (float) (geom->layers[k].weight * (double) ws *
-                                                     (double) rev.wA);
-                sublayers[base + j].w_sec = (float) (geom->layers[k].weight_s * (double) ws *
-                                                     (double) rev.wA);
-                sublayers[base + j].x     = (float) (geom->layers[k].x0 + dx - offset_os);
-                sublayers[base + j].y     = (float) (geom->layers[k].y0 + dy - offset_os);
-                sublayers[base + j].xs    = (float) (geom->layers[k].xs0 + dx - offset_os);
-                sublayers[base + j].ys    = (float) (geom->layers[k].ys0 + dy - offset_os);
-            }
-        }
+        atmturb_wfs_cuda_build_frame_sublayers(
+            r, geom, plan, t, time_step_s, offset_os, max_sublayers,
+            sublayers + (size_t) t * frame_stride);
     }
 }
 
@@ -252,6 +268,201 @@ int atmturb_wfs_render_rytov_cuda(
     atmturb_rytov_plan_free(&plan);
 
     return ret;
+}
+
+struct atmturb_cuda_rytov_stream
+{
+    atmturb_rytov_plan_t          plan;
+    atmturb_cuda_rytov_params_t   cparams;
+    atmturb_cuda_rytov_sublayer_t *sublayers;
+    int                          *super_nlayers;
+    double                       *super_dist_m;
+    const float                 **masters;
+    int                           max_sublayers;
+    double                        offset_os;
+};
+
+/**
+ * atmturb_cuda_rytov_stream_init - Initialize persistent GPU Rytov streaming context
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @prof: Active turbulence profile.
+ * @params: Observation parameters container.
+ * @master_size: Master screen linear dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ *
+ * Return: Allocated streaming context, or NULL on failure.
+ */
+atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
+    const atmturb_rolling_t    *r,
+    const atmturb_geom_t       *geom,
+    const atmturb_profile_t    *prof,
+    const atmturb_obs_params_t *params,
+    long                        master_size,
+    long                        pup_size)
+{
+    if (r->lowfreq != 0 || !atmturb_cuda_device_available())
+    {
+        return NULL;
+    }
+
+    atmturb_cuda_rytov_stream_t *ctx =
+        (atmturb_cuda_rytov_stream_t *) calloc(1, sizeof(atmturb_cuda_rytov_stream_t));
+    if (!ctx)
+    {
+        return NULL;
+    }
+
+    double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
+    if (atmturb_rytov_plan_init(&ctx->plan, prof, geom, pup_size, params->pupil_scale_m,
+                                params->lambda_ref_m, params->lambda_s_m, z_bin,
+                                CONF_FRESNEL_RYTOV_SEC_EXACT) != 0)
+    {
+        free(ctx);
+        return NULL;
+    }
+
+    int max_sublayers = 1;
+    for (int m = 0; m < ctx->plan.nsuper; m++)
+    {
+        if (ctx->plan.supers[m].nlayers > max_sublayers)
+        {
+            max_sublayers = ctx->plan.supers[m].nlayers;
+        }
+    }
+    if (max_sublayers > 64)
+    {
+        atmturb_rytov_plan_free(&ctx->plan);
+        free(ctx);
+        return NULL;
+    }
+
+    ctx->max_sublayers = max_sublayers;
+    ctx->offset_os     = (double) ctx->plan.guard_pix * (double) geom->oversample;
+    size_t n_sub_tot   = (size_t) (ctx->plan.nsuper * max_sublayers);
+
+    ctx->sublayers     = (atmturb_cuda_rytov_sublayer_t *) calloc(
+        n_sub_tot, sizeof(atmturb_cuda_rytov_sublayer_t));
+    ctx->super_nlayers = (int *) malloc(sizeof(int) * (size_t) ctx->plan.nsuper);
+    ctx->super_dist_m  = (double *) malloc(sizeof(double) * (size_t) ctx->plan.nsuper);
+    ctx->masters       = (const float **) malloc(sizeof(float *) * (size_t) geom->nlayers);
+
+    if (!ctx->sublayers || !ctx->super_nlayers || !ctx->super_dist_m || !ctx->masters)
+    {
+        atmturb_cuda_rytov_stream_free(ctx);
+        return NULL;
+    }
+
+    for (int k = 0; k < geom->nlayers; k++)
+    {
+        ctx->masters[k] = r->layers[k].screens[0].data;
+    }
+    for (int m = 0; m < ctx->plan.nsuper; m++)
+    {
+        ctx->super_nlayers[m] = ctx->plan.supers[m].nlayers;
+        ctx->super_dist_m[m]  = ctx->plan.supers[m].dist_m;
+    }
+
+    ctx->cparams.msize           = master_size;
+    ctx->cparams.pup_size        = pup_size;
+    ctx->cparams.pad_size        = ctx->plan.pad_size;
+    ctx->cparams.guard_pix       = ctx->plan.guard_pix;
+    ctx->cparams.nbframes        = 1;
+    ctx->cparams.nblayers        = geom->nlayers;
+    ctx->cparams.nsuper          = ctx->plan.nsuper;
+    ctx->cparams.has_sec         = (ctx->plan.lambda_s_m > 0.0) ? 1 : 0;
+    ctx->cparams.sec_shared      = ctx->plan.sec_shared;
+    ctx->cparams.os              = (int) geom->oversample;
+    ctx->cparams.interp          = geom->interp;
+    ctx->cparams.h_masters       = ctx->masters;
+    ctx->cparams.h_laplace_inv   = ctx->plan.laplace_inv;
+    ctx->cparams.h_exp_x         = (const void *) ctx->plan.exp_x;
+    ctx->cparams.h_exp_y         = (const void *) ctx->plan.exp_y;
+    ctx->cparams.h_filt_a_pri    = (const float *const *) ctx->plan.filter_a_pri;
+    ctx->cparams.h_filt_b_pri    = (const float *const *) ctx->plan.filter_b_pri;
+    ctx->cparams.h_filt_a_sec    = (const float *const *) ctx->plan.filter_a_sec;
+    ctx->cparams.h_filt_b_sec    = (const float *const *) ctx->plan.filter_b_sec;
+    ctx->cparams.h_chrom_ramp    = (const void *const *) ctx->plan.chrom_ramp;
+    ctx->cparams.frame_sublayers = ctx->sublayers;
+    ctx->cparams.super_nlayers   = ctx->super_nlayers;
+    ctx->cparams.super_dist_m    = ctx->super_dist_m;
+    ctx->cparams.max_sublayers   = max_sublayers;
+
+    return ctx;
+}
+
+/**
+ * atmturb_cuda_rytov_stream_render_step - Render one stream frame on GPU
+ * @ctx: Persistent stream context.
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @pha: Destination primary phase frame buffer.
+ * @amp: Destination primary amplitude frame buffer.
+ * @spha: Destination secondary phase frame buffer (or NULL).
+ * @samp: Destination secondary amplitude frame buffer (or NULL).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_rytov_stream_render_step(
+    atmturb_cuda_rytov_stream_t *ctx,
+    const atmturb_rolling_t     *r,
+    const atmturb_geom_t        *geom,
+    long                         t,
+    double                       time_step_s,
+    float                       *pha,
+    float                       *amp,
+    float                       *spha,
+    float                       *samp)
+{
+    if (!ctx)
+    {
+        return -1;
+    }
+
+    atmturb_wfs_cuda_build_frame_sublayers(
+        r, geom, &ctx->plan, t, time_step_s, ctx->offset_os,
+        ctx->max_sublayers, ctx->sublayers);
+
+    ctx->cparams.pha  = pha;
+    ctx->cparams.amp  = amp;
+    ctx->cparams.spha = spha;
+    ctx->cparams.samp = samp;
+
+    return atmturb_cuda_rytov_render(&ctx->cparams);
+}
+
+/**
+ * atmturb_cuda_rytov_stream_free - Free persistent GPU Rytov streaming context
+ * @ctx: Stream context to release.
+ */
+void atmturb_cuda_rytov_stream_free(
+    atmturb_cuda_rytov_stream_t *ctx)
+{
+    if (!ctx)
+    {
+        return;
+    }
+    if (ctx->sublayers)
+    {
+        free(ctx->sublayers);
+    }
+    if (ctx->super_nlayers)
+    {
+        free(ctx->super_nlayers);
+    }
+    if (ctx->super_dist_m)
+    {
+        free(ctx->super_dist_m);
+    }
+    if (ctx->masters)
+    {
+        free(ctx->masters);
+    }
+    atmturb_rytov_plan_free(&ctx->plan);
+    atmturb_cuda_rytov_cleanup();
+    free(ctx);
 }
 
 #endif // HAVE_CUDA

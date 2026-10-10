@@ -26,6 +26,7 @@
 #include "atmturb_simd.h"
 #include "atmturb_types.h"
 #include "atmturb_wfs_render.h"
+#include "atmturb_wfs_render_cuda.h"
 #include "atmturb_wfs_stream.h"
 #include "ImageStreamIO/ImageStreamIO.h"
 
@@ -117,6 +118,7 @@ static inline void atmturb_wfs_stream_post(
  * @fctx: Fresnel context pointer.
  * @rplan: Rytov plan pointer.
  * @rctx: Rytov context pointer.
+ * @cuda_rstream: GPU Rytov streaming context pointer.
  */
 typedef struct
 {
@@ -132,6 +134,7 @@ typedef struct
     atmturb_fresnel_ctx_t        *fctx;
     const atmturb_rytov_plan_t   *rplan;
     atmturb_rytov_ctx_t          *rctx;
+    atmturb_cuda_rytov_stream_t  *cuda_rstream;
 } atmturb_stream_state_t;
 
 /**
@@ -159,6 +162,16 @@ static void atmturb_wfs_stream_render_step(
                                     master_size, pup_size, st->pha, st->amp,
                                     st->spha, st->samp);
         return;
+    }
+
+    if (CONF_FRESNEL_PROPAGATION == 2 && st->cuda_rstream != NULL)
+    {
+        if (atmturb_cuda_rytov_stream_render_step(st->cuda_rstream, rsim, geom, t,
+                                                 time_step_s, st->pha, st->amp,
+                                                 st->spha, st->samp) == 0)
+        {
+            return;
+        }
     }
 
     if (CONF_FRESNEL_PROPAGATION == 2 && st->rplan != NULL && st->rctx != NULL)
@@ -447,13 +460,21 @@ int make_AtmosphericTurbulence_wavefront_stream(
     }
     else if (CONF_FRESNEL_PROPAGATION == 2)
     {
-        double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
-        atmturb_rytov_plan_init(&rplan, &prof, &geom, pup_size, params.pupil_scale_m,
-                                params.lambda_ref_m, params.lambda_s_m, z_bin,
-                                CONF_FRESNEL_RYTOV_SEC_EXACT);
-        atmturb_rytov_ctx_init(&rctx, rplan.pad_size);
-        st.rplan = &rplan;
-        st.rctx  = &rctx;
+        if (atmturb_simd_is_gpu())
+        {
+            st.cuda_rstream = atmturb_cuda_rytov_stream_init(
+                &rsim, &geom, &prof, &params, CONF_MASTER_SIZE, pup_size);
+        }
+        if (st.cuda_rstream == NULL)
+        {
+            double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
+            atmturb_rytov_plan_init(&rplan, &prof, &geom, pup_size, params.pupil_scale_m,
+                                    params.lambda_ref_m, params.lambda_s_m, z_bin,
+                                    CONF_FRESNEL_RYTOV_SEC_EXACT);
+            atmturb_rytov_ctx_init(&rctx, rplan.pad_size);
+            st.rplan = &rplan;
+            st.rctx  = &rctx;
+        }
     }
 
     g_stream_stop = 0;
@@ -464,8 +485,10 @@ int make_AtmosphericTurbulence_wavefront_stream(
     sigaction(SIGTERM, &sa, &old_sa_term);
     sigaction(SIGQUIT, &sa, &old_sa_quit);
 
-    printf("[milkatmturb] Streaming 2D wavefront frames (%ldx%ld pix) to SHM '%s'%s\n",
-           pup_size, pup_size, pha_name, (st.id_amp >= 0) ? " and amplitude" : "");
+    const char *isa_str = (st.cuda_rstream != NULL) ? "CUDA GPU" : atmturb_simd_active_isa();
+    printf("[milkatmturb] Streaming 2D wavefront frames (%ldx%ld pix) to SHM '%s'%s [%s]\n",
+           pup_size, pup_size, pha_name, (st.id_amp >= 0) ? " and amplitude" : "",
+           isa_str);
     fflush(stdout);
 
     int pace = (stream_mode == 1 || stream_mode == 2);
@@ -491,8 +514,16 @@ int make_AtmosphericTurbulence_wavefront_stream(
     }
     else if (CONF_FRESNEL_PROPAGATION == 2)
     {
-        atmturb_rytov_ctx_free(&rctx);
-        atmturb_rytov_plan_free(&rplan);
+        if (st.cuda_rstream != NULL)
+        {
+            atmturb_cuda_rytov_stream_free(st.cuda_rstream);
+            st.cuda_rstream = NULL;
+        }
+        if (st.rctx != NULL)
+        {
+            atmturb_rytov_ctx_free(&rctx);
+            atmturb_rytov_plan_free(&rplan);
+        }
     }
     free(scratch);
     atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
