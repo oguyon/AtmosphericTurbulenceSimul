@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+#include "atmturb_c23_compat.h"
 #include "CLIcore.h"
 #include "COREMOD_memory/COREMOD_memory.h"
 #include "COREMOD_iofits/COREMOD_iofits.h"

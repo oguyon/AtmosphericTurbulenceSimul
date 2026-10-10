@@ -10,6 +10,7 @@
 #ifndef _MILK_ATMTURB_H
 #define _MILK_ATMTURB_H
 
+#include "atmturb_c23_compat.h"
 #include "AtmosphereModel/AtmosphereModel.h"
 #include "AtmosphericTurbulence/AtmosphericTurbulence.h"
 #include "OpticsMaterials/OpticsMaterials.h"
