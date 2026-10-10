@@ -99,6 +99,19 @@ int atmturb_wfs_render_frames_cuda(
     atmturb_cuda_sim_outputs_t      *outputs);
 
 /**
+ * atmturb_cuda_sync_device_masters - Upload and cache master screens in GPU device memory
+ * @msize: Master screen dimension in pixels.
+ * @nblayers: Number of simulation layers.
+ * @h_masters: Array of host screen pointers.
+ *
+ * Return: Pointer to device master screens array, or NULL on failure.
+ */
+float *atmturb_cuda_sync_device_masters(
+    long                msize,
+    long                nblayers,
+    const float *const *h_masters);
+
+/**
  * atmturb_cuda_cleanup - Release persistent GPU buffers and context
  */
 void atmturb_cuda_cleanup(void);
