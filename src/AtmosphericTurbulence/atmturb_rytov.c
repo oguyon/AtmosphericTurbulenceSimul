@@ -367,14 +367,26 @@ int atmturb_rytov_ctx_init(
         return -1;
     }
 
+    atmturb_rytov_wisdom_load();
+
+    const char *env_meas = getenv("ATMTURB_FFTW_MEASURE");
+    unsigned int flags = (env_meas != NULL && atoi(env_meas) != 0)
+                             ? FFTW_MEASURE
+                             : FFTW_ESTIMATE;
+
     ctx->plan_r2c = fftwf_plan_dft_r2c_2d((int) pup_size, (int) pup_size,
-                                          ctx->real_in, ctx->spec, FFTW_ESTIMATE);
+                                          ctx->real_in, ctx->spec, flags);
     ctx->plan_c2r = fftwf_plan_dft_c2r_2d((int) pup_size, (int) pup_size,
-                                          ctx->spec, ctx->real_in, FFTW_ESTIMATE);
+                                          ctx->spec, ctx->real_in, flags);
     ctx->plan_1d_a = fftwf_plan_dft_r2c_1d((int) pup_size, ctx->bound_a,
-                                           ctx->hat_a, FFTW_ESTIMATE);
+                                           ctx->hat_a, flags);
     ctx->plan_1d_b = fftwf_plan_dft_r2c_1d((int) pup_size, ctx->bound_b,
-                                           ctx->hat_b, FFTW_ESTIMATE);
+                                           ctx->hat_b, flags);
+
+    if (flags == FFTW_MEASURE)
+    {
+        atmturb_rytov_wisdom_save();
+    }
 
     if (!ctx->plan_r2c || !ctx->plan_c2r || !ctx->plan_1d_a || !ctx->plan_1d_b)
     {
