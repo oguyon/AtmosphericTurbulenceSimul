@@ -93,8 +93,9 @@ double AtmosphereModel_RefractionPath(double lambda, double Zangle, int WritePat
     {
         int should_write = (WritePath && (iter == 0 || errV <= 0.00002));
         double offsetangle = atmmod_trace_upward_ray(lambda, Zangle0, should_write, &flux);
-        Zangle0 -= offsetangle;
-        errV = fabs(offsetangle / M_PI * 180.0 * 3600.0);
+        double resid = (Zangle0 + offsetangle) - Zangle;
+        Zangle0 -= resid;
+        errV = fabs(resid / M_PI * 180.0 * 3600.0);
         iter++;
     }
 

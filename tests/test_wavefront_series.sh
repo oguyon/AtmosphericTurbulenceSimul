@@ -8,6 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export LD_LIBRARY_PATH="$REPO_ROOT/_build:${LD_LIBRARY_PATH:-}"
 
 # Locate milk-fpsexec-atmturb-mkwfs
 MKWFS_EXEC="${MILK_MKWFS_EXEC:-}"

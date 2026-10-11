@@ -203,7 +203,7 @@ void atmturb_extrude_accumulate_bilinear_avx2(
         iy0 += msize;
     }
 
-    if (os == 1 && start_x + pup_size <= msize)
+    if (os == 1 && start_x + pup_size < msize)
     {
         for (long jj = 0; jj < pup_size; jj++)
         {
@@ -238,15 +238,18 @@ void atmturb_extrude_accumulate_bilinear_avx2(
                 atmturb_bilinear_row_avx2_os1(row0, row1, out_row, start_x, pup_size,
                                              vw00, vw10, vw01, vw11);
             }
-            else if (os == 2)
+            else
             {
                 long ii = 0;
-                for (; ii <= pup_size - 8; ii += 8)
+                if (os == 2)
                 {
-                    __m256 acc = atmturb_bilinear_tap_avx2_os2(row0, row1, start_x + 2 * ii,
-                                                               vidx, vw00, vw10, vw01, vw11);
-                    __m256 out = _mm256_loadu_ps(&out_row[ii]);
-                    _mm256_storeu_ps(&out_row[ii], _mm256_add_ps(out, acc));
+                    for (; ii <= pup_size - 8; ii += 8)
+                    {
+                        __m256 acc = atmturb_bilinear_tap_avx2_os2(row0, row1, start_x + 2 * ii,
+                                                                   vidx, vw00, vw10, vw01, vw11);
+                        __m256 out = _mm256_loadu_ps(&out_row[ii]);
+                        _mm256_storeu_ps(&out_row[ii], _mm256_add_ps(out, acc));
+                    }
                 }
                 float w00 = _mm256_cvtss_f32(vw00), w10 = _mm256_cvtss_f32(vw10);
                 float w01 = _mm256_cvtss_f32(vw01), w11 = _mm256_cvtss_f32(vw11);
@@ -616,52 +619,62 @@ static void atmturb_lowfreq_mode_accumulate_avx2(
     float                           amp_im)
 {
     float h_re[1024], h_im[1024];
-    long n = (params->pup_size <= 1024) ? params->pup_size : 1024;
-    for (long i = 0; i < n; i++)
-    {
-        float th_x = kx * ((float) params->x0 + (float) (i * params->os));
-        sincosf(th_x, &h_im[i], &h_re[i]);
-    }
 
-    for (long j = 0; j < params->pup_size; j++)
+    for (long col_start = 0; col_start < params->pup_size; col_start += 1024)
     {
-        float th_y = ky * ((float) params->y0 + (float) (j * params->os));
-        float vy_re, vy_im;
-        sincosf(th_y, &vy_im, &vy_re);
-        float c_re = (amp_re * vy_re - amp_im * vy_im) * params->weight;
-        float c_im = (amp_re * vy_im + amp_im * vy_re) * params->weight;
+        long n = params->pup_size - col_start;
+        if (n > 1024)
+        {
+            n = 1024;
+        }
 
-        __m256 v_cre = _mm256_set1_ps(c_re);
-        __m256 v_cim = _mm256_set1_ps(c_im);
-        long row = j * params->pup_size;
-        long i = 0;
-        for (; i + 16 <= n; i += 16)
+        for (long i = 0; i < n; i++)
         {
-            __m256 v_out0 = _mm256_loadu_ps(&params->out_pha[row + i]);
-            __m256 v_out1 = _mm256_loadu_ps(&params->out_pha[row + i + 8]);
-            __m256 v_hre0 = _mm256_loadu_ps(&h_re[i]);
-            __m256 v_hre1 = _mm256_loadu_ps(&h_re[i + 8]);
-            __m256 v_him0 = _mm256_loadu_ps(&h_im[i]);
-            __m256 v_him1 = _mm256_loadu_ps(&h_im[i + 8]);
-            v_out0 = _mm256_fmadd_ps(v_cre, v_hre0, v_out0);
-            v_out1 = _mm256_fmadd_ps(v_cre, v_hre1, v_out1);
-            v_out0 = _mm256_fnmadd_ps(v_cim, v_him0, v_out0);
-            v_out1 = _mm256_fnmadd_ps(v_cim, v_him1, v_out1);
-            _mm256_storeu_ps(&params->out_pha[row + i],     v_out0);
-            _mm256_storeu_ps(&params->out_pha[row + i + 8], v_out1);
+            long col = col_start + i;
+            float th_x = kx * ((float) params->x0 + (float) (col * params->os));
+            sincosf(th_x, &h_im[i], &h_re[i]);
         }
-        for (; i + 8 <= n; i += 8)
+
+        for (long j = 0; j < params->pup_size; j++)
         {
-            __m256 v_out = _mm256_loadu_ps(&params->out_pha[row + i]);
-            __m256 v_hre = _mm256_loadu_ps(&h_re[i]);
-            __m256 v_him = _mm256_loadu_ps(&h_im[i]);
-            v_out = _mm256_fmadd_ps(v_cre, v_hre, v_out);
-            v_out = _mm256_fnmadd_ps(v_cim, v_him, v_out);
-            _mm256_storeu_ps(&params->out_pha[row + i], v_out);
-        }
-        for (; i < n; i++)
-        {
-            params->out_pha[row + i] += c_re * h_re[i] - c_im * h_im[i];
+            float th_y = ky * ((float) params->y0 + (float) (j * params->os));
+            float vy_re, vy_im;
+            sincosf(th_y, &vy_im, &vy_re);
+            float c_re = (amp_re * vy_re - amp_im * vy_im) * params->weight;
+            float c_im = (amp_re * vy_im + amp_im * vy_re) * params->weight;
+
+            __m256 v_cre = _mm256_set1_ps(c_re);
+            __m256 v_cim = _mm256_set1_ps(c_im);
+            long row = j * params->pup_size + col_start;
+            long i = 0;
+            for (; i + 16 <= n; i += 16)
+            {
+                __m256 v_out0 = _mm256_loadu_ps(&params->out_pha[row + i]);
+                __m256 v_out1 = _mm256_loadu_ps(&params->out_pha[row + i + 8]);
+                __m256 v_hre0 = _mm256_loadu_ps(&h_re[i]);
+                __m256 v_hre1 = _mm256_loadu_ps(&h_re[i + 8]);
+                __m256 v_him0 = _mm256_loadu_ps(&h_im[i]);
+                __m256 v_him1 = _mm256_loadu_ps(&h_im[i + 8]);
+                v_out0 = _mm256_fmadd_ps(v_cre, v_hre0, v_out0);
+                v_out1 = _mm256_fmadd_ps(v_cre, v_hre1, v_out1);
+                v_out0 = _mm256_fnmadd_ps(v_cim, v_him0, v_out0);
+                v_out1 = _mm256_fnmadd_ps(v_cim, v_him1, v_out1);
+                _mm256_storeu_ps(&params->out_pha[row + i],     v_out0);
+                _mm256_storeu_ps(&params->out_pha[row + i + 8], v_out1);
+            }
+            for (; i + 8 <= n; i += 8)
+            {
+                __m256 v_out = _mm256_loadu_ps(&params->out_pha[row + i]);
+                __m256 v_hre = _mm256_loadu_ps(&h_re[i]);
+                __m256 v_him = _mm256_loadu_ps(&h_im[i]);
+                v_out = _mm256_fmadd_ps(v_cre, v_hre, v_out);
+                v_out = _mm256_fnmadd_ps(v_cim, v_him, v_out);
+                _mm256_storeu_ps(&params->out_pha[row + i], v_out);
+            }
+            for (; i < n; i++)
+            {
+                params->out_pha[row + i] += c_re * h_re[i] - c_im * h_im[i];
+            }
         }
     }
 }
@@ -683,93 +696,102 @@ static void atmturb_lowfreq_batch4_accumulate_avx2(
 {
     float h_re[4][1024] __attribute__((aligned(32)));
     float h_im[4][1024] __attribute__((aligned(32)));
-    long n = (params->pup_size <= 1024) ? params->pup_size : 1024;
 
-    for (int m = 0; m < 4; m++)
+    for (long col_start = 0; col_start < params->pup_size; col_start += 1024)
     {
-        for (long i = 0; i < n; i++)
+        long n = params->pup_size - col_start;
+        if (n > 1024)
         {
-            float th_x = kx[m] * ((float) params->x0 + (float) (i * params->os));
-            sincosf(th_x, &h_im[m][i], &h_re[m][i]);
+            n = 1024;
         }
-    }
 
-    for (long j = 0; j < params->pup_size; j++)
-    {
-        float c_re[4], c_im[4];
         for (int m = 0; m < 4; m++)
         {
-            float th_y = ky[m] * ((float) params->y0 + (float) (j * params->os));
-            float vy_re, vy_im;
-            sincosf(th_y, &vy_im, &vy_re);
-            c_re[m] = (amp_re[m] * vy_re - amp_im[m] * vy_im) * params->weight;
-            c_im[m] = (amp_re[m] * vy_im + amp_im[m] * vy_re) * params->weight;
+            for (long i = 0; i < n; i++)
+            {
+                long col = col_start + i;
+                float th_x = kx[m] * ((float) params->x0 + (float) (col * params->os));
+                sincosf(th_x, &h_im[m][i], &h_re[m][i]);
+            }
         }
 
-        __m256 v_cre0 = _mm256_set1_ps(c_re[0]);
-        __m256 v_cim0 = _mm256_set1_ps(c_im[0]);
-        __m256 v_cre1 = _mm256_set1_ps(c_re[1]);
-        __m256 v_cim1 = _mm256_set1_ps(c_im[1]);
-        __m256 v_cre2 = _mm256_set1_ps(c_re[2]);
-        __m256 v_cim2 = _mm256_set1_ps(c_im[2]);
-        __m256 v_cre3 = _mm256_set1_ps(c_re[3]);
-        __m256 v_cim3 = _mm256_set1_ps(c_im[3]);
-
-        long row = j * params->pup_size;
-        long i = 0;
-        for (; i + 16 <= n; i += 16)
+        for (long j = 0; j < params->pup_size; j++)
         {
-            __m256 v_out0 = _mm256_loadu_ps(&params->out_pha[row + i]);
-            __m256 v_out1 = _mm256_loadu_ps(&params->out_pha[row + i + 8]);
+            float c_re[4], c_im[4];
+            for (int m = 0; m < 4; m++)
+            {
+                float th_y = ky[m] * ((float) params->y0 + (float) (j * params->os));
+                float vy_re, vy_im;
+                sincosf(th_y, &vy_im, &vy_re);
+                c_re[m] = (amp_re[m] * vy_re - amp_im[m] * vy_im) * params->weight;
+                c_im[m] = (amp_re[m] * vy_im + amp_im[m] * vy_re) * params->weight;
+            }
 
-            v_out0 = _mm256_fmadd_ps(v_cre0, _mm256_load_ps(&h_re[0][i]), v_out0);
-            v_out1 = _mm256_fmadd_ps(v_cre0, _mm256_load_ps(&h_re[0][i + 8]), v_out1);
-            v_out0 = _mm256_fnmadd_ps(v_cim0, _mm256_load_ps(&h_im[0][i]), v_out0);
-            v_out1 = _mm256_fnmadd_ps(v_cim0, _mm256_load_ps(&h_im[0][i + 8]), v_out1);
+            __m256 v_cre0 = _mm256_set1_ps(c_re[0]);
+            __m256 v_cim0 = _mm256_set1_ps(c_im[0]);
+            __m256 v_cre1 = _mm256_set1_ps(c_re[1]);
+            __m256 v_cim1 = _mm256_set1_ps(c_im[1]);
+            __m256 v_cre2 = _mm256_set1_ps(c_re[2]);
+            __m256 v_cim2 = _mm256_set1_ps(c_im[2]);
+            __m256 v_cre3 = _mm256_set1_ps(c_re[3]);
+            __m256 v_cim3 = _mm256_set1_ps(c_im[3]);
 
-            v_out0 = _mm256_fmadd_ps(v_cre1, _mm256_load_ps(&h_re[1][i]), v_out0);
-            v_out1 = _mm256_fmadd_ps(v_cre1, _mm256_load_ps(&h_re[1][i + 8]), v_out1);
-            v_out0 = _mm256_fnmadd_ps(v_cim1, _mm256_load_ps(&h_im[1][i]), v_out0);
-            v_out1 = _mm256_fnmadd_ps(v_cim1, _mm256_load_ps(&h_im[1][i + 8]), v_out1);
+            long row = j * params->pup_size + col_start;
+            long i = 0;
+            for (; i + 16 <= n; i += 16)
+            {
+                __m256 v_out0 = _mm256_loadu_ps(&params->out_pha[row + i]);
+                __m256 v_out1 = _mm256_loadu_ps(&params->out_pha[row + i + 8]);
 
-            v_out0 = _mm256_fmadd_ps(v_cre2, _mm256_load_ps(&h_re[2][i]), v_out0);
-            v_out1 = _mm256_fmadd_ps(v_cre2, _mm256_load_ps(&h_re[2][i + 8]), v_out1);
-            v_out0 = _mm256_fnmadd_ps(v_cim2, _mm256_load_ps(&h_im[2][i]), v_out0);
-            v_out1 = _mm256_fnmadd_ps(v_cim2, _mm256_load_ps(&h_im[2][i + 8]), v_out1);
+                v_out0 = _mm256_fmadd_ps(v_cre0, _mm256_load_ps(&h_re[0][i]), v_out0);
+                v_out1 = _mm256_fmadd_ps(v_cre0, _mm256_load_ps(&h_re[0][i + 8]), v_out1);
+                v_out0 = _mm256_fnmadd_ps(v_cim0, _mm256_load_ps(&h_im[0][i]), v_out0);
+                v_out1 = _mm256_fnmadd_ps(v_cim0, _mm256_load_ps(&h_im[0][i + 8]), v_out1);
 
-            v_out0 = _mm256_fmadd_ps(v_cre3, _mm256_load_ps(&h_re[3][i]), v_out0);
-            v_out1 = _mm256_fmadd_ps(v_cre3, _mm256_load_ps(&h_re[3][i + 8]), v_out1);
-            v_out0 = _mm256_fnmadd_ps(v_cim3, _mm256_load_ps(&h_im[3][i]), v_out0);
-            v_out1 = _mm256_fnmadd_ps(v_cim3, _mm256_load_ps(&h_im[3][i + 8]), v_out1);
+                v_out0 = _mm256_fmadd_ps(v_cre1, _mm256_load_ps(&h_re[1][i]), v_out0);
+                v_out1 = _mm256_fmadd_ps(v_cre1, _mm256_load_ps(&h_re[1][i + 8]), v_out1);
+                v_out0 = _mm256_fnmadd_ps(v_cim1, _mm256_load_ps(&h_im[1][i]), v_out0);
+                v_out1 = _mm256_fnmadd_ps(v_cim1, _mm256_load_ps(&h_im[1][i + 8]), v_out1);
 
-            _mm256_storeu_ps(&params->out_pha[row + i], v_out0);
-            _mm256_storeu_ps(&params->out_pha[row + i + 8], v_out1);
-        }
-        for (; i + 8 <= n; i += 8)
-        {
-            __m256 v_out = _mm256_loadu_ps(&params->out_pha[row + i]);
+                v_out0 = _mm256_fmadd_ps(v_cre2, _mm256_load_ps(&h_re[2][i]), v_out0);
+                v_out1 = _mm256_fmadd_ps(v_cre2, _mm256_load_ps(&h_re[2][i + 8]), v_out1);
+                v_out0 = _mm256_fnmadd_ps(v_cim2, _mm256_load_ps(&h_im[2][i]), v_out0);
+                v_out1 = _mm256_fnmadd_ps(v_cim2, _mm256_load_ps(&h_im[2][i + 8]), v_out1);
 
-            v_out = _mm256_fmadd_ps(v_cre0, _mm256_load_ps(&h_re[0][i]), v_out);
-            v_out = _mm256_fnmadd_ps(v_cim0, _mm256_load_ps(&h_im[0][i]), v_out);
+                v_out0 = _mm256_fmadd_ps(v_cre3, _mm256_load_ps(&h_re[3][i]), v_out0);
+                v_out1 = _mm256_fmadd_ps(v_cre3, _mm256_load_ps(&h_re[3][i + 8]), v_out1);
+                v_out0 = _mm256_fnmadd_ps(v_cim3, _mm256_load_ps(&h_im[3][i]), v_out0);
+                v_out1 = _mm256_fnmadd_ps(v_cim3, _mm256_load_ps(&h_im[3][i + 8]), v_out1);
 
-            v_out = _mm256_fmadd_ps(v_cre1, _mm256_load_ps(&h_re[1][i]), v_out);
-            v_out = _mm256_fnmadd_ps(v_cim1, _mm256_load_ps(&h_im[1][i]), v_out);
+                _mm256_storeu_ps(&params->out_pha[row + i], v_out0);
+                _mm256_storeu_ps(&params->out_pha[row + i + 8], v_out1);
+            }
+            for (; i + 8 <= n; i += 8)
+            {
+                __m256 v_out = _mm256_loadu_ps(&params->out_pha[row + i]);
 
-            v_out = _mm256_fmadd_ps(v_cre2, _mm256_load_ps(&h_re[2][i]), v_out);
-            v_out = _mm256_fnmadd_ps(v_cim2, _mm256_load_ps(&h_im[2][i]), v_out);
+                v_out = _mm256_fmadd_ps(v_cre0, _mm256_load_ps(&h_re[0][i]), v_out);
+                v_out = _mm256_fnmadd_ps(v_cim0, _mm256_load_ps(&h_im[0][i]), v_out);
 
-            v_out = _mm256_fmadd_ps(v_cre3, _mm256_load_ps(&h_re[3][i]), v_out);
-            v_out = _mm256_fnmadd_ps(v_cim3, _mm256_load_ps(&h_im[3][i]), v_out);
+                v_out = _mm256_fmadd_ps(v_cre1, _mm256_load_ps(&h_re[1][i]), v_out);
+                v_out = _mm256_fnmadd_ps(v_cim1, _mm256_load_ps(&h_im[1][i]), v_out);
 
-            _mm256_storeu_ps(&params->out_pha[row + i], v_out);
-        }
-        for (; i < n; i++)
-        {
-            float d = (c_re[0] * h_re[0][i] - c_im[0] * h_im[0][i]) +
-                      (c_re[1] * h_re[1][i] - c_im[1] * h_im[1][i]) +
-                      (c_re[2] * h_re[2][i] - c_im[2] * h_im[2][i]) +
-                      (c_re[3] * h_re[3][i] - c_im[3] * h_im[3][i]);
-            params->out_pha[row + i] += d;
+                v_out = _mm256_fmadd_ps(v_cre2, _mm256_load_ps(&h_re[2][i]), v_out);
+                v_out = _mm256_fnmadd_ps(v_cim2, _mm256_load_ps(&h_im[2][i]), v_out);
+
+                v_out = _mm256_fmadd_ps(v_cre3, _mm256_load_ps(&h_re[3][i]), v_out);
+                v_out = _mm256_fnmadd_ps(v_cim3, _mm256_load_ps(&h_im[3][i]), v_out);
+
+                _mm256_storeu_ps(&params->out_pha[row + i], v_out);
+            }
+            for (; i < n; i++)
+            {
+                float d = (c_re[0] * h_re[0][i] - c_im[0] * h_im[0][i]) +
+                          (c_re[1] * h_re[1][i] - c_im[1] * h_im[1][i]) +
+                          (c_re[2] * h_re[2][i] - c_im[2] * h_im[2][i]) +
+                          (c_re[3] * h_re[3][i] - c_im[3] * h_im[3][i]);
+                params->out_pha[row + i] += d;
+            }
         }
     }
 }

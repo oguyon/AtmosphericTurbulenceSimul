@@ -192,6 +192,7 @@ int atmturb_wfs_setup_sim(
     }
 
     atmturb_wfs_init_obs_params(slambdaum, params);
+    params->seed = atmturb_resolve_seed(params->seed);
 
     memset(geom, 0, sizeof(*geom));
     if (atmturb_geometry_compute(prof, params, geom) != 0)
@@ -202,7 +203,7 @@ int atmturb_wfs_setup_sim(
 
     long pool_frames = (nbframes > 0) ? nbframes : params->nbframes;
     if (atmturb_rolling_init(rsim, prof, geom, CONF_MASTER_SIZE,
-                             pool_frames, params->time_step_s, WFprecision, CONF_SEED) != 0)
+                             pool_frames, params->time_step_s, WFprecision, params->seed) != 0)
     {
         atmturb_geometry_free(geom);
         atmturb_profile_free(prof);

@@ -51,6 +51,7 @@ static void atmturb_compute_frame_psf(
     permut("tmp_carr");
     do2dfft("tmp_carr", "tmp_cfft");
     delete_image_ID("tmp_carr");
+    permut("tmp_cfft");
 
     imageID id_cfft = image_ID("tmp_cfft");
     for (long i = 0; i < nx * ny; i++)
@@ -116,7 +117,7 @@ int measure_wavefront_series(float factor)
     (void)factor;
     AtmosphericTurbulence_ReadConf();
 
-    float focal_scale = (float)(CONF_LAMBDA / CONF_WFsize / CONF_PUPIL_SCALE / PI * 180.0 * 3600.0);
+    const double SLAMBDA = 1.65e-6;
     imageID IDpupamp = image_ID("ST_pa");
     if (IDpupamp == -1)
     {
@@ -126,6 +127,8 @@ int measure_wavefront_series(float factor)
 
     long nx = dcimg[IDpupamp].md[0].size[0];
     long ny = dcimg[IDpupamp].md[0].size[1];
+    float focal_scale = (float) (SLAMBDA / ((double) nx * (double) CONF_PUPIL_SCALE)
+                                 / M_PI * 180.0 * 3600.0);
     long nbframes = (long)(CONF_TIME_SPAN / CONF_WFTIME_STEP);
     imageID IDpsf = create_2Dimage_ID("PSF", nx, ny);
 
@@ -136,7 +139,6 @@ int measure_wavefront_series(float factor)
         return -1;
     }
 
-    const double SLAMBDA = 1.65e-6;
     for (long tspan = 0; tspan < CONF_NB_TSPAN; tspan++)
     {
         char fnamepha[512], fnameamp[512];
@@ -182,8 +184,7 @@ int measure_wavefront_series_expoframes(
 {
     AtmosphericTurbulence_ReadConf();
 
-    float focal_scale = (float)(CONF_LAMBDA / CONF_WFsize / CONF_PUPIL_SCALE
-                                / PI * 180.0 * 3600.0);
+    const double SLAMBDA = 1.65e-6;
     imageID IDpupamp = image_ID("ST_pa");
     if (IDpupamp == -1)
     {
@@ -192,6 +193,8 @@ int measure_wavefront_series_expoframes(
 
     long nx = dcimg[IDpupamp].md[0].size[0];
     long ny = dcimg[IDpupamp].md[0].size[1];
+    float focal_scale = (float) (SLAMBDA / ((double) nx * (double) CONF_PUPIL_SCALE)
+                                 / M_PI * 180.0 * 3600.0);
     long nbframes_per_span = (long)(CONF_TIME_SPAN / CONF_WFTIME_STEP);
     long nbframes_per_expo = (long)(etime / CONF_WFTIME_STEP);
     if (nbframes_per_expo < 1) nbframes_per_expo = 1;
@@ -207,7 +210,6 @@ int measure_wavefront_series_expoframes(
         return -1;
     }
 
-    const double SLAMBDA = 1.65e-6;
     long acc_count = 0;
     long expo_idx = 0;
 

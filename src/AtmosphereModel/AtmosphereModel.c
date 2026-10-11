@@ -34,6 +34,7 @@ float alpha1H2O = 0.0f;
 
 // Profile arrays (densities in cm^-3, 10000 vertical bins of 10m each)
 int initAtmosphereModel = 0;
+int stdAtmModel_loaded = 0;
 float *densN2 = NULL;
 float *densO2 = NULL;
 float *densAr = NULL;
@@ -68,26 +69,26 @@ int init_AtmosphereModel(void)
 {
     if (initAtmosphereModel == 0)
     {
-        denstot = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densN2 = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densO2 = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densAr = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densH2O = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densCO2 = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densNe = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densHe = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densCH4 = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densKr = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densH2 = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densO3 = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densO = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densN = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        densH = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
+        denstot = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densN2 = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densO2 = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densAr = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densH2O = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densCO2 = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densNe = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densHe = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densCH4 = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densKr = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densH2 = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densO3 = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densO = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densN = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        densH = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
 
-        density = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        temperature = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        pressure = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
-        RH = (float *)malloc(sizeof(float) * ATMMOD_NB_BINS);
+        density = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        temperature = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        pressure = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
+        RH = (float *)calloc(ATMMOD_NB_BINS, sizeof(float));
 
         initAtmosphereModel = 1;
     }
