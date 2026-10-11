@@ -268,6 +268,17 @@ static void atmturb_wfs_stream_render_step(
  * @frame_pixels: Total pixels in frame.
  * @ts: Frame acquisition timestamp.
  */
+static inline void atmturb_wfs_stream_notify_channel(
+    imageID                id,
+    const struct timespec *ts)
+{
+    if (id >= 0)
+    {
+        dcimg[id].md[0].write = 1;
+        atmturb_wfs_stream_post(id, ts);
+    }
+}
+
 static void atmturb_wfs_stream_publish(
     const atmturb_stream_state_t *st,
     long                          frame_pixels,
@@ -275,26 +286,10 @@ static void atmturb_wfs_stream_publish(
 {
     if (st->is_cuda)
     {
-        if (st->id_pha >= 0)
-        {
-            dcimg[st->id_pha].md[0].write = 1;
-            atmturb_wfs_stream_post(st->id_pha, ts);
-        }
-        if (st->id_amp >= 0)
-        {
-            dcimg[st->id_amp].md[0].write = 1;
-            atmturb_wfs_stream_post(st->id_amp, ts);
-        }
-        if (st->id_spha >= 0)
-        {
-            dcimg[st->id_spha].md[0].write = 1;
-            atmturb_wfs_stream_post(st->id_spha, ts);
-        }
-        if (st->id_samp >= 0)
-        {
-            dcimg[st->id_samp].md[0].write = 1;
-            atmturb_wfs_stream_post(st->id_samp, ts);
-        }
+        atmturb_wfs_stream_notify_channel(st->id_pha, ts);
+        atmturb_wfs_stream_notify_channel(st->id_amp, ts);
+        atmturb_wfs_stream_notify_channel(st->id_spha, ts);
+        atmturb_wfs_stream_notify_channel(st->id_samp, ts);
         return;
     }
 
@@ -329,19 +324,21 @@ static void atmturb_wfs_stream_publish(
 /**
  * atmturb_wfs_stream_render_wait - Wait for in-flight GPU frame completion
  * @st: Stream state container.
+ * @buf_idx: Double-buffer slot index (0 or 1).
  *
  * Return: 0 on success, -1 on failure.
  */
 static inline int atmturb_wfs_stream_render_wait(
-    atmturb_stream_state_t *st)
+    atmturb_stream_state_t *st,
+    int                     buf_idx)
 {
     if (CONF_FRESNEL_PROPAGATION == 1 && st->cuda_fstream != NULL)
     {
-        return atmturb_cuda_fresnel_stream_render_wait(st->cuda_fstream);
+        return atmturb_cuda_fresnel_stream_render_wait(st->cuda_fstream, buf_idx);
     }
     if (CONF_FRESNEL_PROPAGATION == 2 && st->cuda_rstream != NULL)
     {
-        return atmturb_cuda_rytov_stream_render_wait(st->cuda_rstream);
+        return atmturb_cuda_rytov_stream_render_wait(st->cuda_rstream, buf_idx);
     }
     return 0;
 }
@@ -353,36 +350,30 @@ static inline int atmturb_wfs_stream_render_wait(
  * @nbytes: Frame size in bytes.
  * @ts: Timestamp for frame.
  */
+static inline void atmturb_wfs_stream_write_channel(
+    imageID                id,
+    const void            *src,
+    size_t                 nbytes,
+    const struct timespec *ts)
+{
+    if (id >= 0 && src != NULL)
+    {
+        memcpy(dcimg[id].array.F, src, nbytes);
+        dcimg[id].md[0].write = 1;
+        atmturb_wfs_stream_post(id, ts);
+    }
+}
+
 static void atmturb_wfs_stream_pipeline_publish(
     const atmturb_stream_state_t *st,
     int                           buf_idx,
     size_t                        nbytes,
     const struct timespec        *ts)
 {
-    if (st->id_pha >= 0 && st->dma_pha[buf_idx] != NULL)
-    {
-        memcpy(dcimg[st->id_pha].array.F, st->dma_pha[buf_idx], nbytes);
-        dcimg[st->id_pha].md[0].write = 1;
-        atmturb_wfs_stream_post(st->id_pha, ts);
-    }
-    if (st->id_amp >= 0 && st->dma_amp[buf_idx] != NULL)
-    {
-        memcpy(dcimg[st->id_amp].array.F, st->dma_amp[buf_idx], nbytes);
-        dcimg[st->id_amp].md[0].write = 1;
-        atmturb_wfs_stream_post(st->id_amp, ts);
-    }
-    if (st->id_spha >= 0 && st->dma_spha[buf_idx] != NULL)
-    {
-        memcpy(dcimg[st->id_spha].array.F, st->dma_spha[buf_idx], nbytes);
-        dcimg[st->id_spha].md[0].write = 1;
-        atmturb_wfs_stream_post(st->id_spha, ts);
-    }
-    if (st->id_samp >= 0 && st->dma_samp[buf_idx] != NULL)
-    {
-        memcpy(dcimg[st->id_samp].array.F, st->dma_samp[buf_idx], nbytes);
-        dcimg[st->id_samp].md[0].write = 1;
-        atmturb_wfs_stream_post(st->id_samp, ts);
-    }
+    atmturb_wfs_stream_write_channel(st->id_pha, st->dma_pha[buf_idx], nbytes, ts);
+    atmturb_wfs_stream_write_channel(st->id_amp, st->dma_amp[buf_idx], nbytes, ts);
+    atmturb_wfs_stream_write_channel(st->id_spha, st->dma_spha[buf_idx], nbytes, ts);
+    atmturb_wfs_stream_write_channel(st->id_samp, st->dma_samp[buf_idx], nbytes, ts);
 }
 
 /**
@@ -413,13 +404,13 @@ static inline int atmturb_wfs_stream_pipeline_launch_frame(
     {
         return atmturb_cuda_fresnel_stream_render_launch(
             st->cuda_fstream, rsim, geom, t, params->time_step_s,
-            pha_dst, amp_dst, spha_dst, samp_dst);
+            pha_dst, amp_dst, spha_dst, samp_dst, buf_idx);
     }
     if (CONF_FRESNEL_PROPAGATION == 2 && st->cuda_rstream != NULL)
     {
         return atmturb_cuda_rytov_stream_render_launch(
             st->cuda_rstream, rsim, geom, t, params->time_step_s,
-            pha_dst, amp_dst, spha_dst, samp_dst);
+            pha_dst, amp_dst, spha_dst, samp_dst, buf_idx);
     }
     return -1;
 }
@@ -446,36 +437,39 @@ static long atmturb_wfs_stream_loop_pipelined(
     size_t nbytes = (size_t) (pup_size * pup_size) * sizeof(float);
     PROCESSINFO *pinfo = g_stream_processinfo;
     long t = 0;
+    int in_flight = 1;
 
     atmturb_wfs_stream_pipeline_launch_frame(rsim, geom, params, st, 0, 0);
+    if (g_stream_stop == 0 && (max_frames <= 0 || 1 < max_frames))
+    {
+        atmturb_wfs_stream_pipeline_launch_frame(rsim, geom, params, st, 1, 1);
+        in_flight++;
+    }
 
     for (t = 0; ; t++)
     {
-        int cur_buf  = (int) (t & 1);
-        int next_buf = 1 - cur_buf;
+        int cur_buf = (int) (t & 1);
 
-        atmturb_wfs_stream_render_wait(st);
-
-        int has_next = (g_stream_stop == 0 && (max_frames <= 0 || (t + 1) < max_frames));
-        if (has_next)
-        {
-            atmturb_wfs_stream_pipeline_launch_frame(
-                rsim, geom, params, st, t + 1, next_buf);
-        }
+        atmturb_wfs_stream_render_wait(st, cur_buf);
+        in_flight--;
 
         struct timespec ts_now;
         clock_gettime(CLOCK_REALTIME, &ts_now);
         atmturb_wfs_stream_pipeline_publish(st, cur_buf, nbytes, &ts_now);
+
+        long next_t = t + 2;
+        if (g_stream_stop == 0 && (max_frames <= 0 || next_t < max_frames))
+        {
+            atmturb_wfs_stream_pipeline_launch_frame(
+                rsim, geom, params, st, next_t, cur_buf);
+            in_flight++;
+        }
 
         if (pinfo != NULL && t > 0)
         {
             processinfo_exec_end(pinfo);
             if (processinfo_loopstep(pinfo) == 0 || g_stream_stop != 0)
             {
-                if (has_next)
-                {
-                    atmturb_wfs_stream_render_wait(st);
-                }
                 t++;
                 break;
             }
@@ -489,11 +483,16 @@ static long atmturb_wfs_stream_loop_pipelined(
             processinfo_exec_start(pinfo);
         }
 
-        if (!has_next)
+        if (g_stream_stop != 0 || (max_frames > 0 && (t + 1) >= max_frames))
         {
             t++;
             break;
         }
+    }
+
+    for (int k = 0; k < in_flight; k++)
+    {
+        atmturb_wfs_stream_render_wait(st, (int) ((t + k) & 1));
     }
 
     if (pinfo != NULL)

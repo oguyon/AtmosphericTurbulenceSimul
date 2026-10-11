@@ -133,16 +133,19 @@ int atmturb_cuda_rytov_stream_render_launch(
     float                       *pha,
     float                       *amp,
     float                       *spha,
-    float                       *samp);
+    float                       *samp,
+    int                          slot);
 
 /**
  * atmturb_cuda_rytov_stream_render_wait - Wait for enqueued Rytov frame to finish on GPU
  * @ctx: Persistent stream context.
+ * @slot: Buffer slot to synchronize (0 or 1).
  *
  * Return: 0 on success, -1 on failure.
  */
 int atmturb_cuda_rytov_stream_render_wait(
-    atmturb_cuda_rytov_stream_t *ctx);
+    atmturb_cuda_rytov_stream_t *ctx,
+    int                          slot);
 
 /**
  * atmturb_cuda_rytov_stream_free - Free persistent GPU Rytov streaming context
@@ -282,7 +285,8 @@ static inline int atmturb_cuda_rytov_stream_render_launch(
     float                       *pha,
     float                       *amp,
     float                       *spha,
-    float                       *samp)
+    float                       *samp,
+    int                          slot)
 {
     (void) ctx;
     (void) r;
@@ -293,13 +297,16 @@ static inline int atmturb_cuda_rytov_stream_render_launch(
     (void) amp;
     (void) spha;
     (void) samp;
+    (void) slot;
     return -1;
 }
 
 static inline int atmturb_cuda_rytov_stream_render_wait(
-    atmturb_cuda_rytov_stream_t *ctx)
+    atmturb_cuda_rytov_stream_t *ctx,
+    int                          slot)
 {
     (void) ctx;
+    (void) slot;
     return -1;
 }
 
