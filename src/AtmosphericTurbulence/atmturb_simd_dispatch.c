@@ -70,6 +70,13 @@ static void atmturb_simd_init_dispatch(void)
         }
     }
 
+#ifdef HAVE_CUDA
+    if (atmturb_cuda_device_available())
+    {
+        goto use_cuda;
+    }
+#endif
+
     if (__builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512dq"))
     {
         goto use_avx512;

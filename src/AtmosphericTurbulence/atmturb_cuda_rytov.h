@@ -109,6 +109,7 @@ typedef struct
     int                                 interp;
     int                                 use_moisan;
     int                                 lowfreq;
+    int                                 remove_piston;
 
     const float *const                 *h_masters;
 

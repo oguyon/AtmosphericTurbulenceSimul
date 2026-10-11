@@ -549,3 +549,24 @@ void atmturb_cuda_geom_stream_free(
     free(ctx);
 }
 
+int atmturb_cuda_host_register(
+    void   *ptr,
+    size_t  size)
+{
+    if (ptr == NULL || size == 0)
+    {
+        return -1;
+    }
+    cudaError_t err = cudaHostRegister(ptr, size, cudaHostRegisterDefault);
+    return (err == cudaSuccess) ? 0 : -1;
+}
+
+void atmturb_cuda_host_unregister(
+    void *ptr)
+{
+    if (ptr != NULL)
+    {
+        cudaHostUnregister(ptr);
+    }
+}
+

@@ -647,6 +647,7 @@ atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     ctx->cparams.frame_lf_modes  = ctx->lf_modes;
     ctx->cparams.super_nlf_modes = ctx->super_nlf_modes;
     ctx->cparams.max_lf_modes    = ctx->max_lf_modes;
+    ctx->cparams.remove_piston   = 1;
 
     return ctx;
 }

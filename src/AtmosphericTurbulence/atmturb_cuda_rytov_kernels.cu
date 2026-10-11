@@ -713,3 +713,83 @@ void atmturb_cuda_normalize_launch(
     atmturb_cuda_normalize_kernel<<<g_norm, b_norm, 0, stream>>>(
         d_frame_amp, npix, d_sum_I);
 }
+
+__global__ static void atmturb_cuda_piston_sum_kernel(
+    const float *d_pha,
+    float       *d_sum,
+    int          npix)
+{
+    float val = 0.0f;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    for (int i = idx; i < npix; i += stride)
+    {
+        val += d_pha[i];
+    }
+
+    for (int offset = 16; offset > 0; offset /= 2)
+    {
+        val += __shfl_down_sync(0xffffffff, val, offset);
+    }
+
+    __shared__ float s_warp_sums[32];
+    int lane = threadIdx.x % 32;
+    int warp_id = threadIdx.x / 32;
+    if (lane == 0)
+    {
+        s_warp_sums[warp_id] = val;
+    }
+    __syncthreads();
+
+    if (threadIdx.x < 32)
+    {
+        int nwarps = blockDim.x / 32;
+        float bval = (threadIdx.x < nwarps) ? s_warp_sums[threadIdx.x] : 0.0f;
+        for (int offset = 16; offset > 0; offset /= 2)
+        {
+            bval += __shfl_down_sync(0xffffffff, bval, offset);
+        }
+        if (threadIdx.x == 0)
+        {
+            atomicAdd(d_sum, bval);
+        }
+    }
+}
+
+__global__ static void atmturb_cuda_piston_sub_kernel(
+    float       *d_pha,
+    const float *d_sum,
+    int          npix)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= npix)
+    {
+        return;
+    }
+    float mean = (*d_sum) / (float) npix;
+    d_pha[idx] -= mean;
+}
+
+void atmturb_cuda_remove_piston_launch(
+    float       *d_pha,
+    float       *d_sum_buf,
+    int          npix,
+    cudaStream_t stream)
+{
+    if (d_pha == NULL || d_sum_buf == NULL || npix <= 0)
+    {
+        return;
+    }
+    cudaMemsetAsync(d_sum_buf, 0, sizeof(float), stream);
+    dim3 block(256);
+    int num_blocks = (npix + 255) / 256;
+    if (num_blocks > 64)
+    {
+        num_blocks = 64;
+    }
+    dim3 grid(num_blocks);
+    atmturb_cuda_piston_sum_kernel<<<grid, block, 0, stream>>>(d_pha, d_sum_buf, npix);
+
+    dim3 full_grid((npix + 255) / 256);
+    atmturb_cuda_piston_sub_kernel<<<full_grid, block, 0, stream>>>(d_pha, d_sum_buf, npix);
+}

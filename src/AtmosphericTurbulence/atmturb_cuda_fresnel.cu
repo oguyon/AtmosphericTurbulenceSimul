@@ -63,6 +63,8 @@ struct atmturb_cuda_fresnel_stream
     float                         *d_frame_amp;
     float                         *d_frame_spha;
     float                         *d_frame_samp;
+    float                         *d_sum_buf;
+    cudaGraphExec_t                graph_exec;
 };
 
 __global__ static void atmturb_cuda_fresnel_init_modulate_kernel(
@@ -358,6 +360,17 @@ void atmturb_cuda_fresnel_stream_free(
     cudaFree(ctx->d_frame_samp);
     cudaFree(ctx->d_sublayers);
 
+    if (ctx->graph_exec != NULL)
+    {
+        cudaGraphExecDestroy(ctx->graph_exec);
+        ctx->graph_exec = NULL;
+    }
+    if (ctx->d_sum_buf != NULL)
+    {
+        cudaFree(ctx->d_sum_buf);
+        ctx->d_sum_buf = NULL;
+    }
+
     if (ctx->d_lf_modes != NULL)
     {
         cudaFree(ctx->d_lf_modes);
@@ -560,6 +573,7 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
         cudaMalloc((void **) &ctx->d_super_pha, npix_bytes) != cudaSuccess ||
         cudaMalloc((void **) &ctx->d_frame_pha, npix_bytes) != cudaSuccess ||
         cudaMalloc((void **) &ctx->d_frame_amp, npix_bytes) != cudaSuccess ||
+        cudaMalloc((void **) &ctx->d_sum_buf, sizeof(float)) != cudaSuccess ||
         cudaMalloc((void **) &ctx->d_sublayers,
                    n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t)) != cudaSuccess)
     {
@@ -597,45 +611,20 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
  *
  * Return: 0 on success, -1 on failure.
  */
-int atmturb_cuda_fresnel_stream_render_step(
+/**
+ * atmturb_cuda_fresnel_step_ops - Enqueue GPU operations for one Fresnel propagation frame
+ * @ctx: Persistent stream context.
+ * @has_amp: 1 if amplitude is requested, 0 otherwise.
+ * @has_sec_out: 1 if secondary wavelength output is active, 0 otherwise.
+ */
+static void atmturb_cuda_fresnel_step_ops(
     atmturb_cuda_fresnel_stream_t *ctx,
-    const atmturb_rolling_t       *r,
-    const atmturb_geom_t          *geom,
-    long                           t,
-    double                         time_step_s,
-    float                         *pha,
-    float                         *amp,
-    float                         *spha,
-    float                         *samp)
+    int                            has_amp,
+    int                            has_sec_out)
 {
-    if (ctx == NULL || pha == NULL)
-    {
-        return -1;
-    }
-
-    atmturb_fresnel_cuda_build_sublayers(
-        r, geom, &ctx->plan, ctx->screen_offsets, t, time_step_s,
-        ctx->max_sublayers, ctx->h_sublayers);
-
-    size_t sub_bytes = (size_t) (ctx->plan.nsuper * ctx->max_sublayers) *
-                       sizeof(atmturb_cuda_rytov_sublayer_t);
-    cudaMemcpyAsync(ctx->d_sublayers, ctx->h_sublayers, sub_bytes,
-                    cudaMemcpyHostToDevice, ctx->stream);
-
-    if (ctx->lowfreq && ctx->h_lf_modes != NULL)
-    {
-        atmturb_fresnel_cuda_build_lf_modes(
-            r, geom, &ctx->plan, t, time_step_s,
-            ctx->max_lf_modes, ctx->h_lf_modes);
-        size_t lf_bytes = (size_t) (ctx->plan.nsuper * ctx->max_lf_modes) *
-                          sizeof(atmturb_cuda_lowfreq_mode_t);
-        cudaMemcpyAsync(ctx->d_lf_modes, ctx->h_lf_modes, lf_bytes,
-                        cudaMemcpyHostToDevice, ctx->stream);
-    }
-
     size_t npix_bytes = (size_t) ctx->npix * sizeof(float);
     cudaMemsetAsync(ctx->d_frame_pha, 0, npix_bytes, ctx->stream);
-    if (ctx->has_sec && spha != NULL)
+    if (ctx->has_sec && has_sec_out)
     {
         cudaMemsetAsync(ctx->d_frame_spha, 0, npix_bytes, ctx->stream);
     }
@@ -685,7 +674,7 @@ int atmturb_cuda_fresnel_stream_render_step(
             ctx->d_field_pri, ctx->d_tf_pri[m], (int) ctx->npix);
         cufftExecC2C(ctx->plan_c2c, ctx->d_field_pri, ctx->d_field_pri, CUFFT_INVERSE);
 
-        if (ctx->has_sec && (spha != NULL || samp != NULL) && ctx->d_tf_sec[m] != NULL)
+        if (ctx->has_sec && has_sec_out && ctx->d_tf_sec[m] != NULL)
         {
             if (m == 0)
             {
@@ -706,16 +695,94 @@ int atmturb_cuda_fresnel_stream_render_step(
     }
 
     atmturb_cuda_fresnel_extract_kernel<<<grid, block, 0, ctx->stream>>>(
-        ctx->d_field_pri, ctx->d_frame_pha, (amp != NULL) ? ctx->d_frame_amp : NULL,
+        ctx->d_field_pri, ctx->d_frame_pha, (has_amp) ? ctx->d_frame_amp : NULL,
         (int) ctx->npix);
 
-    if (ctx->has_sec && (spha != NULL || samp != NULL))
+    if (ctx->has_sec && has_sec_out)
     {
         atmturb_cuda_fresnel_extract_kernel<<<grid, block, 0, ctx->stream>>>(
-            ctx->d_field_sec, ctx->d_frame_spha, (samp != NULL) ? ctx->d_frame_samp : NULL,
+            ctx->d_field_sec, ctx->d_frame_spha, (has_amp) ? ctx->d_frame_samp : NULL,
             (int) ctx->npix);
     }
 
+    if (ctx->d_sum_buf != NULL)
+    {
+        atmturb_cuda_remove_piston_launch(
+            ctx->d_frame_pha, ctx->d_sum_buf, (int) ctx->npix, ctx->stream);
+        if (ctx->has_sec && has_sec_out)
+        {
+            atmturb_cuda_remove_piston_launch(
+                ctx->d_frame_spha, ctx->d_sum_buf, (int) ctx->npix, ctx->stream);
+        }
+    }
+}
+
+int atmturb_cuda_fresnel_stream_render_step(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    const atmturb_rolling_t       *r,
+    const atmturb_geom_t          *geom,
+    long                           t,
+    double                         time_step_s,
+    float                         *pha,
+    float                         *amp,
+    float                         *spha,
+    float                         *samp)
+{
+    if (ctx == NULL || pha == NULL)
+    {
+        return -1;
+    }
+
+    atmturb_fresnel_cuda_build_sublayers(
+        r, geom, &ctx->plan, ctx->screen_offsets, t, time_step_s,
+        ctx->max_sublayers, ctx->h_sublayers);
+
+    size_t sub_bytes = (size_t) (ctx->plan.nsuper * ctx->max_sublayers) *
+                       sizeof(atmturb_cuda_rytov_sublayer_t);
+    cudaMemcpyAsync(ctx->d_sublayers, ctx->h_sublayers, sub_bytes,
+                    cudaMemcpyHostToDevice, ctx->stream);
+
+    if (ctx->lowfreq && ctx->h_lf_modes != NULL)
+    {
+        atmturb_fresnel_cuda_build_lf_modes(
+            r, geom, &ctx->plan, t, time_step_s,
+            ctx->max_lf_modes, ctx->h_lf_modes);
+        size_t lf_bytes = (size_t) (ctx->plan.nsuper * ctx->max_lf_modes) *
+                          sizeof(atmturb_cuda_lowfreq_mode_t);
+        cudaMemcpyAsync(ctx->d_lf_modes, ctx->h_lf_modes, lf_bytes,
+                        cudaMemcpyHostToDevice, ctx->stream);
+    }
+
+    int has_amp     = (amp != NULL) ? 1 : 0;
+    int has_sec_out = (ctx->has_sec && (spha != NULL || samp != NULL)) ? 1 : 0;
+
+    if (ctx->graph_exec == NULL)
+    {
+        cudaGraph_t graph;
+        if (cudaStreamBeginCapture(ctx->stream, cudaStreamCaptureModeGlobal) == cudaSuccess)
+        {
+            atmturb_cuda_fresnel_step_ops(ctx, has_amp, has_sec_out);
+            if (cudaStreamEndCapture(ctx->stream, &graph) == cudaSuccess)
+            {
+                if (cudaGraphInstantiate(&ctx->graph_exec, graph, NULL, NULL, 0) != cudaSuccess)
+                {
+                    ctx->graph_exec = NULL;
+                }
+                cudaGraphDestroy(graph);
+            }
+        }
+    }
+
+    if (ctx->graph_exec != NULL)
+    {
+        cudaGraphLaunch(ctx->graph_exec, ctx->stream);
+    }
+    else
+    {
+        atmturb_cuda_fresnel_step_ops(ctx, has_amp, has_sec_out);
+    }
+
+    size_t npix_bytes = (size_t) ctx->npix * sizeof(float);
     cudaMemcpyAsync(pha, ctx->d_frame_pha, npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
     if (amp != NULL)
     {
