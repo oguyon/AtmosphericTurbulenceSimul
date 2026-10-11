@@ -17,6 +17,7 @@
 #endif
 
 #include "atmturb_fresnel.h"
+#include "atmturb_fresnel_simd.h"
 #include "atmturb_simd.h"
 #include "atmturb_superlayer.h"
 
@@ -145,7 +146,39 @@ void atmturb_fresnel_plan_free(
 }
 
 /**
- * atmturb_fresnel_ctx_init - Initialize thread-local Fresnel render context
+ * atmturb_fresnel_init_fftw_threads - Initialize OpenMP thread pool for FFTW plans
+ * @pup_size: Linear dimension of wavefront in pixels.
+ */
+static void atmturb_fresnel_init_fftw_threads(
+    long pup_size)
+{
+#ifdef _OPENMP
+    static int s_threads_init = 0;
+    if (!s_threads_init)
+    {
+        #pragma omp critical
+        {
+            if (!s_threads_init)
+            {
+                if (fftwf_init_threads())
+                {
+                    s_threads_init = 1;
+                }
+            }
+        }
+    }
+    if (s_threads_init)
+    {
+        int nth = (pup_size <= 128) ? 1 : omp_get_max_threads();
+        fftwf_plan_with_nthreads(nth);
+    }
+#else
+    (void) pup_size;
+#endif
+}
+
+/**
+ * atmturb_fresnel_ctx_init - Allocate thread-local scratchpad and init FFTW engine
  * @ctx: Thread context structure to initialize.
  * @pup_size: Linear dimension of wavefront in pixels.
  *
@@ -161,19 +194,30 @@ int atmturb_fresnel_ctx_init(
     }
 
     memset(ctx, 0, sizeof(*ctx));
-    if (wfprop_fresnel_engine_init(&ctx->eng, pup_size) != 0)
-    {
-        return -1;
-    }
+    ctx->eng.n = pup_size;
 
-    size_t npix    = (size_t) (pup_size * pup_size);
-    ctx->field_pri = (fftwf_complex *) fftwf_alloc_complex(npix);
-    ctx->field_sec = (fftwf_complex *) fftwf_alloc_complex(npix);
-    ctx->super_pha = (float *) malloc(sizeof(float) * npix);
+    size_t npix     = (size_t) (pup_size * pup_size);
+    ctx->field_pri  = (fftwf_complex *) fftwf_alloc_complex(npix);
+    ctx->field_sec  = (fftwf_complex *) fftwf_alloc_complex(npix);
+    ctx->super_pha  = (float *) malloc(sizeof(float) * npix);
     ctx->super_spha = (float *) malloc(sizeof(float) * npix);
 
     if (ctx->field_pri == NULL || ctx->field_sec == NULL ||
         ctx->super_pha == NULL || ctx->super_spha == NULL)
+    {
+        atmturb_fresnel_ctx_free(ctx);
+        return -1;
+    }
+
+    atmturb_fresnel_init_fftw_threads(pup_size);
+    ctx->eng.fwd_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                          ctx->field_pri, ctx->field_pri,
+                                          FFTW_FORWARD, FFTW_MEASURE);
+    ctx->eng.inv_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                          ctx->field_pri, ctx->field_pri,
+                                          FFTW_BACKWARD, FFTW_MEASURE);
+
+    if (ctx->eng.fwd_plan == NULL || ctx->eng.inv_plan == NULL)
     {
         atmturb_fresnel_ctx_free(ctx);
         return -1;
@@ -212,62 +256,21 @@ void atmturb_fresnel_ctx_free(
 }
 
 /**
- * atmturb_fresnel_extract_unwrapped - Extract amplitude and unwrapped phase using reference
- * @field: Diffracted complex optical field at pupil.
- * @pha: Phase slice holding accumulated geometric phase (updated in-place).
- * @amp: Destination amplitude slice.
+ * atmturb_fresnel_propagate_field - In-place diffractive propagation using FFTW and SIMD TF
+ * @ctx: Thread-local execution context.
+ * @field: Optical complex field buffer.
+ * @tf: Precomputed 2D complex transfer function.
  * @npix: Total number of pixels.
  */
-static void atmturb_fresnel_extract_unwrapped(
-    const fftwf_complex *restrict field,
-    float               *restrict pha,
-    float               *restrict amp,
-    long                          npix)
+static inline void atmturb_fresnel_propagate_field(
+    atmturb_fresnel_ctx_t *ctx,
+    fftwf_complex         *field,
+    const fftwf_complex   *tf,
+    long                   npix)
 {
-#ifdef _OPENMP
-    #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
-#endif
-    for (long i = 0; i < npix; i++)
-    {
-        float re = field[i][0];
-        float im = field[i][1];
-        amp[i]   = sqrtf(re * re + im * im);
-
-        float phi_geo = pha[i];
-        float s_geo, c_geo;
-        sincosf(phi_geo, &s_geo, &c_geo);
-
-        float d_re = re * c_geo + im * s_geo;
-        float d_im = im * c_geo - re * s_geo;
-        float dphi = atan2f(d_im, d_re);
-        pha[i]     = phi_geo + dphi;
-    }
-}
-
-/**
- * atmturb_fresnel_modulate_field - Modulate complex optical field with phase screen
- * @field: In-out complex field array.
- * @phase: Phase screen array in radians.
- * @npix: Total number of pixels.
- */
-static void atmturb_fresnel_modulate_field(
-    fftwf_complex *restrict field,
-    const float   *restrict phase,
-    long                    npix)
-{
-#ifdef _OPENMP
-    #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
-#endif
-    for (long i = 0; i < npix; i++)
-    {
-        float p = phase[i];
-        float s, c;
-        sincosf(p, &s, &c);
-        float re    = field[i][0];
-        float im    = field[i][1];
-        field[i][0] = re * c - im * s;
-        field[i][1] = re * s + im * c;
-    }
+    fftwf_execute_dft(ctx->eng.fwd_plan, field, field);
+    atmturb_complex_mul_array((float *) field, (const float *) field, (const float *) tf, npix);
+    fftwf_execute_dft(ctx->eng.inv_plan, field, field);
 }
 
 /**
@@ -300,46 +303,65 @@ void atmturb_fresnel_render_step(
     float                        *samp_slice)
 {
     long npix = pup_size * pup_size;
+    int has_sec = (plan->lambda_s_m > 0.0 && plan->tf_sec != NULL &&
+                   plan->tf_sec[0] != NULL && (spha_slice != NULL || samp_slice != NULL));
 
-    for (long i = 0; i < npix; i++)
+    memset(pha_slice, 0, sizeof(float) * (size_t) npix);
+    if (has_sec && spha_slice != NULL)
     {
-        ctx->field_pri[i][0] = 1.0f;
-        ctx->field_pri[i][1] = 0.0f;
-        ctx->field_sec[i][0] = 1.0f;
-        ctx->field_sec[i][1] = 0.0f;
-        pha_slice[i]         = 0.0f;
-        spha_slice[i]        = 0.0f;
+        memset(spha_slice, 0, sizeof(float) * (size_t) npix);
     }
+
+    float *sec_target = has_sec ? ctx->super_spha : NULL;
 
     for (int m = 0; m < plan->nsuper; m++)
     {
         memset(ctx->super_pha, 0, sizeof(float) * (size_t) npix);
-        memset(ctx->super_spha, 0, sizeof(float) * (size_t) npix);
+        if (has_sec)
+        {
+            memset(ctx->super_spha, 0, sizeof(float) * (size_t) npix);
+        }
 
         const atmturb_superlayer_t *sl = &plan->supers[m];
         for (int j = 0; j < sl->nlayers; j++)
         {
             int k = sl->layer_indices[j];
             atmturb_wfs_render_layer(r, geom, k, t, time_step_s, master_size,
-                                     pup_size, ctx->super_pha, ctx->super_spha);
+                                     pup_size, ctx->super_pha, sec_target);
         }
 
         atmturb_add_float_array(pha_slice, ctx->super_pha, npix);
-        atmturb_add_float_array(spha_slice, ctx->super_spha, npix);
-
-        atmturb_fresnel_modulate_field(ctx->field_pri, ctx->super_pha, npix);
-        wfprop_fresnel_engine_apply(&ctx->eng, ctx->field_pri, plan->tf_pri[m]);
-
-        if (plan->tf_sec != NULL && plan->tf_sec[m] != NULL)
+        if (m == 0)
         {
-            atmturb_fresnel_modulate_field(ctx->field_sec, ctx->super_spha, npix);
-            wfprop_fresnel_engine_apply(&ctx->eng, ctx->field_sec, plan->tf_sec[m]);
+            atmturb_fresnel_simd_init_modulate_field(ctx->field_pri, ctx->super_pha, npix);
+        }
+        else
+        {
+            atmturb_fresnel_simd_modulate_field(ctx->field_pri, ctx->super_pha, npix);
+        }
+        atmturb_fresnel_propagate_field(ctx, ctx->field_pri, plan->tf_pri[m], npix);
+
+        if (has_sec && plan->tf_sec[m] != NULL)
+        {
+            if (spha_slice != NULL)
+            {
+                atmturb_add_float_array(spha_slice, ctx->super_spha, npix);
+            }
+            if (m == 0)
+            {
+                atmturb_fresnel_simd_init_modulate_field(ctx->field_sec, ctx->super_spha, npix);
+            }
+            else
+            {
+                atmturb_fresnel_simd_modulate_field(ctx->field_sec, ctx->super_spha, npix);
+            }
+            atmturb_fresnel_propagate_field(ctx, ctx->field_sec, plan->tf_sec[m], npix);
         }
     }
 
-    atmturb_fresnel_extract_unwrapped(ctx->field_pri, pha_slice, amp_slice, npix);
-    if (plan->tf_sec != NULL && plan->tf_sec[0] != NULL)
+    atmturb_fresnel_simd_extract_unwrapped(ctx->field_pri, pha_slice, amp_slice, npix);
+    if (has_sec)
     {
-        atmturb_fresnel_extract_unwrapped(ctx->field_sec, spha_slice, samp_slice, npix);
+        atmturb_fresnel_simd_extract_unwrapped(ctx->field_sec, spha_slice, samp_slice, npix);
     }
 }

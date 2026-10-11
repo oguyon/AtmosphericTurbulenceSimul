@@ -158,19 +158,23 @@ static void atmturb_wfs_stream_render_step(
     long                     master_size,
     long                     pup_size)
 {
+    float *amp_dst  = (st->id_amp >= 0)  ? st->amp  : NULL;
+    float *spha_dst = (st->id_spha >= 0) ? st->spha : NULL;
+    float *samp_dst = (st->id_samp >= 0) ? st->samp : NULL;
+
     if (CONF_FRESNEL_PROPAGATION == 1 && st->fplan != NULL && st->fctx != NULL)
     {
         atmturb_fresnel_render_step(st->fctx, st->fplan, rsim, geom, t, time_step_s,
-                                    master_size, pup_size, st->pha, st->amp,
-                                    st->spha, st->samp);
+                                    master_size, pup_size, st->pha, amp_dst,
+                                    spha_dst, samp_dst);
         return;
     }
 
     if (CONF_FRESNEL_PROPAGATION == 2 && st->cuda_rstream != NULL)
     {
         if (atmturb_cuda_rytov_stream_render_step(st->cuda_rstream, rsim, geom, t,
-                                                 time_step_s, st->pha, st->amp,
-                                                 st->spha, st->samp) == 0)
+                                                 time_step_s, st->pha, amp_dst,
+                                                 spha_dst, samp_dst) == 0)
         {
             return;
         }
@@ -179,14 +183,11 @@ static void atmturb_wfs_stream_render_step(
     if (CONF_FRESNEL_PROPAGATION == 2 && st->rplan != NULL && st->rctx != NULL)
     {
         atmturb_rytov_render_step(st->rctx, st->rplan, rsim, geom, t, time_step_s,
-                                  master_size, pup_size, st->pha, st->amp,
-                                  st->spha, st->samp);
+                                  master_size, pup_size, st->pha, amp_dst,
+                                  spha_dst, samp_dst);
         return;
     }
 
-    float *amp_dst  = (st->id_amp >= 0)  ? st->amp  : NULL;
-    float *spha_dst = (st->id_spha >= 0) ? st->spha : NULL;
-    float *samp_dst = (st->id_samp >= 0) ? st->samp : NULL;
 
     if (CONF_FRESNEL_PROPAGATION == 0 && st->cuda_gstream != NULL)
     {

@@ -176,6 +176,11 @@ int atmturb_simd_is_gpu(void)
  */
 void atmturb_extrude_accumulate(const atmturb_extrude_params_t *params)
 {
+    if (params == NULL || params->master == NULL || params->out_pha == NULL ||
+        params->pup_size <= 0 || params->weight == 0.0f)
+    {
+        return;
+    }
     if (__builtin_expect(!g_simd_initialized, 0))
     {
         atmturb_simd_init_dispatch();
@@ -199,6 +204,10 @@ void atmturb_extrude_accumulate(const atmturb_extrude_params_t *params)
  */
 void atmturb_scale_float_array(float *dest, const float *src, float scale, long n)
 {
+    if (dest == NULL || src == NULL || n <= 0)
+    {
+        return;
+    }
     if (__builtin_expect(!g_simd_initialized, 0))
     {
         atmturb_simd_init_dispatch();
@@ -214,6 +223,10 @@ void atmturb_scale_float_array(float *dest, const float *src, float scale, long 
  */
 void atmturb_init_phase_amp(float *pha, float *amp, long n)
 {
+    if (n <= 0 || (pha == NULL && amp == NULL))
+    {
+        return;
+    }
     if (__builtin_expect(!g_simd_initialized, 0))
     {
         atmturb_simd_init_dispatch();
@@ -227,6 +240,11 @@ void atmturb_init_phase_amp(float *pha, float *amp, long n)
  */
 void atmturb_extrude_lowfreq(const atmturb_lowfreq_params_t *params)
 {
+    if (params == NULL || params->lf == NULL || params->out_pha == NULL ||
+        params->pup_size <= 0 || params->weight == 0.0f)
+    {
+        return;
+    }
     if (__builtin_expect(!g_simd_initialized, 0))
     {
         atmturb_simd_init_dispatch();
@@ -245,6 +263,10 @@ void atmturb_add_float_array(
     const float *src,
     long         n)
 {
+    if (dest == NULL || src == NULL || n <= 0)
+    {
+        return;
+    }
     if (__builtin_expect(!g_simd_initialized, 0))
     {
         atmturb_simd_init_dispatch();
@@ -265,6 +287,10 @@ void atmturb_complex_mul_array(
     const float *src2,
     long         n_complex)
 {
+    if (dest == NULL || src1 == NULL || src2 == NULL || n_complex <= 0)
+    {
+        return;
+    }
     if (__builtin_expect(!g_simd_initialized, 0))
     {
         atmturb_simd_init_dispatch();
@@ -283,6 +309,10 @@ void atmturb_remove_piston_stream(
     const float *restrict src,
     long                  npix)
 {
+    if (dst == NULL || src == NULL || npix <= 0)
+    {
+        return;
+    }
     if (__builtin_expect(!g_simd_initialized, 0))
     {
         atmturb_simd_init_dispatch();

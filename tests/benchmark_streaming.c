@@ -18,6 +18,7 @@
 #include <omp.h>
 #endif
 
+#include "atmturb_fresnel.h"
 #include "atmturb_geometry.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
@@ -415,6 +416,73 @@ static void bench_rytov_streaming(
 }
 
 /**
+ * bench_fresnel_streaming - Benchmark Fresnel multi-layer diffractive streaming
+ * @rsim: Rolling context.
+ * @geom: Observing geometry.
+ * @prof: Atmospheric profile.
+ * @params: Observing parameters.
+ * @pup_size: Linear dimension of pupil.
+ * @nframes: Number of frames to test.
+ */
+static void bench_fresnel_streaming(
+    const atmturb_rolling_t    *rsim,
+    const atmturb_geom_t       *geom,
+    const atmturb_profile_t    *prof,
+    const atmturb_obs_params_t *params,
+    long                        pup_size,
+    int                         nframes)
+{
+    long npix = pup_size * pup_size;
+    float *pha  = (float *) malloc((size_t) npix * sizeof(float));
+    float *amp  = (float *) malloc((size_t) npix * sizeof(float));
+    float *spha = (float *) malloc((size_t) npix * sizeof(float));
+    float *samp = (float *) malloc((size_t) npix * sizeof(float));
+
+    double dt_fresnel = 0.0;
+    atmturb_fresnel_plan_t fplan;
+    atmturb_fresnel_ctx_t  fctx;
+    double z_bin = 2000.0;
+    if (atmturb_fresnel_plan_init(&fplan, prof, geom, pup_size, params->pupil_scale_m,
+                                  params->lambda_ref_m, params->lambda_s_m, z_bin) == 0)
+    {
+        atmturb_fresnel_ctx_init(&fctx, pup_size);
+        atmturb_fresnel_render_step(&fctx, &fplan, rsim, geom, 0, 0.001,
+                                    BENCH_MSIZE, pup_size, pha, amp, NULL, NULL);
+
+        double t0 = get_time_sec();
+        for (int t = 0; t < nframes; t++)
+        {
+            atmturb_fresnel_render_step(&fctx, &fplan, rsim, geom, t, 0.001,
+                                        BENCH_MSIZE, pup_size, pha, amp, NULL, NULL);
+        }
+        double dt_1ch = (get_time_sec() - t0) / (double) nframes;
+
+        t0 = get_time_sec();
+        for (int t = 0; t < nframes; t++)
+        {
+            atmturb_fresnel_render_step(&fctx, &fplan, rsim, geom, t, 0.001,
+                                        BENCH_MSIZE, pup_size, pha, amp, spha, samp);
+        }
+        double dt_2ch = (get_time_sec() - t0) / (double) nframes;
+
+        atmturb_fresnel_ctx_free(&fctx);
+        atmturb_fresnel_plan_free(&fplan);
+
+        double mp = (double) npix * 1e-6;
+        printf("  Fresnel Diffractive Stream (%4ldx%4ld):\n", pup_size, pup_size);
+        printf("    - CPU Fresnel 1-ch (1 lambda): %8.2f us/frame | %7.1f fps | %6.1f MP/s\n",
+               dt_1ch * 1e6, 1.0 / dt_1ch, mp / dt_1ch);
+        printf("    - CPU Fresnel 2-ch (2 lambda): %8.2f us/frame | %7.1f fps | %6.1f MP/s\n",
+               dt_2ch * 1e6, 1.0 / dt_2ch, (2.0 * mp) / dt_2ch);
+    }
+
+    free(pha);
+    free(amp);
+    free(spha);
+    free(samp);
+}
+
+/**
  * main - Streaming benchmark harness entry point
  * @argc: Command argument count.
  * @argv: Command argument vector.
@@ -501,6 +569,13 @@ int main(
     {
         int nframes = (sizes[i] <= 128) ? 100 : (sizes[i] == 256 ? 50 : 20);
         bench_rytov_streaming(&rsim, &geom, &prof, &params, sizes[i], nframes);
+    }
+
+    printf("\n--- Section 4: Multi-Layer Fresnel Wavefront Streaming (F=1) ---\n");
+    for (int i = 0; i < n_sizes; i++)
+    {
+        int nframes = (sizes[i] <= 128) ? 50 : (sizes[i] == 256 ? 20 : 10);
+        bench_fresnel_streaming(&rsim, &geom, &prof, &params, sizes[i], nframes);
     }
 
     printf("\n========================================================================\n");

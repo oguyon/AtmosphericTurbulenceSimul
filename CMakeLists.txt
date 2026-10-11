@@ -90,8 +90,14 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_superlayer.c
     src/AtmosphericTurbulence/atmturb_superlayer_nodes.c
     src/AtmosphericTurbulence/atmturb_fresnel.c
+    src/AtmosphericTurbulence/atmturb_fresnel_simd_scalar.c
+    src/AtmosphericTurbulence/atmturb_fresnel_simd_avx2.c
+    src/AtmosphericTurbulence/atmturb_fresnel_simd_dispatch.c
     src/AtmosphericTurbulence/atmturb_rytov.c
     src/AtmosphericTurbulence/atmturb_rytov_kernels.c
+    src/AtmosphericTurbulence/atmturb_rytov_simd_scalar.c
+    src/AtmosphericTurbulence/atmturb_rytov_simd_avx2.c
+    src/AtmosphericTurbulence/atmturb_rytov_simd_dispatch.c
     src/AtmosphericTurbulence/atmturb_lowfreq.c
     src/AtmosphericTurbulence/atmturb_rolling.c
     src/AtmosphericTurbulence/atmturb_simd_scalar.c
@@ -114,7 +120,9 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/atmturb_geometry.h
     src/AtmosphericTurbulence/atmturb_superlayer.h
     src/AtmosphericTurbulence/atmturb_fresnel.h
+    src/AtmosphericTurbulence/atmturb_fresnel_simd.h
     src/AtmosphericTurbulence/atmturb_rytov.h
+    src/AtmosphericTurbulence/atmturb_rytov_simd.h
     src/AtmosphericTurbulence/atmturb_lowfreq.h
     src/AtmosphericTurbulence/atmturb_rolling.h
     src/AtmosphericTurbulence/atmturb_simd.h
@@ -126,7 +134,10 @@ set(INCLUDEFILES
 file(GLOB SCRIPTS "src/AtmosphericTurbulence/scripts/*")
 
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-    set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx2.c
+    set_source_files_properties(
+        src/AtmosphericTurbulence/atmturb_simd_avx2.c
+        src/AtmosphericTurbulence/atmturb_rytov_simd_avx2.c
+        src/AtmosphericTurbulence/atmturb_fresnel_simd_avx2.c
         PROPERTIES COMPILE_FLAGS "-mavx2 -mfma")
     set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx512.c
         PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq -mavx512bw -mavx512vl -mfma")
@@ -304,6 +315,7 @@ else()
     target_include_directories(${LIBNAME} PRIVATE ${MILK_STANDALONE_INCLUDES})
 
     set(MILK_LIB_NAMES
+        milkdata
         milkOpticsMaterials
         milkWFpropagate
         CLIcore

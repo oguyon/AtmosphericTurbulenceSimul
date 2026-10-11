@@ -203,7 +203,7 @@ static void atmturb_wfs_render_geometric(
 {
     long frame_pixels = pup_size * pup_size;
 
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(static)
     for (long t = 0; t < nbframes; t++)
     {
         long slice = t * frame_pixels;
@@ -282,7 +282,7 @@ static int atmturb_wfs_render_diffractive(
 
     long frame_pixels = pup_size * pup_size;
 
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(static)
     for (long t = 0; t < nbframes; t++)
     {
         int tid = 0;
@@ -383,7 +383,7 @@ static int atmturb_wfs_render_rytov(
 
     long frame_pixels = pup_size * pup_size;
 
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(static)
     for (long t = 0; t < nbframes; t++)
     {
         int tid = 0;
