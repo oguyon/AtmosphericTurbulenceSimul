@@ -73,6 +73,7 @@ typedef struct
  * @interp: Sub-pixel interpolation mode (0: bilinear, 1: Keys bicubic).
  * @use_moisan: 1 if Moisan periodic boundary decomposition enabled.
  * @lowfreq: 1 if subharmonic low-frequency modes enabled, 0 otherwise.
+ * @remove_piston: 1 if mean aperture piston subtraction is enabled.
  * @h_masters: Array of host master screen pointers.
  * @h_laplace_inv: Moisan Poisson inverse Laplace multipliers.
  * @h_exp_x: Moisan X boundary phase factor (complex float[2]).
@@ -93,6 +94,8 @@ typedef struct
  * @amp: Output primary amplitude 3D array (nbframes * pup_size * pup_size floats).
  * @spha: Output secondary phase 3D array (nbframes * pup_size * pup_size floats).
  * @samp: Output secondary amplitude 3D array (nbframes * pup_size * pup_size floats).
+ * @async_stream: 1 if asynchronous stream mode (non-blocking DtoH transfers).
+ * @slot: Active double-buffer slot index (0 or 1) for zero-idle queueing.
  */
 typedef struct
 {

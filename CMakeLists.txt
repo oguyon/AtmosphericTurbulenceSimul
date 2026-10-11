@@ -90,6 +90,8 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_wfs_sim.c
     src/AtmosphericTurbulence/atmturb_wfs_render.c
     src/AtmosphericTurbulence/atmturb_wfs_render_cuda.c
+    src/AtmosphericTurbulence/atmturb_wfs_cuda_common.c
+    src/AtmosphericTurbulence/atmturb_wfs_stream_cuda.c
     src/AtmosphericTurbulence/atmturb_wfs_stream.c
     src/AtmosphericTurbulence/atmturb_superlayer.c
     src/AtmosphericTurbulence/atmturb_superlayer_nodes.c
@@ -132,6 +134,7 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/atmturb_simd.h
     src/AtmosphericTurbulence/atmturb_wfs_render.h
     src/AtmosphericTurbulence/atmturb_wfs_render_cuda.h
+    src/AtmosphericTurbulence/atmturb_wfs_cuda_common.h
     src/AtmosphericTurbulence/atmturb_wfs_stream.h
 )
 
@@ -166,13 +169,18 @@ if(HAVE_CUDA OR USE_CUDA)
             add_compile_definitions(HAVE_CUDA)
             list(APPEND SOURCEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.cu
+                src/AtmosphericTurbulence/atmturb_cuda_piston.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov.cu
-                src/AtmosphericTurbulence/atmturb_cuda_rytov_kernels.cu
+                src/AtmosphericTurbulence/atmturb_cuda_rytov_extrude.cu
+                src/AtmosphericTurbulence/atmturb_cuda_rytov_filter.cu
+                src/AtmosphericTurbulence/atmturb_cuda_fresnel_kernels.cu
                 src/AtmosphericTurbulence/atmturb_cuda_fresnel.cu
             )
             list(APPEND INCLUDEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.h
+                src/AtmosphericTurbulence/atmturb_cuda_piston.h
                 src/AtmosphericTurbulence/atmturb_cuda_rytov.h
+                src/AtmosphericTurbulence/atmturb_cuda_fresnel_kernels.h
                 src/AtmosphericTurbulence/atmturb_cuda_fresnel.h
             )
             message(STATUS "milkatmturb: CUDA GPU acceleration ENABLED")
