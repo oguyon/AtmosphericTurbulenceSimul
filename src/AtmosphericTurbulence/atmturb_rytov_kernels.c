@@ -17,6 +17,7 @@
 
 #include "atmturb_rytov.h"
 #include "atmturb_rytov_internal.h"
+#include "atmturb_rytov_simd.h"
 
 #ifndef M_PI
 #    define M_PI 3.14159265358979323846
@@ -131,20 +132,9 @@ void atmturb_rytov_decompose_periodic(
         float ey_im = plan->exp_y[j][1];
         long row_idx = j * n_half;
 
-        for (long i = 0; i < n_half; i++)
-        {
-            float a_re = ctx->hat_a[i][0];
-            float a_im = ctx->hat_a[i][1];
-            float ex_re = plan->exp_x[i][0];
-            float ex_im = plan->exp_x[i][1];
-
-            float v_re = (a_re * ey_re - a_im * ey_im) + (b_re * ex_re - b_im * ex_im);
-            float v_im = (a_re * ey_im + a_im * ey_re) + (b_re * ex_im + b_im * ex_re);
-
-            float linv = plan->laplace_inv[row_idx + i];
-            ctx->spec[row_idx + i][0] += v_re * linv;
-            ctx->spec[row_idx + i][1] += v_im * linv;
-        }
+        atmturb_rytov_simd_decompose_row(&ctx->spec[row_idx], ctx->hat_a,
+                                         plan->exp_x, &plan->laplace_inv[row_idx],
+                                         ey_re, ey_im, b_re, b_im, n_half);
     }
 }
 
@@ -165,18 +155,7 @@ void atmturb_rytov_accumulate_filters(
     const float *restrict         filt_b,
     long                          ntot)
 {
-    for (long k = 0; k < ntot; k++)
-    {
-        float p_re = spec[k][0];
-        float p_im = spec[k][1];
-        float fa   = filt_a[k];
-        float fb   = filt_b[k];
-
-        acc_dphi[k][0] += p_re * fa;
-        acc_dphi[k][1] += p_im * fa;
-        acc_chi[k][0]  += p_re * fb;
-        acc_chi[k][1]  += p_im * fb;
-    }
+    atmturb_rytov_simd_accumulate_filters(acc_dphi, acc_chi, spec, filt_a, filt_b, ntot);
 }
 
 /**
@@ -198,24 +177,8 @@ void atmturb_rytov_accumulate_filters_rotated(
     const float *restrict         filt_b,
     long                          ntot)
 {
-    for (long k = 0; k < ntot; k++)
-    {
-        float p_re = spec[k][0];
-        float p_im = spec[k][1];
-        float cb   = ramp[k][0];
-        float sb   = ramp[k][1];
-
-        float ps_re = p_re * cb - p_im * sb;
-        float ps_im = p_re * sb + p_im * cb;
-
-        float fa = filt_a[k];
-        float fb = filt_b[k];
-
-        acc_dphi[k][0] += ps_re * fa;
-        acc_dphi[k][1] += ps_im * fa;
-        acc_chi[k][0]  += ps_re * fb;
-        acc_chi[k][1]  += ps_im * fb;
-    }
+    atmturb_rytov_simd_accumulate_filters_rotated(acc_dphi, acc_chi, spec, ramp,
+                                                  filt_a, filt_b, ntot);
 }
 
 /**

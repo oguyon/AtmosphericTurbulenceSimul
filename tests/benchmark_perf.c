@@ -21,6 +21,16 @@
 #include "atmturb_cuda.h"
 #ifdef HAVE_CUDA
 #include "wfprop_fresnel_cuda.h"
+__attribute__((weak)) int wfprop_fresnel_device_available(void);
+__attribute__((weak)) int wfprop_fresnel_propagate_cuda(
+    const void *in,
+    void       *out,
+    long        xsize,
+    long        ysize,
+    double      pupil_scale,
+    double      z,
+    double      lambda,
+    int         stream_id);
 #endif
 
 #ifndef PI
@@ -659,16 +669,19 @@ static void benchmark_fresnel(
     double t_cuda = 0.0;
     int have_gpu = 0;
 #ifdef HAVE_CUDA
-    have_gpu = wfprop_fresnel_device_available();
-    if (have_gpu)
+    if (wfprop_fresnel_device_available != NULL && wfprop_fresnel_propagate_cuda != NULL)
     {
-        wfprop_fresnel_propagate_cuda(h_in, h_out, size, size, pupil_scale, z, lambda, 0);
-        t0 = get_time_sec();
-        for (int it = 0; it < iters; it++)
+        have_gpu = wfprop_fresnel_device_available();
+        if (have_gpu)
         {
             wfprop_fresnel_propagate_cuda(h_in, h_out, size, size, pupil_scale, z, lambda, 0);
+            t0 = get_time_sec();
+            for (int it = 0; it < iters; it++)
+            {
+                wfprop_fresnel_propagate_cuda(h_in, h_out, size, size, pupil_scale, z, lambda, 0);
+            }
+            t_cuda = (get_time_sec() - t0) / (double) iters;
         }
-        t_cuda = (get_time_sec() - t0) / (double) iters;
     }
 #endif
 
