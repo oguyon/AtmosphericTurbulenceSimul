@@ -45,7 +45,8 @@ typedef struct
 
 /**
  * struct atmturb_fresnel_ctx_t - Thread-local scratchpad and engine for diffractive render
- * @eng: Initialized FFTW Fresnel propagation engine.
+ * @eng: Initialized FFTW Fresnel propagation engine for primary wavelength.
+ * @eng_sec: Initialized FFTW Fresnel propagation engine for secondary wavelength.
  * @field_pri: Working complex array for primary optical field.
  * @field_sec: Working complex array for secondary optical field.
  * @super_pha: Scratchpad for super-layer primary phase screen.
@@ -54,6 +55,7 @@ typedef struct
 typedef struct
 {
     wfprop_fresnel_engine_t eng;
+    wfprop_fresnel_engine_t eng_sec;
     fftwf_complex          *field_pri;
     fftwf_complex          *field_sec;
     float                  *super_pha;

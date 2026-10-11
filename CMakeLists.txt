@@ -157,10 +157,12 @@ if(HAVE_CUDA OR USE_CUDA)
                 src/AtmosphericTurbulence/atmturb_cuda.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov_kernels.cu
+                src/AtmosphericTurbulence/atmturb_cuda_fresnel.cu
             )
             list(APPEND INCLUDEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.h
                 src/AtmosphericTurbulence/atmturb_cuda_rytov.h
+                src/AtmosphericTurbulence/atmturb_cuda_fresnel.h
             )
             message(STATUS "milkatmturb: CUDA GPU acceleration ENABLED")
         endif()

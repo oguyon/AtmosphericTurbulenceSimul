@@ -456,8 +456,14 @@ static void atmturb_rytov_accumulate_geom(
     long pup_pixels = pup_size * pup_size;
     if (guard == 0)
     {
-        atmturb_add_float_array(pha, super_pha, pup_pixels);
-        atmturb_add_float_array(spha, super_spha, pup_pixels);
+        if (pha != NULL && super_pha != NULL)
+        {
+            atmturb_add_float_array(pha, super_pha, pup_pixels);
+        }
+        if (spha != NULL && super_spha != NULL)
+        {
+            atmturb_add_float_array(spha, super_spha, pup_pixels);
+        }
         return;
     }
 
@@ -465,8 +471,14 @@ static void atmturb_rytov_accumulate_geom(
     {
         long src_row = (y + guard) * pad_size + guard;
         long dst_row = y * pup_size;
-        atmturb_add_float_array(&pha[dst_row], &super_pha[src_row], pup_size);
-        atmturb_add_float_array(&spha[dst_row], &super_spha[src_row], pup_size);
+        if (pha != NULL && super_pha != NULL)
+        {
+            atmturb_add_float_array(&pha[dst_row], &super_pha[src_row], pup_size);
+        }
+        if (spha != NULL && super_spha != NULL)
+        {
+            atmturb_add_float_array(&spha[dst_row], &super_spha[src_row], pup_size);
+        }
     }
 }
 
@@ -505,25 +517,38 @@ void atmturb_rytov_render_step(
     long pad_pixels = pad_size * pad_size;
     long n_half = pad_size / 2 + 1;
     long n_spec = pad_size * n_half;
+    int has_sec = (plan->lambda_s_m > 0.0 && (spha_slice != NULL || samp_slice != NULL));
 
-    memset(pha_slice, 0, sizeof(float) * (size_t) pup_pixels);
-    memset(spha_slice, 0, sizeof(float) * (size_t) pup_pixels);
+    if (pha_slice != NULL)
+    {
+        memset(pha_slice, 0, sizeof(float) * (size_t) pup_pixels);
+    }
+    if (spha_slice != NULL)
+    {
+        memset(spha_slice, 0, sizeof(float) * (size_t) pup_pixels);
+    }
     memset(ctx->acc_dphi_pri, 0, sizeof(fftwf_complex) * (size_t) n_spec);
     memset(ctx->acc_chi_pri,  0, sizeof(fftwf_complex) * (size_t) n_spec);
-    memset(ctx->acc_dphi_sec, 0, sizeof(fftwf_complex) * (size_t) n_spec);
-    memset(ctx->acc_chi_sec,  0, sizeof(fftwf_complex) * (size_t) n_spec);
+    if (has_sec)
+    {
+        memset(ctx->acc_dphi_sec, 0, sizeof(fftwf_complex) * (size_t) n_spec);
+        memset(ctx->acc_chi_sec,  0, sizeof(fftwf_complex) * (size_t) n_spec);
+    }
 
     atmturb_wfs_render_target_t target;
     target.pup_size     = pup_size;
     target.guard_pix    = guard;
     target.pha          = ctx->super_pha;
-    target.spha         = ctx->super_spha;
+    target.spha         = has_sec ? ctx->super_spha : NULL;
     target.weight_scale = 1.0f;
 
     for (int m = 0; m < plan->nsuper; m++)
     {
         memset(ctx->super_pha, 0, sizeof(float) * (size_t) pad_pixels);
-        memset(ctx->super_spha, 0, sizeof(float) * (size_t) pad_pixels);
+        if (has_sec)
+        {
+            memset(ctx->super_spha, 0, sizeof(float) * (size_t) pad_pixels);
+        }
 
         const atmturb_superlayer_t *sl = &plan->supers[m];
         for (int j = 0; j < sl->nlayers; j++)
@@ -534,7 +559,7 @@ void atmturb_rytov_render_step(
         }
 
         atmturb_rytov_accumulate_geom(pha_slice, spha_slice, ctx->super_pha,
-                                      ctx->super_spha, pup_size, guard, pad_size);
+                                      has_sec ? ctx->super_spha : NULL, pup_size, guard, pad_size);
 
         if (sl->dist_m > 0.0)
         {
@@ -551,7 +576,7 @@ void atmturb_rytov_render_step(
                                              ctx->spec, plan->filter_a_pri[m],
                                              plan->filter_b_pri[m], n_spec);
 
-            if (plan->lambda_s_m > 0.0)
+            if (has_sec)
             {
                 if (plan->sec_shared && plan->chrom_ramp != NULL && plan->chrom_ramp[m] != NULL)
                 {
@@ -584,7 +609,7 @@ void atmturb_rytov_render_step(
     atmturb_rytov_assemble_output(pup_size, guard, pad_size,
                                   pha_slice, amp_slice, ctx->dphi_out, ctx->chi_out);
 
-    if (plan->lambda_s_m > 0.0)
+    if (has_sec)
     {
         fftwf_execute_dft_c2r(ctx->plan_c2r, ctx->acc_dphi_sec, ctx->dphi_out);
         fftwf_execute_dft_c2r(ctx->plan_c2r, ctx->acc_chi_sec,  ctx->chi_out);
