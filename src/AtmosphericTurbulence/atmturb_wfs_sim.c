@@ -19,6 +19,8 @@
 
 #include "AtmosphereModel/AtmosphereModel.h"
 #include "AtmosphericTurbulence.h"
+#include "atmturb_cuda.h"
+#include "atmturb_cuda_rytov.h"
 #include "atmturb_fresnel.h"
 #include "atmturb_geometry.h"
 #include "atmturb_lowfreq.h"
@@ -226,6 +228,8 @@ void atmturb_wfs_teardown_sim(
     atmturb_rolling_free(rsim);
     atmturb_geometry_free(geom);
     atmturb_profile_free(prof);
+    atmturb_cuda_cleanup();
+    atmturb_cuda_rytov_cleanup();
 }
 
 /**

@@ -7,6 +7,7 @@
  * @brief   Shared helper implementations for CUDA wavefront rendering and streaming
  */
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -107,10 +108,27 @@ void atmturb_wfs_cuda_build_frame_sublayers(
             double dx = atmturb_geom_get_layer_dx(&geom->layers[k], t);
             double dy = atmturb_geom_get_layer_dy(&geom->layers[k], t);
 
-            float cur_x  = (float) (geom->layers[k].x0 + dx - offset_os);
-            float cur_y  = (float) (geom->layers[k].y0 + dy - offset_os);
-            float cur_xs = (float) (geom->layers[k].xs0 + dx - offset_os);
-            float cur_ys = (float) (geom->layers[k].ys0 + dy - offset_os);
+            double msize_os = (double) (r->msize * (long) geom->oversample);
+            double cur_x  = fmod(geom->layers[k].x0 + dx - offset_os, msize_os);
+            if (cur_x < 0.0)
+            {
+                cur_x += msize_os;
+            }
+            double cur_y  = fmod(geom->layers[k].y0 + dy - offset_os, msize_os);
+            if (cur_y < 0.0)
+            {
+                cur_y += msize_os;
+            }
+            double cur_xs = fmod(geom->layers[k].xs0 + dx - offset_os, msize_os);
+            if (cur_xs < 0.0)
+            {
+                cur_xs += msize_os;
+            }
+            double cur_ys = fmod(geom->layers[k].ys0 + dy - offset_os, msize_os);
+            if (cur_ys < 0.0)
+            {
+                cur_ys += msize_os;
+            }
 
             double w_base   = geom->layers[k].weight * (double) ws;
             double ws_base  = geom->layers[k].weight_s * (double) ws;
@@ -120,10 +138,10 @@ void atmturb_wfs_cuda_build_frame_sublayers(
             sublayers[idx_a].k     = k_offset + rev.idxA;
             sublayers[idx_a].w_pri = (float) (w_base * (double) rev.wA);
             sublayers[idx_a].w_sec = (float) (ws_base * (double) rev.wA);
-            sublayers[idx_a].x     = cur_x;
-            sublayers[idx_a].y     = cur_y;
-            sublayers[idx_a].xs    = cur_xs;
-            sublayers[idx_a].ys    = cur_ys;
+            sublayers[idx_a].x     = (float) cur_x;
+            sublayers[idx_a].y     = (float) cur_y;
+            sublayers[idx_a].xs    = (float) cur_xs;
+            sublayers[idx_a].ys    = (float) cur_ys;
 
             size_t idx_b = base + (size_t) (2 * j + 1);
             if (rev.wB > 0.0f && rev.idxB >= 0)
@@ -131,10 +149,10 @@ void atmturb_wfs_cuda_build_frame_sublayers(
                 sublayers[idx_b].k     = k_offset + rev.idxB;
                 sublayers[idx_b].w_pri = (float) (w_base * (double) rev.wB);
                 sublayers[idx_b].w_sec = (float) (ws_base * (double) rev.wB);
-                sublayers[idx_b].x     = cur_x;
-                sublayers[idx_b].y     = cur_y;
-                sublayers[idx_b].xs    = cur_xs;
-                sublayers[idx_b].ys    = cur_ys;
+                sublayers[idx_b].x     = (float) cur_x;
+                sublayers[idx_b].y     = (float) cur_y;
+                sublayers[idx_b].xs    = (float) cur_xs;
+                sublayers[idx_b].ys    = (float) cur_ys;
             }
             else
             {
@@ -209,12 +227,23 @@ void atmturb_wfs_cuda_build_frame_lf_modes(
                 float aim = rev.aim_eff[lm];
 
                 atmturb_cuda_lowfreq_mode_t *out = &lf_modes[base + mode_idx++];
+                double th_pri = fmod((double) kx * x + (double) ky * y, 2.0 * M_PI);
+                if (th_pri < 0.0)
+                {
+                    th_pri += 2.0 * M_PI;
+                }
+                double th_sec = fmod((double) kx * xs + (double) ky * ys, 2.0 * M_PI);
+                if (th_sec < 0.0)
+                {
+                    th_sec += 2.0 * M_PI;
+                }
+
                 out->are_pri = (float) (w_pri * (double) are);
                 out->aim_pri = (float) (w_pri * (double) aim);
                 out->are_sec = (float) (w_sec * (double) are);
                 out->aim_sec = (float) (w_sec * (double) aim);
-                out->th0_pri = (float) ((double) kx * x + (double) ky * y);
-                out->th0_sec = (float) ((double) kx * xs + (double) ky * ys);
+                out->th0_pri = (float) th_pri;
+                out->th0_sec = (float) th_sec;
                 out->dkx     = (float) ((double) kx * (double) geom->oversample);
                 out->dky     = (float) ((double) ky * (double) geom->oversample);
             }

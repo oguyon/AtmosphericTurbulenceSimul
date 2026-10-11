@@ -28,6 +28,7 @@
 #include "atmturb_wfs_render.h"
 #include "atmturb_cuda.h"
 #include "atmturb_cuda_fresnel.h"
+#include "atmturb_cuda_rytov.h"
 #include "atmturb_wfs_render_cuda.h"
 #include "atmturb_wfs_stream.h"
 #include "ImageStreamIO/ImageStreamIO.h"
@@ -237,7 +238,6 @@ static void atmturb_wfs_stream_render_step(
                                   spha_dst, samp_dst);
         return;
     }
-
 
     if (CONF_FRESNEL_PROPAGATION == 0 && st->cuda_gstream != NULL)
     {
@@ -780,6 +780,9 @@ static void atmturb_wfs_stream_free_engine(
             atmturb_rytov_plan_free(&eng->rplan);
         }
     }
+
+    atmturb_cuda_cleanup();
+    atmturb_cuda_rytov_cleanup();
 }
 
 /**

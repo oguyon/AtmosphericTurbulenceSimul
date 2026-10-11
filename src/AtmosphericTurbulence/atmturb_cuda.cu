@@ -24,9 +24,10 @@ __constant__ float c_y0[ATMTURB_CUDA_MAX_LAYERS];
 __constant__ float c_weights[ATMTURB_CUDA_MAX_LAYERS];
 
 // Persistent GPU memory caches to avoid per-render cudaMalloc/free overhead
-static float              *s_d_m = NULL;
-static size_t              s_cached_mbytes = 0;
-static const float *const *s_cached_h_masters = NULL;
+static float        *s_d_m = NULL;
+static size_t        s_cached_mbytes = 0;
+static long          s_cached_nblayers = 0;
+static const float  *s_cached_screen_ptrs[ATMTURB_CUDA_MAX_LAYERS];
 
 static float *s_d_pha  = NULL;
 static float *s_d_amp  = NULL;
@@ -63,73 +64,76 @@ __global__ static void atmturb_render_kernel(
 {
     int ii = blockIdx.x * blockDim.x + threadIdx.x;
     int jj = blockIdx.y * blockDim.y + threadIdx.y;
-    int f  = blockIdx.z;
 
-    if (ii >= pup_size || jj >= pup_size || f >= nbframes)
+    if (ii >= pup_size || jj >= pup_size)
     {
         return;
     }
 
-    int t = t_offset + f;
-
     int is_pow2 = ((msize & (msize - 1)) == 0);
     int mask = msize - 1;
-    int msize_sq = msize * msize;
-    float total_pha = 0.0f;
+    size_t msize_sq = (size_t) msize * (size_t) msize;
+    size_t pup_sq = (size_t) pup_size * (size_t) pup_size;
 
-    for (int k = 0; k < nblayers; k++)
+    for (int f = blockIdx.z; f < nbframes; f += gridDim.z)
     {
-        float cur_x = c_x0[k] + (float) t * c_vx[k] + (float) ii;
-        float cur_y = c_y0[k] + (float) t * c_vy[k] + (float) jj;
+        int t = t_offset + f;
+        float total_pha = 0.0f;
 
-        int ix = __float2int_rd(cur_x);
-        int iy = __float2int_rd(cur_y);
-        float fx = cur_x - (float) ix;
-        float fy = cur_y - (float) iy;
-
-        int ix0, iy0, ix1, iy1;
-        if (is_pow2)
+        for (int k = 0; k < nblayers; k++)
         {
-            ix0 = ix & mask;
-            iy0 = iy & mask;
-            ix1 = (ix0 + 1) & mask;
-            iy1 = (iy0 + 1) & mask;
+            float cur_x = c_x0[k] + (float) t * c_vx[k] + (float) ii;
+            float cur_y = c_y0[k] + (float) t * c_vy[k] + (float) jj;
+
+            int ix = __float2int_rd(cur_x);
+            int iy = __float2int_rd(cur_y);
+            float fx = cur_x - (float) ix;
+            float fy = cur_y - (float) iy;
+
+            int ix0, iy0, ix1, iy1;
+            if (is_pow2)
+            {
+                ix0 = ix & mask;
+                iy0 = iy & mask;
+                ix1 = (ix0 + 1) & mask;
+                iy1 = (iy0 + 1) & mask;
+            }
+            else
+            {
+                ix0 = ix % msize;
+                if (ix0 < 0) ix0 += msize;
+                iy0 = iy % msize;
+                if (iy0 < 0) iy0 += msize;
+                ix1 = (ix0 + 1 == msize) ? 0 : (ix0 + 1);
+                iy1 = (iy0 + 1 == msize) ? 0 : (iy0 + 1);
+            }
+
+            const float *screen = d_masters + (size_t) k * msize_sq;
+            float v00 = __ldg(&screen[(size_t) iy0 * (size_t) msize + (size_t) ix0]);
+            float v10 = __ldg(&screen[(size_t) iy0 * (size_t) msize + (size_t) ix1]);
+            float v01 = __ldg(&screen[(size_t) iy1 * (size_t) msize + (size_t) ix0]);
+            float v11 = __ldg(&screen[(size_t) iy1 * (size_t) msize + (size_t) ix1]);
+
+            float top = v00 + fx * (v10 - v00);
+            float bot = v01 + fx * (v11 - v01);
+            float val = top + fy * (bot - top);
+            total_pha += c_weights[k] * val;
         }
-        else
+
+        size_t out_idx = (size_t) f * pup_sq + (size_t) jj * (size_t) pup_size + (size_t) ii;
+        d_pha[out_idx] = total_pha;
+        if (d_amp != NULL)
         {
-            ix0 = ix % msize;
-            if (ix0 < 0) ix0 += msize;
-            iy0 = iy % msize;
-            if (iy0 < 0) iy0 += msize;
-            ix1 = (ix0 + 1 == msize) ? 0 : (ix0 + 1);
-            iy1 = (iy0 + 1 == msize) ? 0 : (iy0 + 1);
+            d_amp[out_idx] = 1.0f;
         }
-
-        const float *screen = d_masters + k * msize_sq;
-        float v00 = __ldg(&screen[iy0 * msize + ix0]);
-        float v10 = __ldg(&screen[iy0 * msize + ix1]);
-        float v01 = __ldg(&screen[iy1 * msize + ix0]);
-        float v11 = __ldg(&screen[iy1 * msize + ix1]);
-
-        float top = v00 + fx * (v10 - v00);
-        float bot = v01 + fx * (v11 - v01);
-        float val = top + fy * (bot - top);
-        total_pha += c_weights[k] * val;
-    }
-
-    int out_idx     = f * (pup_size * pup_size) + jj * pup_size + ii;
-    d_pha[out_idx]  = total_pha;
-    if (d_amp != NULL)
-    {
-        d_amp[out_idx]  = 1.0f;
-    }
-    if (d_spha != NULL)
-    {
-        d_spha[out_idx] = total_pha * Scoeff;
-    }
-    if (d_samp != NULL)
-    {
-        d_samp[out_idx] = 1.0f;
+        if (d_spha != NULL)
+        {
+            d_spha[out_idx] = total_pha * Scoeff;
+        }
+        if (d_samp != NULL)
+        {
+            d_samp[out_idx] = 1.0f;
+        }
     }
 }
 
@@ -156,7 +160,8 @@ void atmturb_cuda_cleanup(void)
     if (s_d_spha != NULL) { cudaFree(s_d_spha); s_d_spha = NULL; }
     if (s_d_samp != NULL) { cudaFree(s_d_samp); s_d_samp = NULL; }
     s_cached_mbytes = 0;
-    s_cached_h_masters = NULL;
+    s_cached_nblayers = 0;
+    memset(s_cached_screen_ptrs, 0, sizeof(s_cached_screen_ptrs));
     s_cached_out_bytes = 0;
 }
 
@@ -175,25 +180,52 @@ float *atmturb_cuda_sync_device_masters(
 {
     size_t screen_bytes = sizeof(float) * (size_t) (msize * msize);
     size_t total_mbytes = screen_bytes * (size_t) nblayers;
+    int need_upload = 0;
 
-    if (s_d_m == NULL || s_cached_mbytes != total_mbytes ||
-        s_cached_h_masters != h_masters)
+    if (s_d_m == NULL || s_cached_mbytes != total_mbytes || s_cached_nblayers != nblayers)
+    {
+        need_upload = 1;
+    }
+    else
+    {
+        for (long k = 0; k < nblayers; k++)
+        {
+            if (s_cached_screen_ptrs[k] != h_masters[k])
+            {
+                need_upload = 1;
+                break;
+            }
+        }
+    }
+
+    if (need_upload)
     {
         if (s_d_m != NULL)
         {
             cudaFree(s_d_m);
+            s_d_m = NULL;
         }
         if (cudaMalloc((void **) &s_d_m, total_mbytes) != cudaSuccess)
         {
+            s_cached_mbytes = 0;
+            s_cached_nblayers = 0;
             return NULL;
         }
         for (long k = 0; k < nblayers; k++)
         {
-            cudaMemcpy(s_d_m + k * msize * msize, h_masters[k],
-                       screen_bytes, cudaMemcpyHostToDevice);
+            if (cudaMemcpy(s_d_m + (size_t) k * (size_t) (msize * msize), h_masters[k],
+                           screen_bytes, cudaMemcpyHostToDevice) != cudaSuccess)
+            {
+                cudaFree(s_d_m);
+                s_d_m = NULL;
+                s_cached_mbytes = 0;
+                s_cached_nblayers = 0;
+                return NULL;
+            }
+            s_cached_screen_ptrs[k] = h_masters[k];
         }
         s_cached_mbytes = total_mbytes;
-        s_cached_h_masters = h_masters;
+        s_cached_nblayers = nblayers;
     }
     return s_d_m;
 }
@@ -308,10 +340,11 @@ int atmturb_wfs_render_frames_cuda(
         return -1;
     }
 
+    int grid_z = (params->nbframes > 65535) ? 65535 : (int) params->nbframes;
     dim3 block(32, 8);
     dim3 grid(((int) params->pup_size + block.x - 1) / block.x,
               ((int) params->pup_size + block.y - 1) / block.y,
-              (int) params->nbframes);
+              grid_z);
 
     atmturb_render_kernel<<<grid, block>>>(
         s_d_m, (int) params->msize, (int) params->pup_size,
@@ -319,18 +352,23 @@ int atmturb_wfs_render_frames_cuda(
         (float) params->Scoeff, 0,
         s_d_pha, s_d_amp, s_d_spha, s_d_samp);
 
-    cudaMemcpy(outputs->pha, s_d_pha, out_bytes, cudaMemcpyDeviceToHost);
-    if (outputs->amp != NULL && s_d_amp != NULL)
+    if (cudaGetLastError() != cudaSuccess)
     {
-        cudaMemcpy(outputs->amp, s_d_amp, out_bytes, cudaMemcpyDeviceToHost);
+        return -1;
     }
-    if (outputs->spha != NULL)
+
+    if (cudaMemcpy(outputs->pha, s_d_pha, out_bytes, cudaMemcpyDeviceToHost) != cudaSuccess)
     {
-        cudaMemcpy(outputs->spha, s_d_spha, out_bytes, cudaMemcpyDeviceToHost);
+        return -1;
     }
-    if (outputs->samp != NULL && s_d_samp != NULL)
+    if ((outputs->amp != NULL && s_d_amp != NULL &&
+         cudaMemcpy(outputs->amp, s_d_amp, out_bytes, cudaMemcpyDeviceToHost) != cudaSuccess) ||
+        (outputs->spha != NULL &&
+         cudaMemcpy(outputs->spha, s_d_spha, out_bytes, cudaMemcpyDeviceToHost) != cudaSuccess) ||
+        (outputs->samp != NULL && s_d_samp != NULL &&
+         cudaMemcpy(outputs->samp, s_d_samp, out_bytes, cudaMemcpyDeviceToHost) != cudaSuccess))
     {
-        cudaMemcpy(outputs->samp, s_d_samp, out_bytes, cudaMemcpyDeviceToHost);
+        return -1;
     }
 
     return 0;
@@ -444,23 +482,31 @@ int atmturb_cuda_geom_stream_render_step(
         atmturb_cuda_remove_piston_launch(ctx->d_spha, ctx->d_sum, (int) ctx->npix, ctx->stream);
     }
 
-    size_t nbytes = sizeof(float) * ctx->npix;
-    cudaMemcpyAsync(pha, ctx->d_pha, nbytes, cudaMemcpyDeviceToHost, ctx->stream);
-    if (amp != NULL)
+    if (cudaGetLastError() != cudaSuccess)
     {
-        cudaMemcpyAsync(amp, ctx->d_amp, nbytes, cudaMemcpyDeviceToHost, ctx->stream);
-    }
-    if (spha != NULL)
-    {
-        cudaMemcpyAsync(spha, ctx->d_spha, nbytes, cudaMemcpyDeviceToHost, ctx->stream);
-    }
-    if (samp != NULL)
-    {
-        cudaMemcpyAsync(samp, ctx->d_samp, nbytes, cudaMemcpyDeviceToHost, ctx->stream);
+        return -1;
     }
 
-    cudaStreamSynchronize(ctx->stream);
-    return 0;
+    size_t nbytes = sizeof(float) * ctx->npix;
+    if (cudaMemcpyAsync(pha, ctx->d_pha, nbytes, cudaMemcpyDeviceToHost, ctx->stream) !=
+        cudaSuccess)
+    {
+        return -1;
+    }
+    if ((amp != NULL &&
+         cudaMemcpyAsync(amp, ctx->d_amp, nbytes, cudaMemcpyDeviceToHost, ctx->stream) !=
+         cudaSuccess) ||
+        (spha != NULL &&
+         cudaMemcpyAsync(spha, ctx->d_spha, nbytes, cudaMemcpyDeviceToHost, ctx->stream) !=
+         cudaSuccess) ||
+        (samp != NULL &&
+         cudaMemcpyAsync(samp, ctx->d_samp, nbytes, cudaMemcpyDeviceToHost, ctx->stream) !=
+         cudaSuccess))
+    {
+        return -1;
+    }
+
+    return (cudaStreamSynchronize(ctx->stream) == cudaSuccess) ? 0 : -1;
 }
 
 /**

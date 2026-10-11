@@ -433,9 +433,29 @@ atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
     long                     master_size,
     long                     pup_size)
 {
-    if (r == NULL || geom == NULL || !atmturb_cuda_device_available())
+    if (r == NULL || geom == NULL || !atmturb_cuda_device_available() ||
+        r->lowfreq != 0 || r->rolling != 0 ||
+        geom->oversample != 1 || geom->interp != 0)
     {
         return NULL;
+    }
+
+    double w0 = geom->layers[0].weight;
+    double scoeff = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
+
+    for (int k = 0; k < geom->nlayers; k++)
+    {
+        if (geom->layers[k].traj_x != NULL || geom->layers[k].traj_y != NULL ||
+            geom->layers[k].xs0 != geom->layers[k].x0 ||
+            geom->layers[k].ys0 != geom->layers[k].y0)
+        {
+            return NULL;
+        }
+        double wk = geom->layers[k].weight;
+        if (wk > 0.0 && fabs(geom->layers[k].weight_s / wk - scoeff) > 1e-4)
+        {
+            return NULL;
+        }
     }
 
     int nl = geom->nlayers;
@@ -463,8 +483,6 @@ atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
         y0[k]      = geom->layers[k].y0;
     }
 
-    double w0 = geom->layers[0].weight;
-    double scoeff = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
     atmturb_cuda_sim_params_t cparams = {
         .nblayers  = nl,
         .msize     = master_size,
