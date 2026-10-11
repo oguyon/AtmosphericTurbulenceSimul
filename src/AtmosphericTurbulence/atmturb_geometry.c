@@ -265,7 +265,15 @@ static void atmturb_init_layer_turbulent_wind(
         .L_wind_m       = layer->L_wind_m,
         .seed           = atmturb_rng_stream_seed(base_seed, (uint64_t) (5000 + k))
     };
-    atmturb_wind_synthesize_trajectory(&tp, lg->traj_x, lg->traj_y);
+    if (atmturb_wind_synthesize_trajectory(&tp, lg->traj_x, lg->traj_y) != 0)
+    {
+        free(lg->traj_x);
+        free(lg->traj_y);
+        lg->traj_x   = NULL;
+        lg->traj_y   = NULL;
+        lg->nbframes = 0;
+        return;
+    }
 }
 
 /**

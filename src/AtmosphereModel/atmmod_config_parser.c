@@ -14,69 +14,135 @@
 #include "atmmod_types.h"
 
 /**
+ * atmmod_read_conf_str - Read string parameter from configuration file
+ * @conffile: Path to configuration file.
+ * @key: Parameter keyword.
+ * @out: Destination buffer for parameter string.
+ * @out_sz: Size of destination buffer.
+ *
+ * Return: 1 if key was found and valid, 0 otherwise.
+ */
+static int atmmod_read_conf_str(
+    const char *conffile,
+    const char *key,
+    char       *out,
+    size_t      out_sz)
+{
+    if (conffile == NULL || conffile[0] == '\0' || key == NULL || out == NULL || out_sz == 0)
+    {
+        return 0;
+    }
+    FILE *fp = fopen(conffile, "r");
+    if (fp == NULL)
+    {
+        return 0;
+    }
+    char line[512];
+    char keyw[128];
+    char val[256];
+    int found = 0;
+
+    while (fgets(line, sizeof(line), fp) != NULL)
+    {
+        char *p = line;
+        while (*p == ' ' || *p == '\t')
+        {
+            p++;
+        }
+        if (*p == '#' || *p == '\0' || *p == '\n')
+        {
+            continue;
+        }
+        if (sscanf(p, "%127s %255s", keyw, val) == 2)
+        {
+            if (strcmp(keyw, key) == 0)
+            {
+                if (strcmp(val, "-") != 0 && strcmp(val, "---") != 0)
+                {
+                    snprintf(out, out_sz, "%.*s", (int) (out_sz - 1), val);
+                    found = 1;
+                }
+                break;
+            }
+        }
+    }
+    fclose(fp);
+    return found;
+}
+
+/**
+ * atmmod_read_conf_float - Read floating-point parameter with fallback default
+ * @conffile: Path to configuration file.
+ * @key: Parameter keyword.
+ * @default_val: Default value if key is not found.
+ *
+ * Return: Parsed float or default_val.
+ */
+static float atmmod_read_conf_float(
+    const char *conffile,
+    const char *key,
+    float       default_val)
+{
+    char buf[64];
+    if (atmmod_read_conf_str(conffile, key, buf, sizeof(buf)))
+    {
+        char *end = NULL;
+        float v = strtof(buf, &end);
+        if (end != buf)
+        {
+            return v;
+        }
+    }
+    return default_val;
+}
+
+/**
+ * atmmod_read_conf_int - Read integer parameter with fallback default
+ * @conffile: Path to configuration file.
+ * @key: Parameter keyword.
+ * @default_val: Default value if key is not found.
+ *
+ * Return: Parsed integer or default_val.
+ */
+static int atmmod_read_conf_int(
+    const char *conffile,
+    const char *key,
+    int         default_val)
+{
+    char buf[64];
+    if (atmmod_read_conf_str(conffile, key, buf, sizeof(buf)))
+    {
+        char *end = NULL;
+        long v = strtol(buf, &end, 10);
+        if (end != buf)
+        {
+            return (int) v;
+        }
+    }
+    return default_val;
+}
+
+/**
  * atmmod_read_site_config - Read atmospheric and site parameters from file
  * @conffile: Path to configuration file.
  */
 static void atmmod_read_site_config(const char *conffile)
 {
-    char keyword[200];
-    char content[200];
-
-    snprintf(keyword, sizeof(keyword), "ZENITH_ANGLE");
-    read_config_parameter(conffile, keyword, content);
-    ZenithAngle = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "TIME_DAY_OF_YEAR");
-    read_config_parameter(conffile, keyword, content);
-    TimeDayOfYear = atoi(content);
-
-    snprintf(keyword, sizeof(keyword), "TIME_LOCAL_SOLAR_TIME");
-    read_config_parameter(conffile, keyword, content);
-    TimeLocalSolarTime = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_LATITUDE");
-    read_config_parameter(conffile, keyword, content);
-    SiteLat = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_LONGITUDE");
-    read_config_parameter(conffile, keyword, content);
-    SiteLong = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_ALT");
-    read_config_parameter(conffile, keyword, content);
-    SiteAlt = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_TP_AUTO");
-    read_config_parameter(conffile, keyword, content);
-    SiteTPauto = atoi(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_TEMP");
-    read_config_parameter(conffile, keyword, content);
-    SiteTemp = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_PRESS");
-    read_config_parameter(conffile, keyword, content);
-    SitePress = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "CO2_PPM");
-    read_config_parameter(conffile, keyword, content);
-    CO2_ppm = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_H2O_METHOD");
-    read_config_parameter(conffile, keyword, content);
-    SiteH2OMethod = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_TPW");
-    read_config_parameter(conffile, keyword, content);
-    SiteTPW = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_RH");
-    read_config_parameter(conffile, keyword, content);
-    SiteRH = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SITE_PW_SCALEH");
-    read_config_parameter(conffile, keyword, content);
-    SitePWSH = (float)atof(content);
+    ZenithAngle        = atmmod_read_conf_float(conffile, "ZENITH_ANGLE", ZenithAngle);
+    TimeDayOfYear      = atmmod_read_conf_int(conffile, "TIME_DAY_OF_YEAR", TimeDayOfYear);
+    TimeLocalSolarTime = atmmod_read_conf_float(conffile, "TIME_LOCAL_SOLAR_TIME",
+                                                TimeLocalSolarTime);
+    SiteLat            = atmmod_read_conf_float(conffile, "SITE_LATITUDE", SiteLat);
+    SiteLong           = atmmod_read_conf_float(conffile, "SITE_LONGITUDE", SiteLong);
+    SiteAlt            = atmmod_read_conf_float(conffile, "SITE_ALT", SiteAlt);
+    SiteTPauto         = atmmod_read_conf_int(conffile, "SITE_TP_AUTO", SiteTPauto);
+    SiteTemp           = atmmod_read_conf_float(conffile, "SITE_TEMP", SiteTemp);
+    SitePress          = atmmod_read_conf_float(conffile, "SITE_PRESS", SitePress);
+    CO2_ppm            = atmmod_read_conf_float(conffile, "CO2_PPM", CO2_ppm);
+    SiteH2OMethod      = atmmod_read_conf_float(conffile, "SITE_H2O_METHOD", SiteH2OMethod);
+    SiteTPW            = atmmod_read_conf_float(conffile, "SITE_TPW", SiteTPW);
+    SiteRH             = atmmod_read_conf_float(conffile, "SITE_RH", SiteRH);
+    SitePWSH           = atmmod_read_conf_float(conffile, "SITE_PW_SCALEH", SitePWSH);
 }
 
 /**
@@ -126,7 +192,7 @@ static void atmmod_write_site_dispersion(const char *fname)
         return;
     }
 
-    for (double lam = 0.2e-6; lam < 2.0e-6; lam *= 1.0 + 1e-6)
+    for (double lam = 0.2e-6; lam < 2.0e-6; lam *= 1.0 + 1e-3)
     {
         double n = 1.0 + AtmosphereModel_stdAtmModel_N(SiteAlt, (float)lam, 0);
         fprintf(fp, "%.8g %.14f %.14f\n", lam, n, v_ABSCOEFF);

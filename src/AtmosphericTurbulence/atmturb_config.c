@@ -157,55 +157,166 @@ double Z_N2(double P, double T)
 }
 
 /**
+ * atmturb_read_conf_str - Read string parameter from configuration file
+ * @conffile: Path to configuration file.
+ * @key: Parameter keyword.
+ * @out: Destination buffer for parameter string.
+ * @out_sz: Size of destination buffer.
+ * @default_val: Default value if key is not found.
+ *
+ * Return: 1 if key was found and valid, 0 if default_val was used.
+ */
+static int atmturb_read_conf_str(
+    const char *conffile,
+    const char *key,
+    char       *out,
+    size_t      out_sz,
+    const char *default_val)
+{
+    if (out == NULL || out_sz == 0)
+    {
+        return 0;
+    }
+    if (default_val != NULL && out != default_val)
+    {
+        snprintf(out, out_sz, "%.*s", (int) (out_sz - 1), default_val);
+    }
+    if (conffile == NULL || conffile[0] == '\0' || key == NULL || key[0] == '\0')
+    {
+        return 0;
+    }
+
+    FILE *fp = fopen(conffile, "r");
+    if (fp == NULL)
+    {
+        return 0;
+    }
+
+    char line[512];
+    char keyw[128];
+    char val[256];
+    int found = 0;
+
+    while (fgets(line, sizeof(line), fp) != NULL)
+    {
+        char *p = line;
+        while (*p == ' ' || *p == '\t')
+        {
+            p++;
+        }
+        if (*p == '#' || *p == '\0' || *p == '\n')
+        {
+            continue;
+        }
+
+        if (sscanf(p, "%127s %255s", keyw, val) == 2)
+        {
+            if (strcmp(keyw, key) == 0)
+            {
+                if (strcmp(val, "-") != 0 && strcmp(val, "---") != 0)
+                {
+                    snprintf(out, out_sz, "%.*s", (int) (out_sz - 1), val);
+                    found = 1;
+                }
+                break;
+            }
+        }
+    }
+
+    fclose(fp);
+    return found;
+}
+
+static long atmturb_read_conf_long(
+    const char *conffile,
+    const char *key,
+    long        default_val)
+{
+    char buf[64];
+    if (atmturb_read_conf_str(conffile, key, buf, sizeof(buf), NULL))
+    {
+        char *end = NULL;
+        long v = strtol(buf, &end, 10);
+        if (end != buf)
+        {
+            return v;
+        }
+    }
+    return default_val;
+}
+
+static int atmturb_read_conf_int(
+    const char *conffile,
+    const char *key,
+    int         default_val)
+{
+    return (int) atmturb_read_conf_long(conffile, key, (long) default_val);
+}
+
+static double atmturb_read_conf_double(
+    const char *conffile,
+    const char *key,
+    double      default_val)
+{
+    char buf[64];
+    if (atmturb_read_conf_str(conffile, key, buf, sizeof(buf), NULL))
+    {
+        char *end = NULL;
+        double v = strtod(buf, &end);
+        if (end != buf)
+        {
+            return v;
+        }
+    }
+    return default_val;
+}
+
+static float atmturb_read_conf_float(
+    const char *conffile,
+    const char *key,
+    float       default_val)
+{
+    return (float) atmturb_read_conf_double(conffile, key, (double) default_val);
+}
+
+static uint64_t atmturb_read_conf_uint64(
+    const char *conffile,
+    const char *key,
+    uint64_t    default_val)
+{
+    char buf[64];
+    if (atmturb_read_conf_str(conffile, key, buf, sizeof(buf), NULL))
+    {
+        char *end = NULL;
+        unsigned long long v = strtoull(buf, &end, 10);
+        if (end != buf)
+        {
+            return (uint64_t) v;
+        }
+    }
+    return default_val;
+}
+
+/**
  * atmturb_read_conf_turbulence - Read turbulence and atmosphere parameters
  */
 static void atmturb_read_conf_turbulence(void)
 {
-    char keyword[200], content[200];
-
-    snprintf(keyword, sizeof(keyword), "TURBULENCE_REF_WAVEL");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_LAMBDA = (float)(atof(content) * 1e-6);
-
-    snprintf(keyword, sizeof(keyword), "TURBULENCE_SEEING");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_SEEING = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "TURBULENCE_PROF_FILE");
-    read_config_parameter(CONFFILE, keyword, CONF_TURBULENCE_PROF_FILE);
-
-    snprintf(keyword, sizeof(keyword), "ZENITH_ANGLE");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_ZANGLE = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "PARALLACTIC_ANGLE");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    float wavel_um = atmturb_read_conf_float(CONFFILE, "TURBULENCE_REF_WAVEL", -1.0f);
+    if (wavel_um > 0.0f)
     {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_PARALLACTIC_ANGLE = (float)atof(content);
+        CONF_LAMBDA = wavel_um * 1e-6f;
     }
-
-    snprintf(keyword, sizeof(keyword), "SITE_ALT");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_SITE_ALT = (float)atof(content);
-    }
-
-    snprintf(keyword, sizeof(keyword), "SEED");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_SEED = (uint64_t)strtoull(content, NULL, 10);
-    }
-
-    snprintf(keyword, sizeof(keyword), "SOURCE_XPOS");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_SOURCE_Xpos = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "SOURCE_YPOS");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_SOURCE_Ypos = (float)atof(content);
+    CONF_SEEING = atmturb_read_conf_float(CONFFILE, "TURBULENCE_SEEING", CONF_SEEING);
+    atmturb_read_conf_str(CONFFILE, "TURBULENCE_PROF_FILE", CONF_TURBULENCE_PROF_FILE,
+                          sizeof(CONF_TURBULENCE_PROF_FILE), CONF_TURBULENCE_PROF_FILE);
+    CONF_ZANGLE = atmturb_read_conf_float(CONFFILE, "ZENITH_ANGLE", CONF_ZANGLE);
+    CONF_PARALLACTIC_ANGLE = atmturb_read_conf_float(CONFFILE, "PARALLACTIC_ANGLE",
+                                                     CONF_PARALLACTIC_ANGLE);
+    CONF_SITE_ALT = atmturb_read_conf_float(CONFFILE, "SITE_ALT", CONF_SITE_ALT);
+    CONF_SEED = atmturb_read_conf_uint64(CONFFILE, "SEED", CONF_SEED);
+    CONF_SOURCE_Xpos = atmturb_read_conf_float(CONFFILE, "SOURCE_XPOS", CONF_SOURCE_Xpos);
+    CONF_SOURCE_Ypos = atmturb_read_conf_float(CONFFILE, "SOURCE_YPOS", CONF_SOURCE_Ypos);
 }
 
 /**
@@ -213,48 +324,18 @@ static void atmturb_read_conf_turbulence(void)
  */
 static void atmturb_read_conf_output(void)
 {
-    char keyword[200], content[200];
+    CONF_WFOUTPUT       = atmturb_read_conf_int(CONFFILE, "WFOUTPUT", CONF_WFOUTPUT);
+    atmturb_read_conf_str(CONFFILE, "WF_FILE_PREFIX", CONF_WF_FILE_PREFIX,
+                          sizeof(CONF_WF_FILE_PREFIX), CONF_WF_FILE_PREFIX);
+    CONF_SHM_OUTPUT     = atmturb_read_conf_int(CONFFILE, "SHM_OUTPUT", CONF_SHM_OUTPUT);
+    CONF_STREAM_MODE    = atmturb_read_conf_int(CONFFILE, "STREAM_MODE", CONF_STREAM_MODE);
+    CONF_STREAM_CBSIZE  = atmturb_read_conf_int(CONFFILE, "STREAM_CBSIZE", CONF_STREAM_CBSIZE);
+    CONF_MAKE_SWAVEFRONT = atmturb_read_conf_int(CONFFILE, "MAKE_SWAVEFRONT", CONF_MAKE_SWAVEFRONT);
 
-    snprintf(keyword, sizeof(keyword), "WFOUTPUT");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    int swf_disk = atmturb_read_conf_int(CONFFILE, "SWF_WRITE2DISK", -1);
+    if (swf_disk >= 0)
     {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_WFOUTPUT = atoi(content);
-    }
-
-    snprintf(keyword, sizeof(keyword), "WF_FILE_PREFIX");
-    read_config_parameter(CONFFILE, keyword, CONF_WF_FILE_PREFIX);
-
-    snprintf(keyword, sizeof(keyword), "SHM_OUTPUT");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_SHM_OUTPUT = atoi(content);
-    }
-
-    snprintf(keyword, sizeof(keyword), "STREAM_MODE");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_STREAM_MODE = atoi(content);
-    }
-
-    snprintf(keyword, sizeof(keyword), "STREAM_CBSIZE");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_STREAM_CBSIZE = atoi(content);
-    }
-
-    snprintf(keyword, sizeof(keyword), "MAKE_SWAVEFRONT");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_MAKE_SWAVEFRONT = atoi(content);
-
-    snprintf(keyword, sizeof(keyword), "SWF_WRITE2DISK");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_SWF_WRITE2DISK = atoi(content);
+        CONF_SWF_WRITE2DISK = swf_disk;
         if (CONF_WFOUTPUT == 2)
         {
             CONF_WFOUTPUT = 0;
@@ -264,31 +345,14 @@ static void atmturb_read_conf_output(void)
             CONF_WFOUTPUT |= 2;
         }
     }
-
-    snprintf(keyword, sizeof(keyword), "SWF_FILE_PREFIX");
-    read_config_parameter(CONFFILE, keyword, CONF_SWF_FILE_PREFIX);
-
-    snprintf(keyword, sizeof(keyword), "SHM_SOUTPUT");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_SHM_SOUTPUT = atoi(content);
-    }
-
-    snprintf(keyword, sizeof(keyword), "SHM_SPREFIX");
-    read_config_parameter(CONFFILE, keyword, CONF_SHM_SPREFIX);
-
-    snprintf(keyword, sizeof(keyword), "SHM_SOUTPUTM");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_SHM_SOUTPUTM = atoi(content);
-
-    snprintf(keyword, sizeof(keyword), "PUPIL_SCALE");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_PUPIL_SCALE = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "WFsize");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_WFsize = atol(content);
+    atmturb_read_conf_str(CONFFILE, "SWF_FILE_PREFIX", CONF_SWF_FILE_PREFIX,
+                          sizeof(CONF_SWF_FILE_PREFIX), CONF_SWF_FILE_PREFIX);
+    CONF_SHM_SOUTPUT    = atmturb_read_conf_int(CONFFILE, "SHM_SOUTPUT", CONF_SHM_SOUTPUT);
+    atmturb_read_conf_str(CONFFILE, "SHM_SPREFIX", CONF_SHM_SPREFIX,
+                          sizeof(CONF_SHM_SPREFIX), CONF_SHM_SPREFIX);
+    CONF_SHM_SOUTPUTM   = atmturb_read_conf_int(CONFFILE, "SHM_SOUTPUTM", CONF_SHM_SOUTPUTM);
+    CONF_PUPIL_SCALE    = atmturb_read_conf_float(CONFFILE, "PUPIL_SCALE", CONF_PUPIL_SCALE);
+    CONF_WFsize         = atmturb_read_conf_long(CONFFILE, "WFsize", CONF_WFsize);
 }
 
 /**
@@ -296,59 +360,16 @@ static void atmturb_read_conf_output(void)
  */
 static void atmturb_read_conf_timing(void)
 {
-    char keyword[200], content[200];
-
-    snprintf(keyword, sizeof(keyword), "REALTIME");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_ATMWF_REALTIME = atoi(content);
-
-    snprintf(keyword, sizeof(keyword), "REALTIMEFACTOR");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_ATMWF_REALTIMEFACTOR = atof(content);
-
-    snprintf(keyword, sizeof(keyword), "WFTIME_STEP");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_WFTIME_STEP = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "TIME_SPAN");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_TIME_SPAN = (float)atof(content);
-
-    snprintf(keyword, sizeof(keyword), "NB_TSPAN");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_NB_TSPAN = atol(content);
-
-    snprintf(keyword, sizeof(keyword), "SIMTDELAY");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_SIMTDELAY = atol(content);
-
-    snprintf(keyword, sizeof(keyword), "WAITFORSEM");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_WAITFORSEM = atoi(content);
-
-    snprintf(keyword, sizeof(keyword), "WAITSEMIMNAME");
-    read_config_parameter(CONFFILE, keyword, CONF_WAITSEMIMNAME);
-}
-
-/**
- * atmturb_read_param_int - Read optional integer config parameter
- * @key: Parameter keyword name.
- * @default_val: Default value if parameter is not found in CONFFILE.
- *
- * Return: Parameter integer value or default_val.
- */
-static int atmturb_read_param_int(
-    const char *key,
-    int         default_val)
-{
-    char content[200];
-
-    if (read_config_parameter_exists(CONFFILE, (char *) key) == 1)
-    {
-        read_config_parameter(CONFFILE, (char *) key, content);
-        return atoi(content);
-    }
-    return default_val;
+    CONF_ATMWF_REALTIME       = atmturb_read_conf_int(CONFFILE, "REALTIME", CONF_ATMWF_REALTIME);
+    CONF_ATMWF_REALTIMEFACTOR = atmturb_read_conf_double(CONFFILE, "REALTIMEFACTOR",
+                                                         CONF_ATMWF_REALTIMEFACTOR);
+    CONF_WFTIME_STEP          = atmturb_read_conf_float(CONFFILE, "WFTIME_STEP", CONF_WFTIME_STEP);
+    CONF_TIME_SPAN            = atmturb_read_conf_float(CONFFILE, "TIME_SPAN", CONF_TIME_SPAN);
+    CONF_NB_TSPAN             = atmturb_read_conf_long(CONFFILE, "NB_TSPAN", CONF_NB_TSPAN);
+    CONF_SIMTDELAY            = atmturb_read_conf_long(CONFFILE, "SIMTDELAY", CONF_SIMTDELAY);
+    CONF_WAITFORSEM           = atmturb_read_conf_int(CONFFILE, "WAITFORSEM", CONF_WAITFORSEM);
+    atmturb_read_conf_str(CONFFILE, "WAITSEMIMNAME", CONF_WAITSEMIMNAME,
+                          sizeof(CONF_WAITSEMIMNAME), CONF_WAITSEMIMNAME);
 }
 
 /**
@@ -356,32 +377,18 @@ static int atmturb_read_param_int(
  */
 static void atmturb_read_conf_screen(void)
 {
-    char keyword[200], content[200];
-
-    snprintf(keyword, sizeof(keyword), "SKIP_EXISTING");
-    CONF_SKIP_EXISTING = (read_config_parameter_exists(CONFFILE, keyword) == 1) ? 1 : 0;
-
-    snprintf(keyword, sizeof(keyword), "WF_RAW_SIZE");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_WF_RAW_SIZE = atol(content);
-
-    snprintf(keyword, sizeof(keyword), "MASTER_SIZE");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_MASTER_SIZE = atol(content);
-
-    CONF_OVERSAMPLE = atmturb_read_param_int("MASTER_OVERSAMPLE", CONF_OVERSAMPLE);
-    CONF_OVERSAMPLE = atmturb_read_param_int("OVERSAMPLE", CONF_OVERSAMPLE);
-
-    CONF_INTERP  = atmturb_read_param_int("INTERP", CONF_INTERP);
-    CONF_LOWFREQ = atmturb_read_param_int("LOWFREQ", CONF_LOWFREQ);
-    CONF_ROLLING = atmturb_read_param_int("ROLLING", CONF_ROLLING);
-
-    snprintf(keyword, sizeof(keyword), "BOIL_TIME");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
-    {
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_BOIL_TIME = (float) atof(content);
-    }
+    char tmp[64];
+    CONF_SKIP_EXISTING = atmturb_read_conf_str(CONFFILE, "SKIP_EXISTING", tmp,
+                                              sizeof(tmp), NULL) ? 1 : 0;
+    CONF_WF_RAW_SIZE   = atmturb_read_conf_long(CONFFILE, "WF_RAW_SIZE", CONF_WF_RAW_SIZE);
+    CONF_MASTER_SIZE   = atmturb_read_conf_long(CONFFILE, "MASTER_SIZE", CONF_MASTER_SIZE);
+    CONF_OVERSAMPLE    = atmturb_read_conf_int(
+        CONFFILE, "OVERSAMPLE",
+        atmturb_read_conf_int(CONFFILE, "MASTER_OVERSAMPLE", CONF_OVERSAMPLE));
+    CONF_INTERP        = atmturb_read_conf_int(CONFFILE, "INTERP", CONF_INTERP);
+    CONF_LOWFREQ       = atmturb_read_conf_int(CONFFILE, "LOWFREQ", CONF_LOWFREQ);
+    CONF_ROLLING       = atmturb_read_conf_int(CONFFILE, "ROLLING", CONF_ROLLING);
+    CONF_BOIL_TIME     = atmturb_read_conf_float(CONFFILE, "BOIL_TIME", CONF_BOIL_TIME);
 }
 
 /**
@@ -389,20 +396,14 @@ static void atmturb_read_conf_screen(void)
  */
 static void atmturb_read_conf_pupil_files(void)
 {
-    char keyword[200], content[200];
-
-    snprintf(keyword, sizeof(keyword), "PUPIL_AMPL_FILE");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    char path[256];
+    if (atmturb_read_conf_str(CONFFILE, "PUPIL_AMPL_FILE", path, sizeof(path), NULL))
     {
-        read_config_parameter(CONFFILE, keyword, content);
-        load_fits(content, "ST_pa", 1);
+        load_fits(path, "ST_pa", 1);
     }
-
-    snprintf(keyword, sizeof(keyword), "PUPIL_PHA_FILE");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    if (atmturb_read_conf_str(CONFFILE, "PUPIL_PHA_FILE", path, sizeof(path), NULL))
     {
-        read_config_parameter(CONFFILE, keyword, content);
-        load_fits(content, "ST_pp", 1);
+        load_fits(path, "ST_pp", 1);
     }
 }
 
@@ -411,19 +412,14 @@ static void atmturb_read_conf_pupil_files(void)
  */
 static void atmturb_read_conf_modes(void)
 {
-    char keyword[200], content[200];
-
     atmturb_read_conf_screen();
 
-    snprintf(keyword, sizeof(keyword), "WAVEFRONT_AMPLITUDE");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_WAVEFRONT_AMPLITUDE = atoi(content);
-
+    CONF_WAVEFRONT_AMPLITUDE = atmturb_read_conf_int(CONFFILE, "WAVEFRONT_AMPLITUDE",
+                                                     CONF_WAVEFRONT_AMPLITUDE);
     if (CONF_WAVEFRONT_AMPLITUDE == 1)
     {
-        snprintf(keyword, sizeof(keyword), "FRESNEL_PROPAGATION");
-        read_config_parameter(CONFFILE, keyword, content);
-        CONF_FRESNEL_PROPAGATION = atoi(content);
+        CONF_FRESNEL_PROPAGATION = atmturb_read_conf_int(CONFFILE, "FRESNEL_PROPAGATION",
+                                                         CONF_FRESNEL_PROPAGATION);
         if (CONF_FRESNEL_PROPAGATION == 3)
         {
             CONF_FRESNEL_PROPAGATION     = 2;
@@ -435,37 +431,28 @@ static void atmturb_read_conf_modes(void)
         CONF_FRESNEL_PROPAGATION = 0;
     }
 
-    snprintf(keyword, sizeof(keyword), "FRESNEL_PROPAGATION_BIN");
-    read_config_parameter(CONFFILE, keyword, content);
-    CONF_FRESNEL_PROPAGATION_BIN = (float)atof(content);
+    CONF_FRESNEL_PROPAGATION_BIN = atmturb_read_conf_float(CONFFILE, "FRESNEL_PROPAGATION_BIN",
+                                                           CONF_FRESNEL_PROPAGATION_BIN);
+    CONF_FRESNEL_RYTOV_SEC_EXACT = atmturb_read_conf_int(
+        CONFFILE, "FRESNEL_RYTOV_SEC_EXACT",
+        atmturb_read_conf_int(CONFFILE, "FRESNEL_RYTOV_EXACT",
+        atmturb_read_conf_int(CONFFILE, "FRESNEL_RYTOV_SEC_EX", CONF_FRESNEL_RYTOV_SEC_EXACT)));
 
-    snprintf(keyword, sizeof(keyword), "FRESNEL_RYTOV_EXACT");
-    if (read_config_parameter_exists(CONFFILE, keyword) == 1 ||
-        read_config_parameter_exists(CONFFILE, "FRESNEL_RYTOV_SEC_EX") == 1)
-    {
-        read_config_parameter(CONFFILE, "FRESNEL_RYTOV_SEC_EXACT", content);
-        if (strcmp(content, "-") == 0)
-        {
-            read_config_parameter(CONFFILE, "FRESNEL_RYTOV_EXACT", content);
-        }
-        CONF_FRESNEL_RYTOV_SEC_EXACT = atoi(content);
-    }
-    else if (CONF_FRESNEL_RYTOV_SEC_EXACT != 1)
-    {
-        CONF_FRESNEL_RYTOV_SEC_EXACT = 0;
-    }
-
-    CONF_FRESNEL_GUARD_PIX = atmturb_read_param_int("FRESNEL_GUARD_PIX", CONF_FRESNEL_GUARD_PIX);
+    CONF_FRESNEL_GUARD_PIX = atmturb_read_conf_int(CONFFILE, "FRESNEL_GUARD_PIX",
+                                                   CONF_FRESNEL_GUARD_PIX);
     if (CONF_FRESNEL_GUARD_PIX < 0)
     {
         CONF_FRESNEL_GUARD_PIX = 0;
     }
-    CONF_FRESNEL_RYTOV_MOISAN = atmturb_read_param_int("FRESNEL_RYTOV_MOISAN", -1);
+    CONF_FRESNEL_RYTOV_MOISAN = atmturb_read_conf_int(CONFFILE, "FRESNEL_RYTOV_MOISAN", -1);
 
-    CONF_FRESNEL_RYTOV_ZINTERP = atmturb_read_param_int(
-        "FRESNEL_RYTOV_ZINTERP", atmturb_read_param_int("FRESNEL_RYTOV_ZINT", 0));
-    CONF_FRESNEL_REFRACT_PATH = atmturb_read_param_int("FRESNEL_REFRACT_PATH", 0);
-    CONF_FRESNEL_SCINT_WEIGHT = atmturb_read_param_int("FRESNEL_SCINT_WEIGHT", 0);
+    CONF_FRESNEL_RYTOV_ZINTERP = atmturb_read_conf_int(
+        CONFFILE, "FRESNEL_RYTOV_ZINTERP",
+        atmturb_read_conf_int(CONFFILE, "FRESNEL_RYTOV_ZINT", CONF_FRESNEL_RYTOV_ZINTERP));
+    CONF_FRESNEL_REFRACT_PATH = atmturb_read_conf_int(CONFFILE, "FRESNEL_REFRACT_PATH",
+                                                      CONF_FRESNEL_REFRACT_PATH);
+    CONF_FRESNEL_SCINT_WEIGHT = atmturb_read_conf_int(CONFFILE, "FRESNEL_SCINT_WEIGHT",
+                                                      CONF_FRESNEL_SCINT_WEIGHT);
 
     atmturb_read_conf_pupil_files();
 }

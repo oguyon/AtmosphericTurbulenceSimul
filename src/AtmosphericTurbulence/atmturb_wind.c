@@ -39,8 +39,10 @@ typedef struct
  * @spec: Shared wind synthesis parameters.
  * @component: 0 = longitudinal (u), 1 = transverse (v), 2 = vertical (w).
  * @out: Output pointer to destination float buffer (length spec->vksize).
+ *
+ * Return: 0 on success, -1 on allocation or plan failure.
  */
-static void atmturb_synthesize_wind_component(
+static int atmturb_synthesize_wind_component(
     const atmturb_wind_spec_t *spec,
     int                        component,
     float                     *out)
@@ -49,7 +51,7 @@ static void atmturb_synthesize_wind_component(
     fftwf_complex *buf = (fftwf_complex *)fftwf_alloc_complex(vksize);
     if (!buf)
     {
-        return;
+        return -1;
     }
 
     double length_total = (double)vksize * spec->pixscale;
@@ -90,6 +92,11 @@ static void atmturb_synthesize_wind_component(
     }
 
     fftwf_plan plan = fftwf_plan_dft_1d((int)vksize, buf, buf, FFTW_FORWARD, FFTW_ESTIMATE);
+    if (!plan)
+    {
+        fftwf_free(buf);
+        return -1;
+    }
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
 
@@ -107,6 +114,7 @@ static void atmturb_synthesize_wind_component(
     }
 
     fftwf_free(buf);
+    return 0;
 }
 
 /**
@@ -130,6 +138,10 @@ long make_AtmosphericTurbulence_vonKarmanWind(
 {
     delete_image_ID(IDout_name);
     imageID IDc = create_3Dimage_ID(IDout_name, vKsize, 1, 3);
+    if (IDc < 0)
+    {
+        return -1;
+    }
 
     atmturb_wind_spec_t spec = {
         .vksize = vKsize,
@@ -147,7 +159,12 @@ long make_AtmosphericTurbulence_vonKarmanWind(
     // Longitudinal (u), tangential (v) and vertical (w) components
     for (int comp = 0; comp < 3; comp++)
     {
-        atmturb_synthesize_wind_component(&spec, comp, &dcimg[IDc].array.F[comp * vKsize]);
+        if (atmturb_synthesize_wind_component(&spec, comp,
+                                              &dcimg[IDc].array.F[comp * vKsize]) != 0)
+        {
+            delete_image_ID(IDout_name);
+            return -1;
+        }
     }
 
     return IDc;
@@ -220,8 +237,13 @@ int atmturb_wind_synthesize_trajectory(
         .Lwind     = (float) params->L_wind_m,
         .seed      = atmturb_resolve_seed(params->seed)
     };
-    atmturb_synthesize_wind_component(&spec, 0, u_fluc);
-    atmturb_synthesize_wind_component(&spec, 1, v_fluc);
+    if (atmturb_synthesize_wind_component(&spec, 0, u_fluc) != 0 ||
+        atmturb_synthesize_wind_component(&spec, 1, v_fluc) != 0)
+    {
+        free(u_fluc);
+        free(v_fluc);
+        return -1;
+    }
 
     double scale_pix = params->dt_s / params->dx_master_m;
     for (long t = 1; t < params->nbframes; t++)
