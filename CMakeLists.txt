@@ -4,6 +4,10 @@
 
 cmake_minimum_required(VERSION 3.16)
 
+if(POLICY CMP0104)
+    cmake_policy(SET CMP0104 NEW)
+endif()
+
 set(LIBNAME "milkatmturb")
 set(SRCNAME "atmturb")
 
@@ -148,6 +152,13 @@ if(HAVE_CUDA OR USE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
+        if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+            if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+                set(CMAKE_CUDA_ARCHITECTURES "native")
+            else()
+                set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86")
+            endif()
+        endif()
         enable_language(CUDA OPTIONAL)
         find_package(CUDAToolkit QUIET)
         if(CUDAToolkit_FOUND)
