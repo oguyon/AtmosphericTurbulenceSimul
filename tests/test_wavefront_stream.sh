@@ -59,6 +59,10 @@ cleanup() {
     rm -f "$MILK_SHM_DIR/${FPS_NAME}.fps.shm"
     rm -f "$MILK_SHM_DIR"/outarray*.im.shm
     rm -f "$MILK_SHM_DIR"/outsarray*.im.shm
+    milk-stream-rm outarraypha 2>/dev/null || true
+    milk-stream-rm outarrayamp 2>/dev/null || true
+    milk-stream-rm outsarraypha 2>/dev/null || true
+    milk-stream-rm outsarrayamp 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -66,6 +70,10 @@ cd "$TEST_TMPDIR"
 
 # Clean any existing streams with the same name before testing
 rm -f "$MILK_SHM_DIR"/outarray*.im.shm "$MILK_SHM_DIR"/outsarray*.im.shm
+milk-stream-rm outarraypha 2>/dev/null || true
+milk-stream-rm outarrayamp 2>/dev/null || true
+milk-stream-rm outsarraypha 2>/dev/null || true
+milk-stream-rm outsarrayamp 2>/dev/null || true
 
 # -------------------------------------------------------------
 # Test 1: Finite 2D Stream Mode (stream_mode = 2)
@@ -148,6 +156,7 @@ if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
     echo "--- Test 3: Rytov 2D streaming with CUDA GPU (fresnel = 2, ATMTURB_SIMD = CUDA) ---"
     rm -f "$MILK_SHM_DIR"/outarray*.im.shm "$MILK_SHM_DIR"/outsarray*.im.shm
     export ATMTURB_SIMD=CUDA
+    milk-fps-set "$FPS_NAME.lowfreq" 0
     milk-fps-set "$FPS_NAME.stream_mode" 2
     milk-fps-set "$FPS_NAME.fresnel" 2
     milk-fps-set "$FPS_NAME.amplitude" 1
@@ -176,6 +185,40 @@ if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
         exit 1
     fi
     echo "  [OK] CUDA Rytov 2D stream verified: 128x128, cnt0=$CNT0_CUDA"
+
+    # -------------------------------------------------------------
+    # Test 4: Fresnel 2D Streaming with CUDA GPU (fresnel = 1)
+    # -------------------------------------------------------------
+    echo "--- Test 4: Fresnel 2D streaming with CUDA GPU (fresnel = 1, ATMTURB_SIMD = CUDA) ---"
+    rm -f "$MILK_SHM_DIR"/outarray*.im.shm "$MILK_SHM_DIR"/outsarray*.im.shm
+    milk-fps-set "$FPS_NAME.stream_mode" 2
+    milk-fps-set "$FPS_NAME.fresnel" 1
+    milk-fps-set "$FPS_NAME.amplitude" 1
+    milk-fps-set "$FPS_NAME.time_step" 0.01
+    milk-fps-set "$FPS_NAME.time_span" 0.05
+
+    "$MKWFS_EXEC" -n "$FPS_NAME" runstart
+
+    PHAINF_FRES="$(milk-stream-info outarraypha)"
+    echo "$PHAINF_FRES" | grep -q "2D  128 x 128" || {
+        echo "FAILED: outarraypha is not 2D 128x128 in CUDA Fresnel streaming!" >&2
+        echo "$PHAINF_FRES"
+        exit 1
+    }
+
+    AMPINF_FRES="$(milk-stream-info outarrayamp)"
+    echo "$AMPINF_FRES" | grep -q "2D  128 x 128" || {
+        echo "FAILED: outarrayamp is not 2D 128x128 in CUDA Fresnel streaming!" >&2
+        echo "$AMPINF_FRES"
+        exit 1
+    }
+
+    CNT0_FRES=$(echo "$PHAINF_FRES" | awk '/cnt0/ {print $3}' | tr -dc '0-9')
+    if [[ "$CNT0_FRES" -lt 5 ]]; then
+        echo "FAILED: CUDA Fresnel outarraypha cnt0 ($CNT0_FRES) < expected 5 frames" >&2
+        exit 1
+    fi
+    echo "  [OK] CUDA Fresnel 2D stream verified: 128x128, cnt0=$CNT0_FRES"
     unset ATMTURB_SIMD
 fi
 

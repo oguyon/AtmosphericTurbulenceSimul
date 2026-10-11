@@ -25,6 +25,7 @@
 #include "atmturb_rytov.h"
 #include "atmturb_simd.h"
 #include "atmturb_cuda.h"
+#include "atmturb_cuda_fresnel.h"
 #include "atmturb_wfs_render.h"
 #include "atmturb_wfs_render_cuda.h"
 
@@ -468,12 +469,52 @@ static void bench_fresnel_streaming(
         atmturb_fresnel_ctx_free(&fctx);
         atmturb_fresnel_plan_free(&fplan);
 
+        double dt_gpu_1ch = 0.0;
+        double dt_gpu_2ch = 0.0;
+        atmturb_cuda_fresnel_stream_t *cfstream =
+            atmturb_cuda_fresnel_stream_init(rsim, geom, prof, params, BENCH_MSIZE, pup_size);
+        if (cfstream != NULL)
+        {
+            atmturb_cuda_fresnel_stream_render_step(cfstream, rsim, geom, 0, 0.001,
+                                                    pha, amp, NULL, NULL);
+            t0 = get_time_sec();
+            for (int t = 0; t < nframes; t++)
+            {
+                atmturb_cuda_fresnel_stream_render_step(cfstream, rsim, geom, t, 0.001,
+                                                        pha, amp, NULL, NULL);
+            }
+            dt_gpu_1ch = (get_time_sec() - t0) / (double) nframes;
+
+            t0 = get_time_sec();
+            for (int t = 0; t < nframes; t++)
+            {
+                atmturb_cuda_fresnel_stream_render_step(cfstream, rsim, geom, t, 0.001,
+                                                        pha, amp, spha, samp);
+            }
+            dt_gpu_2ch = (get_time_sec() - t0) / (double) nframes;
+
+            atmturb_cuda_fresnel_stream_free(cfstream);
+        }
+
         double mp = (double) npix * 1e-6;
         printf("  Fresnel Diffractive Stream (%4ldx%4ld):\n", pup_size, pup_size);
         printf("    - CPU Fresnel 1-ch (1 lambda): %8.2f us/frame | %7.1f fps | %6.1f MP/s\n",
                dt_1ch * 1e6, 1.0 / dt_1ch, mp / dt_1ch);
+        if (dt_gpu_1ch > 0.0)
+        {
+            printf("    - GPU Fresnel 1-ch (1 lambda): %8.2f us/frame | %7.1f fps | %6.1f MP/s | "
+                   "%4.1fx\n",
+                   dt_gpu_1ch * 1e6, 1.0 / dt_gpu_1ch, mp / dt_gpu_1ch, dt_1ch / dt_gpu_1ch);
+        }
         printf("    - CPU Fresnel 2-ch (2 lambda): %8.2f us/frame | %7.1f fps | %6.1f MP/s\n",
                dt_2ch * 1e6, 1.0 / dt_2ch, (2.0 * mp) / dt_2ch);
+        if (dt_gpu_2ch > 0.0)
+        {
+            printf("    - GPU Fresnel 2-ch (2 lambda): %8.2f us/frame | %7.1f fps | %6.1f MP/s | "
+                   "%4.1fx\n",
+                   dt_gpu_2ch * 1e6, 1.0 / dt_gpu_2ch, (2.0 * mp) / dt_gpu_2ch,
+                   dt_2ch / dt_gpu_2ch);
+        }
     }
 
     free(pha);

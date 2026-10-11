@@ -575,14 +575,23 @@ int atmturb_cuda_rytov_render(
             atmturb_cuda_rytov_step_ops(params, d_masters, s_stream);
         }
 
-        cudaMemcpyAsync(params->pha, s_d_frame_pha, sizeof(float) * (size_t) pup_pixels,
-                        cudaMemcpyDeviceToHost, s_stream);
-        cudaMemcpyAsync(params->amp, s_d_frame_amp, sizeof(float) * (size_t) pup_pixels,
-                        cudaMemcpyDeviceToHost, s_stream);
-        if (params->has_sec)
+        if (params->pha != NULL)
+        {
+            cudaMemcpyAsync(params->pha, s_d_frame_pha, sizeof(float) * (size_t) pup_pixels,
+                            cudaMemcpyDeviceToHost, s_stream);
+        }
+        if (params->amp != NULL)
+        {
+            cudaMemcpyAsync(params->amp, s_d_frame_amp, sizeof(float) * (size_t) pup_pixels,
+                            cudaMemcpyDeviceToHost, s_stream);
+        }
+        if (params->has_sec && params->spha != NULL)
         {
             cudaMemcpyAsync(params->spha, s_d_frame_spha, sizeof(float) * (size_t) pup_pixels,
                             cudaMemcpyDeviceToHost, s_stream);
+        }
+        if (params->has_sec && params->samp != NULL)
+        {
             cudaMemcpyAsync(params->samp, s_d_frame_samp, sizeof(float) * (size_t) pup_pixels,
                             cudaMemcpyDeviceToHost, s_stream);
         }
@@ -614,18 +623,27 @@ int atmturb_cuda_rytov_render(
         }
 
         size_t frame_off = (size_t) (t * pup_pixels);
-        cudaMemcpyAsync(params->pha + frame_off, s_d_frame_pha,
-                        sizeof(float) * (size_t) pup_pixels,
-                        cudaMemcpyDeviceToHost, s_stream);
-        cudaMemcpyAsync(params->amp + frame_off, s_d_frame_amp,
-                        sizeof(float) * (size_t) pup_pixels,
-                        cudaMemcpyDeviceToHost, s_stream);
+        if (params->pha != NULL)
+        {
+            cudaMemcpyAsync(params->pha + frame_off, s_d_frame_pha,
+                            sizeof(float) * (size_t) pup_pixels,
+                            cudaMemcpyDeviceToHost, s_stream);
+        }
+        if (params->amp != NULL)
+        {
+            cudaMemcpyAsync(params->amp + frame_off, s_d_frame_amp,
+                            sizeof(float) * (size_t) pup_pixels,
+                            cudaMemcpyDeviceToHost, s_stream);
+        }
 
-        if (params->has_sec)
+        if (params->has_sec && params->spha != NULL)
         {
             cudaMemcpyAsync(params->spha + frame_off, s_d_frame_spha,
                             sizeof(float) * (size_t) pup_pixels,
                             cudaMemcpyDeviceToHost, s_stream);
+        }
+        if (params->has_sec && params->samp != NULL)
+        {
             cudaMemcpyAsync(params->samp + frame_off, s_d_frame_samp,
                             sizeof(float) * (size_t) pup_pixels,
                             cudaMemcpyDeviceToHost, s_stream);

@@ -62,26 +62,35 @@ void atmturb_rytov_assemble_output(
             long src_idx = src_row + sx;
             long dst_idx = dst_row + x;
 
-            pha[dst_idx] += dphi[src_idx];
-            float c = chi[src_idx];
-            if (c > 3.0f)
+            if (pha != NULL)
             {
-                c = 3.0f;
+                pha[dst_idx] += dphi[src_idx];
             }
-            else if (c < -3.0f)
+            if (amp != NULL)
             {
-                c = -3.0f;
+                float c = chi[src_idx];
+                if (c > 3.0f)
+                {
+                    c = 3.0f;
+                }
+                else if (c < -3.0f)
+                {
+                    c = -3.0f;
+                }
+                float a = expf(c);
+                amp[dst_idx] = a;
+                sum_i += (double) (a * a);
             }
-            float a = expf(c);
-            amp[dst_idx] = a;
-            sum_i += (double) (a * a);
         }
     }
 
-    float norm = (sum_i > 0.0) ? (float) (1.0 / sqrt(sum_i / (double) npix)) : 1.0f;
-    for (long i = 0; i < npix; i++)
+    if (amp != NULL)
     {
-        amp[i] *= norm;
+        float norm = (sum_i > 0.0) ? (float) (1.0 / sqrt(sum_i / (double) npix)) : 1.0f;
+        for (long i = 0; i < npix; i++)
+        {
+            amp[i] *= norm;
+        }
     }
 }
 
