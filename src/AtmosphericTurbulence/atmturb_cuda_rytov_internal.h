@@ -36,6 +36,19 @@ void atmturb_cuda_extrude_sl_launch(
     float                               *d_frame_spha,
     cudaStream_t                         stream);
 
+void atmturb_cuda_lowfreq_accumulate_launch(
+    int                                pad_size,
+    int                                pup_size,
+    int                                guard,
+    int                                n_modes,
+    int                                has_sec,
+    const atmturb_cuda_lowfreq_mode_t *d_modes,
+    float                             *d_super_pha,
+    float                             *d_super_spha,
+    float                             *d_frame_pha,
+    float                             *d_frame_spha,
+    cudaStream_t                       stream);
+
 void atmturb_cuda_extract_bounds_launch(
     const float *d_super_pha,
     float       *d_bounds,

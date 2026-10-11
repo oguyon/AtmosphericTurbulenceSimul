@@ -496,11 +496,6 @@ static void atmturb_wfs_stream_init_engine(
         {
             st->cuda_rstream = atmturb_cuda_rytov_stream_init(
                 rsim, geom, prof, params, CONF_MASTER_SIZE, pup_size);
-            if (st->cuda_rstream == NULL && rsim->lowfreq != 0)
-            {
-                printf("[milkatmturb] Notice: GPU Rytov streaming requires lowfreq=0; "
-                       "falling back to CPU\n");
-            }
         }
         if (st->cuda_rstream == NULL)
         {
