@@ -110,6 +110,21 @@ static inline void atmturb_cuda_geom_stream_free(
     (void) ctx;
 }
 
+static inline int atmturb_cuda_host_register(
+    void   *ptr,
+    size_t  size)
+{
+    (void) ptr;
+    (void) size;
+    return -1;
+}
+
+static inline void atmturb_cuda_host_unregister(
+    void *ptr)
+{
+    (void) ptr;
+}
+
 #else
 
 typedef struct atmturb_cuda_geom_stream atmturb_cuda_geom_stream_t;
@@ -184,6 +199,24 @@ int atmturb_cuda_geom_stream_render_step(
  */
 void atmturb_cuda_geom_stream_free(
     atmturb_cuda_geom_stream_t *ctx);
+
+/**
+ * atmturb_cuda_host_register - Pin host memory pages for high-throughput DMA transfers
+ * @ptr: Host buffer pointer.
+ * @size: Buffer size in bytes.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_host_register(
+    void   *ptr,
+    size_t  size);
+
+/**
+ * atmturb_cuda_host_unregister - Unpin previously registered host memory
+ * @ptr: Host buffer pointer.
+ */
+void atmturb_cuda_host_unregister(
+    void *ptr);
 
 #endif /* HAVE_CUDA */
 

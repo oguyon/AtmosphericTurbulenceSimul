@@ -37,6 +37,7 @@ static int                            s_graph_guard       = 0;
 static int                            s_graph_moisan      = -1;
 static int                            s_graph_os          = 0;
 static int                            s_graph_lowfreq     = -1;
+static int                            s_graph_piston      = -1;
 static const float                   *s_graph_masters     = NULL;
 static atmturb_cuda_rytov_sublayer_t *s_d_active_sublayers = NULL;
 static size_t                         s_cached_active_sub = 0;
@@ -141,6 +142,7 @@ void atmturb_cuda_rytov_cleanup(void)
     s_graph_moisan      = -1;
     s_graph_os          = 0;
     s_graph_lowfreq     = -1;
+    s_graph_piston      = -1;
     s_graph_masters     = NULL;
 
     if (s_d_active_sublayers != NULL)
@@ -489,6 +491,15 @@ static void atmturb_cuda_rytov_step_ops(
                                      s_d_sum_I, stream);
         atmturb_cuda_normalize_launch(s_d_frame_samp, (int) pup_pixels, s_d_sum_I, stream);
     }
+
+    if (params->remove_piston)
+    {
+        atmturb_cuda_remove_piston_launch(s_d_frame_pha, s_d_sum_I, (int) pup_pixels, stream);
+        if (has_sec)
+        {
+            atmturb_cuda_remove_piston_launch(s_d_frame_spha, s_d_sum_I, (int) pup_pixels, stream);
+        }
+    }
 }
 
 /**
@@ -523,6 +534,7 @@ static int atmturb_cuda_rytov_init_graph(
         s_graph_moisan == moisan &&
         s_graph_os == os &&
         s_graph_lowfreq == params->lowfreq &&
+        s_graph_piston == params->remove_piston &&
         s_graph_masters == d_masters)
     {
         return 0;
@@ -565,6 +577,7 @@ static int atmturb_cuda_rytov_init_graph(
     s_graph_moisan     = moisan;
     s_graph_os         = os;
     s_graph_lowfreq    = params->lowfreq;
+    s_graph_piston     = params->remove_piston;
     s_graph_masters    = d_masters;
     return 0;
 }

@@ -26,8 +26,9 @@
 #include "atmturb_simd.h"
 #include "atmturb_types.h"
 #include "atmturb_wfs_render.h"
-#include "atmturb_wfs_render_cuda.h"
+#include "atmturb_cuda.h"
 #include "atmturb_cuda_fresnel.h"
+#include "atmturb_wfs_render_cuda.h"
 #include "atmturb_wfs_stream.h"
 #include "ImageStreamIO/ImageStreamIO.h"
 #include "fps.h"
@@ -162,6 +163,7 @@ typedef struct
     atmturb_cuda_fresnel_stream_t *cuda_fstream;
     atmturb_cuda_rytov_stream_t  *cuda_rstream;
     atmturb_cuda_geom_stream_t   *cuda_gstream;
+    int                           is_cuda;
 } atmturb_stream_state_t;
 
 /**
@@ -183,14 +185,21 @@ static void atmturb_wfs_stream_render_step(
     long                     master_size,
     long                     pup_size)
 {
-    float *amp_dst  = (st->id_amp >= 0)  ? st->amp  : NULL;
-    float *spha_dst = (st->id_spha >= 0) ? st->spha : NULL;
-    float *samp_dst = (st->id_samp >= 0) ? st->samp : NULL;
+    float *pha_dst = (st->is_cuda && st->id_pha >= 0) ? dcimg[st->id_pha].array.F : st->pha;
+    float *amp_dst = (st->id_amp >= 0)
+                         ? ((st->is_cuda) ? dcimg[st->id_amp].array.F : st->amp)
+                         : NULL;
+    float *spha_dst = (st->id_spha >= 0)
+                          ? ((st->is_cuda) ? dcimg[st->id_spha].array.F : st->spha)
+                          : NULL;
+    float *samp_dst = (st->id_samp >= 0)
+                          ? ((st->is_cuda) ? dcimg[st->id_samp].array.F : st->samp)
+                          : NULL;
 
     if (CONF_FRESNEL_PROPAGATION == 1 && st->cuda_fstream != NULL)
     {
         if (atmturb_cuda_fresnel_stream_render_step(st->cuda_fstream, rsim, geom, t,
-                                                    time_step_s, st->pha, amp_dst,
+                                                    time_step_s, pha_dst, amp_dst,
                                                     spha_dst, samp_dst) == 0)
         {
             return;
@@ -208,7 +217,7 @@ static void atmturb_wfs_stream_render_step(
     if (CONF_FRESNEL_PROPAGATION == 2 && st->cuda_rstream != NULL)
     {
         if (atmturb_cuda_rytov_stream_render_step(st->cuda_rstream, rsim, geom, t,
-                                                 time_step_s, st->pha, amp_dst,
+                                                 time_step_s, pha_dst, amp_dst,
                                                  spha_dst, samp_dst) == 0)
         {
             return;
@@ -227,7 +236,7 @@ static void atmturb_wfs_stream_render_step(
     if (CONF_FRESNEL_PROPAGATION == 0 && st->cuda_gstream != NULL)
     {
         if (atmturb_wfs_cuda_geom_stream_render_step(
-                st->cuda_gstream, t, st->pha, amp_dst, spha_dst, samp_dst) == 0)
+                st->cuda_gstream, t, pha_dst, amp_dst, spha_dst, samp_dst) == 0)
         {
             return;
         }
@@ -258,6 +267,31 @@ static void atmturb_wfs_stream_publish(
     long                          frame_pixels,
     const struct timespec        *ts)
 {
+    if (st->is_cuda)
+    {
+        if (st->id_pha >= 0)
+        {
+            dcimg[st->id_pha].md[0].write = 1;
+            atmturb_wfs_stream_post(st->id_pha, ts);
+        }
+        if (st->id_amp >= 0)
+        {
+            dcimg[st->id_amp].md[0].write = 1;
+            atmturb_wfs_stream_post(st->id_amp, ts);
+        }
+        if (st->id_spha >= 0)
+        {
+            dcimg[st->id_spha].md[0].write = 1;
+            atmturb_wfs_stream_post(st->id_spha, ts);
+        }
+        if (st->id_samp >= 0)
+        {
+            dcimg[st->id_samp].md[0].write = 1;
+            atmturb_wfs_stream_post(st->id_samp, ts);
+        }
+        return;
+    }
+
     size_t nbytes = (size_t) frame_pixels * sizeof(float);
 
     if (st->id_pha >= 0)
@@ -601,6 +635,28 @@ int make_AtmosphericTurbulence_wavefront_stream(
     memset(&eng, 0, sizeof(eng));
     atmturb_wfs_stream_init_engine(&st, &rsim, &geom, &prof, &params, pup_size, &eng);
 
+    st.is_cuda = (st.cuda_rstream != NULL || st.cuda_gstream != NULL || st.cuda_fstream != NULL);
+    if (st.is_cuda)
+    {
+        size_t nbytes = (size_t) (pup_size * pup_size) * sizeof(float);
+        if (st.id_pha >= 0)
+        {
+            atmturb_cuda_host_register(dcimg[st.id_pha].array.F, nbytes);
+        }
+        if (st.id_amp >= 0)
+        {
+            atmturb_cuda_host_register(dcimg[st.id_amp].array.F, nbytes);
+        }
+        if (st.id_spha >= 0)
+        {
+            atmturb_cuda_host_register(dcimg[st.id_spha].array.F, nbytes);
+        }
+        if (st.id_samp >= 0)
+        {
+            atmturb_cuda_host_register(dcimg[st.id_samp].array.F, nbytes);
+        }
+    }
+
     g_stream_stop = 0;
     struct sigaction sa, old_sa_int, old_sa_term, old_sa_quit;
     memset(&sa, 0, sizeof(sa));
@@ -638,6 +694,26 @@ int make_AtmosphericTurbulence_wavefront_stream(
     double fps = (dt > 0.0) ? ((double) n_streamed / dt) : 0.0;
     printf("[milkatmturb] Streamed %ld frames in %.3f s (%.1f fps)\n", n_streamed, dt, fps);
     fflush(stdout);
+
+    if (st.is_cuda)
+    {
+        if (st.id_pha >= 0)
+        {
+            atmturb_cuda_host_unregister(dcimg[st.id_pha].array.F);
+        }
+        if (st.id_amp >= 0)
+        {
+            atmturb_cuda_host_unregister(dcimg[st.id_amp].array.F);
+        }
+        if (st.id_spha >= 0)
+        {
+            atmturb_cuda_host_unregister(dcimg[st.id_spha].array.F);
+        }
+        if (st.id_samp >= 0)
+        {
+            atmturb_cuda_host_unregister(dcimg[st.id_samp].array.F);
+        }
+    }
 
     atmturb_wfs_stream_free_engine(&st, &eng);
     free(scratch);

@@ -115,6 +115,12 @@ void atmturb_cuda_normalize_launch(
     const float *d_sum_I,
     cudaStream_t stream);
 
+void atmturb_cuda_remove_piston_launch(
+    float       *d_pha,
+    float       *d_sum_buf,
+    int          npix,
+    cudaStream_t stream);
+
 #ifdef __cplusplus
 }
 #endif
