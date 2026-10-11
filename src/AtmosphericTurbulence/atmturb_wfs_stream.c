@@ -432,6 +432,135 @@ static void atmturb_wfs_stream_print_output_targets(
 }
 
 /**
+ * struct atmturb_stream_engines_t - Propagation plans and execution contexts
+ * @fplan: Fresnel propagation plan.
+ * @fctx: Fresnel execution context.
+ * @rplan: Rytov propagation plan.
+ * @rctx: Rytov execution context.
+ */
+typedef struct
+{
+    atmturb_fresnel_plan_t fplan;
+    atmturb_fresnel_ctx_t  fctx;
+    atmturb_rytov_plan_t   rplan;
+    atmturb_rytov_ctx_t    rctx;
+} atmturb_stream_engines_t;
+
+/**
+ * atmturb_wfs_stream_init_engine - Initialize GPU or CPU propagation engine
+ * @st: Stream state container.
+ * @rsim: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @prof: Active atmospheric profile.
+ * @params: Observation parameters container.
+ * @pup_size: Linear dimension of pupil.
+ * @eng: CPU propagation engine container.
+ */
+static void atmturb_wfs_stream_init_engine(
+    atmturb_stream_state_t          *st,
+    const atmturb_rolling_t         *rsim,
+    const atmturb_geom_t            *geom,
+    const atmturb_profile_t         *prof,
+    const atmturb_obs_params_t      *params,
+    long                             pup_size,
+    atmturb_stream_engines_t        *eng)
+{
+    if (CONF_FRESNEL_PROPAGATION == 0)
+    {
+        if (atmturb_simd_is_gpu())
+        {
+            st->cuda_gstream = atmturb_wfs_cuda_geom_stream_init(
+                rsim, geom, CONF_MASTER_SIZE, pup_size);
+        }
+    }
+    else if (CONF_FRESNEL_PROPAGATION == 1)
+    {
+        if (atmturb_simd_is_gpu())
+        {
+            st->cuda_fstream = atmturb_cuda_fresnel_stream_init(
+                rsim, geom, prof, params, CONF_MASTER_SIZE, pup_size);
+        }
+        if (st->cuda_fstream == NULL)
+        {
+            double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
+            atmturb_fresnel_plan_init(&eng->fplan, prof, geom, pup_size, params->pupil_scale_m,
+                                      params->lambda_ref_m, params->lambda_s_m, z_bin);
+            atmturb_fresnel_ctx_init(&eng->fctx, pup_size);
+            st->fplan = &eng->fplan;
+            st->fctx  = &eng->fctx;
+        }
+    }
+    else if (CONF_FRESNEL_PROPAGATION == 2)
+    {
+        if (atmturb_simd_is_gpu())
+        {
+            st->cuda_rstream = atmturb_cuda_rytov_stream_init(
+                rsim, geom, prof, params, CONF_MASTER_SIZE, pup_size);
+            if (st->cuda_rstream == NULL && rsim->lowfreq != 0)
+            {
+                printf("[milkatmturb] Notice: GPU Rytov streaming requires lowfreq=0; "
+                       "falling back to CPU\n");
+            }
+        }
+        if (st->cuda_rstream == NULL)
+        {
+            double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
+            atmturb_rytov_plan_init(&eng->rplan, prof, geom, pup_size, params->pupil_scale_m,
+                                    params->lambda_ref_m, params->lambda_s_m, z_bin,
+                                    CONF_FRESNEL_RYTOV_SEC_EXACT);
+            atmturb_rytov_ctx_init(&eng->rctx, eng->rplan.pad_size);
+            st->rplan = &eng->rplan;
+            st->rctx  = &eng->rctx;
+        }
+    }
+}
+
+/**
+ * atmturb_wfs_stream_free_engine - Release allocated GPU and CPU propagation engines
+ * @st: Stream state container.
+ * @eng: CPU propagation engine container.
+ */
+static void atmturb_wfs_stream_free_engine(
+    atmturb_stream_state_t   *st,
+    atmturb_stream_engines_t *eng)
+{
+    if (CONF_FRESNEL_PROPAGATION == 0)
+    {
+        if (st->cuda_gstream != NULL)
+        {
+            atmturb_wfs_cuda_geom_stream_free(st->cuda_gstream);
+            st->cuda_gstream = NULL;
+        }
+    }
+    else if (CONF_FRESNEL_PROPAGATION == 1)
+    {
+        if (st->cuda_fstream != NULL)
+        {
+            atmturb_cuda_fresnel_stream_free(st->cuda_fstream);
+            st->cuda_fstream = NULL;
+        }
+        if (st->fctx != NULL)
+        {
+            atmturb_fresnel_ctx_free(&eng->fctx);
+            atmturb_fresnel_plan_free(&eng->fplan);
+        }
+    }
+    else if (CONF_FRESNEL_PROPAGATION == 2)
+    {
+        if (st->cuda_rstream != NULL)
+        {
+            atmturb_cuda_rytov_stream_free(st->cuda_rstream);
+            st->cuda_rstream = NULL;
+        }
+        if (st->rctx != NULL)
+        {
+            atmturb_rytov_ctx_free(&eng->rctx);
+            atmturb_rytov_plan_free(&eng->rplan);
+        }
+    }
+}
+
+/**
  * make_AtmosphericTurbulence_wavefront_stream - Stream 2D wavefront frames to SHM
  * @slambdaum: Secondary observing wavelength in um.
  * @WFprecision: Precision mode flag (0=single, 1=double).
@@ -473,53 +602,9 @@ int make_AtmosphericTurbulence_wavefront_stream(
 
     atmturb_wfs_stream_print_output_targets(pha_name, amp_name, pup_size, &st);
 
-    atmturb_fresnel_plan_t fplan;
-    atmturb_fresnel_ctx_t  fctx;
-    atmturb_rytov_plan_t   rplan;
-    atmturb_rytov_ctx_t    rctx;
-    if (CONF_FRESNEL_PROPAGATION == 0)
-    {
-        if (atmturb_simd_is_gpu())
-        {
-            st.cuda_gstream = atmturb_wfs_cuda_geom_stream_init(
-                &rsim, &geom, CONF_MASTER_SIZE, pup_size);
-        }
-    }
-    else if (CONF_FRESNEL_PROPAGATION == 1)
-    {
-        if (atmturb_simd_is_gpu())
-        {
-            st.cuda_fstream = atmturb_cuda_fresnel_stream_init(
-                &rsim, &geom, &prof, &params, CONF_MASTER_SIZE, pup_size);
-        }
-        if (st.cuda_fstream == NULL)
-        {
-            double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
-            atmturb_fresnel_plan_init(&fplan, &prof, &geom, pup_size, params.pupil_scale_m,
-                                      params.lambda_ref_m, params.lambda_s_m, z_bin);
-            atmturb_fresnel_ctx_init(&fctx, pup_size);
-            st.fplan = &fplan;
-            st.fctx  = &fctx;
-        }
-    }
-    else if (CONF_FRESNEL_PROPAGATION == 2)
-    {
-        if (atmturb_simd_is_gpu())
-        {
-            st.cuda_rstream = atmturb_cuda_rytov_stream_init(
-                &rsim, &geom, &prof, &params, CONF_MASTER_SIZE, pup_size);
-        }
-        if (st.cuda_rstream == NULL)
-        {
-            double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
-            atmturb_rytov_plan_init(&rplan, &prof, &geom, pup_size, params.pupil_scale_m,
-                                    params.lambda_ref_m, params.lambda_s_m, z_bin,
-                                    CONF_FRESNEL_RYTOV_SEC_EXACT);
-            atmturb_rytov_ctx_init(&rctx, rplan.pad_size);
-            st.rplan = &rplan;
-            st.rctx  = &rctx;
-        }
-    }
+    atmturb_stream_engines_t eng;
+    memset(&eng, 0, sizeof(eng));
+    atmturb_wfs_stream_init_engine(&st, &rsim, &geom, &prof, &params, pup_size, &eng);
 
     g_stream_stop = 0;
     struct sigaction sa, old_sa_int, old_sa_term, old_sa_quit;
@@ -529,9 +614,16 @@ int make_AtmosphericTurbulence_wavefront_stream(
     sigaction(SIGTERM, &sa, &old_sa_term);
     sigaction(SIGQUIT, &sa, &old_sa_quit);
 
-    const char *isa_str = (st.cuda_rstream != NULL || st.cuda_gstream != NULL ||
-                           st.cuda_fstream != NULL)
-                              ? "CUDA GPU" : atmturb_simd_active_isa();
+    const char *isa_str = "AVX2";
+    if (st.cuda_rstream != NULL || st.cuda_gstream != NULL || st.cuda_fstream != NULL)
+    {
+        isa_str = "CUDA GPU";
+    }
+    else
+    {
+        const char *active = atmturb_simd_active_isa();
+        isa_str = (strcmp(active, "CUDA GPU") == 0) ? "AVX2" : active;
+    }
     printf("[milkatmturb] Streaming 2D wavefront frames (%ldx%ld pix) to SHM '%s'%s [%s]\n",
            pup_size, pup_size, pha_name, (st.id_amp >= 0) ? " and amplitude" : "",
            isa_str);
@@ -552,40 +644,7 @@ int make_AtmosphericTurbulence_wavefront_stream(
     printf("[milkatmturb] Streamed %ld frames in %.3f s (%.1f fps)\n", n_streamed, dt, fps);
     fflush(stdout);
 
-    if (CONF_FRESNEL_PROPAGATION == 0)
-    {
-        if (st.cuda_gstream != NULL)
-        {
-            atmturb_wfs_cuda_geom_stream_free(st.cuda_gstream);
-            st.cuda_gstream = NULL;
-        }
-    }
-    else if (CONF_FRESNEL_PROPAGATION == 1)
-    {
-        if (st.cuda_fstream != NULL)
-        {
-            atmturb_cuda_fresnel_stream_free(st.cuda_fstream);
-            st.cuda_fstream = NULL;
-        }
-        if (st.fctx != NULL)
-        {
-            atmturb_fresnel_ctx_free(&fctx);
-            atmturb_fresnel_plan_free(&fplan);
-        }
-    }
-    else if (CONF_FRESNEL_PROPAGATION == 2)
-    {
-        if (st.cuda_rstream != NULL)
-        {
-            atmturb_cuda_rytov_stream_free(st.cuda_rstream);
-            st.cuda_rstream = NULL;
-        }
-        if (st.rctx != NULL)
-        {
-            atmturb_rytov_ctx_free(&rctx);
-            atmturb_rytov_plan_free(&rplan);
-        }
-    }
+    atmturb_wfs_stream_free_engine(&st, &eng);
     free(scratch);
     atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
     return 0;
