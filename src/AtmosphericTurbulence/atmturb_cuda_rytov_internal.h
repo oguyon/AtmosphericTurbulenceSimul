@@ -67,22 +67,53 @@ void atmturb_cuda_moisan_adjust_launch(
     int                 n_half,
     cudaStream_t        stream);
 
+typedef struct {
+    cufftComplex       *d_acc_dphi;
+    cufftComplex       *d_acc_chi;
+    const cufftComplex *d_spec;
+    const cufftComplex *d_hat_bounds;
+    const cufftComplex *d_exp_x;
+    const cufftComplex *d_exp_y;
+    const float        *d_laplace_inv;
+    const float        *d_filt_a;
+    const float        *d_filt_b;
+    int                 pad_size;
+    int                 n_half;
+} atmturb_cuda_moisan_mac_t;
+
+typedef struct {
+    cufftComplex       *d_acc_dphi_pri;
+    cufftComplex       *d_acc_chi_pri;
+    cufftComplex       *d_acc_dphi_sec;
+    cufftComplex       *d_acc_chi_sec;
+    const cufftComplex *d_spec;
+    const cufftComplex *d_ramp;
+    const cufftComplex *d_hat_bounds;
+    const cufftComplex *d_exp_x;
+    const cufftComplex *d_exp_y;
+    const float        *d_laplace_inv;
+    const float        *d_filt_a_pri;
+    const float        *d_filt_b_pri;
+    const float        *d_filt_a_sec;
+    const float        *d_filt_b_sec;
+    int                 pad_size;
+    int                 n_half;
+} atmturb_cuda_moisan_dual_mac_t;
+
+void atmturb_cuda_moisan_filter_mac_launch(
+    const atmturb_cuda_moisan_mac_t *args,
+    cudaStream_t                     stream);
+
+void atmturb_cuda_moisan_dual_mac_launch(
+    const atmturb_cuda_moisan_dual_mac_t *args,
+    cudaStream_t                          stream);
+
 void atmturb_cuda_filter_mac_launch(
     cufftComplex       *d_acc_dphi,
     cufftComplex       *d_acc_chi,
     const cufftComplex *d_spec,
     const float        *d_filt_a,
     const float        *d_filt_b,
-    int                 ntot,
-    cudaStream_t        stream);
-
-void atmturb_cuda_filter_mac_rotated_launch(
-    cufftComplex       *d_acc_dphi_sec,
-    cufftComplex       *d_acc_chi_sec,
-    const cufftComplex *d_spec,
-    const cufftComplex *d_ramp,
-    const float        *d_filt_a_sec,
-    const float        *d_filt_b_sec,
     int                 ntot,
     cudaStream_t        stream);
 
@@ -120,6 +151,12 @@ void atmturb_cuda_normalize_launch(
 void atmturb_cuda_remove_piston_launch(
     float       *d_pha,
     float       *d_sum_buf,
+    int          npix,
+    cudaStream_t stream);
+
+void atmturb_cuda_piston_sub_launch(
+    float       *d_pha,
+    const float *d_sum_buf,
     int          npix,
     cudaStream_t stream);
 

@@ -497,6 +497,47 @@ void atmturb_cuda_extract_bounds_launch(
         d_super_pha, d_bounds, pad_size);
 }
 
+__device__ static inline cufftComplex atmturb_cuda_moisan_calc(
+    cufftComplex       s,
+    const cufftComplex *hat_bounds,
+    const cufftComplex *exp_x,
+    const cufftComplex *exp_y,
+    const float        *laplace_inv,
+    int                 i,
+    int                 j,
+    int                 pad_size,
+    int                 n_half)
+{
+    const cufftComplex *hat_a = hat_bounds;
+    const cufftComplex *hat_b = hat_bounds + n_half;
+
+    float b_re, b_im;
+    if (j <= pad_size / 2)
+    {
+        b_re = hat_b[j].x;
+        b_im = hat_b[j].y;
+    }
+    else
+    {
+        int j_sym = pad_size - j;
+        b_re =  hat_b[j_sym].x;
+        b_im = -hat_b[j_sym].y;
+    }
+
+    cufftComplex ey = exp_y[j];
+    cufftComplex ex = exp_x[i];
+    cufftComplex ha = hat_a[i];
+
+    float v_re = (ha.x * ey.x - ha.y * ey.y) + (b_re * ex.x - b_im * ex.y);
+    float v_im = (ha.x * ey.y + ha.y * ey.x) + (b_re * ex.y + b_im * ex.x);
+
+    int idx = j * n_half + i;
+    float linv = laplace_inv[idx];
+    s.x += v_re * linv;
+    s.y += v_im * linv;
+    return s;
+}
+
 __global__ static void atmturb_cuda_moisan_adjust_kernel(
     cufftComplex       *d_spec,
     const cufftComplex *d_hat_bounds,
@@ -513,33 +554,9 @@ __global__ static void atmturb_cuda_moisan_adjust_kernel(
         return;
     }
 
-    const cufftComplex *hat_a = d_hat_bounds;
-    const cufftComplex *hat_b = d_hat_bounds + n_half;
-
-    float b_re, b_im;
-    if (j <= pad_size / 2)
-    {
-        b_re = hat_b[j].x;
-        b_im = hat_b[j].y;
-    }
-    else
-    {
-        int j_sym = pad_size - j;
-        b_re =  hat_b[j_sym].x;
-        b_im = -hat_b[j_sym].y;
-    }
-
-    cufftComplex ey = d_exp_y[j];
-    cufftComplex ex = d_exp_x[i];
-    cufftComplex ha = hat_a[i];
-
-    float v_re = (ha.x * ey.x - ha.y * ey.y) + (b_re * ex.x - b_im * ex.y);
-    float v_im = (ha.x * ey.y + ha.y * ey.x) + (b_re * ex.y + b_im * ex.x);
-
     int idx = j * n_half + i;
-    float linv = d_laplace_inv[idx];
-    d_spec[idx].x += v_re * linv;
-    d_spec[idx].y += v_im * linv;
+    d_spec[idx] = atmturb_cuda_moisan_calc(
+        d_spec[idx], d_hat_bounds, d_exp_x, d_exp_y, d_laplace_inv, i, j, pad_size, n_half);
 }
 
 void atmturb_cuda_moisan_adjust_launch(
@@ -557,6 +574,85 @@ void atmturb_cuda_moisan_adjust_launch(
                 ((int) pad_size + b_spec.y - 1) / b_spec.y);
     atmturb_cuda_moisan_adjust_kernel<<<g_spec, b_spec, 0, stream>>>(
         d_spec, d_hat_bounds, d_exp_x, d_exp_y, d_laplace_inv, pad_size, n_half);
+}
+
+__global__ static void atmturb_cuda_moisan_filter_mac_kernel(
+    atmturb_cuda_moisan_mac_t args)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    if (i >= args.n_half || j >= args.pad_size)
+    {
+        return;
+    }
+
+    int idx = j * args.n_half + i;
+    cufftComplex s = atmturb_cuda_moisan_calc(
+        args.d_spec[idx], args.d_hat_bounds, args.d_exp_x, args.d_exp_y,
+        args.d_laplace_inv, i, j, args.pad_size, args.n_half);
+
+    float fa = args.d_filt_a[idx];
+    float fb = args.d_filt_b[idx];
+
+    args.d_acc_dphi[idx].x += s.x * fa;
+    args.d_acc_dphi[idx].y += s.y * fa;
+    args.d_acc_chi[idx].x  += s.x * fb;
+    args.d_acc_chi[idx].y  += s.y * fb;
+}
+
+void atmturb_cuda_moisan_filter_mac_launch(
+    const atmturb_cuda_moisan_mac_t *args,
+    cudaStream_t                     stream)
+{
+    dim3 b_spec(16, 16);
+    dim3 g_spec(((int) args->n_half + b_spec.x - 1) / b_spec.x,
+                ((int) args->pad_size + b_spec.y - 1) / b_spec.y);
+    atmturb_cuda_moisan_filter_mac_kernel<<<g_spec, b_spec, 0, stream>>>(*args);
+}
+
+__global__ static void atmturb_cuda_moisan_dual_mac_kernel(
+    atmturb_cuda_moisan_dual_mac_t args)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    if (i >= args.n_half || j >= args.pad_size)
+    {
+        return;
+    }
+
+    int idx = j * args.n_half + i;
+    cufftComplex s = atmturb_cuda_moisan_calc(
+        args.d_spec[idx], args.d_hat_bounds, args.d_exp_x, args.d_exp_y,
+        args.d_laplace_inv, i, j, args.pad_size, args.n_half);
+
+    float fa_pri = args.d_filt_a_pri[idx];
+    float fb_pri = args.d_filt_b_pri[idx];
+
+    args.d_acc_dphi_pri[idx].x += s.x * fa_pri;
+    args.d_acc_dphi_pri[idx].y += s.y * fa_pri;
+    args.d_acc_chi_pri[idx].x  += s.x * fb_pri;
+    args.d_acc_chi_pri[idx].y  += s.y * fb_pri;
+
+    cufftComplex r = args.d_ramp[idx];
+    float ps_x = s.x * r.x - s.y * r.y;
+    float ps_y = s.x * r.y + s.y * r.x;
+    float fa_sec = args.d_filt_a_sec[idx];
+    float fb_sec = args.d_filt_b_sec[idx];
+
+    args.d_acc_dphi_sec[idx].x += ps_x * fa_sec;
+    args.d_acc_dphi_sec[idx].y += ps_y * fa_sec;
+    args.d_acc_chi_sec[idx].x  += ps_x * fb_sec;
+    args.d_acc_chi_sec[idx].y  += ps_y * fb_sec;
+}
+
+void atmturb_cuda_moisan_dual_mac_launch(
+    const atmturb_cuda_moisan_dual_mac_t *args,
+    cudaStream_t                          stream)
+{
+    dim3 b_spec(16, 16);
+    dim3 g_spec(((int) args->n_half + b_spec.x - 1) / b_spec.x,
+                ((int) args->pad_size + b_spec.y - 1) / b_spec.y);
+    atmturb_cuda_moisan_dual_mac_kernel<<<g_spec, b_spec, 0, stream>>>(*args);
 }
 
 __global__ static void atmturb_cuda_filter_mac_kernel(
@@ -596,53 +692,6 @@ void atmturb_cuda_filter_mac_launch(
     dim3 g_mac(((int) ntot + b_mac.x - 1) / b_mac.x);
     atmturb_cuda_filter_mac_kernel<<<g_mac, b_mac, 0, stream>>>(
         d_acc_dphi, d_acc_chi, d_spec, d_filt_a, d_filt_b, ntot);
-}
-
-__global__ static void atmturb_cuda_filter_mac_rotated_kernel(
-    cufftComplex       *d_acc_dphi_sec,
-    cufftComplex       *d_acc_chi_sec,
-    const cufftComplex *d_spec,
-    const cufftComplex *d_ramp,
-    const float        *d_filt_a_sec,
-    const float        *d_filt_b_sec,
-    int                 ntot)
-{
-    int k = blockIdx.x * blockDim.x + threadIdx.x;
-    if (k >= ntot)
-    {
-        return;
-    }
-
-    cufftComplex s = d_spec[k];
-    cufftComplex r = d_ramp[k];
-
-    float ps_x = s.x * r.x - s.y * r.y;
-    float ps_y = s.x * r.y + s.y * r.x;
-
-    float fa = d_filt_a_sec[k];
-    float fb = d_filt_b_sec[k];
-
-    d_acc_dphi_sec[k].x += ps_x * fa;
-    d_acc_dphi_sec[k].y += ps_y * fa;
-    d_acc_chi_sec[k].x  += ps_x * fb;
-    d_acc_chi_sec[k].y  += ps_y * fb;
-}
-
-void atmturb_cuda_filter_mac_rotated_launch(
-    cufftComplex       *d_acc_dphi_sec,
-    cufftComplex       *d_acc_chi_sec,
-    const cufftComplex *d_spec,
-    const cufftComplex *d_ramp,
-    const float        *d_filt_a_sec,
-    const float        *d_filt_b_sec,
-    int                 ntot,
-    cudaStream_t        stream)
-{
-    dim3 b_mac(256);
-    dim3 g_mac(((int) ntot + b_mac.x - 1) / b_mac.x);
-    atmturb_cuda_filter_mac_rotated_kernel<<<g_mac, b_mac, 0, stream>>>(
-        d_acc_dphi_sec, d_acc_chi_sec, d_spec, d_ramp,
-        d_filt_a_sec, d_filt_b_sec, ntot);
 }
 
 __global__ static void atmturb_cuda_filter_mac_dual_kernel(
@@ -904,3 +953,19 @@ void atmturb_cuda_remove_piston_launch(
     dim3 full_grid((npix + 255) / 256);
     atmturb_cuda_piston_sub_kernel<<<full_grid, block, 0, stream>>>(d_pha, d_sum_buf, npix);
 }
+
+void atmturb_cuda_piston_sub_launch(
+    float       *d_pha,
+    const float *d_sum_buf,
+    int          npix,
+    cudaStream_t stream)
+{
+    if (d_pha == NULL || d_sum_buf == NULL || npix <= 0)
+    {
+        return;
+    }
+    dim3 block(256);
+    dim3 grid((npix + 255) / 256);
+    atmturb_cuda_piston_sub_kernel<<<grid, block, 0, stream>>>(d_pha, d_sum_buf, npix);
+}
+

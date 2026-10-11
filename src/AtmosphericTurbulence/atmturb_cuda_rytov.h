@@ -136,6 +136,7 @@ typedef struct
     float                              *spha;
     float                              *samp;
     int                                 async_stream;
+    int                                 slot;
 } atmturb_cuda_rytov_params_t;
 
 #ifndef HAVE_CUDA
