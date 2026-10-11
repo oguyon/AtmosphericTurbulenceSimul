@@ -48,6 +48,7 @@ static char    param_prof_file[FUNCTION_PARAMETER_STRMAXLEN] = "turbul.prof";
 static int32_t param_master_size       = 2048;
 static int32_t param_save_fits         = 1;
 static int32_t param_stream_mode       = 0;
+static int32_t param_stream_cbsize     = 0;
 static int32_t param_amplitude         = 0;
 static int32_t param_fresnel           = 0;
 static int32_t param_fresnel_guard     = 0;
@@ -98,6 +99,8 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
       "Save FITS data cubes to disk (0=no, 1=ref, 2=sci, 3=all)")               \
     X(".stream_mode", &param_stream_mode, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT, \
       "2D SHM streaming mode (0=3D cube, 1=continuous stream, 2=finite stream)") \
+    X(".stream_cbsize", &param_stream_cbsize, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT, \
+      "2D SHM circular history depth (0=bypass CPU memcpy, >0=history)")        \
     X(".amplitude", &param_amplitude, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,   \
       "Compute amplitude in addition to phase (0/1)")                           \
     X(".fresnel", &param_fresnel, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,       \
@@ -160,6 +163,7 @@ static void atmturb_mkwfs_sync_to_conf(void)
     CONF_WFOUTPUT            = (int)param_save_fits;
     CONF_SWF_WRITE2DISK      = (param_save_fits & 2) ? 1 : 0;
     CONF_STREAM_MODE         = (int)param_stream_mode;
+    CONF_STREAM_CBSIZE       = (int)param_stream_cbsize;
     CONF_WAVEFRONT_AMPLITUDE = (int)param_amplitude;
     CONF_FRESNEL_PROPAGATION   = (int)param_fresnel;
     CONF_FRESNEL_GUARD_PIX     = (int)param_fresnel_guard;
@@ -218,6 +222,7 @@ static void atmturb_mkwfs_sync_from_conf(void)
     param_time_span         = CONF_TIME_SPAN;
     param_save_fits         = (int32_t)CONF_WFOUTPUT;
     param_stream_mode       = (int32_t)CONF_STREAM_MODE;
+    param_stream_cbsize     = (int32_t)CONF_STREAM_CBSIZE;
     param_amplitude         = (int32_t)CONF_WAVEFRONT_AMPLITUDE;
     param_fresnel           = (int32_t)CONF_FRESNEL_PROPAGATION;
     param_fresnel_guard     = (int32_t)CONF_FRESNEL_GUARD_PIX;

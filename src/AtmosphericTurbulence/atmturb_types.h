@@ -74,6 +74,7 @@ extern char CONF_WF_PHASE_NAME[100];
 extern char CONF_WF_AMPL_NAME[100];
 extern int CONF_SHM_OUTPUT;
 extern int CONF_STREAM_MODE;
+extern int CONF_STREAM_CBSIZE;
 
 extern int CONF_MAKE_SWAVEFRONT;
 extern int CONF_SWF_WRITE2DISK;

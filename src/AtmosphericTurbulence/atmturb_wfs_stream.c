@@ -82,13 +82,15 @@ static imageID atmturb_wfs_stream_ensure_image(
     {
         return -1;
     }
-    imageID id = image_ID(name);
+    uint32_t req_cbsize = (CONF_STREAM_CBSIZE > 0) ? (uint32_t) CONF_STREAM_CBSIZE : 0;
+    imageID  id         = image_ID(name);
     if (id >= 0 && dcimg[id].used == 1)
     {
         if (dcimg[id].md[0].naxis == 2 &&
             (long) dcimg[id].md[0].size[0] == pup_size &&
             (long) dcimg[id].md[0].size[1] == pup_size &&
-            dcimg[id].md[0].datatype == _DATATYPE_FLOAT)
+            dcimg[id].md[0].datatype == _DATATYPE_FLOAT &&
+            dcimg[id].md[0].CBsize == req_cbsize)
         {
             return id;
         }
@@ -97,7 +99,7 @@ static imageID atmturb_wfs_stream_ensure_image(
     }
 
     uint32_t sz[2] = {(uint32_t) pup_size, (uint32_t) pup_size};
-    create_image_ID(name, 2, sz, _DATATYPE_FLOAT, 1, 10, 0, &id);
+    create_image_ID(name, 2, sz, _DATATYPE_FLOAT, 1, 10, req_cbsize, &id);
     return id;
 }
 

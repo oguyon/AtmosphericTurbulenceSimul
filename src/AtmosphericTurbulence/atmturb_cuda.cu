@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "atmturb_cuda.h"
+#include "atmturb_cuda_rytov_internal.h"
 
 // Maximum supported layers in constant memory cache
 #define ATMTURB_CUDA_MAX_LAYERS 64
@@ -335,62 +336,6 @@ int atmturb_wfs_render_frames_cuda(
     return 0;
 }
 
-__global__ static void atmturb_cuda_geom_reduce_sum(
-    const float *d_in,
-    int          npix,
-    float       *d_sum)
-{
-    float val = 0.0f;
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-    for (int i = idx; i < npix; i += stride)
-    {
-        val += d_in[i];
-    }
-
-    for (int offset = 16; offset > 0; offset /= 2)
-    {
-        val += __shfl_down_sync(0xffffffff, val, offset);
-    }
-
-    __shared__ float s_warp_sums[32];
-    int lane = threadIdx.x % 32;
-    int warp_id = threadIdx.x / 32;
-    if (lane == 0)
-    {
-        s_warp_sums[warp_id] = val;
-    }
-    __syncthreads();
-
-    if (threadIdx.x < 32)
-    {
-        int nwarps = blockDim.x / 32;
-        float bval = (threadIdx.x < nwarps) ? s_warp_sums[threadIdx.x] : 0.0f;
-        for (int offset = 16; offset > 0; offset /= 2)
-        {
-            bval += __shfl_down_sync(0xffffffff, bval, offset);
-        }
-        if (threadIdx.x == 0)
-        {
-            atomicAdd(d_sum, bval);
-        }
-    }
-}
-
-__global__ static void atmturb_cuda_geom_sub_mean(
-    float       *d_out,
-    int          npix,
-    const float *d_sum)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= npix)
-    {
-        return;
-    }
-    float mean = (*d_sum) / (float) npix;
-    d_out[idx] -= mean;
-}
-
 struct atmturb_cuda_geom_stream
 {
     long          nblayers;
@@ -493,21 +438,10 @@ int atmturb_cuda_geom_stream_render_step(
         ctx->d_pha, (amp != NULL) ? ctx->d_amp : NULL,
         (spha != NULL) ? ctx->d_spha : NULL, (samp != NULL) ? ctx->d_samp : NULL);
 
-    cudaMemsetAsync(ctx->d_sum, 0, sizeof(float), ctx->stream);
-    dim3 r_block(256);
-    dim3 r_grid(((int) ctx->npix + 255) / 256);
-    atmturb_cuda_geom_reduce_sum<<<r_grid, r_block, 0, ctx->stream>>>(
-        ctx->d_pha, (int) ctx->npix, ctx->d_sum);
-    atmturb_cuda_geom_sub_mean<<<r_grid, r_block, 0, ctx->stream>>>(
-        ctx->d_pha, (int) ctx->npix, ctx->d_sum);
-
+    atmturb_cuda_remove_piston_launch(ctx->d_pha, ctx->d_sum, (int) ctx->npix, ctx->stream);
     if (spha != NULL)
     {
-        cudaMemsetAsync(ctx->d_sum, 0, sizeof(float), ctx->stream);
-        atmturb_cuda_geom_reduce_sum<<<r_grid, r_block, 0, ctx->stream>>>(
-            ctx->d_spha, (int) ctx->npix, ctx->d_sum);
-        atmturb_cuda_geom_sub_mean<<<r_grid, r_block, 0, ctx->stream>>>(
-            ctx->d_spha, (int) ctx->npix, ctx->d_sum);
+        atmturb_cuda_remove_piston_launch(ctx->d_spha, ctx->d_sum, (int) ctx->npix, ctx->stream);
     }
 
     size_t nbytes = sizeof(float) * ctx->npix;
@@ -567,6 +501,32 @@ void atmturb_cuda_host_unregister(
     if (ptr != NULL)
     {
         cudaHostUnregister(ptr);
+    }
+}
+
+int atmturb_cuda_host_alloc(
+    void  **ptr,
+    size_t  size)
+{
+    if (ptr == NULL || size == 0)
+    {
+        return -1;
+    }
+    cudaError_t err = cudaMallocHost(ptr, size);
+    if (err != cudaSuccess)
+    {
+        *ptr = NULL;
+        return -1;
+    }
+    return 0;
+}
+
+void atmturb_cuda_host_free(
+    void *ptr)
+{
+    if (ptr != NULL)
+    {
+        cudaFreeHost(ptr);
     }
 }
 

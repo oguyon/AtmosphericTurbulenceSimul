@@ -218,6 +218,24 @@ int atmturb_cuda_host_register(
 void atmturb_cuda_host_unregister(
     void *ptr);
 
+/**
+ * atmturb_cuda_host_alloc - Allocate page-locked (pinned) host memory for DMA
+ * @ptr: Pointer to store allocated memory address.
+ * @size: Size in bytes to allocate.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_host_alloc(
+    void  **ptr,
+    size_t  size);
+
+/**
+ * atmturb_cuda_host_free - Free page-locked host memory
+ * @ptr: Buffer to release.
+ */
+void atmturb_cuda_host_free(
+    void *ptr);
+
 #endif /* HAVE_CUDA */
 
 #ifdef __cplusplus
