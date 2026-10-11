@@ -4,12 +4,13 @@
 
 /**
  * @file    atmturb_wfs_render_cuda.c
- * @brief   CUDA GPU dispatch wrappers for wavefront series rendering
+ * @brief   CUDA GPU dispatch wrappers for wavefront series batch rendering
  */
 
 #ifdef HAVE_CUDA
 
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -24,9 +25,24 @@
 #include "atmturb_rolling.h"
 #include "atmturb_rytov.h"
 #include "atmturb_types.h"
+#include "atmturb_wfs_cuda_common.h"
 #include "atmturb_wfs_render.h"
 #include "atmturb_wfs_render_cuda.h"
 
+/**
+ * atmturb_wfs_render_cuda - Render geometric simulation frames on GPU
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @master_size: Master screen dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ * @nbframes: Number of simulation frames.
+ * @imgs: Container of output 3D image handles.
+ *
+ * Flattens atmospheric layers into constant-memory parameters and launches geometric
+ * extrusion kernel across all frames simultaneously.
+ *
+ * Return: 0 on success, -1 on invalid configuration or CUDA error.
+ */
 int atmturb_wfs_render_cuda(
     const atmturb_rolling_t    *r,
     const atmturb_geom_t       *geom,
@@ -104,62 +120,17 @@ int atmturb_wfs_render_cuda(
     return ret;
 }
 
-static inline void atmturb_wfs_cuda_build_frame_sublayers(
-    const atmturb_rolling_t       *r,
-    const atmturb_geom_t          *geom,
-    const atmturb_rytov_plan_t    *plan,
-    const int                     *screen_offsets,
-    long                           t,
-    double                         time_step_s,
-    double                         offset_os,
-    int                            max_sublayers,
-    atmturb_cuda_rytov_sublayer_t *sublayers)
-{
-    for (int m = 0; m < plan->nsuper; m++)
-    {
-        const atmturb_superlayer_t *sl = &plan->supers[m];
-        size_t base = (size_t) (m * max_sublayers);
-
-        for (int j = 0; j < sl->nlayers; j++)
-        {
-            int k = sl->layer_indices[j];
-            float ws = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
-            atmturb_rolling_eval_t rev;
-            atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
-
-            double dx = atmturb_geom_get_layer_dx(&geom->layers[k], t);
-            double dy = atmturb_geom_get_layer_dy(&geom->layers[k], t);
-
-            float cur_x  = (float) (geom->layers[k].x0 + dx - offset_os);
-            float cur_y  = (float) (geom->layers[k].y0 + dy - offset_os);
-            float cur_xs = (float) (geom->layers[k].xs0 + dx - offset_os);
-            float cur_ys = (float) (geom->layers[k].ys0 + dy - offset_os);
-
-            double w_base   = geom->layers[k].weight * (double) ws;
-            double ws_base  = geom->layers[k].weight_s * (double) ws;
-            int    k_offset = screen_offsets ? screen_offsets[k] : k;
-
-            size_t idx_a = base + (size_t) (2 * j);
-            sublayers[idx_a].k     = k_offset + rev.idxA;
-            sublayers[idx_a].w_pri = (float) (w_base * (double) rev.wA);
-            sublayers[idx_a].w_sec = (float) (ws_base * (double) rev.wA);
-            sublayers[idx_a].x     = cur_x;
-            sublayers[idx_a].y     = cur_y;
-            sublayers[idx_a].xs    = cur_xs;
-            sublayers[idx_a].ys    = cur_ys;
-
-            size_t idx_b = base + (size_t) (2 * j + 1);
-            sublayers[idx_b].k     = k_offset + rev.idxB;
-            sublayers[idx_b].w_pri = (float) (w_base * (double) rev.wB);
-            sublayers[idx_b].w_sec = (float) (ws_base * (double) rev.wB);
-            sublayers[idx_b].x     = cur_x;
-            sublayers[idx_b].y     = cur_y;
-            sublayers[idx_b].xs    = cur_xs;
-            sublayers[idx_b].ys    = cur_ys;
-        }
-    }
-}
-
+/**
+ * atmturb_wfs_cuda_build_sublayers - Populate multi-frame sublayer arrays in parallel
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @plan: Active Rytov perturbation plan.
+ * @screen_offsets: Screen index offsets per layer.
+ * @nbframes: Number of simulation frames.
+ * @time_step_s: Time step in seconds.
+ * @max_sublayers: Maximum sublayers per superlayer.
+ * @sublayers: Output contiguous sublayer array across all frames.
+ */
 static void atmturb_wfs_cuda_build_sublayers(
     const atmturb_rolling_t       *r,
     const atmturb_geom_t          *geom,
@@ -177,73 +148,22 @@ static void atmturb_wfs_cuda_build_sublayers(
     for (long t = 0; t < nbframes; t++)
     {
         atmturb_wfs_cuda_build_frame_sublayers(
-            r, geom, plan, screen_offsets, t, time_step_s, offset_os, max_sublayers,
+            r, geom, plan->nsuper, plan->supers, screen_offsets,
+            t, time_step_s, offset_os, max_sublayers,
             sublayers + (size_t) t * frame_stride);
     }
 }
 
-static inline void atmturb_wfs_cuda_build_frame_lf_modes(
-    const atmturb_rolling_t     *r,
-    const atmturb_geom_t        *geom,
-    const atmturb_rytov_plan_t  *plan,
-    long                         t,
-    double                       time_step_s,
-    double                       offset_os,
-    int                          max_lf_modes,
-    atmturb_cuda_lowfreq_mode_t *lf_modes)
-{
-    if (r->lowfreq == 0 || lf_modes == NULL)
-    {
-        return;
-    }
-
-    for (int m = 0; m < plan->nsuper; m++)
-    {
-        const atmturb_superlayer_t *sl = &plan->supers[m];
-        size_t base = (size_t) (m * max_lf_modes);
-        int mode_idx = 0;
-
-        for (int j = 0; j < sl->nlayers; j++)
-        {
-            int k = sl->layer_indices[j];
-            float ws = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
-            atmturb_rolling_eval_t rev;
-            atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
-
-            const atmturb_layer_geom_t *lg = &geom->layers[k];
-            double dx = atmturb_geom_get_layer_dx(lg, t);
-            double dy = atmturb_geom_get_layer_dy(lg, t);
-
-            double x  = lg->x0 + dx - offset_os;
-            double y  = lg->y0 + dy - offset_os;
-            double xs = lg->xs0 + dx - offset_os;
-            double ys = lg->ys0 + dy - offset_os;
-
-            double w_pri = lg->weight * (double) ws;
-            double w_sec = lg->weight_s * (double) ws;
-            const atmturb_lowfreq_t *lf_base = &r->layers[k].lf_base;
-
-            for (int lm = 0; lm < lf_base->nmodes; lm++)
-            {
-                float kx = lf_base->kx[lm];
-                float ky = lf_base->ky[lm];
-                float are = rev.are_eff[lm];
-                float aim = rev.aim_eff[lm];
-
-                atmturb_cuda_lowfreq_mode_t *out = &lf_modes[base + mode_idx++];
-                out->are_pri = (float) (w_pri * (double) are);
-                out->aim_pri = (float) (w_pri * (double) aim);
-                out->are_sec = (float) (w_sec * (double) are);
-                out->aim_sec = (float) (w_sec * (double) aim);
-                out->th0_pri = (float) ((double) kx * x + (double) ky * y);
-                out->th0_sec = (float) ((double) kx * xs + (double) ky * ys);
-                out->dkx     = (float) ((double) kx * (double) geom->oversample);
-                out->dky     = (float) ((double) ky * (double) geom->oversample);
-            }
-        }
-    }
-}
-
+/**
+ * atmturb_wfs_cuda_build_lf_modes - Populate multi-frame low-frequency mode arrays in parallel
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @plan: Active Rytov perturbation plan.
+ * @nbframes: Number of simulation frames.
+ * @time_step_s: Time step in seconds.
+ * @max_lf_modes: Maximum low-frequency modes per superlayer.
+ * @lf_modes: Output contiguous mode array across all frames.
+ */
 static void atmturb_wfs_cuda_build_lf_modes(
     const atmturb_rolling_t     *r,
     const atmturb_geom_t        *geom,
@@ -265,11 +185,23 @@ static void atmturb_wfs_cuda_build_lf_modes(
     for (long t = 0; t < nbframes; t++)
     {
         atmturb_wfs_cuda_build_frame_lf_modes(
-            r, geom, plan, t, time_step_s, offset_os, max_lf_modes,
+            r, geom, plan->nsuper, plan->supers,
+            t, time_step_s, offset_os, max_lf_modes,
             lf_modes + (size_t) t * frame_stride);
     }
 }
 
+/**
+ * atmturb_wfs_cuda_init_rytov_lf - Allocate and initialize low-frequency mode buffers
+ * @r: Rolling simulation context.
+ * @plan: Active Rytov perturbation plan.
+ * @nbframes: Number of simulation frames.
+ * @out_max_lf: Output pointer for max mode count.
+ * @out_super_nlf: Output pointer for mode counts per superlayer.
+ * @out_lf_modes: Output pointer for pinned host buffer.
+ *
+ * Return: 0 on success, -1 on allocation failure.
+ */
 static int atmturb_wfs_cuda_init_rytov_lf(
     const atmturb_rolling_t      *r,
     const atmturb_rytov_plan_t   *plan,
@@ -320,42 +252,16 @@ static int atmturb_wfs_cuda_init_rytov_lf(
     return 0;
 }
 
-static int atmturb_wfs_cuda_init_screen_pool(
-    const atmturb_rolling_t  *r,
-    int                       nlayers,
-    const float            ***out_masters,
-    int                     **out_offsets,
-    int                      *out_total)
-{
-    int total = 0;
-    for (int k = 0; k < nlayers; k++)
-    {
-        total += r->layers[k].nscreens;
-    }
-    const float **masters = (const float **) malloc(sizeof(float *) * (size_t) total);
-    int *offsets = (int *) malloc(sizeof(int) * (size_t) nlayers);
-    if (!masters || !offsets)
-    {
-        free(masters);
-        free(offsets);
-        return -1;
-    }
-    int off = 0;
-    for (int k = 0; k < nlayers; k++)
-    {
-        offsets[k] = off;
-        for (int s = 0; s < r->layers[k].nscreens; s++)
-        {
-            masters[off + s] = r->layers[k].screens[s].data;
-        }
-        off += r->layers[k].nscreens;
-    }
-    *out_masters = masters;
-    *out_offsets = offsets;
-    *out_total   = total;
-    return 0;
-}
-
+/**
+ * struct atmturb_wfs_cuda_rytov_bufs_t - Memory container for batch Rytov rendering
+ * @sublayers: Pre-allocated sublayer coordinate buffer.
+ * @super_nlayers: Array of layer counts per superlayer.
+ * @super_dist_m: Array of propagation distances per superlayer.
+ * @masters: Host pointers to master screen data.
+ * @screen_offsets: Screen index offsets per layer.
+ * @lf_modes: Low-frequency Fourier mode buffer.
+ * @super_nlf_modes: Mode counts per superlayer.
+ */
 typedef struct
 {
     atmturb_cuda_rytov_sublayer_t *sublayers;
@@ -367,76 +273,111 @@ typedef struct
     int                           *super_nlf_modes;
 } atmturb_wfs_cuda_rytov_bufs_t;
 
+/**
+ * atmturb_wfs_rytov_cuda_free_buffers - Free temporary buffers for batch Rytov rendering
+ * @b: Pointer to buffer container.
+ */
 static void atmturb_wfs_rytov_cuda_free_buffers(
     atmturb_wfs_cuda_rytov_bufs_t *b)
 {
-    if (b->sublayers != NULL)
+    if (b->sublayers)
     {
-        atmturb_cuda_host_free(b->sublayers);
+        free(b->sublayers);
         b->sublayers = NULL;
     }
     free(b->super_nlayers);
+    b->super_nlayers = NULL;
     free(b->super_dist_m);
+    b->super_dist_m = NULL;
     free(b->masters);
+    b->masters = NULL;
     free(b->screen_offsets);
-    if (b->lf_modes != NULL)
+    b->screen_offsets = NULL;
+    if (b->lf_modes)
     {
         atmturb_cuda_host_free(b->lf_modes);
         b->lf_modes = NULL;
     }
-    if (b->super_nlf_modes != NULL)
-    {
-        free(b->super_nlf_modes);
-        b->super_nlf_modes = NULL;
-    }
+    free(b->super_nlf_modes);
+    b->super_nlf_modes = NULL;
 }
 
+/**
+ * atmturb_wfs_rytov_cuda_alloc_buffers - Allocate temporary working buffers for batch Rytov
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @plan: Active Rytov perturbation plan.
+ * @nbframes: Number of simulation frames.
+ * @max_sublayers: Maximum sublayers per superlayer.
+ * @out_max_lf: Output pointer for max low-frequency modes.
+ * @out_total_screens: Output pointer for total master screen count.
+ * @b: Destination buffer container.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
 static int atmturb_wfs_rytov_cuda_alloc_buffers(
     const atmturb_rolling_t       *r,
     const atmturb_geom_t          *geom,
     const atmturb_rytov_plan_t    *plan,
     long                           nbframes,
     int                            max_sublayers,
+    int                           *out_max_lf,
     int                           *out_total_screens,
-    int                           *out_max_lf_modes,
     atmturb_wfs_cuda_rytov_bufs_t *b)
 {
     memset(b, 0, sizeof(*b));
-    if (atmturb_wfs_cuda_init_screen_pool(r, geom->nlayers, &b->masters,
-                                          &b->screen_offsets, out_total_screens) != 0)
-    {
-        return -1;
-    }
 
     size_t n_sub_tot = (size_t) (nbframes * plan->nsuper * max_sublayers);
-    size_t sub_bytes = n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t);
-    atmturb_cuda_host_alloc((void **) &b->sublayers, sub_bytes);
-    if (b->sublayers != NULL)
-    {
-        memset(b->sublayers, 0, sub_bytes);
-    }
+    b->sublayers = (atmturb_cuda_rytov_sublayer_t *) calloc(
+        n_sub_tot, sizeof(atmturb_cuda_rytov_sublayer_t));
     b->super_nlayers = (int *) malloc(sizeof(int) * (size_t) plan->nsuper);
     b->super_dist_m  = (double *) malloc(sizeof(double) * (size_t) plan->nsuper);
 
-    if (atmturb_wfs_cuda_init_rytov_lf(r, plan, nbframes, out_max_lf_modes,
+    if (atmturb_wfs_cuda_init_screen_pool(r, geom->nlayers, &b->masters,
+                                         &b->screen_offsets, out_total_screens) != 0)
+    {
+        atmturb_wfs_rytov_cuda_free_buffers(b);
+        return -1;
+    }
+
+    if (atmturb_wfs_cuda_init_rytov_lf(r, plan, nbframes, out_max_lf,
                                        &b->super_nlf_modes, &b->lf_modes) != 0)
     {
         atmturb_wfs_rytov_cuda_free_buffers(b);
         return -1;
     }
+
     if (!b->sublayers || !b->super_nlayers || !b->super_dist_m)
     {
         atmturb_wfs_rytov_cuda_free_buffers(b);
         return -1;
     }
+
     for (int m = 0; m < plan->nsuper; m++)
     {
         b->super_nlayers[m] = 2 * plan->supers[m].nlayers;
         b->super_dist_m[m]  = plan->supers[m].dist_m;
     }
+
     return 0;
 }
 
+/**
+ * atmturb_wfs_render_rytov_cuda - Render Rytov diffractive simulation frames on GPU
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @prof: Active turbulence profile.
+ * @params: Observation parameters container.
+ * @master_size: Master screen dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ * @nbframes: Number of simulation frames.
+ * @imgs: Container of output 3D image handles.
+ *
+ * Precomputes multi-frame sublayer trajectories and subharmonics on host threads with OpenMP,
+ * then dispatches multi-layer GPU Rytov Fourier filtering and pupil assembly.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
 int atmturb_wfs_render_rytov_cuda(
     const atmturb_rolling_t    *r,
     const atmturb_geom_t       *geom,
@@ -447,7 +388,8 @@ int atmturb_wfs_render_rytov_cuda(
     long                        nbframes,
     const atmturb_wfs_images_t *imgs)
 {
-    if (!atmturb_cuda_device_available())
+    if (r == NULL || geom == NULL || prof == NULL || params == NULL || imgs == NULL ||
+        nbframes <= 0 || master_size <= 0 || pup_size <= 0 || !atmturb_cuda_device_available())
     {
         return -1;
     }
@@ -476,24 +418,23 @@ int atmturb_wfs_render_rytov_cuda(
         return -1;
     }
 
-    int total_screens = 0;
+    atmturb_wfs_cuda_rytov_bufs_t bufs;
     int max_lf_modes = 0;
-    atmturb_wfs_cuda_rytov_bufs_t b;
-    if (atmturb_wfs_rytov_cuda_alloc_buffers(r, geom, &plan, nbframes, max_sublayers,
-                                             &total_screens, &max_lf_modes, &b) != 0)
+    int total_screens = 0;
+    if (atmturb_wfs_rytov_cuda_alloc_buffers(
+            r, geom, &plan, nbframes, max_sublayers, &max_lf_modes,
+            &total_screens, &bufs) != 0)
     {
         atmturb_rytov_plan_free(&plan);
         return -1;
     }
 
-    atmturb_wfs_cuda_build_sublayers(r, geom, &plan, b.screen_offsets, nbframes,
-                                     params->time_step_s, max_sublayers, b.sublayers);
-
-    if (b.lf_modes != NULL)
-    {
-        atmturb_wfs_cuda_build_lf_modes(r, geom, &plan, nbframes,
-                                        params->time_step_s, max_lf_modes, b.lf_modes);
-    }
+    atmturb_wfs_cuda_build_sublayers(
+        r, geom, &plan, bufs.screen_offsets, nbframes, params->time_step_s,
+        max_sublayers, bufs.sublayers);
+    atmturb_wfs_cuda_build_lf_modes(
+        r, geom, &plan, nbframes, params->time_step_s,
+        max_lf_modes, bufs.lf_modes);
 
     atmturb_cuda_rytov_params_t cparams = {
         .msize           = master_size,
@@ -509,7 +450,7 @@ int atmturb_wfs_render_rytov_cuda(
         .interp          = geom->interp,
         .use_moisan      = plan.use_moisan,
         .lowfreq         = r->lowfreq,
-        .h_masters       = b.masters,
+        .h_masters       = bufs.masters,
         .h_laplace_inv   = plan.laplace_inv,
         .h_exp_x         = (const void *) plan.exp_x,
         .h_exp_y         = (const void *) plan.exp_y,
@@ -518,458 +459,24 @@ int atmturb_wfs_render_rytov_cuda(
         .h_filt_a_sec    = (const float *const *) plan.filter_a_sec,
         .h_filt_b_sec    = (const float *const *) plan.filter_b_sec,
         .h_chrom_ramp    = (const void *const *) plan.chrom_ramp,
-        .frame_sublayers = b.sublayers,
-        .super_nlayers   = b.super_nlayers,
-        .super_dist_m    = b.super_dist_m,
+        .frame_sublayers = bufs.sublayers,
+        .super_nlayers   = bufs.super_nlayers,
+        .super_dist_m    = bufs.super_dist_m,
         .max_sublayers   = max_sublayers,
-        .frame_lf_modes  = b.lf_modes,
-        .super_nlf_modes = b.super_nlf_modes,
+        .frame_lf_modes  = bufs.lf_modes,
+        .super_nlf_modes = bufs.super_nlf_modes,
         .max_lf_modes    = max_lf_modes,
-        .pha             = &dcimg[imgs->ID_pha].array.F[0],
-        .amp             = &dcimg[imgs->ID_amp].array.F[0],
-        .spha            = (plan.lambda_s_m > 0.0) ? &dcimg[imgs->ID_spha].array.F[0] : NULL,
-        .samp            = (plan.lambda_s_m > 0.0) ? &dcimg[imgs->ID_samp].array.F[0] : NULL
+        .pha             = (imgs->ID_pha >= 0) ? &dcimg[imgs->ID_pha].array.F[0] : NULL,
+        .amp             = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[0] : NULL,
+        .spha            = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[0] : NULL,
+        .samp            = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[0] : NULL
     };
 
     int ret = atmturb_cuda_rytov_render(&cparams);
 
-    atmturb_wfs_rytov_cuda_free_buffers(&b);
+    atmturb_wfs_rytov_cuda_free_buffers(&bufs);
     atmturb_rytov_plan_free(&plan);
-
     return ret;
-}
-
-struct atmturb_cuda_rytov_stream
-{
-    atmturb_rytov_plan_t          plan;
-    atmturb_cuda_rytov_params_t   cparams;
-    atmturb_cuda_rytov_sublayer_t *sublayers[2];
-    int                          *super_nlayers;
-    double                       *super_dist_m;
-    atmturb_cuda_lowfreq_mode_t  *lf_modes[2];
-    int                          *super_nlf_modes;
-    const float                 **masters;
-    int                          *screen_offsets;
-    int                           max_sublayers;
-    int                           max_lf_modes;
-    double                        offset_os;
-    void                         *ev_done[2];
-};
-
-/**
- * atmturb_cuda_rytov_stream_init - Initialize persistent GPU Rytov streaming context
- * @r: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @prof: Active turbulence profile.
- * @params: Observation parameters container.
- * @master_size: Master screen linear dimension in pixels.
- * @pup_size: Output pupil dimension in pixels.
- *
- * Return: Allocated streaming context, or NULL on failure.
- */
-atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
-    const atmturb_rolling_t    *r,
-    const atmturb_geom_t       *geom,
-    const atmturb_profile_t    *prof,
-    const atmturb_obs_params_t *params,
-    long                        master_size,
-    long                        pup_size)
-{
-    if (!atmturb_cuda_device_available())
-    {
-        return NULL;
-    }
-
-    atmturb_cuda_rytov_stream_t *ctx =
-        (atmturb_cuda_rytov_stream_t *) calloc(1, sizeof(atmturb_cuda_rytov_stream_t));
-    if (!ctx)
-    {
-        return NULL;
-    }
-
-    double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
-    if (atmturb_rytov_plan_init(&ctx->plan, prof, geom, pup_size, params->pupil_scale_m,
-                                params->lambda_ref_m, params->lambda_s_m, z_bin,
-                                CONF_FRESNEL_RYTOV_SEC_EXACT) != 0)
-    {
-        free(ctx);
-        return NULL;
-    }
-
-    int max_sublayers = 1;
-    for (int m = 0; m < ctx->plan.nsuper; m++)
-    {
-        int n_sub = 2 * ctx->plan.supers[m].nlayers;
-        if (n_sub > max_sublayers)
-        {
-            max_sublayers = n_sub;
-        }
-    }
-    if (max_sublayers > 128)
-    {
-        atmturb_rytov_plan_free(&ctx->plan);
-        free(ctx);
-        return NULL;
-    }
-
-    int total_screens = 0;
-    if (atmturb_wfs_cuda_init_screen_pool(r, geom->nlayers, &ctx->masters,
-                                         &ctx->screen_offsets, &total_screens) != 0)
-    {
-        atmturb_cuda_rytov_stream_free(ctx);
-        return NULL;
-    }
-
-    ctx->max_sublayers = max_sublayers;
-    ctx->offset_os     = (double) ctx->plan.guard_pix * (double) geom->oversample;
-    size_t n_sub_tot   = (size_t) (ctx->plan.nsuper * max_sublayers);
-    size_t sub_bytes   = n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t);
-
-    for (int s = 0; s < 2; s++)
-    {
-        ctx->sublayers[s] = (atmturb_cuda_rytov_sublayer_t *) calloc(
-            n_sub_tot, sizeof(atmturb_cuda_rytov_sublayer_t));
-        if (!ctx->sublayers[s])
-        {
-            atmturb_cuda_rytov_stream_free(ctx);
-            return NULL;
-        }
-    }
-    ctx->super_nlayers = (int *) malloc(sizeof(int) * (size_t) ctx->plan.nsuper);
-    ctx->super_dist_m  = (double *) malloc(sizeof(double) * (size_t) ctx->plan.nsuper);
-
-    if (atmturb_wfs_cuda_init_rytov_lf(r, &ctx->plan, 1, &ctx->max_lf_modes,
-                                       &ctx->super_nlf_modes, &ctx->lf_modes[0]) != 0)
-    {
-        atmturb_cuda_rytov_stream_free(ctx);
-        return NULL;
-    }
-    if (ctx->lf_modes[0] != NULL)
-    {
-        size_t lf_bytes = (size_t) (ctx->plan.nsuper * ctx->max_lf_modes) *
-                          sizeof(atmturb_cuda_lowfreq_mode_t);
-        atmturb_cuda_host_alloc((void **) &ctx->lf_modes[1], lf_bytes);
-    }
-
-    if (!ctx->super_nlayers || !ctx->super_dist_m)
-    {
-        atmturb_cuda_rytov_stream_free(ctx);
-        return NULL;
-    }
-
-    for (int m = 0; m < ctx->plan.nsuper; m++)
-    {
-        ctx->super_nlayers[m] = 2 * ctx->plan.supers[m].nlayers;
-        ctx->super_dist_m[m]  = ctx->plan.supers[m].dist_m;
-    }
-
-    ctx->cparams.msize           = master_size;
-    ctx->cparams.pup_size        = pup_size;
-    ctx->cparams.pad_size        = ctx->plan.pad_size;
-    ctx->cparams.guard_pix       = ctx->plan.guard_pix;
-    ctx->cparams.nbframes        = 1;
-    ctx->cparams.nblayers        = total_screens;
-    ctx->cparams.nsuper          = ctx->plan.nsuper;
-    ctx->cparams.has_sec         = (ctx->plan.lambda_s_m > 0.0) ? 1 : 0;
-    ctx->cparams.sec_shared      = ctx->plan.sec_shared;
-    ctx->cparams.os              = (int) geom->oversample;
-    ctx->cparams.interp          = geom->interp;
-    ctx->cparams.use_moisan      = ctx->plan.use_moisan;
-    ctx->cparams.lowfreq         = r->lowfreq;
-    ctx->cparams.h_masters       = ctx->masters;
-    ctx->cparams.h_laplace_inv   = ctx->plan.laplace_inv;
-    ctx->cparams.h_exp_x         = (const void *) ctx->plan.exp_x;
-    ctx->cparams.h_exp_y         = (const void *) ctx->plan.exp_y;
-    ctx->cparams.h_filt_a_pri    = (const float *const *) ctx->plan.filter_a_pri;
-    ctx->cparams.h_filt_b_pri    = (const float *const *) ctx->plan.filter_b_pri;
-    ctx->cparams.h_filt_a_sec    = (const float *const *) ctx->plan.filter_a_sec;
-    ctx->cparams.h_filt_b_sec    = (const float *const *) ctx->plan.filter_b_sec;
-    ctx->cparams.h_chrom_ramp    = (const void *const *) ctx->plan.chrom_ramp;
-    ctx->cparams.frame_sublayers = ctx->sublayers[0];
-    ctx->cparams.super_nlayers   = ctx->super_nlayers;
-    ctx->cparams.super_dist_m    = ctx->super_dist_m;
-    ctx->cparams.max_sublayers   = max_sublayers;
-    ctx->cparams.frame_lf_modes  = ctx->lf_modes[0];
-    ctx->cparams.super_nlf_modes = ctx->super_nlf_modes;
-    ctx->cparams.max_lf_modes    = ctx->max_lf_modes;
-    ctx->cparams.remove_piston   = 1;
-
-    for (int s = 0; s < 2; s++)
-    {
-        if (atmturb_cuda_rytov_create_event(&ctx->ev_done[s]) != 0)
-        {
-            atmturb_cuda_rytov_stream_free(ctx);
-            return NULL;
-        }
-    }
-
-    return ctx;
-}
-
-/**
- * atmturb_cuda_rytov_stream_render_launch - Enqueue GPU ops for Rytov frame asynchronously
- * @ctx: Persistent stream context.
- * @r: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @t: Frame index.
- * @time_step_s: Time step in seconds.
- * @pha: Destination primary phase frame buffer.
- * @amp: Destination primary amplitude frame buffer.
- * @spha: Destination secondary phase frame buffer (or NULL).
- * @samp: Destination secondary amplitude frame buffer (or NULL).
- * @slot: Active double-buffer slot index (0 or 1).
- *
- * Return: 0 on success, -1 on failure.
- */
-int atmturb_cuda_rytov_stream_render_launch(
-    atmturb_cuda_rytov_stream_t *ctx,
-    const atmturb_rolling_t     *r,
-    const atmturb_geom_t        *geom,
-    long                         t,
-    double                       time_step_s,
-    float                       *pha,
-    float                       *amp,
-    float                       *spha,
-    float                       *samp,
-    int                          slot)
-{
-    if (!ctx)
-    {
-        return -1;
-    }
-    slot &= 1;
-
-    atmturb_wfs_cuda_build_frame_sublayers(
-        r, geom, &ctx->plan, ctx->screen_offsets, t, time_step_s, ctx->offset_os,
-        ctx->max_sublayers, ctx->sublayers[slot]);
-
-    if (r->lowfreq && ctx->lf_modes[slot] != NULL)
-    {
-        atmturb_wfs_cuda_build_frame_lf_modes(
-            r, geom, &ctx->plan, t, time_step_s, ctx->offset_os,
-            ctx->max_lf_modes, ctx->lf_modes[slot]);
-    }
-
-    ctx->cparams.frame_sublayers = ctx->sublayers[slot];
-    ctx->cparams.frame_lf_modes  = ctx->lf_modes[slot];
-    ctx->cparams.pha             = pha;
-    ctx->cparams.amp             = amp;
-    ctx->cparams.spha            = spha;
-    ctx->cparams.samp            = samp;
-    ctx->cparams.async_stream    = 1;
-    ctx->cparams.slot            = slot;
-
-    int ret = atmturb_cuda_rytov_render(&ctx->cparams);
-    if (ret != 0)
-    {
-        return ret;
-    }
-
-    return atmturb_cuda_rytov_record_event(ctx->ev_done[slot]);
-}
-
-/**
- * atmturb_cuda_rytov_stream_render_wait - Wait for enqueued Rytov frame to finish on GPU
- * @ctx: Persistent stream context.
- * @slot: Buffer slot to synchronize (0 or 1).
- *
- * Return: 0 on success, -1 on failure.
- */
-int atmturb_cuda_rytov_stream_render_wait(
-    atmturb_cuda_rytov_stream_t *ctx,
-    int                          slot)
-{
-    if (!ctx)
-    {
-        return -1;
-    }
-    return atmturb_cuda_rytov_wait_event(ctx->ev_done[slot & 1]);
-}
-
-/**
- * atmturb_cuda_rytov_stream_render_step - Render one stream frame on GPU
- * @ctx: Persistent stream context.
- * @r: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @t: Frame index.
- * @time_step_s: Time step in seconds.
- * @pha: Destination primary phase frame buffer.
- * @amp: Destination primary amplitude frame buffer.
- * @spha: Destination secondary phase frame buffer (or NULL).
- * @samp: Destination secondary amplitude frame buffer (or NULL).
- *
- * Return: 0 on success, -1 on failure.
- */
-int atmturb_cuda_rytov_stream_render_step(
-    atmturb_cuda_rytov_stream_t *ctx,
-    const atmturb_rolling_t     *r,
-    const atmturb_geom_t        *geom,
-    long                         t,
-    double                       time_step_s,
-    float                       *pha,
-    float                       *amp,
-    float                       *spha,
-    float                       *samp)
-{
-    int ret = atmturb_cuda_rytov_stream_render_launch(
-        ctx, r, geom, t, time_step_s, pha, amp, spha, samp, 0);
-    if (ret != 0)
-    {
-        return ret;
-    }
-    return atmturb_cuda_rytov_stream_render_wait(ctx, 0);
-}
-
-/**
- * atmturb_cuda_rytov_stream_free - Free persistent GPU Rytov streaming context
- * @ctx: Stream context to release.
- */
-void atmturb_cuda_rytov_stream_free(
-    atmturb_cuda_rytov_stream_t *ctx)
-{
-    if (!ctx)
-    {
-        return;
-    }
-    for (int s = 0; s < 2; s++)
-    {
-        if (ctx->ev_done[s] != NULL)
-        {
-            atmturb_cuda_rytov_destroy_event(ctx->ev_done[s]);
-            ctx->ev_done[s] = NULL;
-        }
-        if (ctx->sublayers[s])
-        {
-            free(ctx->sublayers[s]);
-            ctx->sublayers[s] = NULL;
-        }
-        if (ctx->lf_modes[s])
-        {
-            atmturb_cuda_host_free(ctx->lf_modes[s]);
-            ctx->lf_modes[s] = NULL;
-        }
-    }
-    if (ctx->super_nlayers)
-    {
-        free(ctx->super_nlayers);
-    }
-    if (ctx->super_dist_m)
-    {
-        free(ctx->super_dist_m);
-    }
-    if (ctx->super_nlf_modes)
-    {
-        free(ctx->super_nlf_modes);
-    }
-    if (ctx->masters)
-    {
-        free(ctx->masters);
-    }
-    if (ctx->screen_offsets)
-    {
-        free(ctx->screen_offsets);
-    }
-    atmturb_rytov_plan_free(&ctx->plan);
-    atmturb_cuda_rytov_cleanup();
-    free(ctx);
-}
-
-/**
- * atmturb_wfs_cuda_geom_stream_init - Initialize persistent GPU geometric streaming context
- * @r: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @master_size: Master screen linear dimension in pixels.
- * @pup_size: Output pupil dimension in pixels.
- *
- * Return: Allocated stream context, or NULL on failure.
- */
-atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
-    const atmturb_rolling_t *r,
-    const atmturb_geom_t    *geom,
-    long                     master_size,
-    long                     pup_size)
-{
-    if (r == NULL || geom == NULL || !atmturb_cuda_device_available())
-    {
-        return NULL;
-    }
-
-    int nl = geom->nlayers;
-    size_t m_sz = (size_t) nl * sizeof(float *);
-    size_t d_sz = (size_t) nl * sizeof(double);
-    void *buf = malloc(m_sz + 5 * d_sz);
-    if (!buf)
-    {
-        return NULL;
-    }
-    const float **masters = (const float **) buf;
-    double *vx  = (double *) ((char *) buf + m_sz);
-    double *vy  = vx + nl;
-    double *cn2 = vy + nl;
-    double *x0  = cn2 + nl;
-    double *y0  = x0 + nl;
-
-    for (int k = 0; k < nl; k++)
-    {
-        masters[k] = r->layers[k].screens[0].data;
-        vx[k]      = geom->layers[k].vx_pix;
-        vy[k]      = geom->layers[k].vy_pix;
-        cn2[k]     = geom->layers[k].weight * geom->layers[k].weight;
-        x0[k]      = geom->layers[k].x0;
-        y0[k]      = geom->layers[k].y0;
-    }
-
-    double w0 = geom->layers[0].weight;
-    double scoeff = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
-    atmturb_cuda_sim_params_t cparams = {
-        .nblayers  = nl,
-        .msize     = master_size,
-        .pup_size  = pup_size,
-        .nbframes  = 1,
-        .Scoeff    = scoeff,
-        .h_masters = (const float *const *) masters,
-        .vxpix     = vx,
-        .vypix     = vy,
-        .cn2       = cn2,
-        .x0        = x0,
-        .y0        = y0
-    };
-
-    atmturb_cuda_geom_stream_t *ctx = atmturb_cuda_geom_stream_init(&cparams);
-    free(buf);
-    return ctx;
-}
-
-/**
- * atmturb_wfs_cuda_geom_stream_render_step - Render one geometric stream frame on GPU
- * @ctx: Persistent stream context.
- * @t: Frame index.
- * @pha: Destination primary phase frame buffer.
- * @amp: Destination primary amplitude frame buffer (or NULL).
- * @spha: Destination secondary phase frame buffer (or NULL).
- * @samp: Destination secondary amplitude frame buffer (or NULL).
- *
- * Return: 0 on success, -1 on failure.
- */
-int atmturb_wfs_cuda_geom_stream_render_step(
-    atmturb_cuda_geom_stream_t *ctx,
-    long                        t,
-    float                      *pha,
-    float                      *amp,
-    float                      *spha,
-    float                      *samp)
-{
-    return atmturb_cuda_geom_stream_render_step(ctx, t, pha, amp, spha, samp);
-}
-
-/**
- * atmturb_wfs_cuda_geom_stream_free - Free persistent GPU geometric streaming context
- * @ctx: Stream context to release.
- */
-void atmturb_wfs_cuda_geom_stream_free(
-    atmturb_cuda_geom_stream_t *ctx)
-{
-    atmturb_cuda_geom_stream_free(ctx);
 }
 
 #endif // HAVE_CUDA

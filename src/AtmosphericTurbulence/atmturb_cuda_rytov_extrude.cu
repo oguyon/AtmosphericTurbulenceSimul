@@ -3,16 +3,29 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 /**
- * @file    atmturb_cuda_rytov_kernels.cu
- * @brief   GPU device kernels for multi-layer Rytov wavefront synthesis
+ * @file    atmturb_cuda_rytov_extrude.cu
+ * @brief   GPU device kernels for superlayer extrusion and subharmonic phase synthesis
  */
 
 #include <cuda_runtime.h>
-#include <cufft.h>
 #include <math.h>
 
 #include "atmturb_cuda_rytov_internal.h"
 
+/**
+ * atmturb_cuda_sample_screen - Bilinear interpolation sample from toroidal master screen
+ * @d_masters: Array of device pointers to master phase screens.
+ * @msize: Master screen dimension in pixels.
+ * @is_pow2: 1 if msize is a power of 2, 0 otherwise.
+ * @mask: Bitmask for power-of-2 wrapping (msize - 1).
+ * @k: Master screen layer index.
+ * @cur_x: Fractional sampling coordinate along X in master pixels.
+ * @cur_y: Fractional sampling coordinate along Y in master pixels.
+ *
+ * Evaluates bilinear interpolation with periodic toroidal boundary conditions.
+ *
+ * Return: Interpolated phase value in radians.
+ */
 __device__ static inline float atmturb_cuda_sample_screen(
     const float *d_masters,
     int          msize,
@@ -57,6 +70,20 @@ __device__ static inline float atmturb_cuda_sample_screen(
     return top + fy * (bot - top);
 }
 
+/**
+ * atmturb_cuda_sample_screen_bicubic - Keys bicubic interpolation from toroidal master screen
+ * @d_masters: Array of device pointers to master phase screens.
+ * @msize: Master screen dimension in pixels.
+ * @is_pow2: 1 if msize is a power of 2, 0 otherwise.
+ * @mask: Bitmask for power-of-2 wrapping (msize - 1).
+ * @k: Master screen layer index.
+ * @cur_x: Fractional sampling coordinate along X in master pixels.
+ * @cur_y: Fractional sampling coordinate along Y in master pixels.
+ *
+ * Evaluates Catmull-Rom / Keys bicubic convolution (alpha = -0.5) over a 4x4 pixel support.
+ *
+ * Return: Interpolated phase value in radians.
+ */
 __device__ static inline float atmturb_cuda_sample_screen_bicubic(
     const float *d_masters,
     int          msize,
@@ -129,6 +156,20 @@ __device__ static inline float atmturb_cuda_sample_screen_bicubic(
     return wy0 * h0 + wy1 * h1 + wy2 * h2 + wy3 * h3;
 }
 
+/**
+ * atmturb_cuda_accumulate_lowfreq_shared - Shared-memory batched accumulation of subharmonics
+ * @n_modes: Total number of low-frequency Fourier modes.
+ * @has_sec: 1 if secondary chromatic wavelength is enabled, 0 otherwise.
+ * @d_modes: Array of device low-frequency mode definitions.
+ * @i: Grid pixel column index.
+ * @j: Grid pixel row index.
+ * @pad_size: Linear dimension of padded simulation grid.
+ * @acc_pri_out: Destination accumulator for primary wavelength phase.
+ * @acc_sec_out: Destination accumulator for secondary wavelength phase.
+ *
+ * Utilizes 2D threadblock shared memory tiles to evaluate complex Fourier basis exponentials
+ * across thread ranks with minimal redundant trig evaluations.
+ */
 __device__ static inline void atmturb_cuda_accumulate_lowfreq_shared(
     int                                n_modes,
     int                                has_sec,
@@ -219,6 +260,24 @@ __device__ static inline void atmturb_cuda_accumulate_lowfreq_shared(
     *acc_sec_out += acc_sec;
 }
 
+/**
+ * atmturb_cuda_extrude_sl_kernel - Device kernel extruding sublayers onto padded grid
+ * @d_masters: Array of device pointers to master phase screens.
+ * @msize: Master phase screen linear dimension in pixels.
+ * @pad_size: Linear dimension of padded simulation grid in pixels.
+ * @pup_size: Linear dimension of synthesized pupil in pixels.
+ * @guard: Guard band margin in pixels surrounding pupil.
+ * @n_sub: Number of active sublayers in current superlayer.
+ * @has_sec: 1 if secondary wavelength is enabled, 0 otherwise.
+ * @os: Master screen oversampling factor (1 or 2).
+ * @d_sublayers: Array of device sublayer coordinates and interpolation weights.
+ * @n_lf_modes: Number of active low-frequency subharmonic modes.
+ * @d_lf_modes: Array of device subharmonic mode parameters.
+ * @d_super_pha: Destination superlayer primary phase array.
+ * @d_super_spha: Destination superlayer secondary phase array.
+ * @d_frame_pha: Cumulative pupil primary phase array.
+ * @d_frame_spha: Cumulative pupil secondary phase array.
+ */
 template <int interp_mode>
 __global__ static void atmturb_cuda_extrude_sl_kernel(
     const float                         *d_masters,
@@ -331,6 +390,26 @@ __global__ static void atmturb_cuda_extrude_sl_kernel(
     }
 }
 
+/**
+ * atmturb_cuda_extrude_sl_launch - Launch superlayer phase screen extrusion and subharmonics
+ * @interp_mode: Interpolation scheme (0=bilinear, 1=Keys bicubic).
+ * @d_masters: Array of device pointers to master phase screens.
+ * @msize: Master phase screen linear dimension in pixels.
+ * @pad_size: Linear dimension of padded simulation grid in pixels.
+ * @pup_size: Linear dimension of synthesized pupil in pixels.
+ * @guard: Guard band margin in pixels surrounding pupil.
+ * @n_sub: Number of active sublayers in current superlayer.
+ * @has_sec: 1 if secondary wavelength is enabled, 0 otherwise.
+ * @os: Master screen oversampling factor (1 or 2).
+ * @d_sublayers: Array of device sublayer coordinates and interpolation weights.
+ * @n_lf_modes: Number of active low-frequency subharmonic modes.
+ * @d_lf_modes: Array of device subharmonic mode parameters.
+ * @d_super_pha: Destination superlayer primary phase array.
+ * @d_super_spha: Destination superlayer secondary phase array.
+ * @d_frame_pha: Cumulative pupil primary phase array.
+ * @d_frame_spha: Cumulative pupil secondary phase array.
+ * @stream: CUDA execution stream.
+ */
 void atmturb_cuda_extrude_sl_launch(
     int                                  interp_mode,
     const float                         *d_masters,
@@ -467,505 +546,3 @@ void atmturb_cuda_lowfreq_accumulate_launch(
         pad_size, pup_size, guard, n_modes, has_sec, d_modes,
         d_super_pha, d_super_spha, d_frame_pha, d_frame_spha);
 }
-
-__global__ static void atmturb_cuda_extract_bounds_kernel(
-    const float *d_super_pha,
-    float       *d_bounds,
-    int          pad_size)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= pad_size)
-    {
-        return;
-    }
-
-    d_bounds[0 * pad_size + idx] = d_super_pha[0 * pad_size + idx] -
-                                   d_super_pha[(pad_size - 1) * pad_size + idx];
-    d_bounds[1 * pad_size + idx] = d_super_pha[idx * pad_size + 0] -
-                                   d_super_pha[idx * pad_size + (pad_size - 1)];
-}
-
-void atmturb_cuda_extract_bounds_launch(
-    const float *d_super_pha,
-    float       *d_bounds,
-    int          pad_size,
-    cudaStream_t stream)
-{
-    dim3 b_1d(256);
-    dim3 g_1d(((int) pad_size + b_1d.x - 1) / b_1d.x);
-    atmturb_cuda_extract_bounds_kernel<<<g_1d, b_1d, 0, stream>>>(
-        d_super_pha, d_bounds, pad_size);
-}
-
-__device__ static inline cufftComplex atmturb_cuda_moisan_calc(
-    cufftComplex       s,
-    const cufftComplex *hat_bounds,
-    const cufftComplex *exp_x,
-    const cufftComplex *exp_y,
-    const float        *laplace_inv,
-    int                 i,
-    int                 j,
-    int                 pad_size,
-    int                 n_half)
-{
-    const cufftComplex *hat_a = hat_bounds;
-    const cufftComplex *hat_b = hat_bounds + n_half;
-
-    float b_re, b_im;
-    if (j <= pad_size / 2)
-    {
-        b_re = hat_b[j].x;
-        b_im = hat_b[j].y;
-    }
-    else
-    {
-        int j_sym = pad_size - j;
-        b_re =  hat_b[j_sym].x;
-        b_im = -hat_b[j_sym].y;
-    }
-
-    cufftComplex ey = exp_y[j];
-    cufftComplex ex = exp_x[i];
-    cufftComplex ha = hat_a[i];
-
-    float v_re = (ha.x * ey.x - ha.y * ey.y) + (b_re * ex.x - b_im * ex.y);
-    float v_im = (ha.x * ey.y + ha.y * ey.x) + (b_re * ex.y + b_im * ex.x);
-
-    int idx = j * n_half + i;
-    float linv = laplace_inv[idx];
-    s.x += v_re * linv;
-    s.y += v_im * linv;
-    return s;
-}
-
-__global__ static void atmturb_cuda_moisan_adjust_kernel(
-    cufftComplex       *d_spec,
-    const cufftComplex *d_hat_bounds,
-    const cufftComplex *d_exp_x,
-    const cufftComplex *d_exp_y,
-    const float        *d_laplace_inv,
-    int                 pad_size,
-    int                 n_half)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    if (i >= n_half || j >= pad_size)
-    {
-        return;
-    }
-
-    int idx = j * n_half + i;
-    d_spec[idx] = atmturb_cuda_moisan_calc(
-        d_spec[idx], d_hat_bounds, d_exp_x, d_exp_y, d_laplace_inv, i, j, pad_size, n_half);
-}
-
-void atmturb_cuda_moisan_adjust_launch(
-    cufftComplex       *d_spec,
-    const cufftComplex *d_hat_bounds,
-    const cufftComplex *d_exp_x,
-    const cufftComplex *d_exp_y,
-    const float        *d_laplace_inv,
-    int                 pad_size,
-    int                 n_half,
-    cudaStream_t        stream)
-{
-    dim3 b_spec(16, 16);
-    dim3 g_spec(((int) n_half + b_spec.x - 1) / b_spec.x,
-                ((int) pad_size + b_spec.y - 1) / b_spec.y);
-    atmturb_cuda_moisan_adjust_kernel<<<g_spec, b_spec, 0, stream>>>(
-        d_spec, d_hat_bounds, d_exp_x, d_exp_y, d_laplace_inv, pad_size, n_half);
-}
-
-__global__ static void atmturb_cuda_moisan_filter_mac_kernel(
-    atmturb_cuda_moisan_mac_t args)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    if (i >= args.n_half || j >= args.pad_size)
-    {
-        return;
-    }
-
-    int idx = j * args.n_half + i;
-    cufftComplex s = atmturb_cuda_moisan_calc(
-        args.d_spec[idx], args.d_hat_bounds, args.d_exp_x, args.d_exp_y,
-        args.d_laplace_inv, i, j, args.pad_size, args.n_half);
-
-    float fa = args.d_filt_a[idx];
-    float fb = args.d_filt_b[idx];
-
-    args.d_acc_dphi[idx].x += s.x * fa;
-    args.d_acc_dphi[idx].y += s.y * fa;
-    args.d_acc_chi[idx].x  += s.x * fb;
-    args.d_acc_chi[idx].y  += s.y * fb;
-}
-
-void atmturb_cuda_moisan_filter_mac_launch(
-    const atmturb_cuda_moisan_mac_t *args,
-    cudaStream_t                     stream)
-{
-    dim3 b_spec(16, 16);
-    dim3 g_spec(((int) args->n_half + b_spec.x - 1) / b_spec.x,
-                ((int) args->pad_size + b_spec.y - 1) / b_spec.y);
-    atmturb_cuda_moisan_filter_mac_kernel<<<g_spec, b_spec, 0, stream>>>(*args);
-}
-
-__global__ static void atmturb_cuda_moisan_dual_mac_kernel(
-    atmturb_cuda_moisan_dual_mac_t args)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    if (i >= args.n_half || j >= args.pad_size)
-    {
-        return;
-    }
-
-    int idx = j * args.n_half + i;
-    cufftComplex s = atmturb_cuda_moisan_calc(
-        args.d_spec[idx], args.d_hat_bounds, args.d_exp_x, args.d_exp_y,
-        args.d_laplace_inv, i, j, args.pad_size, args.n_half);
-
-    float fa_pri = args.d_filt_a_pri[idx];
-    float fb_pri = args.d_filt_b_pri[idx];
-
-    args.d_acc_dphi_pri[idx].x += s.x * fa_pri;
-    args.d_acc_dphi_pri[idx].y += s.y * fa_pri;
-    args.d_acc_chi_pri[idx].x  += s.x * fb_pri;
-    args.d_acc_chi_pri[idx].y  += s.y * fb_pri;
-
-    cufftComplex r = args.d_ramp[idx];
-    float ps_x = s.x * r.x - s.y * r.y;
-    float ps_y = s.x * r.y + s.y * r.x;
-    float fa_sec = args.d_filt_a_sec[idx];
-    float fb_sec = args.d_filt_b_sec[idx];
-
-    args.d_acc_dphi_sec[idx].x += ps_x * fa_sec;
-    args.d_acc_dphi_sec[idx].y += ps_y * fa_sec;
-    args.d_acc_chi_sec[idx].x  += ps_x * fb_sec;
-    args.d_acc_chi_sec[idx].y  += ps_y * fb_sec;
-}
-
-void atmturb_cuda_moisan_dual_mac_launch(
-    const atmturb_cuda_moisan_dual_mac_t *args,
-    cudaStream_t                          stream)
-{
-    dim3 b_spec(16, 16);
-    dim3 g_spec(((int) args->n_half + b_spec.x - 1) / b_spec.x,
-                ((int) args->pad_size + b_spec.y - 1) / b_spec.y);
-    atmturb_cuda_moisan_dual_mac_kernel<<<g_spec, b_spec, 0, stream>>>(*args);
-}
-
-__global__ static void atmturb_cuda_filter_mac_kernel(
-    cufftComplex       *d_acc_dphi,
-    cufftComplex       *d_acc_chi,
-    const cufftComplex *d_spec,
-    const float        *d_filt_a,
-    const float        *d_filt_b,
-    int                 ntot)
-{
-    int k = blockIdx.x * blockDim.x + threadIdx.x;
-    if (k >= ntot)
-    {
-        return;
-    }
-
-    cufftComplex s = d_spec[k];
-    float fa = d_filt_a[k];
-    float fb = d_filt_b[k];
-
-    d_acc_dphi[k].x += s.x * fa;
-    d_acc_dphi[k].y += s.y * fa;
-    d_acc_chi[k].x  += s.x * fb;
-    d_acc_chi[k].y  += s.y * fb;
-}
-
-void atmturb_cuda_filter_mac_launch(
-    cufftComplex       *d_acc_dphi,
-    cufftComplex       *d_acc_chi,
-    const cufftComplex *d_spec,
-    const float        *d_filt_a,
-    const float        *d_filt_b,
-    int                 ntot,
-    cudaStream_t        stream)
-{
-    dim3 b_mac(256);
-    dim3 g_mac(((int) ntot + b_mac.x - 1) / b_mac.x);
-    atmturb_cuda_filter_mac_kernel<<<g_mac, b_mac, 0, stream>>>(
-        d_acc_dphi, d_acc_chi, d_spec, d_filt_a, d_filt_b, ntot);
-}
-
-__global__ static void atmturb_cuda_filter_mac_dual_kernel(
-    cufftComplex       *d_acc_dphi_pri,
-    cufftComplex       *d_acc_chi_pri,
-    cufftComplex       *d_acc_dphi_sec,
-    cufftComplex       *d_acc_chi_sec,
-    const cufftComplex *d_spec,
-    const cufftComplex *d_ramp,
-    const float        *d_filt_a_pri,
-    const float        *d_filt_b_pri,
-    const float        *d_filt_a_sec,
-    const float        *d_filt_b_sec,
-    int                 ntot)
-{
-    int k = blockIdx.x * blockDim.x + threadIdx.x;
-    if (k >= ntot)
-    {
-        return;
-    }
-
-    cufftComplex s = d_spec[k];
-
-    float fa_pri = d_filt_a_pri[k];
-    float fb_pri = d_filt_b_pri[k];
-    d_acc_dphi_pri[k].x += s.x * fa_pri;
-    d_acc_dphi_pri[k].y += s.y * fa_pri;
-    d_acc_chi_pri[k].x  += s.x * fb_pri;
-    d_acc_chi_pri[k].y  += s.y * fb_pri;
-
-    cufftComplex r = d_ramp[k];
-    float ps_x = s.x * r.x - s.y * r.y;
-    float ps_y = s.x * r.y + s.y * r.x;
-
-    float fa_sec = d_filt_a_sec[k];
-    float fb_sec = d_filt_b_sec[k];
-    d_acc_dphi_sec[k].x += ps_x * fa_sec;
-    d_acc_dphi_sec[k].y += ps_y * fa_sec;
-    d_acc_chi_sec[k].x  += ps_x * fb_sec;
-    d_acc_chi_sec[k].y  += ps_y * fb_sec;
-}
-
-void atmturb_cuda_filter_mac_dual_launch(
-    cufftComplex       *d_acc_dphi_pri,
-    cufftComplex       *d_acc_chi_pri,
-    cufftComplex       *d_acc_dphi_sec,
-    cufftComplex       *d_acc_chi_sec,
-    const cufftComplex *d_spec,
-    const cufftComplex *d_ramp,
-    const float        *d_filt_a_pri,
-    const float        *d_filt_b_pri,
-    const float        *d_filt_a_sec,
-    const float        *d_filt_b_sec,
-    int                 ntot,
-    cudaStream_t        stream)
-{
-    dim3 b_mac(256);
-    dim3 g_mac(((int) ntot + b_mac.x - 1) / b_mac.x);
-    atmturb_cuda_filter_mac_dual_kernel<<<g_mac, b_mac, 0, stream>>>(
-        d_acc_dphi_pri, d_acc_chi_pri, d_acc_dphi_sec, d_acc_chi_sec,
-        d_spec, d_ramp, d_filt_a_pri, d_filt_b_pri, d_filt_a_sec, d_filt_b_sec, ntot);
-}
-
-__global__ static void atmturb_cuda_assemble_kernel(
-    int          pup_size,
-    int          guard,
-    int          pad_size,
-    float       *d_frame_pha,
-    float       *d_frame_amp,
-    const float *d_dphi_out,
-    const float *d_chi_out,
-    float       *d_sum_I)
-{
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    float a_sq = 0.0f;
-    if (x < pup_size && y < pup_size)
-    {
-        int max_clamp = (pup_size > 2) ? (pup_size - 2) : 0;
-        int sx = (guard == 0 && (x == 0 || x == pup_size - 1))
-                     ? ((x == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
-                     : x;
-        int sy = (guard == 0 && (y == 0 || y == pup_size - 1))
-                     ? ((y == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
-                     : y;
-        int src_idx = (sy + guard) * pad_size + (sx + guard);
-        int dst_idx = y * pup_size + x;
-
-        d_frame_pha[dst_idx] += d_dphi_out[src_idx];
-        float c = d_chi_out[src_idx];
-        if (c > 3.0f)
-        {
-            c = 3.0f;
-        }
-        else if (c < -3.0f)
-        {
-            c = -3.0f;
-        }
-        float a = expf(c);
-        d_frame_amp[dst_idx] = a;
-        a_sq = a * a;
-    }
-
-    for (int offset = 16; offset > 0; offset /= 2)
-    {
-        a_sq += __shfl_down_sync(0xffffffff, a_sq, offset);
-    }
-
-    __shared__ float s_warp_sums[32];
-    int lane = threadIdx.x + threadIdx.y * blockDim.x;
-    int warp_id = lane / 32;
-    int lane_id = lane % 32;
-
-    if (lane_id == 0)
-    {
-        s_warp_sums[warp_id] = a_sq;
-    }
-    __syncthreads();
-
-    if (lane < 32)
-    {
-        int nwarps = (blockDim.x * blockDim.y + 31) / 32;
-        float val = (lane < nwarps) ? s_warp_sums[lane] : 0.0f;
-        for (int offset = 16; offset > 0; offset /= 2)
-        {
-            val += __shfl_down_sync(0xffffffff, val, offset);
-        }
-        if (lane == 0)
-        {
-            atomicAdd(d_sum_I, val);
-        }
-    }
-}
-
-void atmturb_cuda_assemble_launch(
-    int          pup_size,
-    int          guard,
-    int          pad_size,
-    float       *d_frame_pha,
-    float       *d_frame_amp,
-    const float *d_dphi_out,
-    const float *d_chi_out,
-    float       *d_sum_I,
-    cudaStream_t stream)
-{
-    dim3 b_ass(16, 16);
-    dim3 g_ass(((int) pup_size + b_ass.x - 1) / b_ass.x,
-               ((int) pup_size + b_ass.y - 1) / b_ass.y);
-    atmturb_cuda_assemble_kernel<<<g_ass, b_ass, 0, stream>>>(
-        pup_size, guard, pad_size, d_frame_pha, d_frame_amp,
-        d_dphi_out, d_chi_out, d_sum_I);
-}
-
-__global__ static void atmturb_cuda_normalize_kernel(
-    float       *d_frame_amp,
-    int          npix,
-    const float *d_sum_I)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= npix)
-    {
-        return;
-    }
-
-    float sum_i = *d_sum_I;
-    float norm = (sum_i > 0.0f) ? rsqrtf(sum_i / (float) npix) : 1.0f;
-    d_frame_amp[idx] *= norm;
-}
-
-void atmturb_cuda_normalize_launch(
-    float       *d_frame_amp,
-    int          npix,
-    const float *d_sum_I,
-    cudaStream_t stream)
-{
-    dim3 b_norm(256);
-    dim3 g_norm(((int) npix + b_norm.x - 1) / b_norm.x);
-    atmturb_cuda_normalize_kernel<<<g_norm, b_norm, 0, stream>>>(
-        d_frame_amp, npix, d_sum_I);
-}
-
-__global__ static void atmturb_cuda_piston_sum_kernel(
-    const float *d_pha,
-    float       *d_sum,
-    int          npix)
-{
-    float val = 0.0f;
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-    for (int i = idx; i < npix; i += stride)
-    {
-        val += d_pha[i];
-    }
-
-    for (int offset = 16; offset > 0; offset /= 2)
-    {
-        val += __shfl_down_sync(0xffffffff, val, offset);
-    }
-
-    __shared__ float s_warp_sums[32];
-    int lane = threadIdx.x % 32;
-    int warp_id = threadIdx.x / 32;
-    if (lane == 0)
-    {
-        s_warp_sums[warp_id] = val;
-    }
-    __syncthreads();
-
-    if (threadIdx.x < 32)
-    {
-        int nwarps = blockDim.x / 32;
-        float bval = (threadIdx.x < nwarps) ? s_warp_sums[threadIdx.x] : 0.0f;
-        for (int offset = 16; offset > 0; offset /= 2)
-        {
-            bval += __shfl_down_sync(0xffffffff, bval, offset);
-        }
-        if (threadIdx.x == 0)
-        {
-            atomicAdd(d_sum, bval);
-        }
-    }
-}
-
-__global__ static void atmturb_cuda_piston_sub_kernel(
-    float       *d_pha,
-    const float *d_sum,
-    int          npix)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= npix)
-    {
-        return;
-    }
-    float mean = (*d_sum) / (float) npix;
-    d_pha[idx] -= mean;
-}
-
-void atmturb_cuda_remove_piston_launch(
-    float       *d_pha,
-    float       *d_sum_buf,
-    int          npix,
-    cudaStream_t stream)
-{
-    if (d_pha == NULL || d_sum_buf == NULL || npix <= 0)
-    {
-        return;
-    }
-    cudaMemsetAsync(d_sum_buf, 0, sizeof(float), stream);
-    dim3 block(256);
-    int num_blocks = (npix + 255) / 256;
-    if (num_blocks > 64)
-    {
-        num_blocks = 64;
-    }
-    dim3 grid(num_blocks);
-    atmturb_cuda_piston_sum_kernel<<<grid, block, 0, stream>>>(d_pha, d_sum_buf, npix);
-
-    dim3 full_grid((npix + 255) / 256);
-    atmturb_cuda_piston_sub_kernel<<<full_grid, block, 0, stream>>>(d_pha, d_sum_buf, npix);
-}
-
-void atmturb_cuda_piston_sub_launch(
-    float       *d_pha,
-    const float *d_sum_buf,
-    int          npix,
-    cudaStream_t stream)
-{
-    if (d_pha == NULL || d_sum_buf == NULL || npix <= 0)
-    {
-        return;
-    }
-    dim3 block(256);
-    dim3 grid((npix + 255) / 256);
-    atmturb_cuda_piston_sub_kernel<<<grid, block, 0, stream>>>(d_pha, d_sum_buf, npix);
-}
-
