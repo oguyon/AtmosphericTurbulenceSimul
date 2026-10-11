@@ -57,6 +57,24 @@ int atmturb_wfs_render_cuda(
         return -1;
     }
 
+    double w0 = geom->layers[0].weight;
+    double scoeff0 = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
+
+    for (int k = 0; k < geom->nlayers; k++)
+    {
+        if (geom->layers[k].traj_x != NULL || geom->layers[k].traj_y != NULL ||
+            geom->layers[k].xs0 != geom->layers[k].x0 ||
+            geom->layers[k].ys0 != geom->layers[k].y0)
+        {
+            return -1;
+        }
+        double wk = geom->layers[k].weight;
+        if (wk > 0.0 && fabs(geom->layers[k].weight_s / wk - scoeff0) > 1e-4)
+        {
+            return -1;
+        }
+    }
+
     int nl = geom->nlayers;
     size_t m_sz = (size_t) nl * sizeof(float *);
     size_t d_sz = (size_t) nl * sizeof(double);
@@ -82,8 +100,7 @@ int atmturb_wfs_render_cuda(
         y0[k]      = geom->layers[k].y0;
     }
 
-    double w0 = geom->layers[0].weight;
-    double scoeff = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
+    double scoeff = scoeff0;
     atmturb_cuda_sim_params_t cparams = {
         .nblayers  = nl,
         .msize     = master_size,

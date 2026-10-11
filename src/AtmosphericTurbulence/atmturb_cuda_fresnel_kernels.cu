@@ -136,6 +136,19 @@ __global__ static void atmturb_cuda_fresnel_tf_mul_vec2_kernel(
     d_field[i] = out;
 }
 
+__global__ static void atmturb_cuda_fresnel_tf_mul_tail_kernel(
+    cufftComplex       *d_field,
+    const cufftComplex *d_tf,
+    int                 idx)
+{
+    cufftComplex f = d_field[idx];
+    cufftComplex t = d_tf[idx];
+    cufftComplex out;
+    out.x = f.x * t.x - f.y * t.y;
+    out.y = f.y * t.x + f.x * t.y;
+    d_field[idx] = out;
+}
+
 /**
  * atmturb_cuda_fresnel_tf_mul_vec2_launch - Launch vectorized optical transfer function multiply
  * @d_field: Complex spatial frequency field array.
@@ -150,10 +163,18 @@ void atmturb_cuda_fresnel_tf_mul_vec2_launch(
     cudaStream_t        stream)
 {
     int npairs = npix / 2;
-    dim3 b_1d(256);
-    dim3 g_1d(((int) npairs + b_1d.x - 1) / b_1d.x);
-    atmturb_cuda_fresnel_tf_mul_vec2_kernel<<<g_1d, b_1d, 0, stream>>>(
-        (float4 *) d_field, (const float4 *) d_tf, npairs);
+    if (npairs > 0)
+    {
+        dim3 b_1d(256);
+        dim3 g_1d(((int) npairs + b_1d.x - 1) / b_1d.x);
+        atmturb_cuda_fresnel_tf_mul_vec2_kernel<<<g_1d, b_1d, 0, stream>>>(
+            (float4 *) d_field, (const float4 *) d_tf, npairs);
+    }
+    if ((npix & 1) != 0)
+    {
+        atmturb_cuda_fresnel_tf_mul_tail_kernel<<<1, 1, 0, stream>>>(
+            d_field, d_tf, npix - 1);
+    }
 }
 
 /**
