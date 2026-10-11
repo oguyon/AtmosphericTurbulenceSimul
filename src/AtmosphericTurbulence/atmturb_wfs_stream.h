@@ -20,11 +20,28 @@
 extern "C" {
 #endif
 
+struct PROCESSINFO;
+typedef struct PROCESSINFO PROCESSINFO;
+
+/**
+ * atmturb_wfs_stream_set_processinfo - Register active FPS processinfo for rate control
+ * @procinfo: Active processinfo handle, or NULL if processinfo is disabled.
+ */
+void atmturb_wfs_stream_set_processinfo(
+    PROCESSINFO *procinfo);
+
+/**
+ * atmturb_wfs_stream_get_processinfo - Retrieve active FPS processinfo handle
+ *
+ * Return: Active processinfo handle or NULL.
+ */
+PROCESSINFO *atmturb_wfs_stream_get_processinfo(void);
+
 /**
  * make_AtmosphericTurbulence_wavefront_stream - Stream 2D wavefront frames to SHM
  * @slambdaum: Secondary observing wavelength in um.
  * @WFprecision: Precision mode flag (0=single, 1=double).
- * @stream_mode: Streaming mode (1=continuous stream, 2=finite stream, 3=unpaced continuous).
+ * @stream_mode: Streaming mode (1=continuous stream, 2=finite stream).
  *
  * Return: 0 on success, -1 on failure.
  */

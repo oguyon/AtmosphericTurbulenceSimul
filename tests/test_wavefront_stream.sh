@@ -51,12 +51,15 @@ echo "Executable: $MKWFS_EXEC"
 
 TEST_TMPDIR="$(mktemp -d /tmp/test_milkatmturb_stream_XXXXXX)"
 FPS_NAME="tstr$$_mkwfs"
+FPS_NAME_PROC="tproc$$_mkwfs"
 
 cleanup() {
     tmux kill-session -t "$FPS_NAME" 2>/dev/null || true
     milk-fps-rm "$FPS_NAME" 2>/dev/null || true
+    milk-fps-rm "$FPS_NAME_PROC" 2>/dev/null || true
     rm -rf "$TEST_TMPDIR"
     rm -f "$MILK_SHM_DIR/${FPS_NAME}.fps.shm"
+    rm -f "$MILK_SHM_DIR/${FPS_NAME_PROC}.fps.shm"
     rm -f "$MILK_SHM_DIR"/outarray*.im.shm
     rm -f "$MILK_SHM_DIR"/outsarray*.im.shm
     milk-stream-rm outarraypha 2>/dev/null || true
@@ -67,6 +70,11 @@ cleanup() {
 trap cleanup EXIT
 
 cd "$TEST_TMPDIR"
+
+get_stream_cnt0() {
+    local sname="$1"
+    milk-stream-info "$sname" | sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' | awk '/cnt0/ {print $3}'
+}
 
 # Clean any existing streams with the same name before testing
 rm -f "$MILK_SHM_DIR"/outarray*.im.shm "$MILK_SHM_DIR"/outsarray*.im.shm
@@ -105,7 +113,7 @@ echo "$AMPINF" | grep -q "2D  128 x 128" || {
     exit 1
 }
 
-CNT0_PHA=$(echo "$PHAINF" | awk '/cnt0/ {print $3}' | tr -dc '0-9')
+CNT0_PHA=$(get_stream_cnt0 outarraypha)
 if [[ "$CNT0_PHA" -lt 5 ]]; then
     echo "FAILED: outarraypha cnt0 ($CNT0_PHA) < expected 5 frames" >&2
     exit 1
@@ -124,9 +132,9 @@ milk-fps-set "$FPS_NAME.time_step" 0.005
 sleep 1.5
 
 # Sample counter
-CNT_A=$(milk-stream-info outarraypha | awk '/cnt0/ {print $3}' | tr -dc '0-9')
+CNT_A=$(get_stream_cnt0 outarraypha)
 sleep 0.8
-CNT_B=$(milk-stream-info outarraypha | awk '/cnt0/ {print $3}' | tr -dc '0-9')
+CNT_B=$(get_stream_cnt0 outarraypha)
 
 if [[ "$CNT_B" -le "$CNT_A" ]]; then
     echo "FAILED: outarraypha cnt0 did not advance ($CNT_A -> $CNT_B)" >&2
@@ -139,9 +147,9 @@ milk-fps-runstop "$FPS_NAME"
 sleep 1.0
 tmux kill-session -t "$FPS_NAME" 2>/dev/null || true
 
-CNT_STOP=$(milk-stream-info outarraypha | awk '/cnt0/ {print $3}' | tr -dc '0-9')
+CNT_STOP=$(get_stream_cnt0 outarraypha)
 sleep 0.5
-CNT_AFTER=$(milk-stream-info outarraypha | awk '/cnt0/ {print $3}' | tr -dc '0-9')
+CNT_AFTER=$(get_stream_cnt0 outarraypha)
 
 if [[ "$CNT_STOP" -ne "$CNT_AFTER" ]]; then
     echo "FAILED: stream did not halt after runstop ($CNT_STOP -> $CNT_AFTER)" >&2
@@ -179,7 +187,7 @@ if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
         exit 1
     }
 
-    CNT0_CUDA=$(echo "$PHAINF_CUDA" | awk '/cnt0/ {print $3}' | tr -dc '0-9')
+    CNT0_CUDA=$(get_stream_cnt0 outarraypha)
     if [[ "$CNT0_CUDA" -lt 5 ]]; then
         echo "FAILED: CUDA Rytov outarraypha cnt0 ($CNT0_CUDA) < expected 5 frames" >&2
         exit 1
@@ -213,7 +221,7 @@ if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
         exit 1
     }
 
-    CNT0_FRES=$(echo "$PHAINF_FRES" | awk '/cnt0/ {print $3}' | tr -dc '0-9')
+    CNT0_FRES=$(get_stream_cnt0 outarraypha)
     if [[ "$CNT0_FRES" -lt 5 ]]; then
         echo "FAILED: CUDA Fresnel outarraypha cnt0 ($CNT0_FRES) < expected 5 frames" >&2
         exit 1
@@ -221,5 +229,61 @@ if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
     echo "  [OK] CUDA Fresnel 2D stream verified: 128x128, cnt0=$CNT0_FRES"
     unset ATMTURB_SIMD
 fi
+
+# -------------------------------------------------------------
+# Test 5: Processinfo Rate Pacing vs Physics time_step
+# -------------------------------------------------------------
+echo "--- Test 5: Rate control decoupled from physical time_step ---"
+rm -f "$MILK_SHM_DIR"/outarray*.im.shm "$MILK_SHM_DIR"/outsarray*.im.shm
+milk-stream-rm outarraypha 2>/dev/null || true
+milk-stream-rm outarrayamp 2>/dev/null || true
+
+# Part A: Unthrottled computation without processinfo
+# Physics time_step is 0.0002s (0.2 ms), time_span 0.0016s -> 8 frames
+"$MKWFS_EXEC" -n "$FPS_NAME" fpsinit
+milk-fps-set "$FPS_NAME.wfsize" 128
+milk-fps-set "$FPS_NAME.stream_mode" 2
+milk-fps-set "$FPS_NAME.time_step" 0.0002
+milk-fps-set "$FPS_NAME.time_span" 0.0016
+milk-fps-set "$FPS_NAME.save_fits" 0
+milk-fps-set "$FPS_NAME.amplitude" 0
+
+START_UNPACED=$(date +%s%N)
+"$MKWFS_EXEC" -n "$FPS_NAME" runstart
+END_UNPACED=$(date +%s%N)
+ELAPSED_UNPACED_MS=$(( (END_UNPACED - START_UNPACED) / 1000000 ))
+echo "  [OK] Unthrottled run: 8 frames completed in ${ELAPSED_UNPACED_MS} ms"
+
+# Part B: Rate-paced computation with processinfo DELAY mode (0.02s delay)
+# Same physics time_step (0.0002s = 0.2 ms), computation rate governed by 20ms delay
+rm -f "$MILK_SHM_DIR"/outarray*.im.shm "$MILK_SHM_DIR"/outsarray*.im.shm
+milk-stream-rm outarraypha 2>/dev/null || true
+
+"$MKWFS_EXEC" -n "$FPS_NAME_PROC" -loopd 0.02 fpsinit
+milk-fps-set "$FPS_NAME_PROC.wfsize" 128
+milk-fps-set "$FPS_NAME_PROC.stream_mode" 2
+milk-fps-set "$FPS_NAME_PROC.time_step" 0.0002
+milk-fps-set "$FPS_NAME_PROC.time_span" 0.0016
+milk-fps-set "$FPS_NAME_PROC.save_fits" 0
+milk-fps-set "$FPS_NAME_PROC.amplitude" 0
+
+START_PACED=$(date +%s%N)
+"$MKWFS_EXEC" -n "$FPS_NAME_PROC" -loopd 0.02 runstart
+END_PACED=$(date +%s%N)
+ELAPSED_PACED_MS=$(( (END_PACED - START_PACED) / 1000000 ))
+
+CNT0_PACED=$(get_stream_cnt0 outarraypha)
+if [[ "$CNT0_PACED" -ne 8 ]]; then
+    echo "FAILED: Expected 8 frames streamed, got $CNT0_PACED" >&2
+    exit 1
+fi
+
+# 8 frames with 7 x 20ms delays must take at least 120 ms
+if [[ "$ELAPSED_PACED_MS" -lt 120 ]]; then
+    echo "FAILED: Paced run finished in ${ELAPSED_PACED_MS} ms, expected >= 120 ms" >&2
+    exit 1
+fi
+echo "  [OK] Processinfo paced run: 8 frames took ${ELAPSED_PACED_MS} ms (cnt0=$CNT0_PACED)"
+milk-fps-rm "$FPS_NAME_PROC" 2>/dev/null || true
 
 echo "=== All 2D streaming tests passed successfully! ==="
