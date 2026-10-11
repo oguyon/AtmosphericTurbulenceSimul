@@ -36,9 +36,12 @@ static int                            s_graph_interp      = 0;
 static int                            s_graph_guard       = 0;
 static int                            s_graph_moisan      = -1;
 static int                            s_graph_os          = 0;
+static int                            s_graph_lowfreq     = -1;
 static const float                   *s_graph_masters     = NULL;
 static atmturb_cuda_rytov_sublayer_t *s_d_active_sublayers = NULL;
 static size_t                         s_cached_active_sub = 0;
+static atmturb_cuda_lowfreq_mode_t   *s_d_active_lf_modes = NULL;
+static size_t                         s_cached_active_lf  = 0;
 
 // Persistent device precomputed filter buffers
 static float        *s_d_laplace_inv  = NULL;
@@ -137,6 +140,7 @@ void atmturb_cuda_rytov_cleanup(void)
     s_graph_guard       = 0;
     s_graph_moisan      = -1;
     s_graph_os          = 0;
+    s_graph_lowfreq     = -1;
     s_graph_masters     = NULL;
 
     if (s_d_active_sublayers != NULL)
@@ -145,6 +149,13 @@ void atmturb_cuda_rytov_cleanup(void)
         s_d_active_sublayers = NULL;
     }
     s_cached_active_sub = 0;
+
+    if (s_d_active_lf_modes != NULL)
+    {
+        cudaFree(s_d_active_lf_modes);
+        s_d_active_lf_modes = NULL;
+    }
+    s_cached_active_lf = 0;
 
     if (s_d_laplace_inv != NULL) { cudaFree(s_d_laplace_inv); s_d_laplace_inv = NULL; }
     if (s_d_exp_x != NULL)       { cudaFree(s_d_exp_x);       s_d_exp_x = NULL; }
@@ -326,6 +337,26 @@ static int atmturb_cuda_rytov_init_workspace(
         s_cached_active_sub = sub_bytes;
     }
 
+    if (params->lowfreq && params->max_lf_modes > 0)
+    {
+        size_t lf_bytes = (size_t) (params->nsuper * params->max_lf_modes) *
+                          sizeof(atmturb_cuda_lowfreq_mode_t);
+        if (s_d_active_lf_modes != NULL && s_cached_active_lf < lf_bytes)
+        {
+            cudaFree(s_d_active_lf_modes);
+            s_d_active_lf_modes = NULL;
+            s_cached_active_lf = 0;
+        }
+        if (s_d_active_lf_modes == NULL)
+        {
+            if (cudaMalloc((void **) &s_d_active_lf_modes, lf_bytes) != cudaSuccess)
+            {
+                return -1;
+            }
+            s_cached_active_lf = lf_bytes;
+        }
+    }
+
     if (s_d_super_pha != NULL && s_cached_work == (size_t) pad_pixels)
     {
         return 0;
@@ -394,6 +425,18 @@ static void atmturb_cuda_rytov_step_ops(
             params->interp, d_masters, (int) params->msize, (int) pad, (int) pup_size,
             (int) guard, n_sub, has_sec, os, sl_ptr, s_d_super_pha, s_d_super_spha,
             s_d_frame_pha, s_d_frame_spha, stream);
+
+        if (params->lowfreq && params->super_nlf_modes != NULL &&
+            params->super_nlf_modes[m] > 0 && s_d_active_lf_modes != NULL)
+        {
+            const atmturb_cuda_lowfreq_mode_t *lf_ptr =
+                s_d_active_lf_modes + (size_t) (m * params->max_lf_modes);
+            atmturb_cuda_lowfreq_accumulate_launch(
+                (int) pad, (int) pup_size, (int) guard,
+                params->super_nlf_modes[m], has_sec, lf_ptr,
+                s_d_super_pha, s_d_super_spha,
+                s_d_frame_pha, s_d_frame_spha, stream);
+        }
 
         if (params->super_dist_m[m] > 0.0)
         {
@@ -479,6 +522,7 @@ static int atmturb_cuda_rytov_init_graph(
         s_graph_guard == guard &&
         s_graph_moisan == moisan &&
         s_graph_os == os &&
+        s_graph_lowfreq == params->lowfreq &&
         s_graph_masters == d_masters)
     {
         return 0;
@@ -520,6 +564,7 @@ static int atmturb_cuda_rytov_init_graph(
     s_graph_guard      = guard;
     s_graph_moisan     = moisan;
     s_graph_os         = os;
+    s_graph_lowfreq    = params->lowfreq;
     s_graph_masters    = d_masters;
     return 0;
 }
@@ -566,6 +611,14 @@ int atmturb_cuda_rytov_render(
         cudaMemcpyAsync(s_d_active_sublayers, params->frame_sublayers, sub_step_bytes,
                         cudaMemcpyHostToDevice, s_stream);
 
+        if (params->lowfreq && params->frame_lf_modes != NULL && s_d_active_lf_modes != NULL)
+        {
+            size_t lf_step_bytes = (size_t) (params->nsuper * params->max_lf_modes) *
+                                   sizeof(atmturb_cuda_lowfreq_mode_t);
+            cudaMemcpyAsync(s_d_active_lf_modes, params->frame_lf_modes, lf_step_bytes,
+                            cudaMemcpyHostToDevice, s_stream);
+        }
+
         if (s_graph_exec != NULL)
         {
             cudaGraphLaunch(s_graph_exec, s_stream);
@@ -606,12 +659,33 @@ int atmturb_cuda_rytov_render(
                     n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t),
                     cudaMemcpyHostToDevice, s_stream);
 
+    atmturb_cuda_lowfreq_mode_t *d_all_lf_modes = NULL;
+    size_t lf_step_bytes = 0;
+    if (params->lowfreq && params->frame_lf_modes != NULL && s_d_active_lf_modes != NULL)
+    {
+        lf_step_bytes = (size_t) (params->nsuper * params->max_lf_modes) *
+                        sizeof(atmturb_cuda_lowfreq_mode_t);
+        size_t n_lf_tot = (size_t) (params->nbframes * params->nsuper * params->max_lf_modes);
+        cudaMalloc((void **) &d_all_lf_modes, n_lf_tot * sizeof(atmturb_cuda_lowfreq_mode_t));
+        cudaMemcpyAsync(d_all_lf_modes, params->frame_lf_modes,
+                        n_lf_tot * sizeof(atmturb_cuda_lowfreq_mode_t),
+                        cudaMemcpyHostToDevice, s_stream);
+    }
+
     for (long t = 0; t < params->nbframes; t++)
     {
         const atmturb_cuda_rytov_sublayer_t *src_t =
             d_all_sublayers + (size_t) t * (params->nsuper * params->max_sublayers);
         cudaMemcpyAsync(s_d_active_sublayers, src_t, sub_step_bytes,
                         cudaMemcpyDeviceToDevice, s_stream);
+
+        if (d_all_lf_modes != NULL)
+        {
+            const atmturb_cuda_lowfreq_mode_t *src_lf_t =
+                d_all_lf_modes + (size_t) t * (params->nsuper * params->max_lf_modes);
+            cudaMemcpyAsync(s_d_active_lf_modes, src_lf_t, lf_step_bytes,
+                            cudaMemcpyDeviceToDevice, s_stream);
+        }
 
         if (s_graph_exec != NULL)
         {
@@ -652,5 +726,9 @@ int atmturb_cuda_rytov_render(
 
     cudaStreamSynchronize(s_stream);
     cudaFree(d_all_sublayers);
+    if (d_all_lf_modes != NULL)
+    {
+        cudaFree(d_all_lf_modes);
+    }
     return 0;
 }

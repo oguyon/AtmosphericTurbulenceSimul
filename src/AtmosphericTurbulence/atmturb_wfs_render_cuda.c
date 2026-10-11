@@ -19,6 +19,7 @@
 #include "atmturb_cuda.h"
 #include "atmturb_cuda_rytov.h"
 #include "atmturb_geometry.h"
+#include "atmturb_lowfreq.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
 #include "atmturb_rytov.h"
@@ -175,6 +176,144 @@ static void atmturb_wfs_cuda_build_sublayers(
     }
 }
 
+static inline void atmturb_wfs_cuda_build_frame_lf_modes(
+    const atmturb_rolling_t     *r,
+    const atmturb_geom_t        *geom,
+    const atmturb_rytov_plan_t  *plan,
+    long                         t,
+    double                       time_step_s,
+    double                       offset_os,
+    int                          max_lf_modes,
+    atmturb_cuda_lowfreq_mode_t *lf_modes)
+{
+    if (r->lowfreq == 0 || lf_modes == NULL)
+    {
+        return;
+    }
+
+    for (int m = 0; m < plan->nsuper; m++)
+    {
+        const atmturb_superlayer_t *sl = &plan->supers[m];
+        size_t base = (size_t) (m * max_lf_modes);
+        int mode_idx = 0;
+
+        for (int j = 0; j < sl->nlayers; j++)
+        {
+            int k = sl->layer_indices[j];
+            float ws = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
+            atmturb_rolling_eval_t rev;
+            atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
+
+            const atmturb_layer_geom_t *lg = &geom->layers[k];
+            double dx = atmturb_geom_get_layer_dx(lg, t);
+            double dy = atmturb_geom_get_layer_dy(lg, t);
+
+            double x  = lg->x0 + dx - offset_os;
+            double y  = lg->y0 + dy - offset_os;
+            double xs = lg->xs0 + dx - offset_os;
+            double ys = lg->ys0 + dy - offset_os;
+
+            double w_pri = lg->weight * (double) ws;
+            double w_sec = lg->weight_s * (double) ws;
+            const atmturb_lowfreq_t *lf_base = &r->layers[k].lf_base;
+
+            for (int lm = 0; lm < lf_base->nmodes; lm++)
+            {
+                float kx = lf_base->kx[lm];
+                float ky = lf_base->ky[lm];
+                float are = rev.are_eff[lm];
+                float aim = rev.aim_eff[lm];
+
+                atmturb_cuda_lowfreq_mode_t *out = &lf_modes[base + mode_idx++];
+                out->are_pri = (float) (w_pri * (double) are);
+                out->aim_pri = (float) (w_pri * (double) aim);
+                out->are_sec = (float) (w_sec * (double) are);
+                out->aim_sec = (float) (w_sec * (double) aim);
+                out->th0_pri = (float) ((double) kx * x + (double) ky * y);
+                out->th0_sec = (float) ((double) kx * xs + (double) ky * ys);
+                out->dkx     = (float) ((double) kx * (double) geom->oversample);
+                out->dky     = (float) ((double) ky * (double) geom->oversample);
+            }
+        }
+    }
+}
+
+static void atmturb_wfs_cuda_build_lf_modes(
+    const atmturb_rolling_t     *r,
+    const atmturb_geom_t        *geom,
+    const atmturb_rytov_plan_t  *plan,
+    long                         nbframes,
+    double                       time_step_s,
+    int                          max_lf_modes,
+    atmturb_cuda_lowfreq_mode_t *lf_modes)
+{
+    if (r->lowfreq == 0 || lf_modes == NULL)
+    {
+        return;
+    }
+
+    double offset_os = (double) plan->guard_pix * (double) geom->oversample;
+    size_t frame_stride = (size_t) (plan->nsuper * max_lf_modes);
+
+    #pragma omp parallel for
+    for (long t = 0; t < nbframes; t++)
+    {
+        atmturb_wfs_cuda_build_frame_lf_modes(
+            r, geom, plan, t, time_step_s, offset_os, max_lf_modes,
+            lf_modes + (size_t) t * frame_stride);
+    }
+}
+
+static int atmturb_wfs_cuda_init_rytov_lf(
+    const atmturb_rolling_t      *r,
+    const atmturb_rytov_plan_t   *plan,
+    long                          nbframes,
+    int                          *out_max_lf,
+    int                         **out_super_nlf,
+    atmturb_cuda_lowfreq_mode_t **out_lf_modes)
+{
+    *out_max_lf    = 0;
+    *out_super_nlf = NULL;
+    *out_lf_modes  = NULL;
+
+    if (r->lowfreq == 0)
+    {
+        return 0;
+    }
+
+    int max_lf = 0;
+    for (int m = 0; m < plan->nsuper; m++)
+    {
+        int n_lf = plan->supers[m].nlayers * 24;
+        if (n_lf > max_lf)
+        {
+            max_lf = n_lf;
+        }
+    }
+    *out_max_lf = max_lf;
+
+    if (max_lf > 0)
+    {
+        int *super_nlf = (int *) malloc(sizeof(int) * (size_t) plan->nsuper);
+        size_t n_tot = (size_t) (nbframes * plan->nsuper * max_lf);
+        atmturb_cuda_lowfreq_mode_t *lf = (atmturb_cuda_lowfreq_mode_t *) calloc(
+            n_tot, sizeof(atmturb_cuda_lowfreq_mode_t));
+        if (!super_nlf || !lf)
+        {
+            free(super_nlf);
+            free(lf);
+            return -1;
+        }
+        for (int m = 0; m < plan->nsuper; m++)
+        {
+            super_nlf[m] = plan->supers[m].nlayers * 24;
+        }
+        *out_super_nlf = super_nlf;
+        *out_lf_modes  = lf;
+    }
+    return 0;
+}
+
 static int atmturb_wfs_cuda_init_screen_pool(
     const atmturb_rolling_t  *r,
     int                       nlayers,
@@ -221,7 +360,7 @@ int atmturb_wfs_render_rytov_cuda(
     long                        nbframes,
     const atmturb_wfs_images_t *imgs)
 {
-    if (r->lowfreq != 0 || !atmturb_cuda_device_available())
+    if (!atmturb_cuda_device_available())
     {
         return -1;
     }
@@ -266,6 +405,21 @@ int atmturb_wfs_render_rytov_cuda(
     int *super_nlayers   = (int *) malloc(sizeof(int) * (size_t) plan.nsuper);
     double *super_dist_m = (double *) malloc(sizeof(double) * (size_t) plan.nsuper);
 
+    int max_lf_modes = 0;
+    int *super_nlf_modes = NULL;
+    atmturb_cuda_lowfreq_mode_t *lf_modes = NULL;
+    if (atmturb_wfs_cuda_init_rytov_lf(r, &plan, nbframes, &max_lf_modes,
+                                       &super_nlf_modes, &lf_modes) != 0)
+    {
+        free(sublayers);
+        free(super_nlayers);
+        free(super_dist_m);
+        free(masters);
+        free(screen_offsets);
+        atmturb_rytov_plan_free(&plan);
+        return -1;
+    }
+
     if (!sublayers || !super_nlayers || !super_dist_m)
     {
         free(sublayers);
@@ -273,6 +427,14 @@ int atmturb_wfs_render_rytov_cuda(
         free(super_dist_m);
         free(masters);
         free(screen_offsets);
+        if (lf_modes != NULL)
+        {
+            free(lf_modes);
+        }
+        if (super_nlf_modes != NULL)
+        {
+            free(super_nlf_modes);
+        }
         atmturb_rytov_plan_free(&plan);
         return -1;
     }
@@ -285,6 +447,12 @@ int atmturb_wfs_render_rytov_cuda(
 
     atmturb_wfs_cuda_build_sublayers(r, geom, &plan, screen_offsets, nbframes,
                                      params->time_step_s, max_sublayers, sublayers);
+
+    if (lf_modes != NULL)
+    {
+        atmturb_wfs_cuda_build_lf_modes(r, geom, &plan, nbframes,
+                                        params->time_step_s, max_lf_modes, lf_modes);
+    }
 
     atmturb_cuda_rytov_params_t cparams = {
         .msize           = master_size,
@@ -299,6 +467,7 @@ int atmturb_wfs_render_rytov_cuda(
         .os              = (int) geom->oversample,
         .interp          = geom->interp,
         .use_moisan      = plan.use_moisan,
+        .lowfreq         = r->lowfreq,
         .h_masters       = masters,
         .h_laplace_inv   = plan.laplace_inv,
         .h_exp_x         = (const void *) plan.exp_x,
@@ -312,6 +481,9 @@ int atmturb_wfs_render_rytov_cuda(
         .super_nlayers   = super_nlayers,
         .super_dist_m    = super_dist_m,
         .max_sublayers   = max_sublayers,
+        .frame_lf_modes  = lf_modes,
+        .super_nlf_modes = super_nlf_modes,
+        .max_lf_modes    = max_lf_modes,
         .pha             = &dcimg[imgs->ID_pha].array.F[0],
         .amp             = &dcimg[imgs->ID_amp].array.F[0],
         .spha            = (plan.lambda_s_m > 0.0) ? &dcimg[imgs->ID_spha].array.F[0] : NULL,
@@ -325,6 +497,14 @@ int atmturb_wfs_render_rytov_cuda(
     free(super_dist_m);
     free(masters);
     free(screen_offsets);
+    if (lf_modes != NULL)
+    {
+        free(lf_modes);
+    }
+    if (super_nlf_modes != NULL)
+    {
+        free(super_nlf_modes);
+    }
     atmturb_rytov_plan_free(&plan);
 
     return ret;
@@ -337,9 +517,12 @@ struct atmturb_cuda_rytov_stream
     atmturb_cuda_rytov_sublayer_t *sublayers;
     int                          *super_nlayers;
     double                       *super_dist_m;
+    atmturb_cuda_lowfreq_mode_t  *lf_modes;
+    int                          *super_nlf_modes;
     const float                 **masters;
     int                          *screen_offsets;
     int                           max_sublayers;
+    int                           max_lf_modes;
     double                        offset_os;
 };
 
@@ -362,7 +545,7 @@ atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     long                        master_size,
     long                        pup_size)
 {
-    if (r->lowfreq != 0 || !atmturb_cuda_device_available())
+    if (!atmturb_cuda_device_available())
     {
         return NULL;
     }
@@ -416,6 +599,13 @@ atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     ctx->super_nlayers = (int *) malloc(sizeof(int) * (size_t) ctx->plan.nsuper);
     ctx->super_dist_m  = (double *) malloc(sizeof(double) * (size_t) ctx->plan.nsuper);
 
+    if (atmturb_wfs_cuda_init_rytov_lf(r, &ctx->plan, 1, &ctx->max_lf_modes,
+                                       &ctx->super_nlf_modes, &ctx->lf_modes) != 0)
+    {
+        atmturb_cuda_rytov_stream_free(ctx);
+        return NULL;
+    }
+
     if (!ctx->sublayers || !ctx->super_nlayers || !ctx->super_dist_m)
     {
         atmturb_cuda_rytov_stream_free(ctx);
@@ -440,6 +630,7 @@ atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     ctx->cparams.os              = (int) geom->oversample;
     ctx->cparams.interp          = geom->interp;
     ctx->cparams.use_moisan      = ctx->plan.use_moisan;
+    ctx->cparams.lowfreq         = r->lowfreq;
     ctx->cparams.h_masters       = ctx->masters;
     ctx->cparams.h_laplace_inv   = ctx->plan.laplace_inv;
     ctx->cparams.h_exp_x         = (const void *) ctx->plan.exp_x;
@@ -453,6 +644,9 @@ atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     ctx->cparams.super_nlayers   = ctx->super_nlayers;
     ctx->cparams.super_dist_m    = ctx->super_dist_m;
     ctx->cparams.max_sublayers   = max_sublayers;
+    ctx->cparams.frame_lf_modes  = ctx->lf_modes;
+    ctx->cparams.super_nlf_modes = ctx->super_nlf_modes;
+    ctx->cparams.max_lf_modes    = ctx->max_lf_modes;
 
     return ctx;
 }
@@ -491,6 +685,13 @@ int atmturb_cuda_rytov_stream_render_step(
         r, geom, &ctx->plan, ctx->screen_offsets, t, time_step_s, ctx->offset_os,
         ctx->max_sublayers, ctx->sublayers);
 
+    if (r->lowfreq && ctx->lf_modes != NULL)
+    {
+        atmturb_wfs_cuda_build_frame_lf_modes(
+            r, geom, &ctx->plan, t, time_step_s, ctx->offset_os,
+            ctx->max_lf_modes, ctx->lf_modes);
+    }
+
     ctx->cparams.pha  = pha;
     ctx->cparams.amp  = amp;
     ctx->cparams.spha = spha;
@@ -521,6 +722,14 @@ void atmturb_cuda_rytov_stream_free(
     if (ctx->super_dist_m)
     {
         free(ctx->super_dist_m);
+    }
+    if (ctx->lf_modes)
+    {
+        free(ctx->lf_modes);
+    }
+    if (ctx->super_nlf_modes)
+    {
+        free(ctx->super_nlf_modes);
     }
     if (ctx->masters)
     {

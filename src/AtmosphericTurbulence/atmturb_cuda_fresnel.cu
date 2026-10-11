@@ -19,6 +19,7 @@ extern "C" {
 #include "atmturb_cuda_rytov_internal.h"
 #include "atmturb_fresnel.h"
 #include "atmturb_geometry.h"
+#include "atmturb_lowfreq.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
 #include "atmturb_superlayer.h"
@@ -37,10 +38,15 @@ struct atmturb_cuda_fresnel_stream
     int                            os;
     int                            total_screens;
     int                            max_sublayers;
+    int                            lowfreq;
+    int                            max_lf_modes;
+    int                           *super_nlf_modes;
     const float                  **masters;
     int                           *screen_offsets;
     atmturb_cuda_rytov_sublayer_t *h_sublayers;
     atmturb_cuda_rytov_sublayer_t *d_sublayers;
+    atmturb_cuda_lowfreq_mode_t   *h_lf_modes;
+    atmturb_cuda_lowfreq_mode_t   *d_lf_modes;
     const float                   *d_masters;
 
     cudaStream_t                   stream;
@@ -195,6 +201,67 @@ static inline void atmturb_fresnel_cuda_build_sublayers(
     }
 }
 
+static inline void atmturb_fresnel_cuda_build_lf_modes(
+    const atmturb_rolling_t      *r,
+    const atmturb_geom_t         *geom,
+    const atmturb_fresnel_plan_t *plan,
+    long                          t,
+    double                        time_step_s,
+    int                           max_lf_modes,
+    atmturb_cuda_lowfreq_mode_t  *lf_modes)
+{
+    if (r->lowfreq == 0 || lf_modes == NULL)
+    {
+        return;
+    }
+
+    for (int m = 0; m < plan->nsuper; m++)
+    {
+        const atmturb_superlayer_t *sl = &plan->supers[m];
+        size_t base = (size_t) (m * max_lf_modes);
+        int mode_idx = 0;
+
+        for (int j = 0; j < sl->nlayers; j++)
+        {
+            int k = sl->layer_indices[j];
+            float ws = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
+            atmturb_rolling_eval_t rev;
+            atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
+
+            const atmturb_layer_geom_t *lg = &geom->layers[k];
+            double dx = atmturb_geom_get_layer_dx(lg, t);
+            double dy = atmturb_geom_get_layer_dy(lg, t);
+
+            double x  = lg->x0 + dx;
+            double y  = lg->y0 + dy;
+            double xs = lg->xs0 + dx;
+            double ys = lg->ys0 + dy;
+
+            double w_pri = lg->weight * (double) ws;
+            double w_sec = lg->weight_s * (double) ws;
+            const atmturb_lowfreq_t *lf_base = &r->layers[k].lf_base;
+
+            for (int lm = 0; lm < lf_base->nmodes; lm++)
+            {
+                float kx = lf_base->kx[lm];
+                float ky = lf_base->ky[lm];
+                float are = rev.are_eff[lm];
+                float aim = rev.aim_eff[lm];
+
+                atmturb_cuda_lowfreq_mode_t *out = &lf_modes[base + mode_idx++];
+                out->are_pri = (float) (w_pri * (double) are);
+                out->aim_pri = (float) (w_pri * (double) aim);
+                out->are_sec = (float) (w_sec * (double) are);
+                out->aim_sec = (float) (w_sec * (double) aim);
+                out->th0_pri = (float) ((double) kx * x + (double) ky * y);
+                out->th0_sec = (float) ((double) kx * xs + (double) ky * ys);
+                out->dkx     = (float) ((double) kx * (double) geom->oversample);
+                out->dky     = (float) ((double) ky * (double) geom->oversample);
+            }
+        }
+    }
+}
+
 static int atmturb_fresnel_cuda_init_screen_pool(
     const atmturb_rolling_t  *r,
     int                       nlayers,
@@ -291,12 +358,102 @@ void atmturb_cuda_fresnel_stream_free(
     cudaFree(ctx->d_frame_samp);
     cudaFree(ctx->d_sublayers);
 
+    if (ctx->d_lf_modes != NULL)
+    {
+        cudaFree(ctx->d_lf_modes);
+        ctx->d_lf_modes = NULL;
+    }
+    if (ctx->h_lf_modes != NULL)
+    {
+        free(ctx->h_lf_modes);
+        ctx->h_lf_modes = NULL;
+    }
+    if (ctx->super_nlf_modes != NULL)
+    {
+        free(ctx->super_nlf_modes);
+        ctx->super_nlf_modes = NULL;
+    }
+
     free(ctx->h_sublayers);
     free(ctx->masters);
     free(ctx->screen_offsets);
 
     atmturb_fresnel_plan_free(&ctx->plan);
     free(ctx);
+}
+
+static int atmturb_cuda_fresnel_init_tf(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    size_t                         cpix_bytes)
+{
+    ctx->d_tf_pri = (cufftComplex **) calloc((size_t) ctx->plan.nsuper, sizeof(cufftComplex *));
+    if (ctx->has_sec)
+    {
+        ctx->d_tf_sec = (cufftComplex **) calloc((size_t) ctx->plan.nsuper,
+                                                 sizeof(cufftComplex *));
+    }
+
+    for (int m = 0; m < ctx->plan.nsuper; m++)
+    {
+        if (cudaMalloc((void **) &ctx->d_tf_pri[m], cpix_bytes) != cudaSuccess)
+        {
+            return -1;
+        }
+        cudaMemcpyAsync(ctx->d_tf_pri[m], ctx->plan.tf_pri[m], cpix_bytes,
+                        cudaMemcpyHostToDevice, ctx->stream);
+
+        if (ctx->has_sec && ctx->plan.tf_sec != NULL && ctx->plan.tf_sec[m] != NULL)
+        {
+            if (cudaMalloc((void **) &ctx->d_tf_sec[m], cpix_bytes) != cudaSuccess)
+            {
+                return -1;
+            }
+            cudaMemcpyAsync(ctx->d_tf_sec[m], ctx->plan.tf_sec[m], cpix_bytes,
+                            cudaMemcpyHostToDevice, ctx->stream);
+        }
+    }
+    return 0;
+}
+
+static int atmturb_cuda_fresnel_init_lf(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    const atmturb_rolling_t       *r)
+{
+    ctx->lowfreq = r->lowfreq;
+    if (r->lowfreq == 0)
+    {
+        return 0;
+    }
+
+    int max_lf_modes = 0;
+    for (int m = 0; m < ctx->plan.nsuper; m++)
+    {
+        int n_lf = ctx->plan.supers[m].nlayers * 24;
+        if (n_lf > max_lf_modes)
+        {
+            max_lf_modes = n_lf;
+        }
+    }
+    ctx->max_lf_modes = max_lf_modes;
+
+    if (max_lf_modes > 0)
+    {
+        size_t n_lf_tot = (size_t) (ctx->plan.nsuper * max_lf_modes);
+        ctx->h_lf_modes = (atmturb_cuda_lowfreq_mode_t *) calloc(
+            n_lf_tot, sizeof(atmturb_cuda_lowfreq_mode_t));
+        ctx->super_nlf_modes = (int *) malloc(sizeof(int) * (size_t) ctx->plan.nsuper);
+        if (!ctx->h_lf_modes || !ctx->super_nlf_modes ||
+            cudaMalloc((void **) &ctx->d_lf_modes,
+                       n_lf_tot * sizeof(atmturb_cuda_lowfreq_mode_t)) != cudaSuccess)
+        {
+            return -1;
+        }
+        for (int m = 0; m < ctx->plan.nsuper; m++)
+        {
+            ctx->super_nlf_modes[m] = ctx->plan.supers[m].nlayers * 24;
+        }
+    }
+    return 0;
 }
 
 /**
@@ -358,7 +515,7 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
     ctx->max_sublayers = max_sublayers;
 
     if (atmturb_fresnel_cuda_init_screen_pool(r, geom->nlayers, &ctx->masters,
-                                             &ctx->screen_offsets, &ctx->total_screens) != 0)
+                                              &ctx->screen_offsets, &ctx->total_screens) != 0)
     {
         atmturb_cuda_fresnel_stream_free(ctx);
         return NULL;
@@ -388,33 +545,11 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
     size_t npix_bytes = (size_t) ctx->npix * sizeof(float);
     size_t cpix_bytes = (size_t) ctx->npix * sizeof(cufftComplex);
 
-    ctx->d_tf_pri = (cufftComplex **) calloc((size_t) ctx->plan.nsuper, sizeof(cufftComplex *));
-    if (ctx->has_sec)
+    if (atmturb_cuda_fresnel_init_tf(ctx, cpix_bytes) != 0 ||
+        atmturb_cuda_fresnel_init_lf(ctx, r) != 0)
     {
-        ctx->d_tf_sec = (cufftComplex **) calloc((size_t) ctx->plan.nsuper,
-                                                 sizeof(cufftComplex *));
-    }
-
-    for (int m = 0; m < ctx->plan.nsuper; m++)
-    {
-        if (cudaMalloc((void **) &ctx->d_tf_pri[m], cpix_bytes) != cudaSuccess)
-        {
-            atmturb_cuda_fresnel_stream_free(ctx);
-            return NULL;
-        }
-        cudaMemcpyAsync(ctx->d_tf_pri[m], ctx->plan.tf_pri[m], cpix_bytes,
-                        cudaMemcpyHostToDevice, ctx->stream);
-
-        if (ctx->has_sec && ctx->plan.tf_sec != NULL && ctx->plan.tf_sec[m] != NULL)
-        {
-            if (cudaMalloc((void **) &ctx->d_tf_sec[m], cpix_bytes) != cudaSuccess)
-            {
-                atmturb_cuda_fresnel_stream_free(ctx);
-                return NULL;
-            }
-            cudaMemcpyAsync(ctx->d_tf_sec[m], ctx->plan.tf_sec[m], cpix_bytes,
-                            cudaMemcpyHostToDevice, ctx->stream);
-        }
+        atmturb_cuda_fresnel_stream_free(ctx);
+        return NULL;
     }
 
     size_t n_sub_tot = (size_t) (ctx->plan.nsuper * max_sublayers);
@@ -487,6 +622,17 @@ int atmturb_cuda_fresnel_stream_render_step(
     cudaMemcpyAsync(ctx->d_sublayers, ctx->h_sublayers, sub_bytes,
                     cudaMemcpyHostToDevice, ctx->stream);
 
+    if (ctx->lowfreq && ctx->h_lf_modes != NULL)
+    {
+        atmturb_fresnel_cuda_build_lf_modes(
+            r, geom, &ctx->plan, t, time_step_s,
+            ctx->max_lf_modes, ctx->h_lf_modes);
+        size_t lf_bytes = (size_t) (ctx->plan.nsuper * ctx->max_lf_modes) *
+                          sizeof(atmturb_cuda_lowfreq_mode_t);
+        cudaMemcpyAsync(ctx->d_lf_modes, ctx->h_lf_modes, lf_bytes,
+                        cudaMemcpyHostToDevice, ctx->stream);
+    }
+
     size_t npix_bytes = (size_t) ctx->npix * sizeof(float);
     cudaMemsetAsync(ctx->d_frame_pha, 0, npix_bytes, ctx->stream);
     if (ctx->has_sec && spha != NULL)
@@ -509,6 +655,19 @@ int atmturb_cuda_fresnel_stream_render_step(
             (int) ctx->pup_size, 0, n_sub, ctx->has_sec, ctx->os, d_sl,
             ctx->d_super_pha, ctx->d_super_spha, ctx->d_frame_pha, ctx->d_frame_spha,
             ctx->stream);
+
+        if (ctx->lowfreq && ctx->super_nlf_modes != NULL &&
+            ctx->super_nlf_modes[m] > 0 && ctx->d_lf_modes != NULL)
+        {
+            const atmturb_cuda_lowfreq_mode_t *d_lf =
+                ctx->d_lf_modes + (size_t) (m * ctx->max_lf_modes);
+            atmturb_cuda_lowfreq_accumulate_launch(
+                (int) ctx->pup_size, (int) ctx->pup_size, 0,
+                ctx->super_nlf_modes[m], ctx->has_sec, d_lf,
+                ctx->d_super_pha, ctx->d_super_spha,
+                ctx->d_frame_pha, ctx->d_frame_spha,
+                ctx->stream);
+        }
 
         if (m == 0)
         {

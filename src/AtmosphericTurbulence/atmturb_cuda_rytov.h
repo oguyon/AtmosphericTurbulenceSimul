@@ -36,6 +36,29 @@ typedef struct
 } atmturb_cuda_rytov_sublayer_t;
 
 /**
+ * struct atmturb_cuda_lowfreq_mode_t - Parameters for one subharmonic mode on GPU
+ * @are_pri: Weighted real amplitude for primary wavelength.
+ * @aim_pri: Weighted imaginary amplitude for primary wavelength.
+ * @are_sec: Weighted real amplitude for secondary wavelength.
+ * @aim_sec: Weighted imaginary amplitude for secondary wavelength.
+ * @th0_pri: Primary phase offset at origin (kx * x0 + ky * y0).
+ * @th0_sec: Secondary phase offset at origin (kx * xs0 + ky * ys0).
+ * @dkx: Spatial frequency step along X (kx * os).
+ * @dky: Spatial frequency step along Y (ky * os).
+ */
+typedef struct
+{
+    float are_pri;
+    float aim_pri;
+    float are_sec;
+    float aim_sec;
+    float th0_pri;
+    float th0_sec;
+    float dkx;
+    float dky;
+} atmturb_cuda_lowfreq_mode_t;
+
+/**
  * struct atmturb_cuda_rytov_params_t - Parameters for CUDA Rytov execution
  * @msize: Master screen linear dimension in pixels.
  * @pup_size: Synthesized pupil linear dimension in pixels.
@@ -48,6 +71,8 @@ typedef struct
  * @sec_shared: 1 if Option B shared forward FFT enabled, 0 for Option C.
  * @os: Master screen oversampling factor.
  * @interp: Sub-pixel interpolation mode (0: bilinear, 1: Keys bicubic).
+ * @use_moisan: 1 if Moisan periodic boundary decomposition enabled.
+ * @lowfreq: 1 if subharmonic low-frequency modes enabled, 0 otherwise.
  * @h_masters: Array of host master screen pointers.
  * @h_laplace_inv: Moisan Poisson inverse Laplace multipliers.
  * @h_exp_x: Moisan X boundary phase factor (complex float[2]).
@@ -57,10 +82,13 @@ typedef struct
  * @h_filt_a_sec: Secondary phase filters per superlayer.
  * @h_filt_b_sec: Secondary amplitude filters per superlayer.
  * @h_chrom_ramp: Option B chromatic phase ramp per superlayer (complex float[2]).
- * @frame_sublayers: Precomputed sublayer extrusion parameters [nbframes * nsuper * max_sublayers].
+ * @frame_sublayers: Precomputed sublayer extrusion parameters.
  * @super_nlayers: Number of physical layers in each superlayer [nsuper].
  * @super_dist_m: Line-of-sight distance for each superlayer in meters [nsuper].
  * @max_sublayers: Stride of sublayers array per (frame, superlayer).
+ * @frame_lf_modes: Precomputed low-frequency mode parameters.
+ * @super_nlf_modes: Number of low-frequency modes in each superlayer [nsuper].
+ * @max_lf_modes: Stride of lowfreq modes array per (frame, superlayer).
  * @pha: Output primary phase 3D array (nbframes * pup_size * pup_size floats).
  * @amp: Output primary amplitude 3D array (nbframes * pup_size * pup_size floats).
  * @spha: Output secondary phase 3D array (nbframes * pup_size * pup_size floats).
@@ -80,6 +108,7 @@ typedef struct
     int                                 os;
     int                                 interp;
     int                                 use_moisan;
+    int                                 lowfreq;
 
     const float *const                 *h_masters;
 
@@ -96,6 +125,10 @@ typedef struct
     const int                          *super_nlayers;
     const double                       *super_dist_m;
     int                                 max_sublayers;
+
+    const atmturb_cuda_lowfreq_mode_t  *frame_lf_modes;
+    const int                          *super_nlf_modes;
+    int                                 max_lf_modes;
 
     float                              *pha;
     float                              *amp;

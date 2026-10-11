@@ -242,6 +242,121 @@ void atmturb_cuda_extrude_sl_launch(
     }
 }
 
+/**
+ * atmturb_cuda_lowfreq_accumulate_kernel - Device kernel for subharmonic low-order modes
+ * @pad_size: Linear dimension of padded simulation grid.
+ * @pup_size: Linear dimension of synthesized pupil.
+ * @guard: Guard margin in pixels.
+ * @n_modes: Number of active low-frequency modes to evaluate.
+ * @has_sec: 1 if secondary wavelength enabled, 0 otherwise.
+ * @d_modes: Array of device low-frequency mode parameters.
+ * @d_super_pha: Destination superlayer primary phase array.
+ * @d_super_spha: Destination superlayer secondary phase array.
+ * @d_frame_pha: Cumulative pupil primary phase array.
+ * @d_frame_spha: Cumulative pupil secondary phase array.
+ */
+__global__ static void atmturb_cuda_lowfreq_accumulate_kernel(
+    int                                pad_size,
+    int                                pup_size,
+    int                                guard,
+    int                                n_modes,
+    int                                has_sec,
+    const atmturb_cuda_lowfreq_mode_t *d_modes,
+    float                             *d_super_pha,
+    float                             *d_super_spha,
+    float                             *d_frame_pha,
+    float                             *d_frame_spha)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    if (i >= pad_size || j >= pad_size)
+    {
+        return;
+    }
+
+    float fi = (float) i;
+    float fj = (float) j;
+    float acc_pri = 0.0f;
+    float acc_sec = 0.0f;
+
+    for (int m = 0; m < n_modes; m++)
+    {
+        atmturb_cuda_lowfreq_mode_t mode = d_modes[m];
+        float th_ij = fi * mode.dkx + fj * mode.dky;
+
+        float s_pri, c_pri;
+        sincosf(mode.th0_pri + th_ij, &s_pri, &c_pri);
+        acc_pri += mode.are_pri * c_pri - mode.aim_pri * s_pri;
+
+        if (has_sec)
+        {
+            float s_sec, c_sec;
+            sincosf(mode.th0_sec + th_ij, &s_sec, &c_sec);
+            acc_sec += mode.are_sec * c_sec - mode.aim_sec * s_sec;
+        }
+    }
+
+    int pad_idx = j * pad_size + i;
+    d_super_pha[pad_idx] += acc_pri;
+    if (has_sec && d_super_spha != NULL)
+    {
+        d_super_spha[pad_idx] += acc_sec;
+    }
+
+    if (i >= guard && i < guard + pup_size && j >= guard && j < guard + pup_size)
+    {
+        int pup_idx = (j - guard) * pup_size + (i - guard);
+        if (d_frame_pha != NULL)
+        {
+            d_frame_pha[pup_idx] += acc_pri;
+        }
+        if (has_sec && d_frame_spha != NULL)
+        {
+            d_frame_spha[pup_idx] += acc_sec;
+        }
+    }
+}
+
+/**
+ * atmturb_cuda_lowfreq_accumulate_launch - Launch subharmonic low-order accumulation
+ * @pad_size: Linear dimension of padded simulation grid.
+ * @pup_size: Linear dimension of synthesized pupil.
+ * @guard: Guard margin in pixels.
+ * @n_modes: Number of active low-frequency modes to evaluate.
+ * @has_sec: 1 if secondary wavelength enabled, 0 otherwise.
+ * @d_modes: Array of device low-frequency mode parameters.
+ * @d_super_pha: Destination superlayer primary phase array.
+ * @d_super_spha: Destination superlayer secondary phase array.
+ * @d_frame_pha: Cumulative pupil primary phase array.
+ * @d_frame_spha: Cumulative pupil secondary phase array.
+ * @stream: CUDA execution stream.
+ */
+void atmturb_cuda_lowfreq_accumulate_launch(
+    int                                pad_size,
+    int                                pup_size,
+    int                                guard,
+    int                                n_modes,
+    int                                has_sec,
+    const atmturb_cuda_lowfreq_mode_t *d_modes,
+    float                             *d_super_pha,
+    float                             *d_super_spha,
+    float                             *d_frame_pha,
+    float                             *d_frame_spha,
+    cudaStream_t                       stream)
+{
+    if (n_modes <= 0 || d_modes == NULL)
+    {
+        return;
+    }
+
+    dim3 b_lf(16, 16);
+    dim3 g_lf(((int) pad_size + b_lf.x - 1) / b_lf.x,
+              ((int) pad_size + b_lf.y - 1) / b_lf.y);
+    atmturb_cuda_lowfreq_accumulate_kernel<<<g_lf, b_lf, 0, stream>>>(
+        pad_size, pup_size, guard, n_modes, has_sec, d_modes,
+        d_super_pha, d_super_spha, d_frame_pha, d_frame_spha);
+}
+
 __global__ static void atmturb_cuda_extract_bounds_kernel(
     const float *d_super_pha,
     float       *d_bounds,
