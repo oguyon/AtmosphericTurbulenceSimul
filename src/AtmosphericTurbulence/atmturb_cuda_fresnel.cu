@@ -50,6 +50,7 @@ struct atmturb_cuda_fresnel_stream
     const float                   *d_masters;
 
     cudaStream_t                   stream;
+    cudaEvent_t                    ev_done;
     cufftHandle                    plan_c2c;
     cufftHandle                    plan_batch2;
 
@@ -313,6 +314,11 @@ void atmturb_cuda_fresnel_stream_free(
         return;
     }
 
+    if (ctx->ev_done != 0)
+    {
+        cudaEventDestroy(ctx->ev_done);
+        ctx->ev_done = 0;
+    }
     if (ctx->stream != 0)
     {
         cudaStreamSynchronize(ctx->stream);
@@ -559,6 +565,12 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
         return NULL;
     }
 
+    if (cudaEventCreateWithFlags(&ctx->ev_done, cudaEventDisableTiming) != cudaSuccess)
+    {
+        atmturb_cuda_fresnel_stream_free(ctx);
+        return NULL;
+    }
+
     if (cufftPlan2d(&ctx->plan_c2c, (int) pup_size, (int) pup_size, CUFFT_C2C) != CUFFT_SUCCESS)
     {
         atmturb_cuda_fresnel_stream_free(ctx);
@@ -762,7 +774,7 @@ static void atmturb_cuda_fresnel_step_ops(
     }
 }
 
-int atmturb_cuda_fresnel_stream_render_step(
+int atmturb_cuda_fresnel_stream_render_launch(
     atmturb_cuda_fresnel_stream_t *ctx,
     const atmturb_rolling_t       *r,
     const atmturb_geom_t          *geom,
@@ -842,6 +854,36 @@ int atmturb_cuda_fresnel_stream_render_step(
         cudaMemcpyAsync(samp, ctx->d_frame_samp, npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
     }
 
-    cudaStreamSynchronize(ctx->stream);
+    cudaEventRecord(ctx->ev_done, ctx->stream);
     return 0;
+}
+
+int atmturb_cuda_fresnel_stream_render_wait(
+    atmturb_cuda_fresnel_stream_t *ctx)
+{
+    if (ctx == NULL)
+    {
+        return -1;
+    }
+    return (cudaEventSynchronize(ctx->ev_done) == cudaSuccess) ? 0 : -1;
+}
+
+int atmturb_cuda_fresnel_stream_render_step(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    const atmturb_rolling_t       *r,
+    const atmturb_geom_t          *geom,
+    long                           t,
+    double                         time_step_s,
+    float                         *pha,
+    float                         *amp,
+    float                         *spha,
+    float                         *samp)
+{
+    int ret = atmturb_cuda_fresnel_stream_render_launch(
+        ctx, r, geom, t, time_step_s, pha, amp, spha, samp);
+    if (ret != 0)
+    {
+        return ret;
+    }
+    return atmturb_cuda_fresnel_stream_render_wait(ctx);
 }

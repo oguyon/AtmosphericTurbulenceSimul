@@ -655,6 +655,10 @@ int atmturb_cuda_rytov_render(
             cudaMemcpyAsync(params->samp, s_d_frame_samp, sizeof(float) * (size_t) pup_pixels,
                             cudaMemcpyDeviceToHost, s_stream);
         }
+        if (params->async_stream)
+        {
+            return 0;
+        }
         cudaStreamSynchronize(s_stream);
         return 0;
     }
@@ -738,4 +742,50 @@ int atmturb_cuda_rytov_render(
         cudaFree(d_all_lf_modes);
     }
     return 0;
+}
+
+int atmturb_cuda_rytov_create_event(
+    void **ev)
+{
+    if (ev == NULL)
+    {
+        return -1;
+    }
+    cudaEvent_t e;
+    if (cudaEventCreateWithFlags(&e, cudaEventDisableTiming) != cudaSuccess)
+    {
+        *ev = NULL;
+        return -1;
+    }
+    *ev = (void *) e;
+    return 0;
+}
+
+void atmturb_cuda_rytov_destroy_event(
+    void *ev)
+{
+    if (ev != NULL)
+    {
+        cudaEventDestroy((cudaEvent_t) ev);
+    }
+}
+
+int atmturb_cuda_rytov_record_event(
+    void *ev)
+{
+    if (ev == NULL || s_stream == 0)
+    {
+        return -1;
+    }
+    return (cudaEventRecord((cudaEvent_t) ev, s_stream) == cudaSuccess) ? 0 : -1;
+}
+
+int atmturb_cuda_rytov_wait_event(
+    void *ev)
+{
+    if (ev == NULL)
+    {
+        return -1;
+    }
+    return (cudaEventSynchronize((cudaEvent_t) ev) == cudaSuccess) ? 0 : -1;
 }

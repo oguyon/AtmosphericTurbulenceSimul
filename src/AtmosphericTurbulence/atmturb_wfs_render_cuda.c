@@ -553,6 +553,7 @@ struct atmturb_cuda_rytov_stream
     int                           max_sublayers;
     int                           max_lf_modes;
     double                        offset_os;
+    void                         *ev_done;
 };
 
 /**
@@ -684,7 +685,85 @@ atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     ctx->cparams.max_lf_modes    = ctx->max_lf_modes;
     ctx->cparams.remove_piston   = 1;
 
+    if (atmturb_cuda_rytov_create_event(&ctx->ev_done) != 0)
+    {
+        atmturb_cuda_rytov_stream_free(ctx);
+        return NULL;
+    }
+
     return ctx;
+}
+
+/**
+ * atmturb_cuda_rytov_stream_render_launch - Enqueue GPU ops for Rytov frame asynchronously
+ * @ctx: Persistent stream context.
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @pha: Destination primary phase frame buffer.
+ * @amp: Destination primary amplitude frame buffer.
+ * @spha: Destination secondary phase frame buffer (or NULL).
+ * @samp: Destination secondary amplitude frame buffer (or NULL).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_rytov_stream_render_launch(
+    atmturb_cuda_rytov_stream_t *ctx,
+    const atmturb_rolling_t     *r,
+    const atmturb_geom_t        *geom,
+    long                         t,
+    double                       time_step_s,
+    float                       *pha,
+    float                       *amp,
+    float                       *spha,
+    float                       *samp)
+{
+    if (!ctx)
+    {
+        return -1;
+    }
+
+    atmturb_wfs_cuda_build_frame_sublayers(
+        r, geom, &ctx->plan, ctx->screen_offsets, t, time_step_s, ctx->offset_os,
+        ctx->max_sublayers, ctx->sublayers);
+
+    if (r->lowfreq && ctx->lf_modes != NULL)
+    {
+        atmturb_wfs_cuda_build_frame_lf_modes(
+            r, geom, &ctx->plan, t, time_step_s, ctx->offset_os,
+            ctx->max_lf_modes, ctx->lf_modes);
+    }
+
+    ctx->cparams.pha          = pha;
+    ctx->cparams.amp          = amp;
+    ctx->cparams.spha         = spha;
+    ctx->cparams.samp         = samp;
+    ctx->cparams.async_stream = 1;
+
+    int ret = atmturb_cuda_rytov_render(&ctx->cparams);
+    if (ret != 0)
+    {
+        return ret;
+    }
+
+    return atmturb_cuda_rytov_record_event(ctx->ev_done);
+}
+
+/**
+ * atmturb_cuda_rytov_stream_render_wait - Wait for enqueued Rytov frame to finish on GPU
+ * @ctx: Persistent stream context.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_rytov_stream_render_wait(
+    atmturb_cuda_rytov_stream_t *ctx)
+{
+    if (!ctx)
+    {
+        return -1;
+    }
+    return atmturb_cuda_rytov_wait_event(ctx->ev_done);
 }
 
 /**
@@ -712,28 +791,13 @@ int atmturb_cuda_rytov_stream_render_step(
     float                       *spha,
     float                       *samp)
 {
-    if (!ctx)
+    int ret = atmturb_cuda_rytov_stream_render_launch(
+        ctx, r, geom, t, time_step_s, pha, amp, spha, samp);
+    if (ret != 0)
     {
-        return -1;
+        return ret;
     }
-
-    atmturb_wfs_cuda_build_frame_sublayers(
-        r, geom, &ctx->plan, ctx->screen_offsets, t, time_step_s, ctx->offset_os,
-        ctx->max_sublayers, ctx->sublayers);
-
-    if (r->lowfreq && ctx->lf_modes != NULL)
-    {
-        atmturb_wfs_cuda_build_frame_lf_modes(
-            r, geom, &ctx->plan, t, time_step_s, ctx->offset_os,
-            ctx->max_lf_modes, ctx->lf_modes);
-    }
-
-    ctx->cparams.pha  = pha;
-    ctx->cparams.amp  = amp;
-    ctx->cparams.spha = spha;
-    ctx->cparams.samp = samp;
-
-    return atmturb_cuda_rytov_render(&ctx->cparams);
+    return atmturb_cuda_rytov_stream_render_wait(ctx);
 }
 
 /**
@@ -746,6 +810,11 @@ void atmturb_cuda_rytov_stream_free(
     if (!ctx)
     {
         return;
+    }
+    if (ctx->ev_done != NULL)
+    {
+        atmturb_cuda_rytov_destroy_event(ctx->ev_done);
+        ctx->ev_done = NULL;
     }
     if (ctx->sublayers)
     {
