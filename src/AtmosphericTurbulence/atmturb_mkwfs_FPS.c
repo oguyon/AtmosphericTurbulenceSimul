@@ -87,7 +87,7 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
     X(".seeing", &param_seeing, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,        \
       "Zenith seeing at reference wavelength [arcsec]")                         \
     X(".time_step", &param_time_step, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT, \
-      "Simulation time step between frames [s]")                                \
+      "Physics time between time slices [s]")                                   \
     X(".time_span", &param_time_span, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT, \
       "Wavefront cube duration [s]")                                            \
     X(".prof_file", &param_prof_file, FPTYPE_FILENAME, 0, FPFLAG_DEFAULT_INPUT, \
@@ -296,7 +296,10 @@ FPS_V2_SECTION5(FPS_PARAMS)
 static MILK_HOT errno_t __attribute__((unused)) compute_function(void)
 {
     INSERT_STD_PROCINFO_COMPUTEFUNC_START
+    atmturb_wfs_stream_set_processinfo(processinfo);
     fpsexec();
+    atmturb_wfs_stream_set_processinfo(NULL);
+    processloopOK = 0;
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
     return RETURN_SUCCESS;

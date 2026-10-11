@@ -30,8 +30,31 @@
 #include "atmturb_cuda_fresnel.h"
 #include "atmturb_wfs_stream.h"
 #include "ImageStreamIO/ImageStreamIO.h"
+#include "fps.h"
+#include "processtools.h"
 
 static volatile sig_atomic_t g_stream_stop = 0;
+static PROCESSINFO          *g_stream_processinfo = NULL;
+
+/**
+ * atmturb_wfs_stream_set_processinfo - Register active FPS processinfo for rate control
+ * @procinfo: Active processinfo handle, or NULL if processinfo is disabled.
+ */
+void atmturb_wfs_stream_set_processinfo(
+    PROCESSINFO *procinfo)
+{
+    g_stream_processinfo = procinfo;
+}
+
+/**
+ * atmturb_wfs_stream_get_processinfo - Retrieve active FPS processinfo handle
+ *
+ * Return: Active processinfo handle or NULL.
+ */
+PROCESSINFO *atmturb_wfs_stream_get_processinfo(void)
+{
+    return g_stream_processinfo;
+}
 
 /**
  * atmturb_wfs_stream_sig_handler - Signal handler to request graceful stream loop stop
@@ -225,25 +248,6 @@ static void atmturb_wfs_stream_render_step(
 }
 
 /**
- * atmturb_wfs_stream_pace - Delay until the target frame time
- * @start_ts: Simulation start monotonic timestamp.
- * @next_frame_idx: Next frame index.
- * @time_step_s: Time step between frames in seconds.
- */
-static inline void atmturb_wfs_stream_pace(
-    struct timespec start_ts,
-    long            next_frame_idx,
-    double          time_step_s)
-{
-    double target_sec = (double) next_frame_idx * time_step_s;
-    int64_t target_nsec = (int64_t) start_ts.tv_nsec + (int64_t) (target_sec * 1e9);
-    struct timespec target_ts;
-    target_ts.tv_sec  = start_ts.tv_sec + (time_t) (target_nsec / 1000000000LL);
-    target_ts.tv_nsec = (long) (target_nsec % 1000000000LL);
-    clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &target_ts, NULL);
-}
-
-/**
  * atmturb_wfs_stream_publish - Commit scratch buffers to shared memory and notify readers
  * @st: Stream state container.
  * @frame_pixels: Total pixels in frame.
@@ -283,14 +287,13 @@ static void atmturb_wfs_stream_publish(
 }
 
 /**
- * atmturb_wfs_stream_loop - Inner frame-by-frame streaming loop
+ * atmturb_wfs_stream_loop - Inner frame-by-frame streaming loop governed by processinfo
  * @rsim: Rolling simulation context.
  * @geom: Computed observing geometry.
  * @params: Observation parameters container.
  * @st: Stream state container.
  * @pup_size: Output pupil linear dimension.
  * @max_frames: Maximum frames to render (0 = infinite).
- * @pace: Flag to pace with simulated time_step.
  *
  * Return: Total frames streamed.
  */
@@ -300,19 +303,39 @@ static long atmturb_wfs_stream_loop(
     const atmturb_obs_params_t *params,
     atmturb_stream_state_t     *st,
     long                        pup_size,
-    long                        max_frames,
-    int                         pace)
+    long                        max_frames)
 {
     long frame_pixels = pup_size * pup_size;
     long t = 0;
-    struct timespec start_ts;
-    clock_gettime(CLOCK_MONOTONIC, &start_ts);
+    PROCESSINFO *pinfo = g_stream_processinfo;
 
     for (t = 0; ; t++)
     {
         if (g_stream_stop != 0 || (max_frames > 0 && t >= max_frames))
         {
             break;
+        }
+
+        if (pinfo != NULL && t > 0)
+        {
+            processinfo_exec_end(pinfo);
+            if (processinfo_loopstep(pinfo) == 0)
+            {
+                break;
+            }
+            if (dcfpsptr != NULL && dcfpsptr->md != NULL &&
+                (dcfpsptr->md->signal & FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE))
+            {
+                fps_to_processinfo(dcfpsptr, pinfo);
+                dcfpsptr->md->signal &= ~FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
+            }
+            processinfo_waitoninputstream(pinfo);
+            if (pinfo->triggerstatus == PROCESSINFO_TRIGGERSTATUS_TIMEDOUT &&
+                pinfo->triggermode == PROCESSINFO_TRIGGERMODE_SEMAPHORE)
+            {
+                continue;
+            }
+            processinfo_exec_start(pinfo);
         }
 
         atmturb_wfs_stream_render_step(rsim, geom, st, t, params->time_step_s,
@@ -322,12 +345,13 @@ static long atmturb_wfs_stream_loop(
         clock_gettime(CLOCK_REALTIME, &ts_now);
 
         atmturb_wfs_stream_publish(st, frame_pixels, &ts_now);
-
-        if (pace && params->time_step_s > 0.0)
-        {
-            atmturb_wfs_stream_pace(start_ts, t + 1, params->time_step_s);
-        }
     }
+
+    if (pinfo != NULL)
+    {
+        pinfo->CTRLval = 3;
+    }
+
     return t;
 }
 
@@ -411,7 +435,7 @@ static void atmturb_wfs_stream_print_output_targets(
  * make_AtmosphericTurbulence_wavefront_stream - Stream 2D wavefront frames to SHM
  * @slambdaum: Secondary observing wavelength in um.
  * @WFprecision: Precision mode flag (0=single, 1=double).
- * @stream_mode: Streaming mode (1=continuous stream, 2=finite stream, 3=unpaced continuous).
+ * @stream_mode: Streaming mode (1=continuous stream, 2=finite stream).
  *
  * Return: 0 on success, -1 on failure.
  */
@@ -513,11 +537,10 @@ int make_AtmosphericTurbulence_wavefront_stream(
            isa_str);
     fflush(stdout);
 
-    int pace = (stream_mode == 1 || stream_mode == 2);
     struct timespec ts0, ts1;
     clock_gettime(CLOCK_MONOTONIC, &ts0);
     long n_streamed = atmturb_wfs_stream_loop(&rsim, &geom, &params, &st, pup_size,
-                                             max_frames, pace);
+                                             max_frames);
     clock_gettime(CLOCK_MONOTONIC, &ts1);
 
     sigaction(SIGINT, &old_sa_int, NULL);
