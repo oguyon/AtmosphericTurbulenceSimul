@@ -13,7 +13,7 @@
 #include <string.h>
 
 #include "atmturb_cuda.h"
-#include "atmturb_cuda_rytov_internal.h"
+#include "atmturb_cuda_piston.h"
 
 // Maximum supported layers in constant memory cache
 #define ATMTURB_CUDA_MAX_LAYERS 64

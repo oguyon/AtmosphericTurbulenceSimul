@@ -263,10 +263,9 @@ static void atmturb_wfs_stream_render_step(
 }
 
 /**
- * atmturb_wfs_stream_publish - Commit scratch buffers to shared memory and notify readers
- * @st: Stream state container.
- * @frame_pixels: Total pixels in frame.
- * @ts: Frame acquisition timestamp.
+ * atmturb_wfs_stream_notify_channel - Post semaphores on an updated stream channel
+ * @id: Image ID to notify.
+ * @ts: Frame timestamp.
  */
 static inline void atmturb_wfs_stream_notify_channel(
     imageID                id,
@@ -279,6 +278,12 @@ static inline void atmturb_wfs_stream_notify_channel(
     }
 }
 
+/**
+ * atmturb_wfs_stream_publish - Commit scratch buffers to shared memory and notify readers
+ * @st: Stream state container.
+ * @frame_pixels: Total pixels in frame.
+ * @ts: Frame acquisition timestamp.
+ */
 static void atmturb_wfs_stream_publish(
     const atmturb_stream_state_t *st,
     long                          frame_pixels,
@@ -812,6 +817,24 @@ static void atmturb_wfs_dma_free_pair(
  * @st: Stream state container.
  * @pup_size: Linear dimension of square pupil.
  */
+static inline void atmturb_wfs_host_reg_channel(
+    imageID id,
+    size_t  nbytes)
+{
+    if (id >= 0)
+    {
+        atmturb_cuda_host_register(dcimg[id].array.F, nbytes);
+    }
+}
+
+static inline void atmturb_wfs_host_unreg_channel(imageID id)
+{
+    if (id >= 0)
+    {
+        atmturb_cuda_host_unregister(dcimg[id].array.F);
+    }
+}
+
 static void atmturb_wfs_stream_setup_dma(
     atmturb_stream_state_t *st,
     long                    pup_size)
@@ -824,22 +847,10 @@ static void atmturb_wfs_stream_setup_dma(
     size_t nbytes = (size_t) (pup_size * pup_size) * sizeof(float);
     if (st->cuda_gstream != NULL)
     {
-        if (st->id_pha >= 0)
-        {
-            atmturb_cuda_host_register(dcimg[st->id_pha].array.F, nbytes);
-        }
-        if (st->id_amp >= 0)
-        {
-            atmturb_cuda_host_register(dcimg[st->id_amp].array.F, nbytes);
-        }
-        if (st->id_spha >= 0)
-        {
-            atmturb_cuda_host_register(dcimg[st->id_spha].array.F, nbytes);
-        }
-        if (st->id_samp >= 0)
-        {
-            atmturb_cuda_host_register(dcimg[st->id_samp].array.F, nbytes);
-        }
+        atmturb_wfs_host_reg_channel(st->id_pha, nbytes);
+        atmturb_wfs_host_reg_channel(st->id_amp, nbytes);
+        atmturb_wfs_host_reg_channel(st->id_spha, nbytes);
+        atmturb_wfs_host_reg_channel(st->id_samp, nbytes);
         return;
     }
 
@@ -872,22 +883,10 @@ static void atmturb_wfs_stream_cleanup_dma(
 
     if (st->cuda_gstream != NULL)
     {
-        if (st->id_pha >= 0)
-        {
-            atmturb_cuda_host_unregister(dcimg[st->id_pha].array.F);
-        }
-        if (st->id_amp >= 0)
-        {
-            atmturb_cuda_host_unregister(dcimg[st->id_amp].array.F);
-        }
-        if (st->id_spha >= 0)
-        {
-            atmturb_cuda_host_unregister(dcimg[st->id_spha].array.F);
-        }
-        if (st->id_samp >= 0)
-        {
-            atmturb_cuda_host_unregister(dcimg[st->id_samp].array.F);
-        }
+        atmturb_wfs_host_unreg_channel(st->id_pha);
+        atmturb_wfs_host_unreg_channel(st->id_amp);
+        atmturb_wfs_host_unreg_channel(st->id_spha);
+        atmturb_wfs_host_unreg_channel(st->id_samp);
         return;
     }
 

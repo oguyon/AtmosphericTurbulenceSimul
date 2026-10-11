@@ -16,6 +16,8 @@
 extern "C" {
 #include "atmturb_cuda.h"
 #include "atmturb_cuda_fresnel.h"
+#include "atmturb_cuda_fresnel_kernels.h"
+#include "atmturb_cuda_piston.h"
 #include "atmturb_cuda_rytov_internal.h"
 #include "atmturb_fresnel.h"
 #include "atmturb_geometry.h"
@@ -23,10 +25,49 @@ extern "C" {
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
 #include "atmturb_superlayer.h"
+#include "atmturb_wfs_cuda_common.h"
 
 extern float CONF_FRESNEL_PROPAGATION_BIN;
 }
 
+/**
+ * struct atmturb_cuda_fresnel_stream - Persistent GPU context for Fresnel propagation
+ * @plan: Superlayer Fresnel diffraction plan.
+ * @msize: Linear dimension of master phase screen.
+ * @pup_size: Linear dimension of synthesized output pupil.
+ * @npix: Total number of pixels on pupil grid (pup_size * pup_size).
+ * @has_sec: 1 if secondary chromatic wavelength is enabled, 0 otherwise.
+ * @interp: Interpolation scheme (0=bilinear, 1=Keys bicubic).
+ * @os: Oversampling factor from master grid to simulation grid.
+ * @total_screens: Total number of allocated master screens across all layers.
+ * @max_sublayers: Maximum number of sublayers per superlayer.
+ * @lowfreq: Flag indicating whether subharmonic low-frequency modes are enabled.
+ * @max_lf_modes: Maximum low-frequency modes per superlayer.
+ * @super_nlf_modes: Array of mode counts per superlayer.
+ * @masters: Host pointers to master screen arrays.
+ * @screen_offsets: Screen index offsets per layer.
+ * @h_sublayers: Pinned host sublayer coordinate buffers (double buffered).
+ * @d_sublayers: Device sublayer coordinate buffers (double buffered).
+ * @h_lf_modes: Pinned host low-frequency mode buffers (double buffered).
+ * @d_lf_modes: Device low-frequency mode buffers (double buffered).
+ * @d_masters: Device master screens array.
+ * @stream: CUDA execution stream.
+ * @ev_done: CUDA completion events for double-buffer slots.
+ * @plan_c2c: cuFFT 2D forward/inverse plan for single-channel propagation.
+ * @plan_batch2: cuFFT 2D batched plan for simultaneous dual-wavelength propagation.
+ * @d_tf_pri: Array of device pointers to primary wavelength transfer functions.
+ * @d_tf_sec: Array of device pointers to secondary wavelength transfer functions.
+ * @d_field_pri: Device complex electric field buffer for primary wavelength.
+ * @d_field_sec: Device complex electric field buffer for secondary wavelength.
+ * @d_super_pha: Device scratch buffer for primary superlayer phase screen.
+ * @d_super_spha: Device scratch buffer for secondary superlayer phase screen.
+ * @d_frame_pha: Double-buffered device destination buffers for primary phase.
+ * @d_frame_amp: Double-buffered device destination buffers for primary amplitude.
+ * @d_frame_spha: Double-buffered device destination buffers for secondary phase.
+ * @d_frame_samp: Double-buffered device destination buffers for secondary amplitude.
+ * @d_sum_buf: Double-buffered device atomic reduction accumulators for piston.
+ * @graph_exec: Captured CUDA execution graphs for zero-overhead kernel replay.
+ */
 struct atmturb_cuda_fresnel_stream
 {
     atmturb_fresnel_plan_t         plan;
@@ -68,276 +109,6 @@ struct atmturb_cuda_fresnel_stream
     float                         *d_sum_buf[2];
     cudaGraphExec_t                graph_exec[2];
 };
-
-__global__ static void atmturb_cuda_fresnel_init_modulate_kernel(
-    cufftComplex *d_field,
-    const float  *d_super_pha,
-    int           npix)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= npix)
-    {
-        return;
-    }
-    float p = d_super_pha[i];
-    float s, c;
-    __sincosf(p, &s, &c);
-    d_field[i] = make_cuFloatComplex(c, s);
-}
-
-__global__ static void atmturb_cuda_fresnel_modulate_kernel(
-    cufftComplex *d_field,
-    const float  *d_super_pha,
-    int           npix)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= npix)
-    {
-        return;
-    }
-    float p = d_super_pha[i];
-    float s, c;
-    __sincosf(p, &s, &c);
-    cufftComplex f = d_field[i];
-    d_field[i] = make_cuFloatComplex(f.x * c - f.y * s, f.y * c + f.x * s);
-}
-
-__global__ static void atmturb_cuda_fresnel_tf_mul_vec2_kernel(
-    float4       *d_field,
-    const float4 *d_tf,
-    int           npairs)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= npairs)
-    {
-        return;
-    }
-    float4 f = d_field[i];
-    float4 t = d_tf[i];
-    float4 out;
-    out.x = f.x * t.x - f.y * t.y;
-    out.y = f.y * t.x + f.x * t.y;
-    out.z = f.z * t.z - f.w * t.w;
-    out.w = f.w * t.z + f.z * t.w;
-    d_field[i] = out;
-}
-
-__global__ static void atmturb_cuda_fresnel_extract_kernel(
-    const cufftComplex *d_field,
-    float              *d_pha,
-    float              *d_amp,
-    float              *d_sum,
-    int                 npix)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    float p = 0.0f;
-    if (i < npix)
-    {
-        cufftComplex f = d_field[i];
-        float re = f.x;
-        float im = f.y;
-        if (d_amp != NULL)
-        {
-            d_amp[i] = hypotf(re, im);
-        }
-        float phi_geo = d_pha[i];
-        float s_geo, c_geo;
-        __sincosf(phi_geo, &s_geo, &c_geo);
-        float d_re = re * c_geo + im * s_geo;
-        float d_im = im * c_geo - re * s_geo;
-        p = phi_geo + atan2f(d_im, d_re);
-        d_pha[i] = p;
-    }
-
-    if (d_sum != NULL)
-    {
-        for (int offset = 16; offset > 0; offset /= 2)
-        {
-            p += __shfl_down_sync(0xffffffff, p, offset);
-        }
-        __shared__ float s_warp_sums[32];
-        int lane = threadIdx.x % 32;
-        int warp_id = threadIdx.x / 32;
-        if (lane == 0)
-        {
-            s_warp_sums[warp_id] = p;
-        }
-        __syncthreads();
-
-        if (threadIdx.x < 32)
-        {
-            int nwarps = blockDim.x / 32;
-            float bval = (threadIdx.x < nwarps) ? s_warp_sums[threadIdx.x] : 0.0f;
-            for (int offset = 16; offset > 0; offset /= 2)
-            {
-                bval += __shfl_down_sync(0xffffffff, bval, offset);
-            }
-            if (threadIdx.x == 0)
-            {
-                atomicAdd(d_sum, bval);
-            }
-        }
-    }
-}
-
-static inline void atmturb_fresnel_cuda_build_sublayers(
-    const atmturb_rolling_t       *r,
-    const atmturb_geom_t          *geom,
-    const atmturb_fresnel_plan_t  *plan,
-    const int                     *screen_offsets,
-    long                           t,
-    double                         time_step_s,
-    int                            max_sublayers,
-    atmturb_cuda_rytov_sublayer_t *sublayers)
-{
-    for (int m = 0; m < plan->nsuper; m++)
-    {
-        const atmturb_superlayer_t *sl = &plan->supers[m];
-        size_t base = (size_t) (m * max_sublayers);
-
-        for (int j = 0; j < sl->nlayers; j++)
-        {
-            int k = sl->layer_indices[j];
-            float ws = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
-            atmturb_rolling_eval_t rev;
-            atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
-
-            double dx = atmturb_geom_get_layer_dx(&geom->layers[k], t);
-            double dy = atmturb_geom_get_layer_dy(&geom->layers[k], t);
-
-            float cur_x  = (float) (geom->layers[k].x0 + dx);
-            float cur_y  = (float) (geom->layers[k].y0 + dy);
-            float cur_xs = (float) (geom->layers[k].xs0 + dx);
-            float cur_ys = (float) (geom->layers[k].ys0 + dy);
-
-            double w_base   = geom->layers[k].weight * (double) ws;
-            double ws_base  = geom->layers[k].weight_s * (double) ws;
-            int    k_offset = screen_offsets ? screen_offsets[k] : k;
-
-            size_t idx_a = base + (size_t) (2 * j);
-            sublayers[idx_a].k     = k_offset + rev.idxA;
-            sublayers[idx_a].w_pri = (float) (w_base * (double) rev.wA);
-            sublayers[idx_a].w_sec = (float) (ws_base * (double) rev.wA);
-            sublayers[idx_a].x     = cur_x;
-            sublayers[idx_a].y     = cur_y;
-            sublayers[idx_a].xs    = cur_xs;
-            sublayers[idx_a].ys    = cur_ys;
-
-            size_t idx_b = base + (size_t) (2 * j + 1);
-            if (rev.wB > 0.0f && rev.idxB >= 0)
-            {
-                sublayers[idx_b].k     = k_offset + rev.idxB;
-                sublayers[idx_b].w_pri = (float) (w_base * (double) rev.wB);
-                sublayers[idx_b].w_sec = (float) (ws_base * (double) rev.wB);
-                sublayers[idx_b].x     = cur_x;
-                sublayers[idx_b].y     = cur_y;
-                sublayers[idx_b].xs    = cur_xs;
-                sublayers[idx_b].ys    = cur_ys;
-            }
-            else
-            {
-                memset(&sublayers[idx_b], 0, sizeof(atmturb_cuda_rytov_sublayer_t));
-            }
-        }
-    }
-}
-
-static inline void atmturb_fresnel_cuda_build_lf_modes(
-    const atmturb_rolling_t      *r,
-    const atmturb_geom_t         *geom,
-    const atmturb_fresnel_plan_t *plan,
-    long                          t,
-    double                        time_step_s,
-    int                           max_lf_modes,
-    atmturb_cuda_lowfreq_mode_t  *lf_modes)
-{
-    if (r->lowfreq == 0 || lf_modes == NULL)
-    {
-        return;
-    }
-
-    for (int m = 0; m < plan->nsuper; m++)
-    {
-        const atmturb_superlayer_t *sl = &plan->supers[m];
-        size_t base = (size_t) (m * max_lf_modes);
-        int mode_idx = 0;
-
-        for (int j = 0; j < sl->nlayers; j++)
-        {
-            int k = sl->layer_indices[j];
-            float ws = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
-            atmturb_rolling_eval_t rev;
-            atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
-
-            const atmturb_layer_geom_t *lg = &geom->layers[k];
-            double dx = atmturb_geom_get_layer_dx(lg, t);
-            double dy = atmturb_geom_get_layer_dy(lg, t);
-
-            double x  = lg->x0 + dx;
-            double y  = lg->y0 + dy;
-            double xs = lg->xs0 + dx;
-            double ys = lg->ys0 + dy;
-
-            double w_pri = lg->weight * (double) ws;
-            double w_sec = lg->weight_s * (double) ws;
-            const atmturb_lowfreq_t *lf_base = &r->layers[k].lf_base;
-
-            for (int lm = 0; lm < lf_base->nmodes; lm++)
-            {
-                float kx = lf_base->kx[lm];
-                float ky = lf_base->ky[lm];
-                float are = rev.are_eff[lm];
-                float aim = rev.aim_eff[lm];
-
-                atmturb_cuda_lowfreq_mode_t *out = &lf_modes[base + mode_idx++];
-                out->are_pri = (float) (w_pri * (double) are);
-                out->aim_pri = (float) (w_pri * (double) aim);
-                out->are_sec = (float) (w_sec * (double) are);
-                out->aim_sec = (float) (w_sec * (double) aim);
-                out->th0_pri = (float) ((double) kx * x + (double) ky * y);
-                out->th0_sec = (float) ((double) kx * xs + (double) ky * ys);
-                out->dkx     = (float) ((double) kx * (double) geom->oversample);
-                out->dky     = (float) ((double) ky * (double) geom->oversample);
-            }
-        }
-    }
-}
-
-static int atmturb_fresnel_cuda_init_screen_pool(
-    const atmturb_rolling_t  *r,
-    int                       nlayers,
-    const float            ***out_masters,
-    int                     **out_offsets,
-    int                      *out_total)
-{
-    int total = 0;
-    for (int k = 0; k < nlayers; k++)
-    {
-        total += r->layers[k].nscreens;
-    }
-    const float **masters = (const float **) malloc(sizeof(float *) * (size_t) total);
-    int *offsets = (int *) malloc(sizeof(int) * (size_t) nlayers);
-    if (!masters || !offsets)
-    {
-        free(masters);
-        free(offsets);
-        return -1;
-    }
-    int off = 0;
-    for (int k = 0; k < nlayers; k++)
-    {
-        offsets[k] = off;
-        for (int s = 0; s < r->layers[k].nscreens; s++)
-        {
-            masters[off + s] = r->layers[k].screens[s].data;
-        }
-        off += r->layers[k].nscreens;
-    }
-    *out_masters = masters;
-    *out_offsets = offsets;
-    *out_total   = total;
-    return 0;
-}
 
 /**
  * atmturb_cuda_fresnel_stream_free - Free persistent GPU Fresnel streaming context
@@ -451,6 +222,13 @@ void atmturb_cuda_fresnel_stream_free(
     free(ctx);
 }
 
+/**
+ * atmturb_cuda_fresnel_init_tf - Upload Fresnel optical transfer functions to GPU
+ * @ctx: Persistent stream context.
+ * @cpix_bytes: Size in bytes of complex 2D frequency grid.
+ *
+ * Return: 0 on success, -1 on CUDA allocation failure.
+ */
 static int atmturb_cuda_fresnel_init_tf(
     atmturb_cuda_fresnel_stream_t *ctx,
     size_t                         cpix_bytes)
@@ -484,6 +262,13 @@ static int atmturb_cuda_fresnel_init_tf(
     return 0;
 }
 
+/**
+ * atmturb_cuda_fresnel_init_lf - Allocate host and device subharmonic low-frequency mode buffers
+ * @ctx: Persistent stream context.
+ * @r: Rolling simulation context.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
 static int atmturb_cuda_fresnel_init_lf(
     atmturb_cuda_fresnel_stream_t *ctx,
     const atmturb_rolling_t       *r)
@@ -589,8 +374,8 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
     }
     ctx->max_sublayers = max_sublayers;
 
-    if (atmturb_fresnel_cuda_init_screen_pool(r, geom->nlayers, &ctx->masters,
-                                              &ctx->screen_offsets, &ctx->total_screens) != 0)
+    if (atmturb_wfs_cuda_init_screen_pool(r, geom->nlayers, &ctx->masters,
+                                          &ctx->screen_offsets, &ctx->total_screens) != 0)
     {
         atmturb_cuda_fresnel_stream_free(ctx);
         return NULL;
@@ -698,61 +483,39 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
 }
 
 /**
- * atmturb_cuda_fresnel_stream_render_step - Render one Fresnel stream frame on GPU
- * @ctx: Persistent stream context.
- * @r: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @t: Frame index.
- * @time_step_s: Time step in seconds.
- * @pha: Destination primary phase frame buffer.
- * @amp: Destination primary amplitude frame buffer (or NULL).
- * @spha: Destination secondary phase frame buffer (or NULL).
- * @samp: Destination secondary amplitude frame buffer (or NULL).
- *
- * Return: 0 on success, -1 on failure.
- */
-/**
- * atmturb_cuda_fresnel_propagate_superlayer - Modulate, propagate via cuFFT, and filter
+ * atmturb_cuda_fresnel_propagate_superlayer - Modulate field and apply Fresnel diffraction
  * @ctx: Persistent stream context.
  * @m: Superlayer index.
  * @do_batch2: 1 to execute batched 2-channel cuFFT, 0 for single channel.
- * @grid: Grid dimensions for element-wise kernels.
- * @block: Block dimensions for element-wise kernels.
  */
 static void atmturb_cuda_fresnel_propagate_superlayer(
     atmturb_cuda_fresnel_stream_t *ctx,
     int                            m,
-    int                            do_batch2,
-    dim3                           grid,
-    dim3                           block)
+    int                            do_batch2)
 {
     if (do_batch2)
     {
         if (m == 0)
         {
-            atmturb_cuda_fresnel_init_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
-            atmturb_cuda_fresnel_init_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix);
+            atmturb_cuda_fresnel_init_modulate_launch(
+                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
+            atmturb_cuda_fresnel_init_modulate_launch(
+                ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix, ctx->stream);
         }
         else
         {
-            atmturb_cuda_fresnel_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
-            atmturb_cuda_fresnel_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix);
+            atmturb_cuda_fresnel_modulate_launch(
+                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
+            atmturb_cuda_fresnel_modulate_launch(
+                ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix, ctx->stream);
         }
 
         cufftExecC2C(ctx->plan_batch2, ctx->d_field_pri, ctx->d_field_pri, CUFFT_FORWARD);
 
-        int npairs = (int) ctx->npix / 2;
-        dim3 b_pairs(256);
-        dim3 g_pairs((npairs + 256 - 1) / 256);
-
-        atmturb_cuda_fresnel_tf_mul_vec2_kernel<<<g_pairs, b_pairs, 0, ctx->stream>>>(
-            (float4 *) ctx->d_field_pri, (const float4 *) ctx->d_tf_pri[m], npairs);
-        atmturb_cuda_fresnel_tf_mul_vec2_kernel<<<g_pairs, b_pairs, 0, ctx->stream>>>(
-            (float4 *) ctx->d_field_sec, (const float4 *) ctx->d_tf_sec[m], npairs);
+        atmturb_cuda_fresnel_tf_mul_vec2_launch(
+            ctx->d_field_pri, ctx->d_tf_pri[m], (int) ctx->npix, ctx->stream);
+        atmturb_cuda_fresnel_tf_mul_vec2_launch(
+            ctx->d_field_sec, ctx->d_tf_sec[m], (int) ctx->npix, ctx->stream);
 
         cufftExecC2C(ctx->plan_batch2, ctx->d_field_pri, ctx->d_field_pri, CUFFT_INVERSE);
     }
@@ -760,21 +523,18 @@ static void atmturb_cuda_fresnel_propagate_superlayer(
     {
         if (m == 0)
         {
-            atmturb_cuda_fresnel_init_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
+            atmturb_cuda_fresnel_init_modulate_launch(
+                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
         }
         else
         {
-            atmturb_cuda_fresnel_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
+            atmturb_cuda_fresnel_modulate_launch(
+                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
         }
 
         cufftExecC2C(ctx->plan_c2c, ctx->d_field_pri, ctx->d_field_pri, CUFFT_FORWARD);
-        int npairs = (int) ctx->npix / 2;
-        dim3 b_pairs(256);
-        dim3 g_pairs((npairs + 256 - 1) / 256);
-        atmturb_cuda_fresnel_tf_mul_vec2_kernel<<<g_pairs, b_pairs, 0, ctx->stream>>>(
-            (float4 *) ctx->d_field_pri, (const float4 *) ctx->d_tf_pri[m], npairs);
+        atmturb_cuda_fresnel_tf_mul_vec2_launch(
+            ctx->d_field_pri, ctx->d_tf_pri[m], (int) ctx->npix, ctx->stream);
         cufftExecC2C(ctx->plan_c2c, ctx->d_field_pri, ctx->d_field_pri, CUFFT_INVERSE);
     }
 }
@@ -799,9 +559,6 @@ static void atmturb_cuda_fresnel_step_ops(
         cudaMemsetAsync(ctx->d_frame_spha[slot], 0, npix_bytes, ctx->stream);
     }
 
-    dim3 block(256);
-    dim3 grid(((int) ctx->npix + block.x - 1) / block.x);
-
     for (int m = 0; m < ctx->plan.nsuper; m++)
     {
         const atmturb_superlayer_t *sl = &ctx->plan.supers[m];
@@ -822,7 +579,7 @@ static void atmturb_cuda_fresnel_step_ops(
             ctx->stream);
 
         int do_batch2 = (ctx->has_sec && has_sec_out && ctx->d_tf_sec[m] != NULL);
-        atmturb_cuda_fresnel_propagate_superlayer(ctx, m, do_batch2, grid, block);
+        atmturb_cuda_fresnel_propagate_superlayer(ctx, m, do_batch2);
     }
 
     if (ctx->d_sum_buf[slot] != NULL)
@@ -830,15 +587,15 @@ static void atmturb_cuda_fresnel_step_ops(
         cudaMemsetAsync(ctx->d_sum_buf[slot], 0, sizeof(float), ctx->stream);
     }
 
-    atmturb_cuda_fresnel_extract_kernel<<<grid, block, 0, ctx->stream>>>(
+    atmturb_cuda_fresnel_extract_launch(
         ctx->d_field_pri, ctx->d_frame_pha[slot], (has_amp) ? ctx->d_frame_amp[slot] : NULL,
-        ctx->d_sum_buf[slot], (int) ctx->npix);
+        ctx->d_sum_buf[slot], (int) ctx->npix, ctx->stream);
 
     if (ctx->has_sec && has_sec_out)
     {
-        atmturb_cuda_fresnel_extract_kernel<<<grid, block, 0, ctx->stream>>>(
+        atmturb_cuda_fresnel_extract_launch(
             ctx->d_field_sec, ctx->d_frame_spha[slot], (has_amp) ? ctx->d_frame_samp[slot] : NULL,
-            NULL, (int) ctx->npix);
+            NULL, (int) ctx->npix, ctx->stream);
     }
 
     if (ctx->d_sum_buf[slot] != NULL)
@@ -853,6 +610,21 @@ static void atmturb_cuda_fresnel_step_ops(
     }
 }
 
+/**
+ * atmturb_cuda_fresnel_stream_render_launch - Asynchronously dispatch one Fresnel frame on GPU
+ * @ctx: Persistent stream context.
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @t: Simulation frame index.
+ * @time_step_s: Time step in seconds.
+ * @pha: Destination host buffer for primary phase.
+ * @amp: Destination host buffer for primary amplitude (or NULL).
+ * @spha: Destination host buffer for secondary phase (or NULL).
+ * @samp: Destination host buffer for secondary amplitude (or NULL).
+ * @slot: Active double-buffer slot index (0 or 1).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
 int atmturb_cuda_fresnel_stream_render_launch(
     atmturb_cuda_fresnel_stream_t *ctx,
     const atmturb_rolling_t       *r,
@@ -871,9 +643,9 @@ int atmturb_cuda_fresnel_stream_render_launch(
     }
     int s = slot & 1;
 
-    atmturb_fresnel_cuda_build_sublayers(
-        r, geom, &ctx->plan, ctx->screen_offsets, t, time_step_s,
-        ctx->max_sublayers, ctx->h_sublayers[s]);
+    atmturb_wfs_cuda_build_frame_sublayers(
+        r, geom, ctx->plan.nsuper, ctx->plan.supers, ctx->screen_offsets,
+        t, time_step_s, 0.0, ctx->max_sublayers, ctx->h_sublayers[s]);
 
     size_t sub_bytes = (size_t) (ctx->plan.nsuper * ctx->max_sublayers) *
                        sizeof(atmturb_cuda_rytov_sublayer_t);
@@ -882,9 +654,9 @@ int atmturb_cuda_fresnel_stream_render_launch(
 
     if (ctx->lowfreq && ctx->h_lf_modes[s] != NULL)
     {
-        atmturb_fresnel_cuda_build_lf_modes(
-            r, geom, &ctx->plan, t, time_step_s,
-            ctx->max_lf_modes, ctx->h_lf_modes[s]);
+        atmturb_wfs_cuda_build_frame_lf_modes(
+            r, geom, ctx->plan.nsuper, ctx->plan.supers,
+            t, time_step_s, 0.0, ctx->max_lf_modes, ctx->h_lf_modes[s]);
         size_t lf_bytes = (size_t) (ctx->plan.nsuper * ctx->max_lf_modes) *
                           sizeof(atmturb_cuda_lowfreq_mode_t);
         cudaMemcpyAsync(ctx->d_lf_modes[s], ctx->h_lf_modes[s], lf_bytes,
@@ -921,24 +693,35 @@ int atmturb_cuda_fresnel_stream_render_launch(
     }
 
     size_t npix_bytes = (size_t) ctx->npix * sizeof(float);
-    cudaMemcpyAsync(pha, ctx->d_frame_pha[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
+    cudaMemcpyAsync(
+        pha, ctx->d_frame_pha[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
     if (amp != NULL)
     {
-        cudaMemcpyAsync(amp, ctx->d_frame_amp[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
+        cudaMemcpyAsync(
+            amp, ctx->d_frame_amp[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
     }
     if (ctx->has_sec && spha != NULL)
     {
-        cudaMemcpyAsync(spha, ctx->d_frame_spha[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
+        cudaMemcpyAsync(
+            spha, ctx->d_frame_spha[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
     }
     if (ctx->has_sec && samp != NULL)
     {
-        cudaMemcpyAsync(samp, ctx->d_frame_samp[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
+        cudaMemcpyAsync(
+            samp, ctx->d_frame_samp[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
     }
 
     cudaEventRecord(ctx->ev_done[s], ctx->stream);
     return 0;
 }
 
+/**
+ * atmturb_cuda_fresnel_stream_render_wait - Wait for in-flight GPU frame to finish
+ * @ctx: Persistent stream context.
+ * @slot: Double-buffer slot index (0 or 1).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
 int atmturb_cuda_fresnel_stream_render_wait(
     atmturb_cuda_fresnel_stream_t *ctx,
     int                            slot)
@@ -951,6 +734,20 @@ int atmturb_cuda_fresnel_stream_render_wait(
     return (cudaEventSynchronize(ctx->ev_done[s]) == cudaSuccess) ? 0 : -1;
 }
 
+/**
+ * atmturb_cuda_fresnel_stream_render_step - Synchronously render one Fresnel frame on GPU
+ * @ctx: Persistent stream context.
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @t: Simulation frame index.
+ * @time_step_s: Time step in seconds.
+ * @pha: Destination host buffer for primary phase.
+ * @amp: Destination host buffer for primary amplitude (or NULL).
+ * @spha: Destination host buffer for secondary phase (or NULL).
+ * @samp: Destination host buffer for secondary amplitude (or NULL).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
 int atmturb_cuda_fresnel_stream_render_step(
     atmturb_cuda_fresnel_stream_t *ctx,
     const atmturb_rolling_t       *r,
