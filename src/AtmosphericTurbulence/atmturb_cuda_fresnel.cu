@@ -50,7 +50,9 @@ struct atmturb_cuda_fresnel_stream
     const float                   *d_masters;
 
     cudaStream_t                   stream;
+    cudaEvent_t                    ev_done;
     cufftHandle                    plan_c2c;
+    cufftHandle                    plan_batch2;
 
     cufftComplex                 **d_tf_pri;
     cufftComplex                 **d_tf_sec;
@@ -312,6 +314,11 @@ void atmturb_cuda_fresnel_stream_free(
         return;
     }
 
+    if (ctx->ev_done != 0)
+    {
+        cudaEventDestroy(ctx->ev_done);
+        ctx->ev_done = 0;
+    }
     if (ctx->stream != 0)
     {
         cudaStreamSynchronize(ctx->stream);
@@ -322,6 +329,11 @@ void atmturb_cuda_fresnel_stream_free(
     {
         cufftDestroy(ctx->plan_c2c);
         ctx->plan_c2c = 0;
+    }
+    if (ctx->plan_batch2 != 0)
+    {
+        cufftDestroy(ctx->plan_batch2);
+        ctx->plan_batch2 = 0;
     }
 
     if (ctx->d_tf_pri != NULL)
@@ -351,7 +363,8 @@ void atmturb_cuda_fresnel_stream_free(
     }
 
     cudaFree(ctx->d_field_pri);
-    cudaFree(ctx->d_field_sec);
+    ctx->d_field_pri = NULL;
+    ctx->d_field_sec = NULL;
     cudaFree(ctx->d_super_pha);
     cudaFree(ctx->d_super_spha);
     cudaFree(ctx->d_frame_pha);
@@ -378,7 +391,7 @@ void atmturb_cuda_fresnel_stream_free(
     }
     if (ctx->h_lf_modes != NULL)
     {
-        free(ctx->h_lf_modes);
+        cudaFreeHost(ctx->h_lf_modes);
         ctx->h_lf_modes = NULL;
     }
     if (ctx->super_nlf_modes != NULL)
@@ -387,7 +400,11 @@ void atmturb_cuda_fresnel_stream_free(
         ctx->super_nlf_modes = NULL;
     }
 
-    free(ctx->h_sublayers);
+    if (ctx->h_sublayers != NULL)
+    {
+        cudaFreeHost(ctx->h_sublayers);
+        ctx->h_sublayers = NULL;
+    }
     free(ctx->masters);
     free(ctx->screen_offsets);
 
@@ -452,15 +469,15 @@ static int atmturb_cuda_fresnel_init_lf(
     if (max_lf_modes > 0)
     {
         size_t n_lf_tot = (size_t) (ctx->plan.nsuper * max_lf_modes);
-        ctx->h_lf_modes = (atmturb_cuda_lowfreq_mode_t *) calloc(
-            n_lf_tot, sizeof(atmturb_cuda_lowfreq_mode_t));
+        size_t lf_bytes = n_lf_tot * sizeof(atmturb_cuda_lowfreq_mode_t);
         ctx->super_nlf_modes = (int *) malloc(sizeof(int) * (size_t) ctx->plan.nsuper);
-        if (!ctx->h_lf_modes || !ctx->super_nlf_modes ||
-            cudaMalloc((void **) &ctx->d_lf_modes,
-                       n_lf_tot * sizeof(atmturb_cuda_lowfreq_mode_t)) != cudaSuccess)
+        if (!ctx->super_nlf_modes ||
+            cudaMallocHost((void **) &ctx->h_lf_modes, lf_bytes) != cudaSuccess ||
+            cudaMalloc((void **) &ctx->d_lf_modes, lf_bytes) != cudaSuccess)
         {
             return -1;
         }
+        memset(ctx->h_lf_modes, 0, lf_bytes);
         for (int m = 0; m < ctx->plan.nsuper; m++)
         {
             ctx->super_nlf_modes[m] = ctx->plan.supers[m].nlayers * 24;
@@ -548,6 +565,12 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
         return NULL;
     }
 
+    if (cudaEventCreateWithFlags(&ctx->ev_done, cudaEventDisableTiming) != cudaSuccess)
+    {
+        atmturb_cuda_fresnel_stream_free(ctx);
+        return NULL;
+    }
+
     if (cufftPlan2d(&ctx->plan_c2c, (int) pup_size, (int) pup_size, CUFFT_C2C) != CUFFT_SUCCESS)
     {
         atmturb_cuda_fresnel_stream_free(ctx);
@@ -555,8 +578,21 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
     }
     cufftSetStream(ctx->plan_c2c, ctx->stream);
 
+    if (ctx->has_sec)
+    {
+        int n[2] = {(int) pup_size, (int) pup_size};
+        if (cufftPlanMany(&ctx->plan_batch2, 2, n, NULL, 1, (int) ctx->npix,
+                          NULL, 1, (int) ctx->npix, CUFFT_C2C, 2) != CUFFT_SUCCESS)
+        {
+            atmturb_cuda_fresnel_stream_free(ctx);
+            return NULL;
+        }
+        cufftSetStream(ctx->plan_batch2, ctx->stream);
+    }
+
     size_t npix_bytes = (size_t) ctx->npix * sizeof(float);
     size_t cpix_bytes = (size_t) ctx->npix * sizeof(cufftComplex);
+    size_t field_alloc_bytes = (ctx->has_sec ? 2 : 1) * cpix_bytes;
 
     if (atmturb_cuda_fresnel_init_tf(ctx, cpix_bytes) != 0 ||
         atmturb_cuda_fresnel_init_lf(ctx, r) != 0)
@@ -566,25 +602,24 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
     }
 
     size_t n_sub_tot = (size_t) (ctx->plan.nsuper * max_sublayers);
-    ctx->h_sublayers = (atmturb_cuda_rytov_sublayer_t *) calloc(
-        n_sub_tot, sizeof(atmturb_cuda_rytov_sublayer_t));
-
-    if (cudaMalloc((void **) &ctx->d_field_pri, cpix_bytes) != cudaSuccess ||
+    size_t sub_bytes = n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t);
+    if (cudaMallocHost((void **) &ctx->h_sublayers, sub_bytes) != cudaSuccess ||
+        cudaMalloc((void **) &ctx->d_field_pri, field_alloc_bytes) != cudaSuccess ||
         cudaMalloc((void **) &ctx->d_super_pha, npix_bytes) != cudaSuccess ||
         cudaMalloc((void **) &ctx->d_frame_pha, npix_bytes) != cudaSuccess ||
         cudaMalloc((void **) &ctx->d_frame_amp, npix_bytes) != cudaSuccess ||
         cudaMalloc((void **) &ctx->d_sum_buf, sizeof(float)) != cudaSuccess ||
-        cudaMalloc((void **) &ctx->d_sublayers,
-                   n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t)) != cudaSuccess)
+        cudaMalloc((void **) &ctx->d_sublayers, sub_bytes) != cudaSuccess)
     {
         atmturb_cuda_fresnel_stream_free(ctx);
         return NULL;
     }
+    memset(ctx->h_sublayers, 0, sub_bytes);
 
     if (ctx->has_sec)
     {
-        if (cudaMalloc((void **) &ctx->d_field_sec, cpix_bytes) != cudaSuccess ||
-            cudaMalloc((void **) &ctx->d_super_spha, npix_bytes) != cudaSuccess ||
+        ctx->d_field_sec = ctx->d_field_pri + ctx->npix;
+        if (cudaMalloc((void **) &ctx->d_super_spha, npix_bytes) != cudaSuccess ||
             cudaMalloc((void **) &ctx->d_frame_spha, npix_bytes) != cudaSuccess ||
             cudaMalloc((void **) &ctx->d_frame_samp, npix_bytes) != cudaSuccess)
         {
@@ -611,6 +646,67 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
  *
  * Return: 0 on success, -1 on failure.
  */
+/**
+ * atmturb_cuda_fresnel_propagate_superlayer - Modulate, propagate via cuFFT, and filter
+ * @ctx: Persistent stream context.
+ * @m: Superlayer index.
+ * @do_batch2: 1 to execute batched 2-channel cuFFT, 0 for single channel.
+ * @grid: Grid dimensions for element-wise kernels.
+ * @block: Block dimensions for element-wise kernels.
+ */
+static void atmturb_cuda_fresnel_propagate_superlayer(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    int                            m,
+    int                            do_batch2,
+    dim3                           grid,
+    dim3                           block)
+{
+    if (do_batch2)
+    {
+        if (m == 0)
+        {
+            atmturb_cuda_fresnel_init_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
+                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
+            atmturb_cuda_fresnel_init_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
+                ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix);
+        }
+        else
+        {
+            atmturb_cuda_fresnel_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
+                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
+            atmturb_cuda_fresnel_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
+                ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix);
+        }
+
+        cufftExecC2C(ctx->plan_batch2, ctx->d_field_pri, ctx->d_field_pri, CUFFT_FORWARD);
+
+        atmturb_cuda_fresnel_tf_mul_kernel<<<grid, block, 0, ctx->stream>>>(
+            ctx->d_field_pri, ctx->d_tf_pri[m], (int) ctx->npix);
+        atmturb_cuda_fresnel_tf_mul_kernel<<<grid, block, 0, ctx->stream>>>(
+            ctx->d_field_sec, ctx->d_tf_sec[m], (int) ctx->npix);
+
+        cufftExecC2C(ctx->plan_batch2, ctx->d_field_pri, ctx->d_field_pri, CUFFT_INVERSE);
+    }
+    else
+    {
+        if (m == 0)
+        {
+            atmturb_cuda_fresnel_init_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
+                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
+        }
+        else
+        {
+            atmturb_cuda_fresnel_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
+                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
+        }
+
+        cufftExecC2C(ctx->plan_c2c, ctx->d_field_pri, ctx->d_field_pri, CUFFT_FORWARD);
+        atmturb_cuda_fresnel_tf_mul_kernel<<<grid, block, 0, ctx->stream>>>(
+            ctx->d_field_pri, ctx->d_tf_pri[m], (int) ctx->npix);
+        cufftExecC2C(ctx->plan_c2c, ctx->d_field_pri, ctx->d_field_pri, CUFFT_INVERSE);
+    }
+}
+
 /**
  * atmturb_cuda_fresnel_step_ops - Enqueue GPU operations for one Fresnel propagation frame
  * @ctx: Persistent stream context.
@@ -639,59 +735,20 @@ static void atmturb_cuda_fresnel_step_ops(
         const atmturb_cuda_rytov_sublayer_t *d_sl = ctx->d_sublayers + base;
         int n_sub = 2 * sl->nlayers;
 
+        int n_lf = (ctx->lowfreq && ctx->super_nlf_modes != NULL && ctx->d_lf_modes != NULL)
+                       ? ctx->super_nlf_modes[m] : 0;
+        const atmturb_cuda_lowfreq_mode_t *d_lf = (n_lf > 0)
+                       ? ctx->d_lf_modes + (size_t) (m * ctx->max_lf_modes) : NULL;
+
         atmturb_cuda_extrude_sl_launch(
             ctx->interp, ctx->d_masters, (int) ctx->msize, (int) ctx->pup_size,
             (int) ctx->pup_size, 0, n_sub, ctx->has_sec, ctx->os, d_sl,
+            n_lf, d_lf,
             ctx->d_super_pha, ctx->d_super_spha, ctx->d_frame_pha, ctx->d_frame_spha,
             ctx->stream);
 
-        if (ctx->lowfreq && ctx->super_nlf_modes != NULL &&
-            ctx->super_nlf_modes[m] > 0 && ctx->d_lf_modes != NULL)
-        {
-            const atmturb_cuda_lowfreq_mode_t *d_lf =
-                ctx->d_lf_modes + (size_t) (m * ctx->max_lf_modes);
-            atmturb_cuda_lowfreq_accumulate_launch(
-                (int) ctx->pup_size, (int) ctx->pup_size, 0,
-                ctx->super_nlf_modes[m], ctx->has_sec, d_lf,
-                ctx->d_super_pha, ctx->d_super_spha,
-                ctx->d_frame_pha, ctx->d_frame_spha,
-                ctx->stream);
-        }
-
-        if (m == 0)
-        {
-            atmturb_cuda_fresnel_init_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
-        }
-        else
-        {
-            atmturb_cuda_fresnel_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix);
-        }
-
-        cufftExecC2C(ctx->plan_c2c, ctx->d_field_pri, ctx->d_field_pri, CUFFT_FORWARD);
-        atmturb_cuda_fresnel_tf_mul_kernel<<<grid, block, 0, ctx->stream>>>(
-            ctx->d_field_pri, ctx->d_tf_pri[m], (int) ctx->npix);
-        cufftExecC2C(ctx->plan_c2c, ctx->d_field_pri, ctx->d_field_pri, CUFFT_INVERSE);
-
-        if (ctx->has_sec && has_sec_out && ctx->d_tf_sec[m] != NULL)
-        {
-            if (m == 0)
-            {
-                atmturb_cuda_fresnel_init_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                    ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix);
-            }
-            else
-            {
-                atmturb_cuda_fresnel_modulate_kernel<<<grid, block, 0, ctx->stream>>>(
-                    ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix);
-            }
-
-            cufftExecC2C(ctx->plan_c2c, ctx->d_field_sec, ctx->d_field_sec, CUFFT_FORWARD);
-            atmturb_cuda_fresnel_tf_mul_kernel<<<grid, block, 0, ctx->stream>>>(
-                ctx->d_field_sec, ctx->d_tf_sec[m], (int) ctx->npix);
-            cufftExecC2C(ctx->plan_c2c, ctx->d_field_sec, ctx->d_field_sec, CUFFT_INVERSE);
-        }
+        int do_batch2 = (ctx->has_sec && has_sec_out && ctx->d_tf_sec[m] != NULL);
+        atmturb_cuda_fresnel_propagate_superlayer(ctx, m, do_batch2, grid, block);
     }
 
     atmturb_cuda_fresnel_extract_kernel<<<grid, block, 0, ctx->stream>>>(
@@ -717,7 +774,7 @@ static void atmturb_cuda_fresnel_step_ops(
     }
 }
 
-int atmturb_cuda_fresnel_stream_render_step(
+int atmturb_cuda_fresnel_stream_render_launch(
     atmturb_cuda_fresnel_stream_t *ctx,
     const atmturb_rolling_t       *r,
     const atmturb_geom_t          *geom,
@@ -797,6 +854,36 @@ int atmturb_cuda_fresnel_stream_render_step(
         cudaMemcpyAsync(samp, ctx->d_frame_samp, npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
     }
 
-    cudaStreamSynchronize(ctx->stream);
+    cudaEventRecord(ctx->ev_done, ctx->stream);
     return 0;
+}
+
+int atmturb_cuda_fresnel_stream_render_wait(
+    atmturb_cuda_fresnel_stream_t *ctx)
+{
+    if (ctx == NULL)
+    {
+        return -1;
+    }
+    return (cudaEventSynchronize(ctx->ev_done) == cudaSuccess) ? 0 : -1;
+}
+
+int atmturb_cuda_fresnel_stream_render_step(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    const atmturb_rolling_t       *r,
+    const atmturb_geom_t          *geom,
+    long                           t,
+    double                         time_step_s,
+    float                         *pha,
+    float                         *amp,
+    float                         *spha,
+    float                         *samp)
+{
+    int ret = atmturb_cuda_fresnel_stream_render_launch(
+        ctx, r, geom, t, time_step_s, pha, amp, spha, samp);
+    if (ret != 0)
+    {
+        return ret;
+    }
+    return atmturb_cuda_fresnel_stream_render_wait(ctx);
 }

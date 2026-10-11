@@ -385,8 +385,11 @@ static void bench_rytov_streaming(
         atmturb_cuda_rytov_stream_init(rsim, geom, prof, params, BENCH_MSIZE, pup_size);
     if (crstream != NULL)
     {
-        atmturb_cuda_rytov_stream_render_step(crstream, rsim, geom, 0, 0.001,
-                                             pha, amp, spha, samp);
+        for (int w = 0; w < 10; w++)
+        {
+            atmturb_cuda_rytov_stream_render_step(crstream, rsim, geom, 0, 0.001,
+                                                 pha, amp, spha, samp);
+        }
         double t0 = get_time_sec();
         for (int t = 0; t < nframes; t++)
         {
@@ -608,7 +611,7 @@ int main(
     printf("\n--- Section 3: Diffractive Rytov Wavefront Streaming ---\n");
     for (int i = 0; i < n_sizes; i++)
     {
-        int nframes = (sizes[i] <= 128) ? 100 : (sizes[i] == 256 ? 50 : 20);
+        int nframes = (sizes[i] <= 128) ? 100 : (sizes[i] == 256 ? 100 : 20);
         bench_rytov_streaming(&rsim, &geom, &prof, &params, sizes[i], nframes);
     }
 

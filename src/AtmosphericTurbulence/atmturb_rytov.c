@@ -13,6 +13,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include "atmturb_geometry.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
@@ -324,6 +328,43 @@ void atmturb_rytov_plan_free(
 }
 
 /**
+ * atmturb_rytov_fftw_threads - Configure OpenMP thread count for Rytov FFTW plans
+ * @pup_size: Linear dimension of wavefront in pixels.
+ */
+static void atmturb_rytov_fftw_threads(long pup_size)
+{
+#ifdef _OPENMP
+    static int s_threads_init = 0;
+    #pragma omp critical(milkatmturb_fftw_rytov_init)
+    {
+        if (!s_threads_init)
+        {
+            if (fftwf_init_threads())
+            {
+                s_threads_init = 1;
+            }
+        }
+    }
+    if (s_threads_init)
+    {
+        int max_th = omp_get_max_threads();
+        int nth    = 1;
+        if (pup_size > 128 && pup_size <= 256)
+        {
+            nth = (max_th < 4) ? max_th : 4;
+        }
+        else if (pup_size > 256)
+        {
+            nth = (max_th < 8) ? max_th : 8;
+        }
+        fftwf_plan_with_nthreads(nth);
+    }
+#else
+    (void) pup_size;
+#endif
+}
+
+/**
  * atmturb_rytov_ctx_init - Initialize thread-local Rytov render context and FFTW plans
  * @ctx: Thread context structure to initialize.
  * @pup_size: Linear dimension of wavefront in pixels.
@@ -372,6 +413,7 @@ int atmturb_rytov_ctx_init(
     }
 
     atmturb_rytov_wisdom_load();
+    atmturb_rytov_fftw_threads(pup_size);
 
     const char *env_meas = getenv("ATMTURB_FFTW_MEASURE");
     unsigned int flags = (env_meas != NULL && atoi(env_meas) != 0)

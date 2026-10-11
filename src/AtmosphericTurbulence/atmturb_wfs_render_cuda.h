@@ -111,6 +111,40 @@ int atmturb_cuda_rytov_stream_render_step(
     float                       *samp);
 
 /**
+ * atmturb_cuda_rytov_stream_render_launch - Enqueue GPU ops for Rytov frame asynchronously
+ * @ctx: Persistent stream context.
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @pha: Destination primary phase frame buffer.
+ * @amp: Destination primary amplitude frame buffer.
+ * @spha: Destination secondary phase frame buffer (or NULL).
+ * @samp: Destination secondary amplitude frame buffer (or NULL).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_rytov_stream_render_launch(
+    atmturb_cuda_rytov_stream_t *ctx,
+    const atmturb_rolling_t     *r,
+    const atmturb_geom_t        *geom,
+    long                         t,
+    double                       time_step_s,
+    float                       *pha,
+    float                       *amp,
+    float                       *spha,
+    float                       *samp);
+
+/**
+ * atmturb_cuda_rytov_stream_render_wait - Wait for enqueued Rytov frame to finish on GPU
+ * @ctx: Persistent stream context.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_rytov_stream_render_wait(
+    atmturb_cuda_rytov_stream_t *ctx);
+
+/**
  * atmturb_cuda_rytov_stream_free - Free persistent GPU Rytov streaming context
  * @ctx: Stream context to release.
  */
@@ -236,6 +270,36 @@ static inline int atmturb_cuda_rytov_stream_render_step(
     (void) amp;
     (void) spha;
     (void) samp;
+    return -1;
+}
+
+static inline int atmturb_cuda_rytov_stream_render_launch(
+    atmturb_cuda_rytov_stream_t *ctx,
+    const atmturb_rolling_t     *r,
+    const atmturb_geom_t        *geom,
+    long                         t,
+    double                       time_step_s,
+    float                       *pha,
+    float                       *amp,
+    float                       *spha,
+    float                       *samp)
+{
+    (void) ctx;
+    (void) r;
+    (void) geom;
+    (void) t;
+    (void) time_step_s;
+    (void) pha;
+    (void) amp;
+    (void) spha;
+    (void) samp;
+    return -1;
+}
+
+static inline int atmturb_cuda_rytov_stream_render_wait(
+    atmturb_cuda_rytov_stream_t *ctx)
+{
+    (void) ctx;
     return -1;
 }
 

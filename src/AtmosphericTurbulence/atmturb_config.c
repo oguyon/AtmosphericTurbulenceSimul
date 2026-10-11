@@ -38,6 +38,7 @@ char CONF_WF_PHASE_NAME[100] = "outarraypha";
 char CONF_WF_AMPL_NAME[100]  = "outarrayamp";
 int CONF_SHM_OUTPUT = 0;
 int CONF_STREAM_MODE = 0;
+int CONF_STREAM_CBSIZE = 0;
 
 int CONF_MAKE_SWAVEFRONT = 0;
 int CONF_SWF_WRITE2DISK = 0;
@@ -236,6 +237,13 @@ static void atmturb_read_conf_output(void)
     {
         read_config_parameter(CONFFILE, keyword, content);
         CONF_STREAM_MODE = atoi(content);
+    }
+
+    snprintf(keyword, sizeof(keyword), "STREAM_CBSIZE");
+    if (read_config_parameter_exists(CONFFILE, keyword) == 1)
+    {
+        read_config_parameter(CONFFILE, keyword, content);
+        CONF_STREAM_CBSIZE = atoi(content);
     }
 
     snprintf(keyword, sizeof(keyword), "MAKE_SWAVEFRONT");

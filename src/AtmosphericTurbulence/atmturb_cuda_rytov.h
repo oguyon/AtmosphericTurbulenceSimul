@@ -135,6 +135,7 @@ typedef struct
     float                              *amp;
     float                              *spha;
     float                              *samp;
+    int                                 async_stream;
 } atmturb_cuda_rytov_params_t;
 
 #ifndef HAVE_CUDA
@@ -148,6 +149,32 @@ static inline int atmturb_cuda_rytov_render(
 
 static inline void atmturb_cuda_rytov_cleanup(void)
 {
+}
+
+static inline int atmturb_cuda_rytov_create_event(void **ev)
+{
+    if (ev != NULL)
+    {
+        *ev = NULL;
+    }
+    return 0;
+}
+
+static inline void atmturb_cuda_rytov_destroy_event(void *ev)
+{
+    (void) ev;
+}
+
+static inline int atmturb_cuda_rytov_record_event(void *ev)
+{
+    (void) ev;
+    return 0;
+}
+
+static inline int atmturb_cuda_rytov_wait_event(void *ev)
+{
+    (void) ev;
+    return 0;
 }
 
 #else
@@ -165,6 +192,40 @@ int atmturb_cuda_rytov_render(
  * atmturb_cuda_rytov_cleanup - Free cached GPU buffers and cuFFT plans
  */
 void atmturb_cuda_rytov_cleanup(void);
+
+/**
+ * atmturb_cuda_rytov_create_event - Allocate a CUDA completion event for Rytov stream
+ * @ev: Destination pointer for event handle.
+ *
+ * Return: 0 on success, -1 on error.
+ */
+int atmturb_cuda_rytov_create_event(
+    void **ev);
+
+/**
+ * atmturb_cuda_rytov_destroy_event - Free a CUDA completion event
+ * @ev: Event handle to release.
+ */
+void atmturb_cuda_rytov_destroy_event(
+    void *ev);
+
+/**
+ * atmturb_cuda_rytov_record_event - Record a completion event on Rytov GPU stream
+ * @ev: cudaEvent_t cast to void *.
+ *
+ * Return: 0 on success, -1 on error.
+ */
+int atmturb_cuda_rytov_record_event(
+    void *ev);
+
+/**
+ * atmturb_cuda_rytov_wait_event - Synchronize on a Rytov stream completion event
+ * @ev: cudaEvent_t cast to void *.
+ *
+ * Return: 0 on success, -1 on error.
+ */
+int atmturb_cuda_rytov_wait_event(
+    void *ev);
 
 #endif /* HAVE_CUDA */
 

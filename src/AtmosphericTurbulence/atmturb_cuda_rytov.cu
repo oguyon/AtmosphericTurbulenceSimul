@@ -423,22 +423,16 @@ static void atmturb_cuda_rytov_step_ops(
         const atmturb_cuda_rytov_sublayer_t *sl_ptr =
             s_d_active_sublayers + (size_t) (m * params->max_sublayers);
 
+        int n_lf = (params->lowfreq && params->super_nlf_modes != NULL &&
+                    params->super_nlf_modes[m] > 0 && s_d_active_lf_modes != NULL)
+                   ? params->super_nlf_modes[m] : 0;
+        const atmturb_cuda_lowfreq_mode_t *lf_ptr = (n_lf > 0)
+                   ? s_d_active_lf_modes + (size_t) (m * params->max_lf_modes) : NULL;
+
         atmturb_cuda_extrude_sl_launch(
             params->interp, d_masters, (int) params->msize, (int) pad, (int) pup_size,
-            (int) guard, n_sub, has_sec, os, sl_ptr, s_d_super_pha, s_d_super_spha,
-            s_d_frame_pha, s_d_frame_spha, stream);
-
-        if (params->lowfreq && params->super_nlf_modes != NULL &&
-            params->super_nlf_modes[m] > 0 && s_d_active_lf_modes != NULL)
-        {
-            const atmturb_cuda_lowfreq_mode_t *lf_ptr =
-                s_d_active_lf_modes + (size_t) (m * params->max_lf_modes);
-            atmturb_cuda_lowfreq_accumulate_launch(
-                (int) pad, (int) pup_size, (int) guard,
-                params->super_nlf_modes[m], has_sec, lf_ptr,
-                s_d_super_pha, s_d_super_spha,
-                s_d_frame_pha, s_d_frame_spha, stream);
-        }
+            (int) guard, n_sub, has_sec, os, sl_ptr, n_lf, lf_ptr,
+            s_d_super_pha, s_d_super_spha, s_d_frame_pha, s_d_frame_spha, stream);
 
         if (params->super_dist_m[m] > 0.0)
         {
@@ -661,6 +655,10 @@ int atmturb_cuda_rytov_render(
             cudaMemcpyAsync(params->samp, s_d_frame_samp, sizeof(float) * (size_t) pup_pixels,
                             cudaMemcpyDeviceToHost, s_stream);
         }
+        if (params->async_stream)
+        {
+            return 0;
+        }
         cudaStreamSynchronize(s_stream);
         return 0;
     }
@@ -744,4 +742,50 @@ int atmturb_cuda_rytov_render(
         cudaFree(d_all_lf_modes);
     }
     return 0;
+}
+
+int atmturb_cuda_rytov_create_event(
+    void **ev)
+{
+    if (ev == NULL)
+    {
+        return -1;
+    }
+    cudaEvent_t e;
+    if (cudaEventCreateWithFlags(&e, cudaEventDisableTiming) != cudaSuccess)
+    {
+        *ev = NULL;
+        return -1;
+    }
+    *ev = (void *) e;
+    return 0;
+}
+
+void atmturb_cuda_rytov_destroy_event(
+    void *ev)
+{
+    if (ev != NULL)
+    {
+        cudaEventDestroy((cudaEvent_t) ev);
+    }
+}
+
+int atmturb_cuda_rytov_record_event(
+    void *ev)
+{
+    if (ev == NULL || s_stream == 0)
+    {
+        return -1;
+    }
+    return (cudaEventRecord((cudaEvent_t) ev, s_stream) == cudaSuccess) ? 0 : -1;
+}
+
+int atmturb_cuda_rytov_wait_event(
+    void *ev)
+{
+    if (ev == NULL)
+    {
+        return -1;
+    }
+    return (cudaEventSynchronize((cudaEvent_t) ev) == cudaSuccess) ? 0 : -1;
 }
