@@ -284,41 +284,87 @@ __global__ static void atmturb_cuda_lowfreq_accumulate_kernel(
     float                             *d_frame_pha,
     float                             *d_frame_spha)
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    if (i >= pad_size || j >= pad_size)
-    {
-        return;
-    }
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int i  = blockIdx.x * 16 + tx;
+    int j  = blockIdx.y * 16 + ty;
+    int valid = (i < pad_size && j < pad_size);
 
-    float fi = (float) i;
-    float fj = (float) j;
+    __shared__ float s_X0[4][16];
+    __shared__ float s_X1[4][16];
+    __shared__ float s_Yc[4][16];
+    __shared__ float s_Ys[4][16];
+    __shared__ float s_X0_sec[4][16];
+    __shared__ float s_X1_sec[4][16];
+
     float acc_pri = 0.0f;
     float acc_sec = 0.0f;
 
-    for (int m = 0; m < n_modes; m++)
+    for (int base_m = 0; base_m < n_modes; base_m += 4)
     {
-        atmturb_cuda_lowfreq_mode_t mode = d_modes[m];
-        float th_ij = fi * mode.dkx + fj * mode.dky;
-
-        float s_pri, c_pri;
-        __sincosf(mode.th0_pri + th_ij, &s_pri, &c_pri);
-        acc_pri += mode.are_pri * c_pri - mode.aim_pri * s_pri;
-
-        if (has_sec)
+        int count = n_modes - base_m;
+        if (count > 4)
         {
-            float s_sec, c_sec;
-            if (mode.th0_sec == mode.th0_pri)
-            {
-                s_sec = s_pri;
-                c_sec = c_pri;
-            }
-            else
-            {
-                __sincosf(mode.th0_sec + th_ij, &s_sec, &c_sec);
-            }
-            acc_sec += mode.are_sec * c_sec - mode.aim_sec * s_sec;
+            count = 4;
         }
+
+        if (ty < count)
+        {
+            atmturb_cuda_lowfreq_mode_t mode = d_modes[base_m + ty];
+            float ca, sa;
+            __sincosf(mode.th0_pri + (float) i * mode.dkx, &sa, &ca);
+            s_X0[ty][tx] = mode.are_pri * ca - mode.aim_pri * sa;
+            s_X1[ty][tx] = mode.are_pri * sa + mode.aim_pri * ca;
+
+            if (has_sec)
+            {
+                if (mode.th0_sec == mode.th0_pri)
+                {
+                    s_X0_sec[ty][tx] = mode.are_sec * ca - mode.aim_sec * sa;
+                    s_X1_sec[ty][tx] = mode.are_sec * sa + mode.aim_sec * ca;
+                }
+                else
+                {
+                    float ca_s, sa_s;
+                    __sincosf(mode.th0_sec + (float) i * mode.dkx, &sa_s, &ca_s);
+                    s_X0_sec[ty][tx] = mode.are_sec * ca_s - mode.aim_sec * sa_s;
+                    s_X1_sec[ty][tx] = mode.are_sec * sa_s + mode.aim_sec * ca_s;
+                }
+            }
+        }
+
+        if (tx < count)
+        {
+            atmturb_cuda_lowfreq_mode_t mode = d_modes[base_m + tx];
+            float cb, sb;
+            __sincosf((float) j * mode.dky, &sb, &cb);
+            s_Yc[tx][ty] = cb;
+            s_Ys[tx][ty] = sb;
+        }
+
+        __syncthreads();
+
+        if (valid)
+        {
+            #pragma unroll
+            for (int mb = 0; mb < count; mb++)
+            {
+                float yc = s_Yc[mb][ty];
+                float ys = s_Ys[mb][ty];
+                acc_pri += s_X0[mb][tx] * yc - s_X1[mb][tx] * ys;
+                if (has_sec)
+                {
+                    acc_sec += s_X0_sec[mb][tx] * yc - s_X1_sec[mb][tx] * ys;
+                }
+            }
+        }
+
+        __syncthreads();
+    }
+
+    if (!valid)
+    {
+        return;
     }
 
     int pad_idx = j * pad_size + i;
