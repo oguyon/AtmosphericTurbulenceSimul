@@ -423,22 +423,16 @@ static void atmturb_cuda_rytov_step_ops(
         const atmturb_cuda_rytov_sublayer_t *sl_ptr =
             s_d_active_sublayers + (size_t) (m * params->max_sublayers);
 
+        int n_lf = (params->lowfreq && params->super_nlf_modes != NULL &&
+                    params->super_nlf_modes[m] > 0 && s_d_active_lf_modes != NULL)
+                   ? params->super_nlf_modes[m] : 0;
+        const atmturb_cuda_lowfreq_mode_t *lf_ptr = (n_lf > 0)
+                   ? s_d_active_lf_modes + (size_t) (m * params->max_lf_modes) : NULL;
+
         atmturb_cuda_extrude_sl_launch(
             params->interp, d_masters, (int) params->msize, (int) pad, (int) pup_size,
-            (int) guard, n_sub, has_sec, os, sl_ptr, s_d_super_pha, s_d_super_spha,
-            s_d_frame_pha, s_d_frame_spha, stream);
-
-        if (params->lowfreq && params->super_nlf_modes != NULL &&
-            params->super_nlf_modes[m] > 0 && s_d_active_lf_modes != NULL)
-        {
-            const atmturb_cuda_lowfreq_mode_t *lf_ptr =
-                s_d_active_lf_modes + (size_t) (m * params->max_lf_modes);
-            atmturb_cuda_lowfreq_accumulate_launch(
-                (int) pad, (int) pup_size, (int) guard,
-                params->super_nlf_modes[m], has_sec, lf_ptr,
-                s_d_super_pha, s_d_super_spha,
-                s_d_frame_pha, s_d_frame_spha, stream);
-        }
+            (int) guard, n_sub, has_sec, os, sl_ptr, n_lf, lf_ptr,
+            s_d_super_pha, s_d_super_spha, s_d_frame_pha, s_d_frame_spha, stream);
 
         if (params->super_dist_m[m] > 0.0)
         {

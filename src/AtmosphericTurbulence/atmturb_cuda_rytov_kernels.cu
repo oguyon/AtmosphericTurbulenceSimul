@@ -73,221 +73,74 @@ __device__ static inline float atmturb_cuda_sample_screen_bicubic(
 
     float fx2 = fx * fx;
     float fx3 = fx2 * fx;
-    float wx[4];
-    wx[0] = -0.5f * fx + fx2 - 0.5f * fx3;
-    wx[1] = 1.0f - 2.5f * fx2 + 1.5f * fx3;
-    wx[2] = 0.5f * fx + 2.0f * fx2 - 1.5f * fx3;
-    wx[3] = -0.5f * fx2 + 0.5f * fx3;
+    float wx0 = -0.5f * fx + fx2 - 0.5f * fx3;
+    float wx1 = 1.0f - 2.5f * fx2 + 1.5f * fx3;
+    float wx2 = 0.5f * fx + 2.0f * fx2 - 1.5f * fx3;
+    float wx3 = -0.5f * fx2 + 0.5f * fx3;
 
     float fy2 = fy * fy;
     float fy3 = fy2 * fy;
-    float wy[4];
-    wy[0] = -0.5f * fy + fy2 - 0.5f * fy3;
-    wy[1] = 1.0f - 2.5f * fy2 + 1.5f * fy3;
-    wy[2] = 0.5f * fy + 2.0f * fy2 - 1.5f * fy3;
-    wy[3] = -0.5f * fy2 + 0.5f * fy3;
+    float wy0 = -0.5f * fy + fy2 - 0.5f * fy3;
+    float wy1 = 1.0f - 2.5f * fy2 + 1.5f * fy3;
+    float wy2 = 0.5f * fy + 2.0f * fy2 - 1.5f * fy3;
+    float wy3 = -0.5f * fy2 + 0.5f * fy3;
 
-    int ix_arr[4], iy_arr[4];
+    int ix0, ix1, ix2, ix3;
+    int iy0, iy1, iy2, iy3;
     if (is_pow2)
     {
-        for (int m = 0; m < 4; m++)
-        {
-            ix_arr[m] = (ix + m - 1) & mask;
-            iy_arr[m] = (iy + m - 1) & mask;
-        }
+        ix0 = (ix - 1) & mask;
+        ix1 = ix       & mask;
+        ix2 = (ix + 1) & mask;
+        ix3 = (ix + 2) & mask;
+        iy0 = (iy - 1) & mask;
+        iy1 = iy       & mask;
+        iy2 = (iy + 1) & mask;
+        iy3 = (iy + 2) & mask;
     }
     else
     {
-        for (int m = 0; m < 4; m++)
-        {
-            int xm = (ix + m - 1) % msize;
-            if (xm < 0) xm += msize;
-            ix_arr[m] = xm;
-
-            int ym = (iy + m - 1) % msize;
-            if (ym < 0) ym += msize;
-            iy_arr[m] = ym;
-        }
+        ix0 = (ix - 1) % msize; if (ix0 < 0) ix0 += msize;
+        ix1 = ix       % msize; if (ix1 < 0) ix1 += msize;
+        ix2 = (ix + 1) % msize; if (ix2 < 0) ix2 += msize;
+        ix3 = (ix + 2) % msize; if (ix3 < 0) ix3 += msize;
+        iy0 = (iy - 1) % msize; if (iy0 < 0) iy0 += msize;
+        iy1 = iy       % msize; if (iy1 < 0) iy1 += msize;
+        iy2 = (iy + 1) % msize; if (iy2 < 0) iy2 += msize;
+        iy3 = (iy + 2) % msize; if (iy3 < 0) iy3 += msize;
     }
 
     size_t msize_sq = (size_t) msize * (size_t) msize;
     const float *screen = d_masters + (size_t) k * msize_sq;
+    const float *row0 = screen + (size_t) iy0 * (size_t) msize;
+    const float *row1 = screen + (size_t) iy1 * (size_t) msize;
+    const float *row2 = screen + (size_t) iy2 * (size_t) msize;
+    const float *row3 = screen + (size_t) iy3 * (size_t) msize;
 
-    float val = 0.0f;
-    for (int n = 0; n < 4; n++)
-    {
-        const float *row = screen + (size_t) iy_arr[n] * msize;
-        float h = wx[0] * __ldg(&row[ix_arr[0]]) +
-                  wx[1] * __ldg(&row[ix_arr[1]]) +
-                  wx[2] * __ldg(&row[ix_arr[2]]) +
-                  wx[3] * __ldg(&row[ix_arr[3]]);
-        val += wy[n] * h;
-    }
-    return val;
+    float h0 = wx0 * __ldg(&row0[ix0]) + wx1 * __ldg(&row0[ix1]) +
+               wx2 * __ldg(&row0[ix2]) + wx3 * __ldg(&row0[ix3]);
+    float h1 = wx0 * __ldg(&row1[ix0]) + wx1 * __ldg(&row1[ix1]) +
+               wx2 * __ldg(&row1[ix2]) + wx3 * __ldg(&row1[ix3]);
+    float h2 = wx0 * __ldg(&row2[ix0]) + wx1 * __ldg(&row2[ix1]) +
+               wx2 * __ldg(&row2[ix2]) + wx3 * __ldg(&row2[ix3]);
+    float h3 = wx0 * __ldg(&row3[ix0]) + wx1 * __ldg(&row3[ix1]) +
+               wx2 * __ldg(&row3[ix2]) + wx3 * __ldg(&row3[ix3]);
+
+    return wy0 * h0 + wy1 * h1 + wy2 * h2 + wy3 * h3;
 }
 
-template <int interp_mode>
-__global__ static void atmturb_cuda_extrude_sl_kernel(
-    const float                         *d_masters,
-    int                                  msize,
-    int                                  pad_size,
-    int                                  pup_size,
-    int                                  guard,
-    int                                  n_sub,
-    int                                  has_sec,
-    int                                  os,
-    const atmturb_cuda_rytov_sublayer_t *d_sublayers,
-    float                               *d_super_pha,
-    float                               *d_super_spha,
-    float                               *d_frame_pha,
-    float                               *d_frame_spha)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    if (i >= pad_size || j >= pad_size)
-    {
-        return;
-    }
-
-    int is_pow2 = ((msize & (msize - 1)) == 0);
-    int mask    = msize - 1;
-
-    float p_val  = 0.0f;
-    float sp_val = 0.0f;
-
-    for (int l = 0; l < n_sub; l++)
-    {
-        atmturb_cuda_rytov_sublayer_t info = d_sublayers[l];
-        float cur_x = info.x + (float) (i * os);
-        float cur_y = info.y + (float) (j * os);
-
-        if (has_sec && info.w_sec != 0.0f && info.xs == info.x && info.ys == info.y)
-        {
-            float samp = (interp_mode == 1)
-                ? atmturb_cuda_sample_screen_bicubic(
-                    d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y)
-                : atmturb_cuda_sample_screen(
-                    d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
-            if (info.w_pri != 0.0f)
-            {
-                p_val += info.w_pri * samp;
-            }
-            sp_val += info.w_sec * samp;
-        }
-        else
-        {
-            if (info.w_pri != 0.0f)
-            {
-                if (interp_mode == 1)
-                {
-                    p_val += info.w_pri * atmturb_cuda_sample_screen_bicubic(
-                        d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
-                }
-                else
-                {
-                    p_val += info.w_pri * atmturb_cuda_sample_screen(
-                        d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
-                }
-            }
-            if (has_sec && info.w_sec != 0.0f)
-            {
-                float cur_xs = info.xs + (float) (i * os);
-                float cur_ys = info.ys + (float) (j * os);
-                if (interp_mode == 1)
-                {
-                    sp_val += info.w_sec * atmturb_cuda_sample_screen_bicubic(
-                        d_masters, msize, is_pow2, mask, info.k, cur_xs, cur_ys);
-                }
-                else
-                {
-                    sp_val += info.w_sec * atmturb_cuda_sample_screen(
-                        d_masters, msize, is_pow2, mask, info.k, cur_xs, cur_ys);
-                }
-            }
-        }
-    }
-
-    int pad_idx = j * pad_size + i;
-    d_super_pha[pad_idx] = p_val;
-    if (has_sec)
-    {
-        d_super_spha[pad_idx] = sp_val;
-    }
-
-    if (i >= guard && i < guard + pup_size && j >= guard && j < guard + pup_size)
-    {
-        int pup_idx = (j - guard) * pup_size + (i - guard);
-        d_frame_pha[pup_idx] += p_val;
-        if (has_sec)
-        {
-            d_frame_spha[pup_idx] += sp_val;
-        }
-    }
-}
-
-void atmturb_cuda_extrude_sl_launch(
-    int                                  interp_mode,
-    const float                         *d_masters,
-    int                                  msize,
-    int                                  pad_size,
-    int                                  pup_size,
-    int                                  guard,
-    int                                  n_sub,
-    int                                  has_sec,
-    int                                  os,
-    const atmturb_cuda_rytov_sublayer_t *d_sublayers,
-    float                               *d_super_pha,
-    float                               *d_super_spha,
-    float                               *d_frame_pha,
-    float                               *d_frame_spha,
-    cudaStream_t                         stream)
-{
-    dim3 b_ext(16, 16);
-    dim3 g_ext(((int) pad_size + b_ext.x - 1) / b_ext.x,
-               ((int) pad_size + b_ext.y - 1) / b_ext.y);
-    if (interp_mode == 1)
-    {
-        atmturb_cuda_extrude_sl_kernel<1><<<g_ext, b_ext, 0, stream>>>(
-            d_masters, msize, pad_size, pup_size, guard, n_sub, has_sec, os,
-            d_sublayers, d_super_pha, d_super_spha, d_frame_pha, d_frame_spha);
-    }
-    else
-    {
-        atmturb_cuda_extrude_sl_kernel<0><<<g_ext, b_ext, 0, stream>>>(
-            d_masters, msize, pad_size, pup_size, guard, n_sub, has_sec, os,
-            d_sublayers, d_super_pha, d_super_spha, d_frame_pha, d_frame_spha);
-    }
-}
-
-/**
- * atmturb_cuda_lowfreq_accumulate_kernel - Device kernel for subharmonic low-order modes
- * @pad_size: Linear dimension of padded simulation grid.
- * @pup_size: Linear dimension of synthesized pupil.
- * @guard: Guard margin in pixels.
- * @n_modes: Number of active low-frequency modes to evaluate.
- * @has_sec: 1 if secondary wavelength enabled, 0 otherwise.
- * @d_modes: Array of device low-frequency mode parameters.
- * @d_super_pha: Destination superlayer primary phase array.
- * @d_super_spha: Destination superlayer secondary phase array.
- * @d_frame_pha: Cumulative pupil primary phase array.
- * @d_frame_spha: Cumulative pupil secondary phase array.
- */
-__global__ static void atmturb_cuda_lowfreq_accumulate_kernel(
-    int                                pad_size,
-    int                                pup_size,
-    int                                guard,
+__device__ static inline void atmturb_cuda_accumulate_lowfreq_shared(
     int                                n_modes,
     int                                has_sec,
     const atmturb_cuda_lowfreq_mode_t *d_modes,
-    float                             *d_super_pha,
-    float                             *d_super_spha,
-    float                             *d_frame_pha,
-    float                             *d_frame_spha)
+    int                                i,
+    int                                j,
+    int                                pad_size,
+    float                             *acc_pri_out,
+    float                             *acc_sec_out)
 {
     int tx = threadIdx.x;
     int ty = threadIdx.y;
-    int i  = blockIdx.x * 16 + tx;
-    int j  = blockIdx.y * 16 + ty;
     int valid = (i < pad_size && j < pad_size);
 
     __shared__ float s_X0[4][16];
@@ -362,7 +215,194 @@ __global__ static void atmturb_cuda_lowfreq_accumulate_kernel(
         __syncthreads();
     }
 
+    *acc_pri_out += acc_pri;
+    *acc_sec_out += acc_sec;
+}
+
+template <int interp_mode>
+__global__ static void atmturb_cuda_extrude_sl_kernel(
+    const float                         *d_masters,
+    int                                  msize,
+    int                                  pad_size,
+    int                                  pup_size,
+    int                                  guard,
+    int                                  n_sub,
+    int                                  has_sec,
+    int                                  os,
+    const atmturb_cuda_rytov_sublayer_t *d_sublayers,
+    int                                  n_lf_modes,
+    const atmturb_cuda_lowfreq_mode_t   *d_lf_modes,
+    float                               *d_super_pha,
+    float                               *d_super_spha,
+    float                               *d_frame_pha,
+    float                               *d_frame_spha)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    int valid = (i < pad_size && j < pad_size);
+
+    int is_pow2 = ((msize & (msize - 1)) == 0);
+    int mask    = msize - 1;
+
+    float p_val  = 0.0f;
+    float sp_val = 0.0f;
+
+    if (valid)
+    {
+        for (int l = 0; l < n_sub; l++)
+        {
+            atmturb_cuda_rytov_sublayer_t info = d_sublayers[l];
+            float cur_x = info.x + (float) (i * os);
+            float cur_y = info.y + (float) (j * os);
+
+            if (has_sec && info.w_sec != 0.0f && info.xs == info.x && info.ys == info.y)
+            {
+                float samp = (interp_mode == 1)
+                    ? atmturb_cuda_sample_screen_bicubic(
+                        d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y)
+                    : atmturb_cuda_sample_screen(
+                        d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
+                if (info.w_pri != 0.0f)
+                {
+                    p_val += info.w_pri * samp;
+                }
+                sp_val += info.w_sec * samp;
+            }
+            else
+            {
+                if (info.w_pri != 0.0f)
+                {
+                    if (interp_mode == 1)
+                    {
+                        p_val += info.w_pri * atmturb_cuda_sample_screen_bicubic(
+                            d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
+                    }
+                    else
+                    {
+                        p_val += info.w_pri * atmturb_cuda_sample_screen(
+                            d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
+                    }
+                }
+                if (has_sec && info.w_sec != 0.0f)
+                {
+                    float cur_xs = info.xs + (float) (i * os);
+                    float cur_ys = info.ys + (float) (j * os);
+                    if (interp_mode == 1)
+                    {
+                        sp_val += info.w_sec * atmturb_cuda_sample_screen_bicubic(
+                            d_masters, msize, is_pow2, mask, info.k, cur_xs, cur_ys);
+                    }
+                    else
+                    {
+                        sp_val += info.w_sec * atmturb_cuda_sample_screen(
+                            d_masters, msize, is_pow2, mask, info.k, cur_xs, cur_ys);
+                    }
+                }
+            }
+        }
+    }
+
+    if (n_lf_modes > 0 && d_lf_modes != NULL)
+    {
+        atmturb_cuda_accumulate_lowfreq_shared(
+            n_lf_modes, has_sec, d_lf_modes, i, j, pad_size, &p_val, &sp_val);
+    }
+
     if (!valid)
+    {
+        return;
+    }
+
+    int pad_idx = j * pad_size + i;
+    d_super_pha[pad_idx] = p_val;
+    if (has_sec)
+    {
+        d_super_spha[pad_idx] = sp_val;
+    }
+
+    if (i >= guard && i < guard + pup_size && j >= guard && j < guard + pup_size)
+    {
+        int pup_idx = (j - guard) * pup_size + (i - guard);
+        d_frame_pha[pup_idx] += p_val;
+        if (has_sec)
+        {
+            d_frame_spha[pup_idx] += sp_val;
+        }
+    }
+}
+
+void atmturb_cuda_extrude_sl_launch(
+    int                                  interp_mode,
+    const float                         *d_masters,
+    int                                  msize,
+    int                                  pad_size,
+    int                                  pup_size,
+    int                                  guard,
+    int                                  n_sub,
+    int                                  has_sec,
+    int                                  os,
+    const atmturb_cuda_rytov_sublayer_t *d_sublayers,
+    int                                  n_lf_modes,
+    const atmturb_cuda_lowfreq_mode_t   *d_lf_modes,
+    float                               *d_super_pha,
+    float                               *d_super_spha,
+    float                               *d_frame_pha,
+    float                               *d_frame_spha,
+    cudaStream_t                         stream)
+{
+    dim3 b_ext(16, 16);
+    dim3 g_ext(((int) pad_size + b_ext.x - 1) / b_ext.x,
+               ((int) pad_size + b_ext.y - 1) / b_ext.y);
+    if (interp_mode == 1)
+    {
+        atmturb_cuda_extrude_sl_kernel<1><<<g_ext, b_ext, 0, stream>>>(
+            d_masters, msize, pad_size, pup_size, guard, n_sub, has_sec, os,
+            d_sublayers, n_lf_modes, d_lf_modes, d_super_pha, d_super_spha,
+            d_frame_pha, d_frame_spha);
+    }
+    else
+    {
+        atmturb_cuda_extrude_sl_kernel<0><<<g_ext, b_ext, 0, stream>>>(
+            d_masters, msize, pad_size, pup_size, guard, n_sub, has_sec, os,
+            d_sublayers, n_lf_modes, d_lf_modes, d_super_pha, d_super_spha,
+            d_frame_pha, d_frame_spha);
+    }
+}
+
+/**
+ * atmturb_cuda_lowfreq_accumulate_kernel - Device kernel for subharmonic low-order modes
+ * @pad_size: Linear dimension of padded simulation grid.
+ * @pup_size: Linear dimension of synthesized pupil.
+ * @guard: Guard margin in pixels.
+ * @n_modes: Number of active low-frequency modes to evaluate.
+ * @has_sec: 1 if secondary wavelength enabled, 0 otherwise.
+ * @d_modes: Array of device low-frequency mode parameters.
+ * @d_super_pha: Destination superlayer primary phase array.
+ * @d_super_spha: Destination superlayer secondary phase array.
+ * @d_frame_pha: Cumulative pupil primary phase array.
+ * @d_frame_spha: Cumulative pupil secondary phase array.
+ */
+__global__ static void atmturb_cuda_lowfreq_accumulate_kernel(
+    int                                pad_size,
+    int                                pup_size,
+    int                                guard,
+    int                                n_modes,
+    int                                has_sec,
+    const atmturb_cuda_lowfreq_mode_t *d_modes,
+    float                             *d_super_pha,
+    float                             *d_super_spha,
+    float                             *d_frame_pha,
+    float                             *d_frame_spha)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    float acc_pri = 0.0f;
+    float acc_sec = 0.0f;
+
+    atmturb_cuda_accumulate_lowfreq_shared(
+        n_modes, has_sec, d_modes, i, j, pad_size, &acc_pri, &acc_sec);
+
+    if (i >= pad_size || j >= pad_size)
     {
         return;
     }

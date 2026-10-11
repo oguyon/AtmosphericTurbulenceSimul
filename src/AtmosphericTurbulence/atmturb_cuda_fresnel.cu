@@ -723,24 +723,17 @@ static void atmturb_cuda_fresnel_step_ops(
         const atmturb_cuda_rytov_sublayer_t *d_sl = ctx->d_sublayers + base;
         int n_sub = 2 * sl->nlayers;
 
+        int n_lf = (ctx->lowfreq && ctx->super_nlf_modes != NULL && ctx->d_lf_modes != NULL)
+                       ? ctx->super_nlf_modes[m] : 0;
+        const atmturb_cuda_lowfreq_mode_t *d_lf = (n_lf > 0)
+                       ? ctx->d_lf_modes + (size_t) (m * ctx->max_lf_modes) : NULL;
+
         atmturb_cuda_extrude_sl_launch(
             ctx->interp, ctx->d_masters, (int) ctx->msize, (int) ctx->pup_size,
             (int) ctx->pup_size, 0, n_sub, ctx->has_sec, ctx->os, d_sl,
+            n_lf, d_lf,
             ctx->d_super_pha, ctx->d_super_spha, ctx->d_frame_pha, ctx->d_frame_spha,
             ctx->stream);
-
-        if (ctx->lowfreq && ctx->super_nlf_modes != NULL &&
-            ctx->super_nlf_modes[m] > 0 && ctx->d_lf_modes != NULL)
-        {
-            const atmturb_cuda_lowfreq_mode_t *d_lf =
-                ctx->d_lf_modes + (size_t) (m * ctx->max_lf_modes);
-            atmturb_cuda_lowfreq_accumulate_launch(
-                (int) ctx->pup_size, (int) ctx->pup_size, 0,
-                ctx->super_nlf_modes[m], ctx->has_sec, d_lf,
-                ctx->d_super_pha, ctx->d_super_spha,
-                ctx->d_frame_pha, ctx->d_frame_spha,
-                ctx->stream);
-        }
 
         int do_batch2 = (ctx->has_sec && has_sec_out && ctx->d_tf_sec[m] != NULL);
         atmturb_cuda_fresnel_propagate_superlayer(ctx, m, do_batch2, grid, block);

@@ -30,6 +30,8 @@ void atmturb_cuda_extrude_sl_launch(
     int                                  has_sec,
     int                                  os,
     const atmturb_cuda_rytov_sublayer_t *d_sublayers,
+    int                                  n_lf_modes,
+    const atmturb_cuda_lowfreq_mode_t   *d_lf_modes,
     float                               *d_super_pha,
     float                               *d_super_spha,
     float                               *d_frame_pha,
