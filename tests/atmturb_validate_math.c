@@ -736,43 +736,67 @@ double val_cube_breathing_ratio(
 }
 
 /**
- * @brief Compare scalar and vectorized SIMD extrusions across schemes and strides.
+ * @brief Compare two buffers and record the maximum absolute element-wise difference.
  */
-int val_check_simd_parity(
-    double  tol,
-    char   *msg_buf,
-    size_t  msg_size)
+static void val_simd_compare_buffers(
+    const float *out_s,
+    const float *out_v,
+    long         count,
+    double      *max_diff)
 {
-    long msize = 512, pup_size = 128;
-    long mtot = msize * msize, ptot = pup_size * pup_size;
-    float *master = (float *) malloc(sizeof(float) * mtot);
-    float *out_s  = (float *) calloc((size_t) ptot, sizeof(float));
-    float *out_v  = (float *) calloc((size_t) ptot, sizeof(float));
-
-    if (!master || !out_s || !out_v)
+    for (long i = 0; i < count; i++)
     {
-        free(master); free(out_s); free(out_v);
-        snprintf(msg_buf, msg_size, "allocation failure in SIMD parity test");
-        return 0;
+        double diff = fabs((double) out_s[i] - (double) out_v[i]);
+        if (diff > *max_diff)
+        {
+            *max_diff = diff;
+        }
     }
+}
 
-    for (long i = 0; i < mtot; i++)
-    {
-        master[i] = (float) sin((double) i * 0.1) + (float) cos((double) i * 0.03);
-    }
+/**
+ * @brief Test extrusion SIMD parity across interpolation schemes, oversampling, and offsets.
+ */
+static void val_check_extrude_cases(
+    const float *master,
+    long         msize,
+    long         pup_size,
+    float       *out_s,
+    float       *out_v,
+    double      *max_diff)
+{
+    long ptot = pup_size * pup_size;
+    const double test_x[] = {
+        15.3,
+        (double) (msize - pup_size) - 0.5,
+        (double) (msize - pup_size),
+        (double) (msize - pup_size / 2) + 0.5,
+        -15.3
+    };
+    const double test_y[] = {
+        22.7,
+        (double) (msize - pup_size) - 0.5,
+        (double) (msize - pup_size),
+        (double) (msize - pup_size / 2) + 0.5,
+        -22.7
+    };
+    int ncases = (int) (sizeof(test_x) / sizeof(test_x[0]));
 
-    double max_diff = 0.0;
     for (int interp = 0; interp <= 1; interp++)
     {
-        for (int os = 1; os <= 2; os++)
+        for (int os = 1; os <= 3; os++)
         {
-            for (double sub = 0.0; sub < 1.0; sub += 0.25)
+            if (pup_size * os >= msize)
+            {
+                continue;
+            }
+            for (int c = 0; c < ncases; c++)
             {
                 atmturb_extrude_params_t ep_s = {
                     .master   = master,
                     .msize    = msize,
-                    .x0       = 15.3 + sub,
-                    .y0       = 22.7 + sub,
+                    .x0       = test_x[c],
+                    .y0       = test_y[c],
                     .pup_size = pup_size,
                     .os       = os,
                     .interp   = interp,
@@ -788,56 +812,107 @@ int val_check_simd_parity(
                 atmturb_extrude_accumulate_scalar(&ep_s);
                 atmturb_extrude_accumulate(&ep_v);
 
-                for (long i = 0; i < ptot; i++)
-                {
-                    double diff = fabs((double) out_s[i] - (double) out_v[i]);
-                    if (diff > max_diff)
-                    {
-                        max_diff = diff;
-                    }
-                }
+                val_simd_compare_buffers(out_s, out_v, ptot, max_diff);
             }
         }
     }
+}
 
+/**
+ * @brief Test low-frequency mode SIMD parity across oversampling, screens, and offsets.
+ */
+static void val_check_lowfreq_cases(
+    long    msize,
+    long    pup_size,
+    float  *out_s,
+    float  *out_v,
+    double *max_diff)
+{
+    long ptot = pup_size * pup_size;
     atmturb_lowfreq_t lf;
     atmturb_lowfreq_init(&lf, msize, 25.0, 100.0, 0.1, 42);
 
+    const double test_x[] = {12.34, (double) (msize - pup_size) + 0.5, -12.34};
+    const double test_y[] = {56.78, (double) (msize - pup_size) + 0.5, -56.78};
+    int ncases = (int) (sizeof(test_x) / sizeof(test_x[0]));
+
     for (int sidx = 0; sidx <= 1; sidx++)
     {
-        for (int os = 1; os <= 2; os++)
+        for (int os = 1; os <= 3; os++)
         {
-            atmturb_lowfreq_params_t lp_s = {
-                .lf         = &lf,
-                .screen_idx = sidx,
-                .x0         = 12.34,
-                .y0         = 56.78,
-                .pup_size   = pup_size,
-                .os         = os,
-                .weight     = 1.15f,
-                .out_pha    = out_s
-            };
-            atmturb_lowfreq_params_t lp_v = lp_s;
-            lp_v.out_pha = out_v;
-
-            memset(out_s, 0, sizeof(float) * (size_t) ptot);
-            memset(out_v, 0, sizeof(float) * (size_t) ptot);
-
-            atmturb_extrude_lowfreq_scalar(&lp_s);
-            atmturb_extrude_lowfreq(&lp_v);
-
-            for (long i = 0; i < ptot; i++)
+            for (int c = 0; c < ncases; c++)
             {
-                double diff = fabs((double) out_s[i] - (double) out_v[i]);
-                if (diff > max_diff)
-                {
-                    max_diff = diff;
-                }
+                atmturb_lowfreq_params_t lp_s = {
+                    .lf         = &lf,
+                    .screen_idx = sidx,
+                    .x0         = test_x[c],
+                    .y0         = test_y[c],
+                    .pup_size   = pup_size,
+                    .os         = os,
+                    .weight     = 1.15f,
+                    .out_pha    = out_s
+                };
+                atmturb_lowfreq_params_t lp_v = lp_s;
+                lp_v.out_pha = out_v;
+
+                memset(out_s, 0, sizeof(float) * (size_t) ptot);
+                memset(out_v, 0, sizeof(float) * (size_t) ptot);
+
+                atmturb_extrude_lowfreq_scalar(&lp_s);
+                atmturb_extrude_lowfreq(&lp_v);
+
+                val_simd_compare_buffers(out_s, out_v, ptot, max_diff);
             }
         }
     }
+}
 
-    free(master); free(out_s); free(out_v);
+/**
+ * @brief Compare scalar and vectorized SIMD extrusions across schemes and strides.
+ */
+int val_check_simd_parity(
+    double  tol,
+    char   *msg_buf,
+    size_t  msg_size)
+{
+    long msize = 4096;
+    long max_pup = 1100;
+    long mtot = msize * msize;
+    long max_ptot = max_pup * max_pup;
+
+    float *master = (float *) malloc(sizeof(float) * (size_t) mtot);
+    float *out_s  = (float *) calloc((size_t) max_ptot, sizeof(float));
+    float *out_v  = (float *) calloc((size_t) max_ptot, sizeof(float));
+
+    if (!master || !out_s || !out_v)
+    {
+        free(master);
+        free(out_s);
+        free(out_v);
+        snprintf(msg_buf, msg_size, "allocation failure in SIMD parity test");
+        return 0;
+    }
+
+    #pragma omp parallel for schedule(static)
+    for (long i = 0; i < mtot; i++)
+    {
+        master[i] = (float) sin((double) i * 0.1) + (float) cos((double) i * 0.03);
+    }
+
+    double max_diff = 0.0;
+    long pup_sizes[] = {64, 1100};
+    int npup = (int) (sizeof(pup_sizes) / sizeof(pup_sizes[0]));
+
+    for (int p = 0; p < npup; p++)
+    {
+        val_check_extrude_cases(master, msize, pup_sizes[p], out_s, out_v, &max_diff);
+        val_check_lowfreq_cases(msize, pup_sizes[p], out_s, out_v, &max_diff);
+    }
+
+    free(master);
+    free(out_s);
+    free(out_v);
+
     snprintf(msg_buf, msg_size, "SIMD parity max diff = %.3e (tol %.3e)", max_diff, tol);
     return (max_diff <= tol);
 }

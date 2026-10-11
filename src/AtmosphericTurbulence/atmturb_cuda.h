@@ -10,6 +10,9 @@
 #ifndef ATMTURB_CUDA_H
 #define ATMTURB_CUDA_H
 
+#include <stddef.h>
+#include <stdlib.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -123,6 +126,24 @@ static inline void atmturb_cuda_host_unregister(
     void *ptr)
 {
     (void) ptr;
+}
+
+static inline int atmturb_cuda_host_alloc(
+    void  **ptr,
+    size_t  size)
+{
+    if (ptr == NULL || size == 0)
+    {
+        return -1;
+    }
+    *ptr = malloc(size);
+    return (*ptr != NULL) ? 0 : -1;
+}
+
+static inline void atmturb_cuda_host_free(
+    void *ptr)
+{
+    free(ptr);
 }
 
 #else

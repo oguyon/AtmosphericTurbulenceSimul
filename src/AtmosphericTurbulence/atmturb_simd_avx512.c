@@ -482,54 +482,64 @@ static void atmturb_lowfreq_mode_accumulate_avx512(
     float                           amp_im)
 {
     float h_re[1024], h_im[1024];
-    long n = (params->pup_size <= 1024) ? params->pup_size : 1024;
-    for (long i = 0; i < n; i++)
+
+    for (long col_start = 0; col_start < params->pup_size; col_start += 1024)
     {
-        float th_x = kx * (float) (params->x0 + (double) (i * params->os));
-        sincosf(th_x, &h_im[i], &h_re[i]);
-    }
-
-    for (long j = 0; j < params->pup_size; j++)
-    {
-        float th_y = ky * (float) (params->y0 + (double) (j * params->os));
-        float vy_re, vy_im;
-        sincosf(th_y, &vy_im, &vy_re);
-        float c_re = (amp_re * vy_re - amp_im * vy_im) * params->weight;
-        float c_im = (amp_re * vy_im + amp_im * vy_re) * params->weight;
-
-        __m512 v_cre = _mm512_set1_ps(c_re);
-        __m512 v_cim = _mm512_set1_ps(c_im);
-        long row = j * params->pup_size;
-        long i = 0;
-        for (; i + 32 <= n; i += 32)
+        long n = params->pup_size - col_start;
+        if (n > 1024)
         {
-            __m512 v_out0 = _mm512_loadu_ps(&params->out_pha[row + i]);
-            __m512 v_out1 = _mm512_loadu_ps(&params->out_pha[row + i + 16]);
-            __m512 v_hre0 = _mm512_loadu_ps(&h_re[i]);
-            __m512 v_hre1 = _mm512_loadu_ps(&h_re[i + 16]);
-            __m512 v_him0 = _mm512_loadu_ps(&h_im[i]);
-            __m512 v_him1 = _mm512_loadu_ps(&h_im[i + 16]);
-
-            v_out0 = _mm512_fmadd_ps(v_cre, v_hre0, v_out0);
-            v_out1 = _mm512_fmadd_ps(v_cre, v_hre1, v_out1);
-            v_out0 = _mm512_fnmadd_ps(v_cim, v_him0, v_out0);
-            v_out1 = _mm512_fnmadd_ps(v_cim, v_him1, v_out1);
-
-            _mm512_storeu_ps(&params->out_pha[row + i],      v_out0);
-            _mm512_storeu_ps(&params->out_pha[row + i + 16], v_out1);
+            n = 1024;
         }
-        for (; i + 16 <= n; i += 16)
+
+        for (long i = 0; i < n; i++)
         {
-            __m512 v_out = _mm512_loadu_ps(&params->out_pha[row + i]);
-            __m512 v_hre = _mm512_loadu_ps(&h_re[i]);
-            __m512 v_him = _mm512_loadu_ps(&h_im[i]);
-            v_out = _mm512_fmadd_ps(v_cre, v_hre, v_out);
-            v_out = _mm512_fnmadd_ps(v_cim, v_him, v_out);
-            _mm512_storeu_ps(&params->out_pha[row + i], v_out);
+            long col = col_start + i;
+            float th_x = kx * (float) (params->x0 + (double) (col * params->os));
+            sincosf(th_x, &h_im[i], &h_re[i]);
         }
-        for (; i < n; i++)
+
+        for (long j = 0; j < params->pup_size; j++)
         {
-            params->out_pha[row + i] += c_re * h_re[i] - c_im * h_im[i];
+            float th_y = ky * (float) (params->y0 + (double) (j * params->os));
+            float vy_re, vy_im;
+            sincosf(th_y, &vy_im, &vy_re);
+            float c_re = (amp_re * vy_re - amp_im * vy_im) * params->weight;
+            float c_im = (amp_re * vy_im + amp_im * vy_re) * params->weight;
+
+            __m512 v_cre = _mm512_set1_ps(c_re);
+            __m512 v_cim = _mm512_set1_ps(c_im);
+            long row = j * params->pup_size + col_start;
+            long i = 0;
+            for (; i + 32 <= n; i += 32)
+            {
+                __m512 v_out0 = _mm512_loadu_ps(&params->out_pha[row + i]);
+                __m512 v_out1 = _mm512_loadu_ps(&params->out_pha[row + i + 16]);
+                __m512 v_hre0 = _mm512_loadu_ps(&h_re[i]);
+                __m512 v_hre1 = _mm512_loadu_ps(&h_re[i + 16]);
+                __m512 v_him0 = _mm512_loadu_ps(&h_im[i]);
+                __m512 v_him1 = _mm512_loadu_ps(&h_im[i + 16]);
+
+                v_out0 = _mm512_fmadd_ps(v_cre, v_hre0, v_out0);
+                v_out1 = _mm512_fmadd_ps(v_cre, v_hre1, v_out1);
+                v_out0 = _mm512_fnmadd_ps(v_cim, v_him0, v_out0);
+                v_out1 = _mm512_fnmadd_ps(v_cim, v_him1, v_out1);
+
+                _mm512_storeu_ps(&params->out_pha[row + i],      v_out0);
+                _mm512_storeu_ps(&params->out_pha[row + i + 16], v_out1);
+            }
+            for (; i + 16 <= n; i += 16)
+            {
+                __m512 v_out = _mm512_loadu_ps(&params->out_pha[row + i]);
+                __m512 v_hre = _mm512_loadu_ps(&h_re[i]);
+                __m512 v_him = _mm512_loadu_ps(&h_im[i]);
+                v_out = _mm512_fmadd_ps(v_cre, v_hre, v_out);
+                v_out = _mm512_fnmadd_ps(v_cim, v_him, v_out);
+                _mm512_storeu_ps(&params->out_pha[row + i], v_out);
+            }
+            for (; i < n; i++)
+            {
+                params->out_pha[row + i] += c_re * h_re[i] - c_im * h_im[i];
+            }
         }
     }
 }

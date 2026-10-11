@@ -84,6 +84,10 @@ int AtmosphereModel_save_stdAtmModel(
  */
 int AtmosphereModel_load_stdAtmModel(const char *fname)
 {
+    if (init_AtmosphereModel() != 0)
+    {
+        return -1;
+    }
     printf("Loading atmosphere model \"%s\"\n", fname);
     fflush(stdout);
 
@@ -125,12 +129,14 @@ int AtmosphereModel_load_stdAtmModel(const char *fname)
             densN[i] = v[13];
             densO[i] = v[14];
             densH[i] = v[15];
+            density[i] = v[16];
             temperature[i] = v[17];
             pressure[i] = v[18];
             RH[i] = v[19];
         }
     }
     fclose(fp);
+    stdAtmModel_loaded = 1;
     return 0;
 }
 
@@ -164,7 +170,7 @@ static float atmmod_edlen_refractivity(float alt, float lambda)
  */
 float AtmosphereModel_stdAtmModel_N(float alt, float lambda, int mode)
 {
-    if (densN2 == NULL)
+    if (!stdAtmModel_loaded || densN2 == NULL)
     {
         return atmmod_edlen_refractivity(alt, lambda);
     }
@@ -508,6 +514,10 @@ static void atmmod_normalize_and_finalize(struct nrlmsise_output *output)
  */
 int AtmosphereModel_build_stdAtmModel(const char *fname)
 {
+    if (init_AtmosphereModel() != 0)
+    {
+        return -1;
+    }
     struct nrlmsise_output *output = malloc(sizeof(struct nrlmsise_output) * ATMMOD_NB_BINS);
     struct nrlmsise_input *input = malloc(sizeof(struct nrlmsise_input) * ATMMOD_NB_BINS);
     struct nrlmsise_flags flags;
@@ -535,5 +545,6 @@ int AtmosphereModel_build_stdAtmModel(const char *fname)
     free(output);
 
     AtmosphereModel_save_stdAtmModel(fname);
+    stdAtmModel_loaded = 1;
     return 0;
 }

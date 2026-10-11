@@ -184,6 +184,7 @@ int atmturb_rolling_init(
     uint64_t                 seed)
 {
     memset(r, 0, sizeof(*r));
+    seed = atmturb_resolve_seed(seed);
     r->nlayers = prof->nlayers;
     r->msize   = msize;
     r->rolling = geom->rolling;

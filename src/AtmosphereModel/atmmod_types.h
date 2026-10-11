@@ -37,6 +37,7 @@ extern float alpha1H2O;
 
 // Atmospheric profile state
 extern int initAtmosphereModel;
+extern int stdAtmModel_loaded;
 extern float *densN2;
 extern float *densO2;
 extern float *densAr;
