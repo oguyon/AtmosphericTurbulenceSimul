@@ -624,13 +624,13 @@ atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     size_t n_sub_tot   = (size_t) (ctx->plan.nsuper * max_sublayers);
     size_t sub_bytes   = n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t);
 
-    ctx->sublayers     = NULL;
-    if (atmturb_cuda_host_alloc((void **) &ctx->sublayers, sub_bytes) != 0)
+    ctx->sublayers     = (atmturb_cuda_rytov_sublayer_t *) calloc(
+        n_sub_tot, sizeof(atmturb_cuda_rytov_sublayer_t));
+    if (!ctx->sublayers)
     {
         atmturb_cuda_rytov_stream_free(ctx);
         return NULL;
     }
-    memset(ctx->sublayers, 0, sub_bytes);
     ctx->super_nlayers = (int *) malloc(sizeof(int) * (size_t) ctx->plan.nsuper);
     ctx->super_dist_m  = (double *) malloc(sizeof(double) * (size_t) ctx->plan.nsuper);
 
@@ -749,7 +749,7 @@ void atmturb_cuda_rytov_stream_free(
     }
     if (ctx->sublayers)
     {
-        atmturb_cuda_host_free(ctx->sublayers);
+        free(ctx->sublayers);
         ctx->sublayers = NULL;
     }
     if (ctx->super_nlayers)
