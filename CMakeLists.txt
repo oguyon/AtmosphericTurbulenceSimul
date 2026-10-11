@@ -37,6 +37,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
         "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
+# Compiler options: disable errno for math operations to eliminate dead PLT calls on sqrt/sin/cos
+add_compile_options(-fno-math-errno)
+
 # RPATH Configuration (preserve runtime search path in installed binaries)
 set(CMAKE_INSTALL_RPATH
     "${CMAKE_INSTALL_PREFIX}/lib;/usr/local/milk/lib;/usr/local/milk-1.03.00/lib;/usr/local/lib")

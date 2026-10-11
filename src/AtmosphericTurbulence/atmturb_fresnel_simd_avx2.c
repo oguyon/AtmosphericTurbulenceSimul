@@ -186,6 +186,54 @@ void atmturb_fresnel_init_modulate_field_avx2(
 }
 
 /**
+ * atan2_256_ps - Vectorized 8-wide atan2 using 15th-order minimax polynomial
+ * @y: Numerator vector.
+ * @x: Denominator vector.
+ *
+ * Return: 8-wide vector of atan2(y, x) in radians within 4.8e-7 max error.
+ */
+static inline __m256 atan2_256_ps(
+    __m256 y,
+    __m256 x)
+{
+    __m256 sign_mask = _mm256_set1_ps(-0.0f);
+    __m256 ax        = _mm256_andnot_ps(sign_mask, x);
+    __m256 ay        = _mm256_andnot_ps(sign_mask, y);
+
+    __m256 cmp       = _mm256_cmp_ps(ay, ax, _CMP_GT_OQ);
+    __m256 num       = _mm256_blendv_ps(ay, ax, cmp);
+    __m256 den       = _mm256_blendv_ps(ax, ay, cmp);
+    __m256 den_safe  = _mm256_max_ps(den, _mm256_set1_ps(1e-30f));
+    __m256 z         = _mm256_div_ps(num, den_safe);
+    __m256 z2        = _mm256_mul_ps(z, z);
+
+    __m256 poly = _mm256_set1_ps(-4.2577745724e-03f);
+    poly = _mm256_fmadd_ps(poly, z2, _mm256_set1_ps(2.2568064116e-02f));
+    poly = _mm256_fmadd_ps(poly, z2, _mm256_set1_ps(-5.6882557658e-02f));
+    poly = _mm256_fmadd_ps(poly, z2, _mm256_set1_ps(9.7094637892e-02f));
+    poly = _mm256_fmadd_ps(poly, z2, _mm256_set1_ps(-1.3933270093e-01f));
+    poly = _mm256_fmadd_ps(poly, z2, _mm256_set1_ps(1.9951118324e-01f));
+    poly = _mm256_fmadd_ps(poly, z2, _mm256_set1_ps(-3.3330222945e-01f));
+    poly = _mm256_fmadd_ps(poly, z2, _mm256_set1_ps(9.9999941614e-01f));
+
+    __m256 at = _mm256_mul_ps(poly, z);
+
+    __m256 piover2 = _mm256_set1_ps(1.5707963267948966f);
+    __m256 angle   = _mm256_blendv_ps(at, _mm256_sub_ps(piover2, at), cmp);
+
+    __m256 pi    = _mm256_set1_ps(3.1415926535897932f);
+    __m256 x_neg = _mm256_cmp_ps(x, _mm256_setzero_ps(), _CMP_LT_OQ);
+    angle        = _mm256_blendv_ps(angle, _mm256_sub_ps(pi, angle), x_neg);
+
+    __m256 y_sign  = _mm256_and_ps(y, sign_mask);
+    __m256 res     = _mm256_xor_ps(angle, y_sign);
+
+    __m256 zero_pt = _mm256_and_ps(_mm256_cmp_ps(x, _mm256_setzero_ps(), _CMP_EQ_OQ),
+                                   _mm256_cmp_ps(y, _mm256_setzero_ps(), _CMP_EQ_OQ));
+    return _mm256_blendv_ps(res, _mm256_setzero_ps(), zero_pt);
+}
+
+/**
  * atmturb_fresnel_extract_unwrapped_avx2 - AVX2 accelerated unwrapped extraction
  * @field: Complex optical field at pupil.
  * @pha: Phase array holding accumulated geometric phase (updated in-place).
@@ -226,16 +274,8 @@ void atmturb_fresnel_extract_unwrapped_avx2(
 
         __m256 d_re = _mm256_fmadd_ps(re, vc, _mm256_mul_ps(im, vs));
         __m256 d_im = _mm256_fmsub_ps(im, vc, _mm256_mul_ps(re, vs));
-
-        float dre_arr[8], dim_arr[8], phi_arr[8];
-        _mm256_storeu_ps(dre_arr, d_re);
-        _mm256_storeu_ps(dim_arr, d_im);
-        _mm256_storeu_ps(phi_arr, vphi);
-
-        for (int k = 0; k < 8; k++)
-        {
-            pha[i + k] = phi_arr[k] + atan2f(dim_arr[k], dre_arr[k]);
-        }
+        __m256 dphi = atan2_256_ps(d_im, d_re);
+        _mm256_storeu_ps(&pha[i], _mm256_add_ps(vphi, dphi));
     }
     for (; i < npix; i++)
     {
