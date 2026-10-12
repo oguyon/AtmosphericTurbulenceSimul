@@ -103,7 +103,8 @@ double Z_Air(double P, double T, double RH)
     const double P0 = 101325.0;
     const double A = 1.2378847e-5, B = -1.9121316e-2, C = 33.93711047, D = -6.3431645e3;
     const double alpha = 1.00062, beta = 3.14e-8, gamma = 5.6e-7;
-    const double a0 = 1.58123e-6, a1 = -2.9331e-8, a2 = 1.1043e-10, b1 = -2.051e-8;
+    const double a0 = 1.58123e-6, a1 = -2.9331e-8, a2 = 1.1043e-10;
+    const double b0 = 5.707e-6, b1 = -2.051e-8;
     const double c0 = 1.9898e-4, c1 = -2.376e-6, d = 1.83e-11, e = -0.765e-8;
 
     double TK = T + 273.15;
@@ -111,13 +112,13 @@ double Z_Air(double P, double T, double RH)
     double f = alpha + beta * P + gamma * T * T;
     double xv = RH * 0.01 * f * Psv / P;
 
-    double Z = 1.0 - P / TK * (a0 + a1 * T + a2 * T * T + (c0 + b1 * T) * xv +
+    double Z = 1.0 - P / TK * (a0 + a1 * T + a2 * T * T + (b0 + b1 * T) * xv +
                               (c0 + c1 * T) * xv * xv) +
                P * P / TK / TK * (d + e * xv * xv);
 
     double TK0 = 273.15;
     double xv0 = 0.0;
-    double Z0 = 1.0 - P0 / TK0 * (a0 + a1 * 0.0 + a2 * 0.0 + (c0) * xv0 +
+    double Z0 = 1.0 - P0 / TK0 * (a0 + a1 * 0.0 + a2 * 0.0 + (b0) * xv0 +
                                  (c0) * xv0 * xv0) +
                 P0 * P0 / TK0 / TK0 * (d + e * xv0 * xv0);
 

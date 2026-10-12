@@ -31,9 +31,9 @@ static void atmturb_compute_frame_psf(
 {
     imageID id_arr = create_2DCimage_ID("tmp_carr", nx, ny);
 
-    for (long ii = 0; ii < nx; ii++)
+    for (long jj = 0; jj < ny; jj++)
     {
-        for (long jj = 0; jj < ny; jj++)
+        for (long ii = 0; ii < nx; ii++)
         {
             long pidx = slice_idx * nx * ny + jj * nx + ii;
             long pix2d = jj * nx + ii;
@@ -79,14 +79,17 @@ static void atmturb_measure_psf_apertures(
     double  *fluxes_out)
 {
     double tot = 0.0, f1 = 0.0, f2 = 0.0, f5 = 0.0, f10 = 0.0, f20 = 0.0;
+    double cx = 0.5 * (double) nx;
+    double cy = 0.5 * (double) ny;
 
-    for (long ii = 0; ii < nx; ii++)
+    for (long jj = 0; jj < ny; jj++)
     {
-        for (long jj = 0; jj < ny; jj++)
+        double dy = ((double) jj - cy) * (double) focal_scale;
+        double dy2 = dy * dy;
+        for (long ii = 0; ii < nx; ii++)
         {
-            double dx = (1.0 * ii - nx / 2) * focal_scale;
-            double dy = (1.0 * jj - ny / 2) * focal_scale;
-            double r = sqrt(dx * dx + dy * dy);
+            double dx = ((double) ii - cx) * (double) focal_scale;
+            double r = sqrt(dx * dx + dy2);
             float val = dcimg[id_psf].array.F[jj * nx + ii];
 
             tot += val;

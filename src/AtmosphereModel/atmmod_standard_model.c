@@ -387,7 +387,7 @@ static void atmmod_compute_raw_profiles(FILE *fp, struct nrlmsise_input *input,
  * @TotPart1: Background H2O particles.
  * @TotPart2: Exponential H2O particles.
  */
-static void atmmod_adjust_water_vapor(const double *TotPart0, double TotPart1, double TotPart2)
+static int atmmod_adjust_water_vapor(const double *TotPart0, double TotPart1, double TotPart2)
 {
     if (SiteH2OMethod == 1)
     {
@@ -395,8 +395,8 @@ static void atmmod_adjust_water_vapor(const double *TotPart0, double TotPart1, d
         alpha1H2O = (float)((X - TotPart1) / TotPart2);
         if (alpha1H2O < 0.0f)
         {
-            printf("ERROR: total precipitable water value is too low\n");
-            exit(0);
+            fprintf(stderr, "ERROR: total precipitable water value is too low\n");
+            return -1;
         }
         for (long i = 0; i < ATMMOD_NB_BINS; i++)
         {
@@ -409,9 +409,10 @@ static void atmmod_adjust_water_vapor(const double *TotPart0, double TotPart1, d
     {
         long i0 = (long)(SiteAlt / 10.0);
         float ifrac = SiteAlt / 10.0f - i0;
-        double H2OSat = AtmosphereModel_H2O_Saturation((1.0 - ifrac) * temperature[i0] +
-                                                       ifrac * temperature[i0 + 1]);
-        double densH2O_site = (SiteRH / 100.0) * ATMMOD_LOSCHMIDT * 1e-6 * H2OSat / 101325.0;
+        double T_site = (1.0 - ifrac) * temperature[i0] + ifrac * temperature[i0 + 1];
+        double H2OSat = AtmosphereModel_H2O_Saturation(T_site);
+        double densH2O_site = (SiteRH / 100.0) * ATMMOD_LOSCHMIDT * 1e-6 *
+                              (H2OSat / 101325.0) * (273.15 / (T_site > 0.0 ? T_site : 273.15));
 
         double pwsh = SitePWSH;
         if (SiteH2OMethod == 3)
@@ -501,8 +502,10 @@ static void atmmod_normalize_and_finalize(struct nrlmsise_output *output)
         density[i] = (float)output[i].d[5];
         temperature[i] = (float)output[i].t[1];
         pressure[i] = (float)(denstot[i] * 1.0e6 / ATMMOD_LOSCHMIDT * (output[i].t[1] / 273.15));
-        RH[i] = (float)((densH2O[i] * 1e6 / ATMMOD_LOSCHMIDT) * 101325.0 /
-                        AtmosphereModel_H2O_Saturation(temperature[i]));
+        double T_bin = (double) output[i].t[1];
+        RH[i] = (float) ((densH2O[i] * 1e6 / ATMMOD_LOSCHMIDT) * (101325.0 /
+                         AtmosphereModel_H2O_Saturation(temperature[i])) *
+                         (T_bin / 273.15));
     }
 }
 
@@ -520,9 +523,16 @@ int AtmosphereModel_build_stdAtmModel(const char *fname)
     }
     struct nrlmsise_output *output = malloc(sizeof(struct nrlmsise_output) * ATMMOD_NB_BINS);
     struct nrlmsise_input *input = malloc(sizeof(struct nrlmsise_input) * ATMMOD_NB_BINS);
-    struct nrlmsise_flags flags;
     double *TotPart0 = malloc(sizeof(double) * ATMMOD_NB_BINS);
+    if (output == NULL || input == NULL || TotPart0 == NULL)
+    {
+        free(output);
+        free(input);
+        free(TotPart0);
+        return -1;
+    }
 
+    struct nrlmsise_flags flags;
     atmmod_setup_nrlmsise_inputs(input, &flags);
 
     double deltah = 0.0;
@@ -530,6 +540,13 @@ int AtmosphereModel_build_stdAtmModel(const char *fname)
     atmmod_match_site_conditions(&input[0], &flags, &output[0], &deltah, &press_coeff);
 
     FILE *fp = fopen(fname, "w");
+    if (fp == NULL)
+    {
+        free(output);
+        free(input);
+        free(TotPart0);
+        return -1;
+    }
     fprintf(fp, "#  alt[m]  N2  O2  Ar  H  He  O   N  density   Temperature\n");
 
     double tot_part = 0.0, tot_part1 = 0.0, tot_part2 = 0.0;
@@ -537,7 +554,13 @@ int AtmosphereModel_build_stdAtmModel(const char *fname)
                                TotPart0, &tot_part, &tot_part1, &tot_part2);
     fclose(fp);
 
-    atmmod_adjust_water_vapor(TotPart0, tot_part1, tot_part2);
+    if (atmmod_adjust_water_vapor(TotPart0, tot_part1, tot_part2) != 0)
+    {
+        free(TotPart0);
+        free(input);
+        free(output);
+        return -1;
+    }
     atmmod_normalize_and_finalize(output);
 
     free(TotPart0);

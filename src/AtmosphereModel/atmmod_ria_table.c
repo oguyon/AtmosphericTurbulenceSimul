@@ -202,12 +202,15 @@ int ATMOSPHEREMODEL_loadRIA(
         double v0 = 0.0;
         double v1 = 0.0;
         double v2 = 0.0;
-        if (fscanf(fp, "%lf %lf %lf\n", &v0, &v1, &v2) == 3)
+        if (fscanf(fp, "%lf %lf %lf\n", &v0, &v1, &v2) != 3)
         {
-            lptr[i] = v0;
-            RIptr[i] = v1;
-            absptr[i] = v2;
+            fprintf(stderr, "ERROR: failed parsing RIA row %ld in \"%s\"\n", i, fname);
+            fclose(fp);
+            return -1;
         }
+        lptr[i] = v0;
+        RIptr[i] = v1;
+        absptr[i] = v2;
     }
     fclose(fp);
     return 0;
@@ -228,16 +231,38 @@ void atmmod_load_species_ria(const char *name, const char *path, int *init_flag,
                              double **abs_out)
 {
     printf("Reading Refractive Index and Abs for %s\n", name);
+    *init_flag = 0;
     char pathbuf[256];
     snprintf(pathbuf, sizeof(pathbuf), "%s", path);
     if (ATMOSPHEREMODEL_loadRIA_readsize(pathbuf) == 1)
     {
         long nb = RIA_NBpts;
+        if (nb <= 0)
+        {
+            return;
+        }
         *nbpts_out = nb;
-        *lambda_out = (double *)malloc(sizeof(double) * nb);
-        *ri_out = (double *)malloc(sizeof(double) * nb);
-        *abs_out = (double *)malloc(sizeof(double) * nb);
-        ATMOSPHEREMODEL_loadRIA(pathbuf, *lambda_out, *ri_out, *abs_out);
-        *init_flag = 1;
+        *lambda_out = (double *) malloc(sizeof(double) * (size_t) nb);
+        *ri_out = (double *) malloc(sizeof(double) * (size_t) nb);
+        *abs_out = (double *) malloc(sizeof(double) * (size_t) nb);
+        if (*lambda_out == NULL || *ri_out == NULL || *abs_out == NULL)
+        {
+            free(*lambda_out);
+            free(*ri_out);
+            free(*abs_out);
+            *lambda_out = *ri_out = *abs_out = NULL;
+            return;
+        }
+        if (ATMOSPHEREMODEL_loadRIA(pathbuf, *lambda_out, *ri_out, *abs_out) == 0)
+        {
+            *init_flag = 1;
+        }
+        else
+        {
+            free(*lambda_out);
+            free(*ri_out);
+            free(*abs_out);
+            *lambda_out = *ri_out = *abs_out = NULL;
+        }
     }
 }
