@@ -53,15 +53,17 @@ static void atmturb_wfs_notify_streams(
  * atmturb_wfs_save_outputs - Write simulated phase and amplitude cubes to disk
  * @pha_name: Primary phase image stream name.
  * @amp_name: Primary amplitude image stream name.
+ * @imgs: Container of output 3D image handles.
  */
 static void atmturb_wfs_save_outputs(
-    const char *pha_name,
-    const char *amp_name)
+    const char                 *pha_name,
+    const char                 *amp_name,
+    const atmturb_wfs_images_t *imgs)
 {
     int save_ref = (CONF_WFOUTPUT & 1);
     int save_sci = (CONF_WFOUTPUT & 2);
 
-    if (!save_ref && !save_sci)
+    if (!save_ref && (!save_sci || imgs->ID_spha < 0))
     {
         return;
     }
@@ -75,18 +77,24 @@ static void atmturb_wfs_save_outputs(
         printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", fname);
         save_fl_fits(pha_name, fname);
 
-        snprintf(fname, sizeof(fname), "%s.fits", amp_name);
-        printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", fname);
-        save_fl_fits(amp_name, fname);
+        if (imgs->ID_amp >= 0)
+        {
+            snprintf(fname, sizeof(fname), "%s.fits", amp_name);
+            printf("[milkatmturb]   - file:   \"%s\" (FITS)\n", fname);
+            save_fl_fits(amp_name, fname);
+        }
     }
 
-    if (save_sci)
+    if (save_sci && imgs->ID_spha >= 0)
     {
         printf("[milkatmturb]   - file:   \"outsarraypha.fits\" (FITS)\n");
         save_fl_fits("outsarraypha", "outsarraypha.fits");
 
-        printf("[milkatmturb]   - file:   \"outsarrayamp.fits\" (FITS)\n");
-        save_fl_fits("outsarrayamp", "outsarrayamp.fits");
+        if (imgs->ID_samp >= 0)
+        {
+            printf("[milkatmturb]   - file:   \"outsarrayamp.fits\" (FITS)\n");
+            save_fl_fits("outsarrayamp", "outsarrayamp.fits");
+        }
     }
     fflush(stdout);
 }
@@ -239,25 +247,36 @@ void atmturb_wfs_teardown_sim(
  * @pup_size: Linear dimension of square pupil grid in pixels.
  * @nbframes: Number of simulated 3D cube frames.
  * @precision: Floating point precision flag (0=float32, 1=float64).
+ * @imgs: Container of output 3D image handles.
  */
 static void atmturb_wfs_print_output_targets(
-    const char *pha_name,
-    const char *amp_name,
-    long        pup_size,
-    long        nbframes,
-    long        precision)
+    const char                 *pha_name,
+    const char                 *amp_name,
+    long                        pup_size,
+    long                        nbframes,
+    long                        precision,
+    const atmturb_wfs_images_t *imgs)
 {
     const char *prec_str = (precision == 1) ? "float64" : "float32";
 
     printf("[milkatmturb] Outputs:\n");
     printf("[milkatmturb]   - stream: \"%s\" (3D SHM, %ldx%ldx%ld %s)\n",
            pha_name, pup_size, pup_size, nbframes, prec_str);
-    printf("[milkatmturb]   - stream: \"%s\" (3D SHM, %ldx%ldx%ld %s)\n",
-           amp_name, pup_size, pup_size, nbframes, prec_str);
-    printf("[milkatmturb]   - stream: \"outsarraypha\" (3D SHM, %ldx%ldx%ld %s)\n",
-           pup_size, pup_size, nbframes, prec_str);
-    printf("[milkatmturb]   - stream: \"outsarrayamp\" (3D SHM, %ldx%ldx%ld %s)\n",
-           pup_size, pup_size, nbframes, prec_str);
+    if (imgs->ID_amp >= 0)
+    {
+        printf("[milkatmturb]   - stream: \"%s\" (3D SHM, %ldx%ldx%ld %s)\n",
+               amp_name, pup_size, pup_size, nbframes, prec_str);
+    }
+    if (imgs->ID_spha >= 0)
+    {
+        printf("[milkatmturb]   - stream: \"outsarraypha\" (3D SHM, %ldx%ldx%ld %s)\n",
+               pup_size, pup_size, nbframes, prec_str);
+    }
+    if (imgs->ID_samp >= 0)
+    {
+        printf("[milkatmturb]   - stream: \"outsarrayamp\" (3D SHM, %ldx%ldx%ld %s)\n",
+               pup_size, pup_size, nbframes, prec_str);
+    }
 
     int save_ref = (CONF_WFOUTPUT & 1);
     int save_sci = (CONF_WFOUTPUT & 2);
@@ -265,14 +284,20 @@ static void atmturb_wfs_print_output_targets(
     if (save_ref)
     {
         printf("[milkatmturb]   - file:   \"%s.fits\" (FITS 3D cube)\n", pha_name);
-        printf("[milkatmturb]   - file:   \"%s.fits\" (FITS 3D cube)\n", amp_name);
+        if (imgs->ID_amp >= 0)
+        {
+            printf("[milkatmturb]   - file:   \"%s.fits\" (FITS 3D cube)\n", amp_name);
+        }
     }
-    if (save_sci)
+    if (save_sci && imgs->ID_spha >= 0)
     {
         printf("[milkatmturb]   - file:   \"outsarraypha.fits\" (FITS 3D cube)\n");
-        printf("[milkatmturb]   - file:   \"outsarrayamp.fits\" (FITS 3D cube)\n");
+        if (imgs->ID_samp >= 0)
+        {
+            printf("[milkatmturb]   - file:   \"outsarrayamp.fits\" (FITS 3D cube)\n");
+        }
     }
-    if (!save_ref && !save_sci)
+    if (!save_ref && (!save_sci || imgs->ID_spha < 0))
     {
         printf("[milkatmturb]   - file:   none (save_fits = 0)\n");
     }
@@ -312,18 +337,27 @@ int make_AtmosphericTurbulence_wavefront_series(
     const char *pha_name = (CONF_WF_PHASE_NAME[0] != '\0') ? CONF_WF_PHASE_NAME : "outarraypha";
     const char *amp_name = (CONF_WF_AMPL_NAME[0] != '\0') ? CONF_WF_AMPL_NAME : "outarrayamp";
 
+    int has_sec = (CONF_MAKE_SWAVEFRONT == 1);
+    int has_amp = (CONF_WAVEFRONT_AMPLITUDE == 1 || CONF_FRESNEL_PROPAGATION > 0 ||
+                   (CONF_WFOUTPUT & 1));
+    int has_samp = (has_sec && (CONF_WAVEFRONT_AMPLITUDE == 1 || CONF_FRESNEL_PROPAGATION > 0 ||
+                                (CONF_WFOUTPUT & 2)));
+
     atmturb_wfs_images_t imgs;
     imgs.ID_pha  = create_3Dimage_ID(pha_name, pup_size, pup_size, nbframes);
-    imgs.ID_amp  = create_3Dimage_ID(amp_name, pup_size, pup_size, nbframes);
-    imgs.ID_spha = create_3Dimage_ID("outsarraypha", pup_size, pup_size, nbframes);
-    imgs.ID_samp = create_3Dimage_ID("outsarrayamp", pup_size, pup_size, nbframes);
-    if (imgs.ID_pha < 0 || imgs.ID_amp < 0 || imgs.ID_spha < 0 || imgs.ID_samp < 0)
+    imgs.ID_amp  = has_amp ? create_3Dimage_ID(amp_name, pup_size, pup_size, nbframes) : -1;
+    imgs.ID_spha = has_sec ? create_3Dimage_ID("outsarraypha", pup_size, pup_size, nbframes) : -1;
+    imgs.ID_samp = has_samp ? create_3Dimage_ID("outsarrayamp", pup_size, pup_size, nbframes) : -1;
+
+    if (imgs.ID_pha < 0 || (has_amp && imgs.ID_amp < 0) ||
+        (has_sec && imgs.ID_spha < 0) || (has_samp && imgs.ID_samp < 0))
     {
         atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
         return -1;
     }
 
-    atmturb_wfs_print_output_targets(pha_name, amp_name, pup_size, nbframes, WFprecision);
+    atmturb_wfs_print_output_targets(pha_name, amp_name, pup_size, nbframes,
+                                     WFprecision, &imgs);
 
     printf("Synthesizing %ld wavefront frames [%s]\n", nbframes,
            atmturb_simd_active_isa());
@@ -342,7 +376,7 @@ int make_AtmosphericTurbulence_wavefront_series(
     printf("[milkatmturb] Rendered %ld frames (%ldx%ld) in %.3f s (%.1f fps, %.2f MP/s)\n",
            nbframes, pup_size, pup_size, render_time, fps, mps);
     fflush(stdout);
-    atmturb_wfs_save_outputs(pha_name, amp_name);
+    atmturb_wfs_save_outputs(pha_name, amp_name, &imgs);
     atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
     return 0;
 }

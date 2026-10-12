@@ -115,20 +115,29 @@ int atmturb_wfs_render_cuda(
         .y0        = y0
     };
     long total_pixels = nbframes * pup_size * pup_size;
-    float *amp_ptr  = &dcimg[imgs->ID_amp].array.F[0];
-    float *samp_ptr = &dcimg[imgs->ID_samp].array.F[0];
+    float *amp_ptr  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[0] : NULL;
+    float *samp_ptr = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[0] : NULL;
 
-    #pragma omp parallel for
-    for (long i = 0; i < total_pixels; i++)
+    if (amp_ptr != NULL || samp_ptr != NULL)
     {
-        amp_ptr[i]  = 1.0f;
-        samp_ptr[i] = 1.0f;
+        #pragma omp parallel for
+        for (long i = 0; i < total_pixels; i++)
+        {
+            if (amp_ptr != NULL)
+            {
+                amp_ptr[i] = 1.0f;
+            }
+            if (samp_ptr != NULL)
+            {
+                samp_ptr[i] = 1.0f;
+            }
+        }
     }
 
     atmturb_cuda_sim_outputs_t outputs = {
         .pha  = &dcimg[imgs->ID_pha].array.F[0],
         .amp  = NULL,
-        .spha = &dcimg[imgs->ID_spha].array.F[0],
+        .spha = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[0] : NULL,
         .samp = NULL
     };
 

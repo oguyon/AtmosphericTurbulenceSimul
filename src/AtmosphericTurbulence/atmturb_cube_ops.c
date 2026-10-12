@@ -10,6 +10,13 @@
 #include "AtmosphericTurbulence.h"
 #include "atmturb_types.h"
 
+#include <math.h>
+#include <stdio.h>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 /**
  * atmturb_bin_complex_wavefront - Spatial 2D boxcar binning of complex wavefront cube
  * @in_amp: Input amplitude buffer.
@@ -35,18 +42,21 @@ static void atmturb_bin_complex_wavefront(
     long out_ny = ny / pfactor;
     long LARGE = 10000;
 
+#ifdef _OPENMP
+    #pragma omp parallel for schedule(static)
+#endif
     for (long kk = 0; kk < nz; kk++)
     {
-        for (long ii = 0; ii < out_nx; ii++)
+        for (long jj = 0; jj < out_ny; jj++)
         {
-            for (long jj = 0; jj < out_ny; jj++)
+            for (long ii = 0; ii < out_nx; ii++)
             {
                 float re = 0.0f, im = 0.0f;
                 float pharef = 0.0f, ampref = 0.0f;
 
-                for (long i = 0; i < pfactor; i++)
+                for (long j = 0; j < pfactor; j++)
                 {
-                    for (long j = 0; j < pfactor; j++)
+                    for (long i = 0; i < pfactor; i++)
                     {
                         long in_idx = kk * nx * ny + (pfactor * jj + j) * nx + (pfactor * ii + i);
                         float a = in_amp[in_idx];
@@ -101,18 +111,21 @@ static void atmturb_bin_phaseonly_wavefront(
     long out_ny = ny / pfactor;
     long LARGE = 10000;
 
+#ifdef _OPENMP
+    #pragma omp parallel for schedule(static)
+#endif
     for (long kk = 0; kk < nz; kk++)
     {
-        for (long ii = 0; ii < out_nx; ii++)
+        for (long jj = 0; jj < out_ny; jj++)
         {
-            for (long jj = 0; jj < out_ny; jj++)
+            for (long ii = 0; ii < out_nx; ii++)
             {
                 float re = 0.0f, im = 0.0f;
                 float pharef = 0.0f;
 
-                for (long i = 0; i < pfactor; i++)
+                for (long j = 0; j < pfactor; j++)
                 {
-                    for (long j = 0; j < pfactor; j++)
+                    for (long i = 0; i < pfactor; i++)
                     {
                         long in_idx = kk * nx * ny + (pfactor * jj + j) * nx + (pfactor * ii + i);
                         float p = in_pha[in_idx];
@@ -152,19 +165,49 @@ int contract_wavefront_cube(
     const char *outp_file,
     int         factor)
 {
+    if (factor < 0 || factor > 6)
+    {
+        return -1;
+    }
     int pfactor = 1 << factor;
 
+    delete_image_ID("tmpwfp");
+    delete_image_ID("tmpwfa");
     load_fits(inp_file, "tmpwfp", 1);
     imageID IDpha = image_ID("tmpwfp");
     load_fits(ina_file, "tmpwfa", 1);
     imageID IDamp = image_ID("tmpwfa");
 
+    if (IDpha < 0 || IDamp < 0)
+    {
+        delete_image_ID("tmpwfa");
+        delete_image_ID("tmpwfp");
+        return -1;
+    }
+
     long nx = dcimg[IDpha].md[0].size[0];
     long ny = dcimg[IDpha].md[0].size[1];
     long nz = dcimg[IDpha].md[0].size[2];
 
+    if (nx < pfactor || ny < pfactor || nz < 1)
+    {
+        delete_image_ID("tmpwfa");
+        delete_image_ID("tmpwfp");
+        return -1;
+    }
+
+    delete_image_ID("tmpwfop");
+    delete_image_ID("tmpwfoa");
     imageID IDoutpha = create_3Dimage_ID("tmpwfop", nx / pfactor, ny / pfactor, nz);
     imageID IDoutamp = create_3Dimage_ID("tmpwfoa", nx / pfactor, ny / pfactor, nz);
+    if (IDoutpha < 0 || IDoutamp < 0)
+    {
+        delete_image_ID("tmpwfa");
+        delete_image_ID("tmpwfp");
+        delete_image_ID("tmpwfoa");
+        delete_image_ID("tmpwfop");
+        return -1;
+    }
 
     atmturb_bin_complex_wavefront(dcimg[IDamp].array.F, dcimg[IDpha].array.F,
                                  dcimg[IDoutamp].array.F, dcimg[IDoutpha].array.F,
@@ -194,16 +237,38 @@ int contract_wavefront_cube_phaseonly(
     const char *outp_file,
     int         factor)
 {
+    if (factor < 0 || factor > 6)
+    {
+        return -1;
+    }
     int pfactor = 1 << factor;
 
+    delete_image_ID("tmpwfp");
     load_fits(inp_file, "tmpwfp", 1);
     imageID IDpha = image_ID("tmpwfp");
+
+    if (IDpha < 0)
+    {
+        return -1;
+    }
 
     long nx = dcimg[IDpha].md[0].size[0];
     long ny = dcimg[IDpha].md[0].size[1];
     long nz = dcimg[IDpha].md[0].size[2];
 
+    if (nx < pfactor || ny < pfactor || nz < 1)
+    {
+        delete_image_ID("tmpwfp");
+        return -1;
+    }
+
+    delete_image_ID("tmpwfop");
     imageID IDoutpha = create_3Dimage_ID("tmpwfop", nx / pfactor, ny / pfactor, nz);
+    if (IDoutpha < 0)
+    {
+        delete_image_ID("tmpwfp");
+        return -1;
+    }
 
     atmturb_bin_phaseonly_wavefront(dcimg[IDpha].array.F, dcimg[IDoutpha].array.F,
                                     nx, ny, nz, pfactor);
@@ -239,17 +304,43 @@ int contract_wavefront_series(
         snprintf(fname_a, sizeof(fname_a), "%s%08ld.%09ld.amp.fits",
                  in_prefix, index, (long)(1.0e12 * SLAMBDA + 0.5));
 
+        delete_image_ID("tmpwfp");
+        delete_image_ID("tmpwfa");
         load_fits(fname_p, "tmpwfp", 1);
         imageID IDpha = image_ID("tmpwfp");
         load_fits(fname_a, "tmpwfa", 1);
         imageID IDamp = image_ID("tmpwfa");
 
+        if (IDpha < 0 || IDamp < 0)
+        {
+            delete_image_ID("tmpwfa");
+            delete_image_ID("tmpwfp");
+            return -1;
+        }
+
         long nx = dcimg[IDpha].md[0].size[0];
         long ny = dcimg[IDpha].md[0].size[1];
         long nz = dcimg[IDpha].md[0].size[2];
 
+        if (nx < 2 || ny < 2 || nz < 1)
+        {
+            delete_image_ID("tmpwfa");
+            delete_image_ID("tmpwfp");
+            return -1;
+        }
+
+        delete_image_ID("tmpwfop");
+        delete_image_ID("tmpwfoa");
         imageID IDoutpha = create_3Dimage_ID("tmpwfop", nx / 2, ny / 2, nz);
         imageID IDoutamp = create_3Dimage_ID("tmpwfoa", nx / 2, ny / 2, nz);
+        if (IDoutpha < 0 || IDoutamp < 0)
+        {
+            delete_image_ID("tmpwfa");
+            delete_image_ID("tmpwfp");
+            delete_image_ID("tmpwfoa");
+            delete_image_ID("tmpwfop");
+            return -1;
+        }
 
         atmturb_bin_complex_wavefront(dcimg[IDamp].array.F, dcimg[IDpha].array.F,
                                      dcimg[IDoutamp].array.F, dcimg[IDoutpha].array.F,
