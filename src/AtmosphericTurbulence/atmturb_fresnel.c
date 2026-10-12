@@ -20,6 +20,7 @@
 #include "atmturb_fresnel_simd.h"
 #include "atmturb_simd.h"
 #include "atmturb_superlayer.h"
+#include "atmturb_types.h"
 
 /**
  * atmturb_fresnel_plan_init - Initialize super-layer binning and transfer functions
@@ -169,20 +170,25 @@ static void atmturb_fresnel_init_fftw_threads(
     }
     if (s_threads_init)
     {
-        int max_th = omp_get_max_threads();
-        int nth    = 1;
-        if (pup_size > 128 && pup_size <= 256)
+        int nth = 1;
+#ifdef _OPENMP
+        if (!omp_in_parallel())
         {
-            nth = (max_th < 4) ? max_th : 4;
+            int max_th = omp_get_max_threads();
+            if (pup_size > 128 && pup_size <= 256)
+            {
+                nth = (max_th < 4) ? max_th : 4;
+            }
+            else if (pup_size > 256 && pup_size <= 512)
+            {
+                nth = (max_th < 8) ? max_th : 8;
+            }
+            else if (pup_size > 512)
+            {
+                nth = (max_th < 16) ? max_th : 16;
+            }
         }
-        else if (pup_size > 256 && pup_size <= 512)
-        {
-            nth = (max_th < 8) ? max_th : 8;
-        }
-        else if (pup_size > 512)
-        {
-            nth = (max_th < 16) ? max_th : 16;
-        }
+#endif
         fftwf_plan_with_nthreads(nth);
     }
 #else
@@ -207,20 +213,29 @@ int atmturb_fresnel_ctx_init(
     }
 
     memset(ctx, 0, sizeof(*ctx));
-    ctx->eng.n     = pup_size;
-    ctx->eng_sec.n = pup_size;
+    ctx->eng.n = pup_size;
 
-    size_t npix     = (size_t) (pup_size * pup_size);
-    ctx->field_pri  = (fftwf_complex *) fftwf_alloc_complex(npix);
-    ctx->field_sec  = (fftwf_complex *) fftwf_alloc_complex(npix);
-    ctx->super_pha  = (float *) malloc(sizeof(float) * npix);
-    ctx->super_spha = (float *) malloc(sizeof(float) * npix);
+    size_t npix    = (size_t) (pup_size * pup_size);
+    ctx->field_pri = (fftwf_complex *) fftwf_alloc_complex(npix);
+    ctx->super_pha = (float *) malloc(sizeof(float) * npix);
 
-    if (ctx->field_pri == NULL || ctx->field_sec == NULL ||
-        ctx->super_pha == NULL || ctx->super_spha == NULL)
+    if (ctx->field_pri == NULL || ctx->super_pha == NULL)
     {
         atmturb_fresnel_ctx_free(ctx);
         return -1;
+    }
+
+    int has_sec = (CONF_MAKE_SWAVEFRONT == 1);
+    if (has_sec)
+    {
+        ctx->eng_sec.n  = pup_size;
+        ctx->field_sec  = (fftwf_complex *) fftwf_alloc_complex(npix);
+        ctx->super_spha = (float *) malloc(sizeof(float) * npix);
+        if (ctx->field_sec == NULL || ctx->super_spha == NULL)
+        {
+            atmturb_fresnel_ctx_free(ctx);
+            return -1;
+        }
     }
 
     atmturb_fresnel_init_fftw_threads(pup_size);
@@ -231,15 +246,18 @@ int atmturb_fresnel_ctx_init(
                                           ctx->field_pri, ctx->field_pri,
                                           FFTW_BACKWARD, FFTW_MEASURE);
 
-    ctx->eng_sec.fwd_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                              ctx->field_sec, ctx->field_sec,
-                                              FFTW_FORWARD, FFTW_MEASURE);
-    ctx->eng_sec.inv_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                              ctx->field_sec, ctx->field_sec,
-                                              FFTW_BACKWARD, FFTW_MEASURE);
+    if (has_sec)
+    {
+        ctx->eng_sec.fwd_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                                  ctx->field_sec, ctx->field_sec,
+                                                  FFTW_FORWARD, FFTW_MEASURE);
+        ctx->eng_sec.inv_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                                  ctx->field_sec, ctx->field_sec,
+                                                  FFTW_BACKWARD, FFTW_MEASURE);
+    }
 
     if (ctx->eng.fwd_plan == NULL || ctx->eng.inv_plan == NULL ||
-        ctx->eng_sec.fwd_plan == NULL || ctx->eng_sec.inv_plan == NULL)
+        (has_sec && (ctx->eng_sec.fwd_plan == NULL || ctx->eng_sec.inv_plan == NULL)))
     {
         atmturb_fresnel_ctx_free(ctx);
         return -1;
@@ -380,37 +398,64 @@ void atmturb_fresnel_render_step(
             }
         }
 
-        #pragma omp parallel sections if(do_sec_prop)
+        int par_sec = (do_sec_prop && pup_size < 512);
+#ifdef _OPENMP
+        par_sec = par_sec && !omp_in_parallel();
+#endif
+        if (par_sec)
         {
-            #pragma omp section
+            #pragma omp parallel sections
             {
-                atmturb_fresnel_propagate_field(&ctx->eng, ctx->field_pri,
-                                                plan->tf_pri[m], npix);
-            }
-            #pragma omp section
-            {
-                if (do_sec_prop)
+                #pragma omp section
+                {
+                    atmturb_fresnel_propagate_field(&ctx->eng, ctx->field_pri,
+                                                    plan->tf_pri[m], npix);
+                }
+                #pragma omp section
                 {
                     atmturb_fresnel_propagate_field(&ctx->eng_sec, ctx->field_sec,
                                                     plan->tf_sec[m], npix);
                 }
             }
         }
+        else
+        {
+            atmturb_fresnel_propagate_field(&ctx->eng, ctx->field_pri,
+                                            plan->tf_pri[m], npix);
+            if (do_sec_prop)
+            {
+                atmturb_fresnel_propagate_field(&ctx->eng_sec, ctx->field_sec,
+                                                plan->tf_sec[m], npix);
+            }
+        }
     }
 
-    #pragma omp parallel sections if(has_sec)
+    int par_extract = (has_sec && pup_size < 512);
+#ifdef _OPENMP
+    par_extract = par_extract && !omp_in_parallel();
+#endif
+    if (par_extract)
     {
-        #pragma omp section
+        #pragma omp parallel sections
         {
-            atmturb_fresnel_simd_extract_unwrapped(ctx->field_pri, pha_slice, amp_slice, npix);
-        }
-        #pragma omp section
-        {
-            if (has_sec)
+            #pragma omp section
+            {
+                atmturb_fresnel_simd_extract_unwrapped(ctx->field_pri, pha_slice, amp_slice, npix);
+            }
+            #pragma omp section
             {
                 atmturb_fresnel_simd_extract_unwrapped(ctx->field_sec, spha_slice,
                                                        samp_slice, npix);
             }
+        }
+    }
+    else
+    {
+        atmturb_fresnel_simd_extract_unwrapped(ctx->field_pri, pha_slice, amp_slice, npix);
+        if (has_sec)
+        {
+            atmturb_fresnel_simd_extract_unwrapped(ctx->field_sec, spha_slice,
+                                                   samp_slice, npix);
         }
     }
 }

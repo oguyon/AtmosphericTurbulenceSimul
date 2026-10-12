@@ -8,6 +8,11 @@
  */
 
 #include <math.h>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include "atmturb_lowfreq.h"
 #include "atmturb_simd.h"
 
@@ -53,6 +58,9 @@ void atmturb_extrude_accumulate_bilinear_scalar(
     float w01 = (1.0f - fx) * fy * weight;
     float w11 = fx * fy * weight;
 
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && pup_size >= 128) schedule(static)
+#endif
     for (long jj = 0; jj < pup_size; jj++)
     {
         long iy0 = (base_y + jj * os) % msize;
@@ -113,6 +121,9 @@ void atmturb_extrude_accumulate_bicubic_scalar(
         wy_wt[n] = wy[n] * weight;
     }
 
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && pup_size >= 128) schedule(static)
+#endif
     for (long jj = 0; jj < pup_size; jj++)
     {
         long by = base_y + jj * os;
@@ -258,6 +269,9 @@ static void atmturb_lowfreq_mode_accumulate_scalar(
             h_im[i] = (float) sin(th_x);
         }
 
+#ifdef _OPENMP
+        #pragma omp parallel for if(!omp_in_parallel() && params->pup_size >= 128) schedule(static)
+#endif
         for (long j = 0; j < params->pup_size; j++)
         {
             double th_y = (double) ky * (params->y0 + (double) (j * params->os));

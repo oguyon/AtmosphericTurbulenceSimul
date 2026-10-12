@@ -95,9 +95,13 @@ void atmturb_fresnel_modulate_field_avx2(
     __m256i idx_lo = _mm256_loadu_si256((const __m256i *) s_idx_lo);
     __m256i idx_hi = _mm256_loadu_si256((const __m256i *) s_idx_hi);
 
-    long i = 0;
-    for (; i <= npix - 8; i += 8)
+    long nblocks = npix / 8;
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
+#endif
+    for (long b = 0; b < nblocks; b++)
     {
+        long i = b * 8;
         __m256 vp = _mm256_loadu_ps(&phase[i]);
         __m256 vs, vc;
         sincos256_ps(vp, &vs, &vc);
@@ -127,7 +131,7 @@ void atmturb_fresnel_modulate_field_avx2(
         _mm256_storeu_ps(&f_flt[idx],     res0);
         _mm256_storeu_ps(&f_flt[idx + 8], res1);
     }
-    for (; i < npix; i++)
+    for (long i = nblocks * 8; i < npix; i++)
     {
         float p = phase[i];
         float s, c;
@@ -156,9 +160,13 @@ void atmturb_fresnel_init_modulate_field_avx2(
     __m256i idx_lo = _mm256_loadu_si256((const __m256i *) s_idx_lo);
     __m256i idx_hi = _mm256_loadu_si256((const __m256i *) s_idx_hi);
 
-    long i = 0;
-    for (; i <= npix - 8; i += 8)
+    long nblocks = npix / 8;
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
+#endif
+    for (long b = 0; b < nblocks; b++)
     {
+        long i = b * 8;
         __m256 vp = _mm256_loadu_ps(&phase[i]);
         __m256 vs, vc;
         sincos256_ps(vp, &vs, &vc);
@@ -175,7 +183,7 @@ void atmturb_fresnel_init_modulate_field_avx2(
         _mm256_storeu_ps(&f_flt[idx],     cs_lo);
         _mm256_storeu_ps(&f_flt[idx + 8], cs_hi);
     }
-    for (; i < npix; i++)
+    for (long i = nblocks * 8; i < npix; i++)
     {
         float p = phase[i];
         float s, c;
@@ -200,9 +208,13 @@ void atmturb_fresnel_extract_unwrapped_avx2(
 {
     const float *f_flt = (const float *) field;
 
-    long i = 0;
-    for (; i <= npix - 8; i += 8)
+    long nblocks = npix / 8;
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
+#endif
+    for (long b = 0; b < nblocks; b++)
     {
+        long i = b * 8;
         long idx = 2 * i;
         __m256 f0 = _mm256_loadu_ps(&f_flt[idx]);
         __m256 f1 = _mm256_loadu_ps(&f_flt[idx + 8]);
@@ -237,7 +249,7 @@ void atmturb_fresnel_extract_unwrapped_avx2(
             pha[i + k] = phi_arr[k] + atan2f(dim_arr[k], dre_arr[k]);
         }
     }
-    for (; i < npix; i++)
+    for (long i = nblocks * 8; i < npix; i++)
     {
         float re = field[i][0];
         float im = field[i][1];

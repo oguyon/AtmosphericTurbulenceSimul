@@ -15,6 +15,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include "atmturb_rytov.h"
 #include "atmturb_rytov_internal.h"
 #include "atmturb_rytov_simd.h"
@@ -46,6 +50,10 @@ void atmturb_rytov_assemble_output(
     double sum_i = 0.0;
     long max_clamp = (pup_size > 2) ? (pup_size - 2) : 0;
 
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && pup_size >= 128) \
+        reduction(+:sum_i) schedule(static)
+#endif
     for (long y = 0; y < pup_size; y++)
     {
         long sy = (guard_pix == 0 && (y == 0 || y == pup_size - 1))
@@ -87,6 +95,9 @@ void atmturb_rytov_assemble_output(
     if (amp != NULL)
     {
         float norm = (sum_i > 0.0) ? (float) (1.0 / sqrt(sum_i / (double) npix)) : 1.0f;
+#ifdef _OPENMP
+        #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
+#endif
         for (long i = 0; i < npix; i++)
         {
             amp[i] *= norm;
@@ -122,6 +133,9 @@ void atmturb_rytov_decompose_periodic(
     fftwf_execute(ctx->plan_1d_b);
     fftwf_execute(ctx->plan_r2c);
 
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && n >= 128) schedule(static)
+#endif
     for (long j = 0; j < n; j++)
     {
         float b_re, b_im;

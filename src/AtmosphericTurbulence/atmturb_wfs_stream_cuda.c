@@ -137,8 +137,11 @@ void atmturb_cuda_rytov_stream_free(
             atmturb_cuda_rytov_destroy_event(ctx->ev_done[s]);
             ctx->ev_done[s] = NULL;
         }
-        free(ctx->sublayers[s]);
-        ctx->sublayers[s] = NULL;
+        if (ctx->sublayers[s] != NULL)
+        {
+            atmturb_cuda_host_free(ctx->sublayers[s]);
+            ctx->sublayers[s] = NULL;
+        }
         if (ctx->lf_modes[s] != NULL)
         {
             atmturb_cuda_host_free(ctx->lf_modes[s]);
@@ -223,15 +226,16 @@ atmturb_cuda_rytov_stream_t *atmturb_cuda_rytov_stream_init(
     ctx->offset_os     = (double) ctx->plan.guard_pix * (double) geom->oversample;
     size_t n_sub_tot   = (size_t) (ctx->plan.nsuper * max_sublayers);
 
+    size_t sub_bytes = n_sub_tot * sizeof(atmturb_cuda_rytov_sublayer_t);
     for (int s = 0; s < 2; s++)
     {
-        ctx->sublayers[s] = (atmturb_cuda_rytov_sublayer_t *) calloc(
-            n_sub_tot, sizeof(atmturb_cuda_rytov_sublayer_t));
-        if (!ctx->sublayers[s])
+        if (atmturb_cuda_host_alloc((void **) &ctx->sublayers[s], sub_bytes) != 0 ||
+            ctx->sublayers[s] == NULL)
         {
             atmturb_cuda_rytov_stream_free(ctx);
             return NULL;
         }
+        memset(ctx->sublayers[s], 0, sub_bytes);
     }
     ctx->super_nlayers = (int *) malloc(sizeof(int) * (size_t) ctx->plan.nsuper);
     ctx->super_dist_m  = (double *) malloc(sizeof(double) * (size_t) ctx->plan.nsuper);

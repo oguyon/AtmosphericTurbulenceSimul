@@ -347,16 +347,21 @@ static void atmturb_rytov_fftw_threads(long pup_size)
     }
     if (s_threads_init)
     {
-        int max_th = omp_get_max_threads();
-        int nth    = 1;
-        if (pup_size > 128 && pup_size <= 256)
+        int nth = 1;
+#ifdef _OPENMP
+        if (!omp_in_parallel())
         {
-            nth = (max_th < 4) ? max_th : 4;
+            int max_th = omp_get_max_threads();
+            if (pup_size > 128 && pup_size <= 256)
+            {
+                nth = (max_th < 4) ? max_th : 4;
+            }
+            else if (pup_size > 256)
+            {
+                nth = (max_th < 8) ? max_th : 8;
+            }
         }
-        else if (pup_size > 256)
-        {
-            nth = (max_th < 8) ? max_th : 8;
-        }
+#endif
         fftwf_plan_with_nthreads(nth);
     }
 #else
