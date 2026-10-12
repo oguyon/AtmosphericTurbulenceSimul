@@ -83,7 +83,7 @@ void atmturb_ao_init_params(
     params->out_fitsname  = NULL;
     params->pup_size      = 0;
     params->nbframes      = 0;
-    params->lambda_ref_m  = 0.55e-6;
+    params->lambda_ref_m  = 0.50e-6;
     params->lambda_sci_m  = 1.65e-6;
     params->tel_diam_m    = 8.0;
     params->pupil_scale_m = 0.0;
@@ -94,6 +94,7 @@ void atmturb_ao_init_params(
     params->Kp            = 0.5;
     params->Ki            = 0.0;
     params->Kd            = 0.0;
+    params->time_step_s   = 0.001;
     params->save_psfcube  = 0;
 }
 
@@ -112,9 +113,13 @@ static double atmturb_ao_init_pupil_mask(
     double  pupil_scale_m,
     float  *mask)
 {
-    double r_pix = (pupil_scale_m > 0.0)
+    double r_pix = (pupil_scale_m > 0.0 && tel_diam_m > 0.0)
                        ? (0.5 * tel_diam_m / pupil_scale_m)
                        : (0.5 * (double) pup_size);
+    if (r_pix > 0.5 * (double) pup_size)
+    {
+        r_pix = 0.5 * (double) pup_size;
+    }
     double r2 = r_pix * r_pix;
     double cx = 0.5 * ((double) pup_size - 1.0);
     double cy = 0.5 * ((double) pup_size - 1.0);
@@ -379,20 +384,26 @@ static void atmturb_ao_controller_step(
     }
     else if (params->loop_mode == 2)
     {
-        float kp = (float) params->Kp;
-        float ki = (float) params->Ki;
-        float kd = (float) params->Kd;
-        float dt = 0.001f;
+        float kp   = (float) params->Kp;
+        float ki   = (float) params->Ki;
+        float kd   = (float) params->Kd;
+        float leak = (float) params->leak;
+        float dt   = (params->time_step_s > 0.0) ? (float) params->time_step_s : 0.001f;
         for (long i = 0; i < ntot; i++)
         {
             if (pupil_mask[i] > 0.0f)
             {
                 float e = delayed_err[i];
                 float der = (e - ctrl->prev_err[i]) / dt;
-                ctrl->pid_int[i] += e * dt;
-                float delta = kp * e + ki * ctrl->pid_int[i] + kd * der;
-                ctrl->dm_opd[i] += delta;
+                ctrl->pid_int[i] = (1.0f - leak) * ctrl->pid_int[i] + e * dt;
+                ctrl->dm_opd[i]  = kp * e + ki * ctrl->pid_int[i] + kd * der;
                 ctrl->prev_err[i] = e;
+            }
+            else
+            {
+                ctrl->pid_int[i]  = 0.0f;
+                ctrl->dm_opd[i]   = 0.0f;
+                ctrl->prev_err[i] = 0.0f;
             }
         }
     }
@@ -582,6 +593,11 @@ int atmturb_ao_sim_run(
     long nz = wf.nbframes;
     long nbframes = (p.nbframes > 0 && p.nbframes < nz) ? p.nbframes : nz;
     long ntot = pup_size * pup_size;
+
+    if (p.pupil_scale_m <= 0.0 && CONF_PUPIL_SCALE > 0.0f)
+    {
+        p.pupil_scale_m = (double) CONF_PUPIL_SCALE;
+    }
 
     float *pupil_mask = (float *) malloc(sizeof(float) * (size_t) ntot);
     if (pupil_mask == NULL)

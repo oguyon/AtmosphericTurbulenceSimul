@@ -92,12 +92,14 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(
 
     long nx = dcimg[IDmask].md[0].size[0];
     long ny = dcimg[IDmask].md[0].size[1];
-    long nbpix = dcimg[IDfilt].md[0].size[0];
-    long pforder = (dcimg[IDfilt].md[0].naxis > 2) ? dcimg[IDfilt].md[0].size[2] : 1;
+    int is_2d = (dcimg[IDfilt].md[0].naxis <= 2);
+    long nbpix = is_2d ? dcimg[IDfilt].md[0].size[1] : dcimg[IDfilt].md[0].size[0];
+    long pforder = is_2d ? (dcimg[IDfilt].md[0].size[0] / (nbpix > 0 ? nbpix : 1))
+                         : ((dcimg[IDfilt].md[0].naxis > 2) ? dcimg[IDfilt].md[0].size[2] : 1);
 
-    long *pix_x = malloc(sizeof(long) * nbpix);
-    long *pix_y = malloc(sizeof(long) * nbpix);
-    if (pix_x == NULL || pix_y == NULL)
+    long *pix_x = malloc(sizeof(long) * (nbpix > 0 ? (size_t) nbpix : 1));
+    long *pix_y = malloc(sizeof(long) * (nbpix > 0 ? (size_t) nbpix : 1));
+    if (pix_x == NULL || pix_y == NULL || nbpix <= 0)
     {
         free(pix_x);
         free(pix_y);
@@ -150,7 +152,8 @@ long AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract(
                 for (long dt = 0; dt < pforder; dt++)
                 {
                     long kidx = dt * ksize * ksize + kj * ksize + ki;
-                    long fidx = dt * nbpix * nbpix + p * nbpix + q;
+                    long fidx = is_2d ? (p * (pforder * nbpix) + dt * nbpix + q)
+                                      : (dt * nbpix * nbpix + p * nbpix + q);
 
                     dcimg[IDkern].array.F[kidx] += dcimg[IDfilt].array.F[fidx];
                     dcimg[IDcnt].array.F[kidx] += 1.0f;
@@ -304,7 +307,12 @@ int AtmosphericTurbulence_Build_LinPredictor(
     long n_inputs = kdiam * kdiam * WFP_NBstep;
     long n_samples = NB_WFstep - WFP_NBstep - WFPlag;
 
-    if (n_samples <= 0 || n_inputs <= 0)
+    imageID ID_wf = image_ID("outarraypha");
+    long nx = (ID_wf >= 0) ? dcimg[ID_wf].md[0].size[0] : 0;
+    long ny = (ID_wf >= 0) ? dcimg[ID_wf].md[0].size[1] : 0;
+    long nz = (ID_wf >= 0) ? dcimg[ID_wf].md[0].size[2] : 0;
+
+    if (ID_wf < 0 || nz < NB_WFstep || n_samples <= 0 || n_inputs <= 0)
     {
         return -1;
     }
@@ -316,16 +324,30 @@ int AtmosphericTurbulence_Build_LinPredictor(
     {
         for (long dt = 0; dt < WFP_NBstep; dt++)
         {
+            long t = s + dt;
             for (long di = -WFP_xyrad; di <= WFP_xyrad; di++)
             {
+                long px = WFPiipix + di;
                 for (long dj = -WFP_xyrad; dj <= WFP_xyrad; dj++)
                 {
+                    long py = WFPjjpix + dj;
                     long col = dt * kdiam * kdiam + (dj + WFP_xyrad) * kdiam + (di + WFP_xyrad);
-                    dcimg[IDmatA].array.F[s * n_inputs + col] = 0.0f;
+                    float val = 0.0f;
+                    if (px >= 0 && px < nx && py >= 0 && py < ny && t < nz)
+                    {
+                        val = dcimg[ID_wf].array.F[t * nx * ny + py * nx + px];
+                    }
+                    dcimg[IDmatA].array.F[s * n_inputs + col] = val;
                 }
             }
         }
-        dcimg[IDmatB].array.F[s] = 0.0f;
+        long t_target = s + WFP_NBstep - 1 + WFPlag;
+        float targ_val = 0.0f;
+        if (WFPiipix >= 0 && WFPiipix < nx && WFPjjpix >= 0 && WFPjjpix < ny && t_target < nz)
+        {
+            targ_val = dcimg[ID_wf].array.F[t_target * nx * ny + WFPjjpix * nx + WFPiipix];
+        }
+        dcimg[IDmatB].array.F[s] = targ_val;
     }
 
     linopt_compute_SVDpseudoInverse("matA_pix", "matA_pix_inv", 1e-3, 10000, "matA_pix_vt");
@@ -333,6 +355,22 @@ int AtmosphericTurbulence_Build_LinPredictor(
     char out_name[200];
     snprintf(out_name, sizeof(out_name), "WFPfilt_%ld_%ld", WFPiipix, WFPjjpix);
     create_2Dimage_ID(out_name, n_inputs, 1);
+    imageID ID_filt = image_ID(out_name);
+    imageID ID_Ainv = image_ID("matA_pix_inv");
+
+    if (ID_filt >= 0 && ID_Ainv >= 0)
+    {
+        for (long j = 0; j < n_inputs; j++)
+        {
+            double sum = 0.0;
+            const float *a_row = &dcimg[ID_Ainv].array.F[j * n_samples];
+            for (long s = 0; s < n_samples; s++)
+            {
+                sum += (double) a_row[s] * (double) dcimg[IDmatB].array.F[s];
+            }
+            dcimg[ID_filt].array.F[j] = (float) sum;
+        }
+    }
 
     delete_image_ID("matA_pix");
     delete_image_ID("matB_pix");

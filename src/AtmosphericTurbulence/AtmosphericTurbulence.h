@@ -458,6 +458,7 @@ int AtmosphericTurbulence_WFprocess(void);
  * @Kp: Proportional gain for PID (default: 0.5).
  * @Ki: Integral gain for PID (default: 0.0).
  * @Kd: Derivative gain for PID (default: 0.0).
+ * @time_step_s: Simulation time step in seconds (default: 0.001).
  * @save_psfcube: 1 to save full 3D PSF cube, 0 for cumulative 2D PSF only.
  */
 typedef struct
@@ -479,6 +480,7 @@ typedef struct
     double      Kp;
     double      Ki;
     double      Kd;
+    double      time_step_s;
     int         save_psfcube;
 } atmturb_ao_params_t;
 

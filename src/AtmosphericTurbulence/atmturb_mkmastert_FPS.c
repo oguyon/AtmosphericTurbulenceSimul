@@ -94,9 +94,15 @@ static MILK_HOT errno_t fpsexec(void)
     }
     fflush(stdout);
 
-    make_master_turbulence_screen_seeded(param_screen0, param_screen1, (long) param_size,
-                                         param_outerscale, param_innerscale,
-                                         (long) param_precision, (uint64_t) param_seed);
+    int ret = make_master_turbulence_screen_seeded(param_screen0, param_screen1,
+                                                   (long) param_size,
+                                                   param_outerscale, param_innerscale,
+                                                   (long) param_precision,
+                                                   (uint64_t) param_seed);
+    if (ret != 0)
+    {
+        return RETURN_FAILURE;
+    }
 
     if (param_fitsout0[0] != '\0')
     {
@@ -125,18 +131,20 @@ FPS_V2_SECTION5(FPS_PARAMS)
 /**
  * compute_function - Orchestrator wrapper for processinfo tracing
  *
- * Return: RETURN_SUCCESS on completion.
+ * Return: RETURN_SUCCESS on completion, or error code on failure.
  */
 static MILK_HOT errno_t __attribute__((unused)) compute_function(void)
 {
     DEBUG_TRACE_FSTART();
 
+    errno_t ret = RETURN_SUCCESS;
+
     INSERT_STD_PROCINFO_COMPUTEFUNC_START
-    fpsexec();
+    ret = fpsexec();
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
     DEBUG_TRACE_FEXIT();
-    return RETURN_SUCCESS;
+    return ret;
 }
 
 /* ================================================================

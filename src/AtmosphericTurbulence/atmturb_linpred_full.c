@@ -15,52 +15,44 @@
 #endif
 
 /**
- * atmturb_remove_wavefront_piston - Zero pupil-averaged piston in each frame of wavefront cube
- * @id_wf: Wavefront cube image ID.
- * @id_mask: Pupil binary mask image ID.
- * @nx: Pupil linear width.
- * @ny: Pupil linear height.
+ * atmturb_compute_wavefront_piston - Compute per-frame mean piston non-destructively
+ * @id_wf: Input wavefront cube image ID.
+ * @mask_idx: Array of active mask pixel indices.
+ * @nbpix: Number of active mask pixels.
  * @nz: Number of time slices.
+ * @nxy: Frame pixel count (nx * ny).
+ *
+ * Return: Allocated piston array (length nz), or NULL on failure.
  */
-static void atmturb_remove_wavefront_piston(
-    imageID id_wf,
-    imageID id_mask,
-    long    nx,
-    long    ny,
-    long    nz)
+static float *atmturb_compute_wavefront_piston(
+    imageID     id_wf,
+    const long *mask_idx,
+    long        nbpix,
+    long        nz,
+    long        nxy)
 {
-    long nxy = nx * ny;
-    double totm = 0.0;
-    for (long i = 0; i < nxy; i++)
+    if (nbpix <= 0 || nz <= 0)
     {
-        if (dcimg[id_mask].array.F[i] > 0.5f)
-        {
-            totm += 1.0;
-        }
+        return NULL;
     }
-    if (totm < 1.0)
+
+    float *piston = (float *) malloc(sizeof(float) * (size_t) nz);
+    if (piston == NULL)
     {
-        totm = 1.0;
+        return NULL;
     }
 
     for (long kk = 0; kk < nz; kk++)
     {
         double tot = 0.0;
-        for (long i = 0; i < nxy; i++)
+        const float *slice = &dcimg[id_wf].array.F[kk * nxy];
+        for (long p = 0; p < nbpix; p++)
         {
-            float m = (dcimg[id_mask].array.F[i] > 0.5f) ? 1.0f : 0.0f;
-            dcimg[id_wf].array.F[kk * nxy + i] *= m;
-            tot += dcimg[id_wf].array.F[kk * nxy + i];
+            tot += (double) slice[mask_idx[p]];
         }
-        float piston = (float)(tot / totm);
-        for (long i = 0; i < nxy; i++)
-        {
-            if (dcimg[id_mask].array.F[i] > 0.5f)
-            {
-                dcimg[id_wf].array.F[kk * nxy + i] -= piston;
-            }
-        }
+        piston[kk] = (float) (tot / (double) nbpix);
     }
+    return piston;
 }
 
 /**
@@ -132,15 +124,27 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(
     long ny = dcimg[ID_WFin].md[0].size[1];
     long nz = dcimg[ID_WFin].md[0].size[2];
 
-    atmturb_remove_wavefront_piston(ID_WFin, ID_WFmask, nx, ny, nz);
-
     long nbpix = 0;
     long *mask_idx = atmturb_extract_mask_indices(ID_WFmask, nx, ny, &nbpix);
+    if (mask_idx == NULL || nbpix <= 0)
+    {
+        free(mask_idx);
+        return -1;
+    }
+
+    float *piston = atmturb_compute_wavefront_piston(ID_WFin, mask_idx, nbpix, nz, nx * ny);
+    if (piston == NULL)
+    {
+        free(mask_idx);
+        return -1;
+    }
+
     long mvecsize = nbpix * PForder;
     long nbmvec = nz - PForder - (long)PFlag;
 
     if (nbmvec <= 0 || mvecsize <= 0)
     {
+        free(piston);
         free(mask_idx);
         return -1;
     }
@@ -153,22 +157,25 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(
         for (long dt = 0; dt < PForder; dt++)
         {
             long t = m + dt;
+            float p_t = piston[t];
             for (long p = 0; p < nbpix; p++)
             {
                 dcimg[IDmatA].array.F[m * mvecsize + dt * nbpix + p] =
-                    dcimg[ID_WFin].array.F[t * nx * ny + mask_idx[p]];
+                    dcimg[ID_WFin].array.F[t * nx * ny + mask_idx[p]] - p_t;
             }
         }
         long t_target = m + PForder - 1 + (long)PFlag;
+        float p_targ = piston[t_target];
         for (long p = 0; p < nbpix; p++)
         {
             dcimg[IDmatC].array.F[m * nbpix + p] =
-                dcimg[ID_WFin].array.F[t_target * nx * ny + mask_idx[p]];
+                dcimg[ID_WFin].array.F[t_target * nx * ny + mask_idx[p]] - p_targ;
         }
     }
+    free(piston);
 
-    (void)RegLambda;
-    linopt_compute_SVDpseudoInverse("matA", "matA_inv", SVDeps, 10000, "matA_vt");
+    double eps = (RegLambda > 0.0 && RegLambda > SVDeps) ? RegLambda : SVDeps;
+    linopt_compute_SVDpseudoInverse("matA", "matA_inv", eps, 10000, "matA_vt");
 
     char filtname[200];
     snprintf(filtname, sizeof(filtname), "Pfilt_%04d_%04ld", PForder, (long)(PFlag + 0.5));
@@ -246,9 +253,9 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(
     imageID ID_outf = create_3Dimage_ID(WFoutf_name, nx, ny, nz);
 
     #pragma omp parallel for schedule(dynamic)
-    for (long t = PForder; t < nz - (long)PFlag; t++)
+    for (long t = PForder; t <= nz - (long)PFlag; t++)
     {
-        long target_t = t + (long)PFlag;
+        long target_t = t - 1 + (long)PFlag;
         for (long p = 0; p < nbpix; p++)
         {
             double pred = 0.0;

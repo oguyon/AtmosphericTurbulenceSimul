@@ -182,6 +182,29 @@ static void atmturb_hv_bin_layers(
 }
 
 /**
+ * atmturb_hv_normalize_layers - Normalize discrete layer Cn2 values to sum to 1
+ * @NBlayer: Number of layers.
+ * @layer_cn2: Relative Cn2 array per layer.
+ */
+static void atmturb_hv_normalize_layers(
+    long    NBlayer,
+    double *layer_cn2)
+{
+    double bsum = 0.0;
+    for (long k = 0; k < NBlayer; k++)
+    {
+        bsum += layer_cn2[k];
+    }
+    if (bsum > 0.0)
+    {
+        for (long k = 0; k < NBlayer; k++)
+        {
+            layer_cn2[k] /= bsum;
+        }
+    }
+}
+
+/**
  * atmturb_hv_write_profile - Write discrete HV layers to a turbulence profile file
  * @outfile: Destination profile file path.
  * @wspeed: High-altitude wind speed [m/s].
@@ -305,10 +328,7 @@ int AtmosphericTurbulence_makeHV_CN2prof_opt(
     }
 
     atmturb_hv_bin_layers(wspeed, A, sitealt, hmax, NBlayer, layer_h, layer_cn2);
-    for (long k = 0; k < NBlayer; k++)
-    {
-        layer_cn2[k] /= cn2sum;
-    }
+    atmturb_hv_normalize_layers(NBlayer, layer_cn2);
     ret = atmturb_hv_write_profile(outfile, wspeed, NBlayer, layer_h, layer_cn2,
                                    wind_model, seed);
 

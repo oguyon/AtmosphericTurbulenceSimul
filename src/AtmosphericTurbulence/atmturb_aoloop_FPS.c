@@ -44,6 +44,9 @@ static double  param_leak      = 0.001;
 static int32_t param_delay     = 1;
 static double  param_scilambda = 1.65;
 static double  param_teldiam   = 8.0;
+static double  param_reflambda = 0.50;
+static double  param_pupil_scale = 0.0;
+static double  param_timestep  = 0.001;
 
 /* ================================================================
  * 3.  UNIFIED PARAMETER TABLE (X-Macro)
@@ -67,7 +70,13 @@ static double  param_teldiam   = 8.0;
     X(".scilambda", &param_scilambda, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT,                    \
       "Science wavelength in microns (default: 1.65)")                                           \
     X(".teldiam", &param_teldiam, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT,                        \
-      "Telescope primary mirror diameter in meters (default: 8.0)")
+      "Telescope primary mirror diameter in meters (default: 8.0)")                              \
+    X(".reflambda", &param_reflambda, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT,                    \
+      "Reference wavefront wavelength in microns (default: 0.50)")                               \
+    X(".pupil_scale", &param_pupil_scale, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT,                \
+      "Pupil pixel scale in meters/pixel (0 = auto from teldiam/grid)")                          \
+    X(".time_step", &param_timestep, FPTYPE_FLOAT64, 1, FPFLAG_DEFAULT_INPUT,                     \
+      "Simulation time step in seconds (default: 0.001)")
 
 /* ================================================================
  * 4.  COMPUTATION LOGIC
@@ -91,15 +100,18 @@ static MILK_HOT errno_t fpsexec(void)
     atmturb_ao_params_t p;
     atmturb_ao_init_params(&p);
 
-    p.in_wfname     = param_wfname;
-    p.out_psfname   = param_psfname;
-    p.out_fitsname  = (param_fitsout[0] != '\0') ? param_fitsout : NULL;
-    p.loop_mode     = (int) param_loop_mode;
-    p.gain          = param_gain;
-    p.leak          = param_leak;
-    p.loop_delay    = (int) param_delay;
-    p.lambda_sci_m  = param_scilambda * 1e-6;
-    p.tel_diam_m    = param_teldiam;
+    p.in_wfname      = param_wfname;
+    p.out_psfname    = param_psfname;
+    p.out_fitsname   = (param_fitsout[0] != '\0') ? param_fitsout : NULL;
+    p.loop_mode      = (int) param_loop_mode;
+    p.gain           = param_gain;
+    p.leak           = param_leak;
+    p.loop_delay     = (int) param_delay;
+    p.lambda_ref_m   = (param_reflambda > 0.0) ? (param_reflambda * 1e-6) : 0.50e-6;
+    p.lambda_sci_m   = param_scilambda * 1e-6;
+    p.tel_diam_m     = param_teldiam;
+    p.pupil_scale_m  = param_pupil_scale;
+    p.time_step_s    = param_timestep;
 
     atmturb_ao_results_t res;
     if (atmturb_ao_sim_run(&p, &res) != 0)
