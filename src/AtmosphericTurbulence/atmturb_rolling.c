@@ -60,6 +60,11 @@ static imageID atmturb_rolling_ensure_screen(
     }
     delete_image_ID(name);
     id = create_2Dimage_ID(name, msize, msize);
+    if (id < 0)
+    {
+        free(tmp);
+        return -1;
+    }
     memcpy(dcimg[id].array.F, tmp, sizeof(float) * (size_t) ntot);
     free(tmp);
     return id;

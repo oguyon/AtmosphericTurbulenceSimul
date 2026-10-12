@@ -183,7 +183,7 @@ typedef struct
  * @master_size: Master screen linear dimension.
  * @pup_size: Linear pupil dimension.
  */
-static void atmturb_wfs_stream_render_step(
+static int atmturb_wfs_stream_render_step(
     const atmturb_rolling_t *rsim,
     const atmturb_geom_t    *geom,
     atmturb_stream_state_t  *st,
@@ -203,49 +203,53 @@ static void atmturb_wfs_stream_render_step(
                           ? ((st->is_cuda) ? dcimg[st->id_samp].array.F : st->samp)
                           : NULL;
 
-    if (CONF_FRESNEL_PROPAGATION == 1 && st->cuda_fstream != NULL)
+    if (CONF_FRESNEL_PROPAGATION == 1)
     {
-        if (atmturb_cuda_fresnel_stream_render_step(st->cuda_fstream, rsim, geom, t,
-                                                    time_step_s, pha_dst, amp_dst,
-                                                    spha_dst, samp_dst) == 0)
+        if (st->cuda_fstream != NULL)
         {
-            return;
+            return atmturb_cuda_fresnel_stream_render_step(
+                st->cuda_fstream, rsim, geom, t, time_step_s, pha_dst, amp_dst,
+                spha_dst, samp_dst);
         }
-    }
-
-    if (CONF_FRESNEL_PROPAGATION == 1 && st->fplan != NULL && st->fctx != NULL)
-    {
-        atmturb_fresnel_render_step(st->fctx, st->fplan, rsim, geom, t, time_step_s,
-                                    master_size, pup_size, st->pha, amp_dst,
-                                    spha_dst, samp_dst);
-        return;
-    }
-
-    if (CONF_FRESNEL_PROPAGATION == 2 && st->cuda_rstream != NULL)
-    {
-        if (atmturb_cuda_rytov_stream_render_step(st->cuda_rstream, rsim, geom, t,
-                                                 time_step_s, pha_dst, amp_dst,
-                                                 spha_dst, samp_dst) == 0)
+        if (st->fplan != NULL && st->fctx != NULL)
         {
-            return;
+            atmturb_fresnel_render_step(st->fctx, st->fplan, rsim, geom, t, time_step_s,
+                                        master_size, pup_size, st->pha, amp_dst,
+                                        spha_dst, samp_dst);
+            return 0;
         }
+        return -1;
     }
 
-    if (CONF_FRESNEL_PROPAGATION == 2 && st->rplan != NULL && st->rctx != NULL)
+    if (CONF_FRESNEL_PROPAGATION == 2)
     {
-        atmturb_rytov_render_step(st->rctx, st->rplan, rsim, geom, t, time_step_s,
-                                  master_size, pup_size, st->pha, amp_dst,
-                                  spha_dst, samp_dst);
-        return;
+        if (st->cuda_rstream != NULL)
+        {
+            return atmturb_cuda_rytov_stream_render_step(
+                st->cuda_rstream, rsim, geom, t, time_step_s, pha_dst, amp_dst,
+                spha_dst, samp_dst);
+        }
+        if (st->rplan != NULL && st->rctx != NULL)
+        {
+            atmturb_rytov_render_step(st->rctx, st->rplan, rsim, geom, t, time_step_s,
+                                      master_size, pup_size, st->pha, amp_dst,
+                                      spha_dst, samp_dst);
+            return 0;
+        }
+        return -1;
     }
 
     if (CONF_FRESNEL_PROPAGATION == 0 && st->cuda_gstream != NULL)
     {
-        if (atmturb_wfs_cuda_geom_stream_render_step(
-                st->cuda_gstream, t, pha_dst, amp_dst, spha_dst, samp_dst) == 0)
+        if (st->is_cuda)
         {
-            return;
+            if (st->id_pha >= 0)  { dcimg[st->id_pha].md[0].write = 1; }
+            if (st->id_amp >= 0)  { dcimg[st->id_amp].md[0].write = 1; }
+            if (st->id_spha >= 0) { dcimg[st->id_spha].md[0].write = 1; }
+            if (st->id_samp >= 0) { dcimg[st->id_samp].md[0].write = 1; }
         }
+        return atmturb_wfs_cuda_geom_stream_render_step(
+            st->cuda_gstream, t, pha_dst, amp_dst, spha_dst, samp_dst);
     }
 
     long frame_pixels = pup_size * pup_size;
@@ -260,20 +264,26 @@ static void atmturb_wfs_stream_render_step(
         atmturb_wfs_render_layer(rsim, geom, k, t, time_step_s, master_size,
                                  pup_size, st->pha, spha_dst);
     }
+    return 0;
 }
 
 /**
- * atmturb_wfs_stream_notify_channel - Post semaphores on an updated stream channel
- * @id: Image ID to notify.
- * @ts: Frame timestamp.
+ * atmturb_wfs_stream_write_channel - Write frame data to SHM with write flag and post
+ * @id: Image ID.
+ * @src: Source buffer.
+ * @nbytes: Frame size in bytes.
+ * @ts: Timestamp for frame.
  */
-static inline void atmturb_wfs_stream_notify_channel(
+static inline void atmturb_wfs_stream_write_channel(
     imageID                id,
+    const void            *src,
+    size_t                 nbytes,
     const struct timespec *ts)
 {
-    if (id >= 0)
+    if (id >= 0 && src != NULL)
     {
         dcimg[id].md[0].write = 1;
+        memcpy(dcimg[id].array.F, src, nbytes);
         atmturb_wfs_stream_post(id, ts);
     }
 }
@@ -291,10 +301,10 @@ static void atmturb_wfs_stream_publish(
 {
     if (st->is_cuda)
     {
-        atmturb_wfs_stream_notify_channel(st->id_pha, ts);
-        atmturb_wfs_stream_notify_channel(st->id_amp, ts);
-        atmturb_wfs_stream_notify_channel(st->id_spha, ts);
-        atmturb_wfs_stream_notify_channel(st->id_samp, ts);
+        atmturb_wfs_stream_post(st->id_pha, ts);
+        atmturb_wfs_stream_post(st->id_amp, ts);
+        atmturb_wfs_stream_post(st->id_spha, ts);
+        atmturb_wfs_stream_post(st->id_samp, ts);
         return;
     }
 
@@ -306,24 +316,14 @@ static void atmturb_wfs_stream_publish(
         atmturb_remove_piston_stream(dcimg[st->id_pha].array.F, st->pha, frame_pixels);
         atmturb_wfs_stream_post(st->id_pha, ts);
     }
-    if (st->id_amp >= 0)
-    {
-        dcimg[st->id_amp].md[0].write = 1;
-        memcpy(dcimg[st->id_amp].array.F, st->amp, nbytes);
-        atmturb_wfs_stream_post(st->id_amp, ts);
-    }
+    atmturb_wfs_stream_write_channel(st->id_amp, st->amp, nbytes, ts);
     if (st->id_spha >= 0)
     {
         dcimg[st->id_spha].md[0].write = 1;
         atmturb_remove_piston_stream(dcimg[st->id_spha].array.F, st->spha, frame_pixels);
         atmturb_wfs_stream_post(st->id_spha, ts);
     }
-    if (st->id_samp >= 0)
-    {
-        dcimg[st->id_samp].md[0].write = 1;
-        memcpy(dcimg[st->id_samp].array.F, st->samp, nbytes);
-        atmturb_wfs_stream_post(st->id_samp, ts);
-    }
+    atmturb_wfs_stream_write_channel(st->id_samp, st->samp, nbytes, ts);
 }
 
 /**
@@ -355,20 +355,6 @@ static inline int atmturb_wfs_stream_render_wait(
  * @nbytes: Frame size in bytes.
  * @ts: Timestamp for frame.
  */
-static inline void atmturb_wfs_stream_write_channel(
-    imageID                id,
-    const void            *src,
-    size_t                 nbytes,
-    const struct timespec *ts)
-{
-    if (id >= 0 && src != NULL)
-    {
-        memcpy(dcimg[id].array.F, src, nbytes);
-        dcimg[id].md[0].write = 1;
-        atmturb_wfs_stream_post(id, ts);
-    }
-}
-
 static void atmturb_wfs_stream_pipeline_publish(
     const atmturb_stream_state_t *st,
     int                           buf_idx,
@@ -442,32 +428,38 @@ static long atmturb_wfs_stream_loop_pipelined(
     size_t nbytes = (size_t) (pup_size * pup_size) * sizeof(float);
     PROCESSINFO *pinfo = g_stream_processinfo;
     long t = 0;
-    int in_flight = 1;
-
-    atmturb_wfs_stream_pipeline_launch_frame(rsim, geom, params, st, 0, 0);
-    if (g_stream_stop == 0 && (max_frames <= 0 || 1 < max_frames))
+    int in_flight = (atmturb_wfs_stream_pipeline_launch_frame(rsim, geom, params, st, 0, 0) == 0);
+    if (in_flight > 0 && g_stream_stop == 0 && (max_frames <= 0 || 1 < max_frames))
     {
-        atmturb_wfs_stream_pipeline_launch_frame(rsim, geom, params, st, 1, 1);
-        in_flight++;
+        if (atmturb_wfs_stream_pipeline_launch_frame(rsim, geom, params, st, 1, 1) == 0)
+        {
+            in_flight++;
+        }
     }
 
     for (t = 0; ; t++)
     {
         int cur_buf = (int) (t & 1);
 
-        atmturb_wfs_stream_render_wait(st, cur_buf);
-        in_flight--;
-
-        struct timespec ts_now;
-        clock_gettime(CLOCK_REALTIME, &ts_now);
-        atmturb_wfs_stream_pipeline_publish(st, cur_buf, nbytes, &ts_now);
+        if (atmturb_wfs_stream_render_wait(st, cur_buf) == 0)
+        {
+            struct timespec ts_now;
+            clock_gettime(CLOCK_REALTIME, &ts_now);
+            atmturb_wfs_stream_pipeline_publish(st, cur_buf, nbytes, &ts_now);
+        }
+        if (in_flight > 0)
+        {
+            in_flight--;
+        }
 
         long next_t = t + 2;
         if (g_stream_stop == 0 && (max_frames <= 0 || next_t < max_frames))
         {
-            atmturb_wfs_stream_pipeline_launch_frame(
-                rsim, geom, params, st, next_t, cur_buf);
-            in_flight++;
+            if (atmturb_wfs_stream_pipeline_launch_frame(
+                    rsim, geom, params, st, next_t, cur_buf) == 0)
+            {
+                in_flight++;
+            }
         }
 
         if (pinfo != NULL && t > 0)
@@ -560,18 +552,20 @@ static long atmturb_wfs_stream_loop(
             if (pinfo->triggerstatus == PROCESSINFO_TRIGGERSTATUS_TIMEDOUT &&
                 pinfo->triggermode == PROCESSINFO_TRIGGERMODE_SEMAPHORE)
             {
+                t--;
                 continue;
             }
             processinfo_exec_start(pinfo);
         }
 
-        atmturb_wfs_stream_render_step(rsim, geom, st, t, params->time_step_s,
-                                       CONF_MASTER_SIZE, pup_size);
+        if (atmturb_wfs_stream_render_step(rsim, geom, st, t, params->time_step_s,
+                                           CONF_MASTER_SIZE, pup_size) == 0)
+        {
+            struct timespec ts_now;
+            clock_gettime(CLOCK_REALTIME, &ts_now);
 
-        struct timespec ts_now;
-        clock_gettime(CLOCK_REALTIME, &ts_now);
-
-        atmturb_wfs_stream_publish(st, frame_pixels, &ts_now);
+            atmturb_wfs_stream_publish(st, frame_pixels, &ts_now);
+        }
     }
 
     if (pinfo != NULL)
@@ -636,23 +630,17 @@ static void atmturb_wfs_stream_print_output_targets(
     long                          pup_size,
     const atmturb_stream_state_t *st)
 {
+    const char *streams[4] = {pha_name, amp_name, "outsarraypha", "outsarrayamp"};
+    int         active[4]  = {1, st->id_amp >= 0, st->id_spha >= 0, st->id_samp >= 0};
+
     printf("[milkatmturb] Outputs:\n");
-    printf("[milkatmturb]   - stream: \"%s\" (2D SHM, %ldx%ld float32)\n",
-           pha_name, pup_size, pup_size);
-    if (st->id_amp >= 0)
+    for (int k = 0; k < 4; k++)
     {
-        printf("[milkatmturb]   - stream: \"%s\" (2D SHM, %ldx%ld float32)\n",
-               amp_name, pup_size, pup_size);
-    }
-    if (st->id_spha >= 0)
-    {
-        printf("[milkatmturb]   - stream: \"outsarraypha\" (2D SHM, %ldx%ld float32)\n",
-               pup_size, pup_size);
-    }
-    if (st->id_samp >= 0)
-    {
-        printf("[milkatmturb]   - stream: \"outsarrayamp\" (2D SHM, %ldx%ld float32)\n",
-               pup_size, pup_size);
+        if (active[k] != 0)
+        {
+            printf("[milkatmturb]   - stream: \"%s\" (2D SHM, %ldx%ld float32)\n",
+                   streams[k], pup_size, pup_size);
+        }
     }
     printf("[milkatmturb]   - file:   none (streaming mode)\n");
     fflush(stdout);
@@ -683,7 +671,7 @@ typedef struct
  * @pup_size: Linear dimension of pupil.
  * @eng: CPU propagation engine container.
  */
-static void atmturb_wfs_stream_init_engine(
+static int atmturb_wfs_stream_init_engine(
     atmturb_stream_state_t          *st,
     const atmturb_rolling_t         *rsim,
     const atmturb_geom_t            *geom,
@@ -710,9 +698,16 @@ static void atmturb_wfs_stream_init_engine(
         if (st->cuda_fstream == NULL)
         {
             double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
-            atmturb_fresnel_plan_init(&eng->fplan, prof, geom, pup_size, params->pupil_scale_m,
-                                      params->lambda_ref_m, params->lambda_s_m, z_bin);
-            atmturb_fresnel_ctx_init(&eng->fctx, pup_size);
+            if (atmturb_fresnel_plan_init(&eng->fplan, prof, geom, pup_size, params->pupil_scale_m,
+                                          params->lambda_ref_m, params->lambda_s_m, z_bin) != 0)
+            {
+                return -1;
+            }
+            if (atmturb_fresnel_ctx_init(&eng->fctx, pup_size) != 0)
+            {
+                atmturb_fresnel_plan_free(&eng->fplan);
+                return -1;
+            }
             st->fplan = &eng->fplan;
             st->fctx  = &eng->fctx;
         }
@@ -727,14 +722,22 @@ static void atmturb_wfs_stream_init_engine(
         if (st->cuda_rstream == NULL)
         {
             double z_bin = (double) CONF_FRESNEL_PROPAGATION_BIN;
-            atmturb_rytov_plan_init(&eng->rplan, prof, geom, pup_size, params->pupil_scale_m,
-                                    params->lambda_ref_m, params->lambda_s_m, z_bin,
-                                    CONF_FRESNEL_RYTOV_SEC_EXACT);
-            atmturb_rytov_ctx_init(&eng->rctx, eng->rplan.pad_size);
+            if (atmturb_rytov_plan_init(&eng->rplan, prof, geom, pup_size, params->pupil_scale_m,
+                                        params->lambda_ref_m, params->lambda_s_m, z_bin,
+                                        CONF_FRESNEL_RYTOV_SEC_EXACT) != 0)
+            {
+                return -1;
+            }
+            if (atmturb_rytov_ctx_init(&eng->rctx, eng->rplan.pad_size) != 0)
+            {
+                atmturb_rytov_plan_free(&eng->rplan);
+                return -1;
+            }
             st->rplan = &eng->rplan;
             st->rctx  = &eng->rctx;
         }
     }
+    return 0;
 }
 
 /**
@@ -746,39 +749,30 @@ static void atmturb_wfs_stream_free_engine(
     atmturb_stream_state_t   *st,
     atmturb_stream_engines_t *eng)
 {
-    if (CONF_FRESNEL_PROPAGATION == 0)
+    if (st->cuda_gstream != NULL)
     {
-        if (st->cuda_gstream != NULL)
-        {
-            atmturb_wfs_cuda_geom_stream_free(st->cuda_gstream);
-            st->cuda_gstream = NULL;
-        }
+        atmturb_wfs_cuda_geom_stream_free(st->cuda_gstream);
+        st->cuda_gstream = NULL;
     }
-    else if (CONF_FRESNEL_PROPAGATION == 1)
+    if (st->cuda_fstream != NULL)
     {
-        if (st->cuda_fstream != NULL)
-        {
-            atmturb_cuda_fresnel_stream_free(st->cuda_fstream);
-            st->cuda_fstream = NULL;
-        }
-        if (st->fctx != NULL)
-        {
-            atmturb_fresnel_ctx_free(&eng->fctx);
-            atmturb_fresnel_plan_free(&eng->fplan);
-        }
+        atmturb_cuda_fresnel_stream_free(st->cuda_fstream);
+        st->cuda_fstream = NULL;
     }
-    else if (CONF_FRESNEL_PROPAGATION == 2)
+    if (st->fctx != NULL)
     {
-        if (st->cuda_rstream != NULL)
-        {
-            atmturb_cuda_rytov_stream_free(st->cuda_rstream);
-            st->cuda_rstream = NULL;
-        }
-        if (st->rctx != NULL)
-        {
-            atmturb_rytov_ctx_free(&eng->rctx);
-            atmturb_rytov_plan_free(&eng->rplan);
-        }
+        atmturb_fresnel_ctx_free(&eng->fctx);
+        atmturb_fresnel_plan_free(&eng->fplan);
+    }
+    if (st->cuda_rstream != NULL)
+    {
+        atmturb_cuda_rytov_stream_free(st->cuda_rstream);
+        st->cuda_rstream = NULL;
+    }
+    if (st->rctx != NULL)
+    {
+        atmturb_rytov_ctx_free(&eng->rctx);
+        atmturb_rytov_plan_free(&eng->rplan);
     }
 
     atmturb_cuda_cleanup();
@@ -786,24 +780,10 @@ static void atmturb_wfs_stream_free_engine(
 }
 
 /**
- * atmturb_wfs_dma_alloc_pair - Allocate a pair of pinned host buffers
- * @p: Array of 2 pointers to allocate.
- * @nbytes: Size in bytes of each buffer.
- */
-static void atmturb_wfs_dma_alloc_pair(
-    float **p,
-    size_t  nbytes)
-{
-    atmturb_cuda_host_alloc((void **) &p[0], nbytes);
-    atmturb_cuda_host_alloc((void **) &p[1], nbytes);
-}
-
-/**
  * atmturb_wfs_dma_free_pair - Free a pair of pinned host buffers
  * @p: Array of 2 pointers to release.
  */
-static void atmturb_wfs_dma_free_pair(
-    float **p)
+static void atmturb_wfs_dma_free_pair(float **p)
 {
     for (int b = 0; b < 2; b++)
     {
@@ -816,13 +796,24 @@ static void atmturb_wfs_dma_free_pair(
 }
 
 /**
- * atmturb_wfs_stream_setup_dma - Allocate pinned host buffers or register SHM for GPU DMA
- * @st: Stream state container.
- * @pup_size: Linear dimension of square pupil.
+ * atmturb_wfs_dma_alloc_pair - Allocate a pair of pinned host buffers
+ * @p: Array of 2 pointers to allocate.
+ * @nbytes: Size in bytes of each buffer.
  */
-static inline void atmturb_wfs_host_reg_channel(
-    imageID id,
+static int atmturb_wfs_dma_alloc_pair(
+    float **p,
     size_t  nbytes)
+{
+    if (atmturb_cuda_host_alloc((void **) &p[0], nbytes) != 0 ||
+        atmturb_cuda_host_alloc((void **) &p[1], nbytes) != 0)
+    {
+        atmturb_wfs_dma_free_pair(p);
+        return -1;
+    }
+    return 0;
+}
+
+static inline void atmturb_wfs_host_reg_channel(imageID id, size_t nbytes)
 {
     if (id >= 0)
     {
@@ -835,40 +826,6 @@ static inline void atmturb_wfs_host_unreg_channel(imageID id)
     if (id >= 0)
     {
         atmturb_cuda_host_unregister(dcimg[id].array.F);
-    }
-}
-
-static void atmturb_wfs_stream_setup_dma(
-    atmturb_stream_state_t *st,
-    long                    pup_size)
-{
-    if (!st->is_cuda)
-    {
-        return;
-    }
-
-    size_t nbytes = (size_t) (pup_size * pup_size) * sizeof(float);
-    if (st->cuda_gstream != NULL)
-    {
-        atmturb_wfs_host_reg_channel(st->id_pha, nbytes);
-        atmturb_wfs_host_reg_channel(st->id_amp, nbytes);
-        atmturb_wfs_host_reg_channel(st->id_spha, nbytes);
-        atmturb_wfs_host_reg_channel(st->id_samp, nbytes);
-        return;
-    }
-
-    atmturb_wfs_dma_alloc_pair(st->dma_pha, nbytes);
-    if (st->id_amp >= 0)
-    {
-        atmturb_wfs_dma_alloc_pair(st->dma_amp, nbytes);
-    }
-    if (st->id_spha >= 0)
-    {
-        atmturb_wfs_dma_alloc_pair(st->dma_spha, nbytes);
-    }
-    if (st->id_samp >= 0)
-    {
-        atmturb_wfs_dma_alloc_pair(st->dma_samp, nbytes);
     }
 }
 
@@ -890,13 +847,51 @@ static void atmturb_wfs_stream_cleanup_dma(
         atmturb_wfs_host_unreg_channel(st->id_amp);
         atmturb_wfs_host_unreg_channel(st->id_spha);
         atmturb_wfs_host_unreg_channel(st->id_samp);
-        return;
+    }
+    else
+    {
+        atmturb_wfs_dma_free_pair(st->dma_pha);
+        atmturb_wfs_dma_free_pair(st->dma_amp);
+        atmturb_wfs_dma_free_pair(st->dma_spha);
+        atmturb_wfs_dma_free_pair(st->dma_samp);
+    }
+}
+
+/**
+ * atmturb_wfs_stream_setup_dma - Allocate pinned host buffers or register SHM for GPU DMA
+ * @st: Stream state container.
+ * @pup_size: Linear dimension of square pupil.
+ *
+ * Return: 0 on success, -1 on allocation failure.
+ */
+static int atmturb_wfs_stream_setup_dma(
+    atmturb_stream_state_t *st,
+    long                    pup_size)
+{
+    if (!st->is_cuda)
+    {
+        return 0;
     }
 
-    atmturb_wfs_dma_free_pair(st->dma_pha);
-    atmturb_wfs_dma_free_pair(st->dma_amp);
-    atmturb_wfs_dma_free_pair(st->dma_spha);
-    atmturb_wfs_dma_free_pair(st->dma_samp);
+    size_t nbytes = (size_t) (pup_size * pup_size) * sizeof(float);
+    if (st->cuda_gstream != NULL)
+    {
+        atmturb_wfs_host_reg_channel(st->id_pha, nbytes);
+        atmturb_wfs_host_reg_channel(st->id_amp, nbytes);
+        atmturb_wfs_host_reg_channel(st->id_spha, nbytes);
+        atmturb_wfs_host_reg_channel(st->id_samp, nbytes);
+        return 0;
+    }
+
+    if (atmturb_wfs_dma_alloc_pair(st->dma_pha, nbytes) != 0 ||
+        (st->id_amp >= 0 && atmturb_wfs_dma_alloc_pair(st->dma_amp, nbytes) != 0) ||
+        (st->id_spha >= 0 && atmturb_wfs_dma_alloc_pair(st->dma_spha, nbytes) != 0) ||
+        (st->id_samp >= 0 && atmturb_wfs_dma_alloc_pair(st->dma_samp, nbytes) != 0))
+    {
+        atmturb_wfs_stream_cleanup_dma(st);
+        return -1;
+    }
+    return 0;
 }
 
 /**
@@ -943,10 +938,21 @@ int make_AtmosphericTurbulence_wavefront_stream(
 
     atmturb_stream_engines_t eng;
     memset(&eng, 0, sizeof(eng));
-    atmturb_wfs_stream_init_engine(&st, &rsim, &geom, &prof, &params, pup_size, &eng);
+    if (atmturb_wfs_stream_init_engine(&st, &rsim, &geom, &prof, &params, pup_size, &eng) != 0)
+    {
+        free(scratch);
+        atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
+        return -1;
+    }
 
     st.is_cuda = (st.cuda_rstream != NULL || st.cuda_gstream != NULL || st.cuda_fstream != NULL);
-    atmturb_wfs_stream_setup_dma(&st, pup_size);
+    if (atmturb_wfs_stream_setup_dma(&st, pup_size) != 0)
+    {
+        atmturb_wfs_stream_free_engine(&st, &eng);
+        free(scratch);
+        atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
+        return -1;
+    }
 
     g_stream_stop = 0;
     struct sigaction sa, old_sa_int, old_sa_term, old_sa_quit;
@@ -956,15 +962,11 @@ int make_AtmosphericTurbulence_wavefront_stream(
     sigaction(SIGTERM, &sa, &old_sa_term);
     sigaction(SIGQUIT, &sa, &old_sa_quit);
 
-    const char *isa_str = "AVX2";
-    if (st.cuda_rstream != NULL || st.cuda_gstream != NULL || st.cuda_fstream != NULL)
+    const char *active  = atmturb_simd_active_isa();
+    const char *isa_str = st.is_cuda ? "CUDA GPU" : active;
+    if (!st.is_cuda && strcmp(active, "CUDA GPU") == 0)
     {
-        isa_str = "CUDA GPU";
-    }
-    else
-    {
-        const char *active = atmturb_simd_active_isa();
-        isa_str = (strcmp(active, "CUDA GPU") == 0) ? "AVX2" : active;
+        isa_str = "AVX2";
     }
     printf("[milkatmturb] Streaming 2D wavefront frames (%ldx%ld pix) to SHM '%s'%s [%s]\n",
            pup_size, pup_size, pha_name, (st.id_amp >= 0) ? " and amplitude" : "",

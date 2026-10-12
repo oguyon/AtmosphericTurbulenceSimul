@@ -317,6 +317,11 @@ int make_AtmosphericTurbulence_wavefront_series(
     imgs.ID_amp  = create_3Dimage_ID(amp_name, pup_size, pup_size, nbframes);
     imgs.ID_spha = create_3Dimage_ID("outsarraypha", pup_size, pup_size, nbframes);
     imgs.ID_samp = create_3Dimage_ID("outsarrayamp", pup_size, pup_size, nbframes);
+    if (imgs.ID_pha < 0 || imgs.ID_amp < 0 || imgs.ID_spha < 0 || imgs.ID_samp < 0)
+    {
+        atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
+        return -1;
+    }
 
     atmturb_wfs_print_output_targets(pha_name, amp_name, pup_size, nbframes, WFprecision);
 
