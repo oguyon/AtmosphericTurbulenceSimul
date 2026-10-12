@@ -258,6 +258,10 @@ static int atmturb_wfs_render_diffractive(
 #ifdef _OPENMP
     nthreads = omp_get_max_threads();
 #endif
+    if (nthreads > 1)
+    {
+        fftwf_plan_with_nthreads(1);
+    }
     atmturb_fresnel_ctx_t *ctxs = (atmturb_fresnel_ctx_t *) calloc((size_t) nthreads,
                                                                    sizeof(atmturb_fresnel_ctx_t));
     if (ctxs == NULL)
@@ -359,6 +363,10 @@ static int atmturb_wfs_render_rytov(
 #ifdef _OPENMP
     nthreads = omp_get_max_threads();
 #endif
+    if (nthreads > 1)
+    {
+        fftwf_plan_with_nthreads(1);
+    }
     atmturb_rytov_ctx_t *ctxs = (atmturb_rytov_ctx_t *) calloc((size_t) nthreads,
                                                                sizeof(atmturb_rytov_ctx_t));
     if (ctxs == NULL)

@@ -10,6 +10,9 @@
 #define _GNU_SOURCE
 #include <math.h>
 #include <string.h>
+#ifdef _OPENMP
+#    include <omp.h>
+#endif
 #if defined(__x86_64__) || defined(_M_X64)
 #    include <immintrin.h>
 #endif
@@ -166,6 +169,62 @@ static inline void atmturb_bilinear_row_avx2_os1(
 }
 
 /**
+ * atmturb_bilinear_row_wrapped_avx2 - Process row wrapping across master screen boundary
+ */
+static inline void atmturb_bilinear_row_wrapped_avx2(
+    const float *row0,
+    const float *row1,
+    float       *out_row,
+    long         start_x,
+    long         pup_size,
+    long         os,
+    long         msize,
+    __m256       vw00,
+    __m256       vw10,
+    __m256       vw01,
+    __m256       vw11)
+{
+    float w00 = _mm256_cvtss_f32(vw00);
+    float w10 = _mm256_cvtss_f32(vw10);
+    float w01 = _mm256_cvtss_f32(vw01);
+    float w11 = _mm256_cvtss_f32(vw11);
+
+    if (os == 1)
+    {
+        long seam = msize - 1 - start_x;
+        if (seam >= 0 && seam < pup_size)
+        {
+            if (seam > 0)
+            {
+                atmturb_bilinear_row_avx2_os1(row0, row1, out_row, start_x, seam,
+                                             vw00, vw10, vw01, vw11);
+            }
+            out_row[seam] += w00 * row0[msize - 1] + w10 * row0[0] +
+                             w01 * row1[msize - 1] + w11 * row1[0];
+            long rem = pup_size - (seam + 1);
+            if (rem > 0)
+            {
+                atmturb_bilinear_row_avx2_os1(row0, row1, &out_row[seam + 1], 0, rem,
+                                             vw00, vw10, vw01, vw11);
+            }
+            return;
+        }
+    }
+
+    for (long ii = 0; ii < pup_size; ii++)
+    {
+        long ix0 = (start_x + ii * os) % msize;
+        if (ix0 < 0)
+        {
+            ix0 += msize;
+        }
+        long ix1 = (ix0 + 1) % msize;
+        out_row[ii] += w00 * row0[ix0] + w10 * row0[ix1] +
+                       w01 * row1[ix0] + w11 * row1[ix1];
+    }
+}
+
+/**
  * atmturb_extrude_accumulate_bilinear_avx2 - AVX2 accelerated bilinear extrusion
  * @params: Extrusion configuration and data pointers.
  */
@@ -197,34 +256,17 @@ void atmturb_extrude_accumulate_bilinear_avx2(
     {
         start_x += msize;
     }
-    long iy0 = base_y % msize;
-    if (iy0 < 0)
-    {
-        iy0 += msize;
-    }
 
-    if (os == 1 && start_x + pup_size < msize)
-    {
-        for (long jj = 0; jj < pup_size; jj++)
-        {
-            long iy1 = (iy0 + 1 == msize) ? 0 : (iy0 + 1);
-            const float *row0 = &master[iy0 * msize];
-            const float *row1 = &master[iy1 * msize];
-            float *out_row = &out_pha[jj * pup_size];
-
-            atmturb_bilinear_row_avx2_os1(row0, row1, out_row, start_x, pup_size,
-                                         vw00, vw10, vw01, vw11);
-            iy0++;
-            if (iy0 == msize)
-            {
-                iy0 = 0;
-            }
-        }
-        return;
-    }
-
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && pup_size >= 128) schedule(static)
+#endif
     for (long jj = 0; jj < pup_size; jj++)
     {
+        long iy0 = (base_y + jj * os) % msize;
+        if (iy0 < 0)
+        {
+            iy0 += msize;
+        }
         long iy1 = (iy0 + 1 == msize) ? 0 : (iy0 + 1);
 
         const float *row0 = &master[iy0 * msize];
@@ -263,22 +305,8 @@ void atmturb_extrude_accumulate_bilinear_avx2(
         }
         else
         {
-            float w00 = _mm256_cvtss_f32(vw00), w10 = _mm256_cvtss_f32(vw10);
-            float w01 = _mm256_cvtss_f32(vw01), w11 = _mm256_cvtss_f32(vw11);
-            for (long ii = 0; ii < pup_size; ii++)
-            {
-                long ix0 = (start_x + ii * os) % msize;
-                if (ix0 < 0) ix0 += msize;
-                long ix1 = (ix0 + 1) % msize;
-                out_row[ii] += w00 * row0[ix0] + w10 * row0[ix1] +
-                               w01 * row1[ix0] + w11 * row1[ix1];
-            }
-        }
-
-        iy0 += os;
-        if (iy0 >= msize)
-        {
-            iy0 -= msize;
+            atmturb_bilinear_row_wrapped_avx2(row0, row1, out_row, start_x, pup_size,
+                                             os, msize, vw00, vw10, vw01, vw11);
         }
     }
 }
@@ -315,8 +343,14 @@ void atmturb_extrude_accumulate_bicubic_avx2(
     __m256i vidx = _mm256_loadu_si256((const __m256i *) s_idx);
 
     long start_x = base_x % msize;
-    if (start_x < 0) start_x += msize;
+    if (start_x < 0)
+    {
+        start_x += msize;
+    }
 
+#ifdef _OPENMP
+    #pragma omp parallel for if(!omp_in_parallel() && pup_size >= 128) schedule(static)
+#endif
     for (long jj = 0; jj < pup_size; jj++)
     {
         long by = base_y + jj * os;
@@ -324,7 +358,10 @@ void atmturb_extrude_accumulate_bicubic_avx2(
         for (int n = 0; n < 4; n++)
         {
             long y = (by + n - 1) % msize;
-            if (y < 0) y += msize;
+            if (y < 0)
+            {
+                y += msize;
+            }
             iy[n] = y;
         }
 
@@ -349,8 +386,7 @@ void atmturb_extrude_accumulate_bicubic_avx2(
                                                              vwx0, vwx1, vwx2, vwx3);
                     __m256 h3 = atmturb_bicubic_tap_avx2_os1(row3, start_x + ii,
                                                              vwx0, vwx1, vwx2, vwx3);
-                    __m256 acc = _mm256_mul_ps(h0, vwy0);
-                    acc = _mm256_fmadd_ps(h1, vwy1, acc);
+                    __m256 acc = _mm256_fmadd_ps(h1, vwy1, _mm256_mul_ps(h0, vwy0));
                     acc = _mm256_fmadd_ps(h2, vwy2, acc);
                     acc = _mm256_fmadd_ps(h3, vwy3, acc);
                     __m256 out = _mm256_loadu_ps(&out_row[ii]);
@@ -369,8 +405,7 @@ void atmturb_extrude_accumulate_bicubic_avx2(
                                                              vwx0, vwx1, vwx2, vwx3);
                     __m256 h3 = atmturb_bicubic_tap_avx2_os2(row3, start_x + 2 * ii, vidx,
                                                              vwx0, vwx1, vwx2, vwx3);
-                    __m256 acc = _mm256_mul_ps(h0, vwy0);
-                    acc = _mm256_fmadd_ps(h1, vwy1, acc);
+                    __m256 acc = _mm256_fmadd_ps(h1, vwy1, _mm256_mul_ps(h0, vwy0));
                     acc = _mm256_fmadd_ps(h2, vwy2, acc);
                     acc = _mm256_fmadd_ps(h3, vwy3, acc);
                     __m256 out = _mm256_loadu_ps(&out_row[ii]);
@@ -454,14 +489,10 @@ void atmturb_scale_float_array_avx2(
     long i = 0;
     for (; i <= n - 32; i += 32)
     {
-        __m256 v0 = _mm256_loadu_ps(&src[i]);
-        __m256 v1 = _mm256_loadu_ps(&src[i + 8]);
-        __m256 v2 = _mm256_loadu_ps(&src[i + 16]);
-        __m256 v3 = _mm256_loadu_ps(&src[i + 24]);
-        _mm256_storeu_ps(&dest[i],      _mm256_mul_ps(v0, vscale));
-        _mm256_storeu_ps(&dest[i + 8],  _mm256_mul_ps(v1, vscale));
-        _mm256_storeu_ps(&dest[i + 16], _mm256_mul_ps(v2, vscale));
-        _mm256_storeu_ps(&dest[i + 24], _mm256_mul_ps(v3, vscale));
+        _mm256_storeu_ps(&dest[i],      _mm256_mul_ps(_mm256_loadu_ps(&src[i]), vscale));
+        _mm256_storeu_ps(&dest[i + 8],  _mm256_mul_ps(_mm256_loadu_ps(&src[i + 8]), vscale));
+        _mm256_storeu_ps(&dest[i + 16], _mm256_mul_ps(_mm256_loadu_ps(&src[i + 16]), vscale));
+        _mm256_storeu_ps(&dest[i + 24], _mm256_mul_ps(_mm256_loadu_ps(&src[i + 24]), vscale));
     }
     for (; i <= n - 8; i += 8)
     {
@@ -528,15 +559,10 @@ void atmturb_add_float_array_avx2(
     long i = 0;
     for (; i <= n - 32; i += 32)
     {
-        __m256 d0 = _mm256_loadu_ps(&dest[i]);
-        __m256 d1 = _mm256_loadu_ps(&dest[i + 8]);
-        __m256 d2 = _mm256_loadu_ps(&dest[i + 16]);
-        __m256 d3 = _mm256_loadu_ps(&dest[i + 24]);
-
-        __m256 s0 = _mm256_loadu_ps(&src[i]);
-        __m256 s1 = _mm256_loadu_ps(&src[i + 8]);
-        __m256 s2 = _mm256_loadu_ps(&src[i + 16]);
-        __m256 s3 = _mm256_loadu_ps(&src[i + 24]);
+        __m256 d0 = _mm256_loadu_ps(&dest[i]), s0 = _mm256_loadu_ps(&src[i]);
+        __m256 d1 = _mm256_loadu_ps(&dest[i + 8]), s1 = _mm256_loadu_ps(&src[i + 8]);
+        __m256 d2 = _mm256_loadu_ps(&dest[i + 16]), s2 = _mm256_loadu_ps(&src[i + 16]);
+        __m256 d3 = _mm256_loadu_ps(&dest[i + 24]), s3 = _mm256_loadu_ps(&src[i + 24]);
 
         _mm256_storeu_ps(&dest[i],      _mm256_add_ps(d0, s0));
         _mm256_storeu_ps(&dest[i + 8],  _mm256_add_ps(d1, s1));
@@ -635,6 +661,9 @@ static void atmturb_lowfreq_mode_accumulate_avx2(
             sincosf(th_x, &h_im[i], &h_re[i]);
         }
 
+#ifdef _OPENMP
+        #pragma omp parallel for if(!omp_in_parallel() && params->pup_size >= 128) schedule(static)
+#endif
         for (long j = 0; j < params->pup_size; j++)
         {
             float th_y = ky * ((float) params->y0 + (float) (j * params->os));
@@ -715,6 +744,9 @@ static void atmturb_lowfreq_batch4_accumulate_avx2(
             }
         }
 
+#ifdef _OPENMP
+        #pragma omp parallel for if(!omp_in_parallel() && params->pup_size >= 128) schedule(static)
+#endif
         for (long j = 0; j < params->pup_size; j++)
         {
             float c_re[4], c_im[4];
@@ -841,10 +873,8 @@ void atmturb_remove_piston_stream_avx2(
         return;
     }
 
-    __m256 vsum0 = _mm256_setzero_ps();
-    __m256 vsum1 = _mm256_setzero_ps();
-    __m256 vsum2 = _mm256_setzero_ps();
-    __m256 vsum3 = _mm256_setzero_ps();
+    __m256 vsum0 = _mm256_setzero_ps(), vsum1 = _mm256_setzero_ps();
+    __m256 vsum2 = _mm256_setzero_ps(), vsum3 = _mm256_setzero_ps();
 
     long i = 0;
     for (; i <= npix - 32; i += 32)
@@ -876,14 +906,10 @@ void atmturb_remove_piston_stream_avx2(
     i = 0;
     for (; i <= npix - 32; i += 32)
     {
-        __m256 s0 = _mm256_sub_ps(_mm256_loadu_ps(&src[i]), vmean);
-        __m256 s1 = _mm256_sub_ps(_mm256_loadu_ps(&src[i + 8]), vmean);
-        __m256 s2 = _mm256_sub_ps(_mm256_loadu_ps(&src[i + 16]), vmean);
-        __m256 s3 = _mm256_sub_ps(_mm256_loadu_ps(&src[i + 24]), vmean);
-        _mm256_storeu_ps(&dst[i], s0);
-        _mm256_storeu_ps(&dst[i + 8], s1);
-        _mm256_storeu_ps(&dst[i + 16], s2);
-        _mm256_storeu_ps(&dst[i + 24], s3);
+        _mm256_storeu_ps(&dst[i],      _mm256_sub_ps(_mm256_loadu_ps(&src[i]), vmean));
+        _mm256_storeu_ps(&dst[i + 8],  _mm256_sub_ps(_mm256_loadu_ps(&src[i + 8]), vmean));
+        _mm256_storeu_ps(&dst[i + 16], _mm256_sub_ps(_mm256_loadu_ps(&src[i + 16]), vmean));
+        _mm256_storeu_ps(&dst[i + 24], _mm256_sub_ps(_mm256_loadu_ps(&src[i + 24]), vmean));
     }
     for (; i <= npix - 8; i += 8)
     {
@@ -897,20 +923,17 @@ void atmturb_remove_piston_stream_avx2(
 
 #else
 
-void atmturb_extrude_accumulate_avx2(
-    const atmturb_extrude_params_t *params)
+void atmturb_extrude_accumulate_avx2(const atmturb_extrude_params_t *params)
 {
     atmturb_extrude_accumulate_scalar(params);
 }
 
-void atmturb_extrude_accumulate_bilinear_avx2(
-    const atmturb_extrude_params_t *params)
+void atmturb_extrude_accumulate_bilinear_avx2(const atmturb_extrude_params_t *params)
 {
     atmturb_extrude_accumulate_bilinear_scalar(params);
 }
 
-void atmturb_extrude_accumulate_bicubic_avx2(
-    const atmturb_extrude_params_t *params)
+void atmturb_extrude_accumulate_bicubic_avx2(const atmturb_extrude_params_t *params)
 {
     atmturb_extrude_accumulate_bicubic_scalar(params);
 }
@@ -932,8 +955,7 @@ void atmturb_init_phase_amp_avx2(
     atmturb_init_phase_amp_scalar(pha, amp, n);
 }
 
-void atmturb_extrude_lowfreq_avx2(
-    const atmturb_lowfreq_params_t *params)
+void atmturb_extrude_lowfreq_avx2(const atmturb_lowfreq_params_t *params)
 {
     atmturb_extrude_lowfreq_scalar(params);
 }
