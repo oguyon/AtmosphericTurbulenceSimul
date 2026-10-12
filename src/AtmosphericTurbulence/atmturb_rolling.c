@@ -222,6 +222,10 @@ int atmturb_rolling_init(
             {
                 nscreens = 6;
             }
+            else if (nscreens > 32)
+            {
+                nscreens = 32;
+            }
         }
         rl->nscreens = nscreens;
         rl->screens  = (atmturb_rolling_screen_t *) calloc((size_t) (nscreens + 1),

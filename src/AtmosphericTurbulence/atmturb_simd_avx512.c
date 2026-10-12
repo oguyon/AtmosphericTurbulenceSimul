@@ -9,6 +9,9 @@
 
 #define _GNU_SOURCE
 #include <math.h>
+#ifdef _OPENMP
+#    include <omp.h>
+#endif
 #if defined(__x86_64__) || defined(_M_X64)
 #    include <immintrin.h>
 #endif
@@ -545,6 +548,127 @@ static void atmturb_lowfreq_mode_accumulate_avx512(
 }
 
 /**
+ * atmturb_lowfreq_batch4_accumulate_avx512 - AVX-512 separable mode accumulation for 4 modes
+ * @params: Low-frequency configuration bundle.
+ * @kx: Mode spatial frequencies along X (4 elements).
+ * @ky: Mode spatial frequencies along Y (4 elements).
+ * @amp_re: Mode real amplitudes (4 elements).
+ * @amp_im: Mode imaginary amplitudes (4 elements).
+ */
+/* size-exempt: SIMD low-frequency 4-mode batch kernel */
+static void atmturb_lowfreq_batch4_accumulate_avx512(
+    const atmturb_lowfreq_params_t *params,
+    const float                    *kx,
+    const float                    *ky,
+    const float                    *amp_re,
+    const float                    *amp_im)
+{
+    float h_re[4][1024] __attribute__((aligned(64)));
+    float h_im[4][1024] __attribute__((aligned(64)));
+
+    for (long col_start = 0; col_start < params->pup_size; col_start += 1024)
+    {
+        long n = params->pup_size - col_start;
+        if (n > 1024)
+        {
+            n = 1024;
+        }
+
+        for (int m = 0; m < 4; m++)
+        {
+            for (long i = 0; i < n; i++)
+            {
+                long col = col_start + i;
+                float th_x = kx[m] * (float) (params->x0 + (double) (col * params->os));
+                sincosf(th_x, &h_im[m][i], &h_re[m][i]);
+            }
+        }
+
+#ifdef _OPENMP
+        #pragma omp parallel for if(!omp_in_parallel() && params->pup_size >= 128) schedule(static)
+#endif
+        for (long j = 0; j < params->pup_size; j++)
+        {
+            float c_re[4], c_im[4];
+            for (int m = 0; m < 4; m++)
+            {
+                float th_y = ky[m] * (float) (params->y0 + (double) (j * params->os));
+                float vy_re, vy_im;
+                sincosf(th_y, &vy_im, &vy_re);
+                c_re[m] = (amp_re[m] * vy_re - amp_im[m] * vy_im) * params->weight;
+                c_im[m] = (amp_re[m] * vy_im + amp_im[m] * vy_re) * params->weight;
+            }
+
+            __m512 v_cre0 = _mm512_set1_ps(c_re[0]);
+            __m512 v_cim0 = _mm512_set1_ps(c_im[0]);
+            __m512 v_cre1 = _mm512_set1_ps(c_re[1]);
+            __m512 v_cim1 = _mm512_set1_ps(c_im[1]);
+            __m512 v_cre2 = _mm512_set1_ps(c_re[2]);
+            __m512 v_cim2 = _mm512_set1_ps(c_im[2]);
+            __m512 v_cre3 = _mm512_set1_ps(c_re[3]);
+            __m512 v_cim3 = _mm512_set1_ps(c_im[3]);
+
+            long row = j * params->pup_size + col_start;
+            long i = 0;
+            for (; i + 32 <= n; i += 32)
+            {
+                __m512 v_out0 = _mm512_loadu_ps(&params->out_pha[row + i]);
+                __m512 v_out1 = _mm512_loadu_ps(&params->out_pha[row + i + 16]);
+
+                v_out0 = _mm512_fmadd_ps(v_cre0, _mm512_load_ps(&h_re[0][i]), v_out0);
+                v_out1 = _mm512_fmadd_ps(v_cre0, _mm512_load_ps(&h_re[0][i + 16]), v_out1);
+                v_out0 = _mm512_fnmadd_ps(v_cim0, _mm512_load_ps(&h_im[0][i]), v_out0);
+                v_out1 = _mm512_fnmadd_ps(v_cim0, _mm512_load_ps(&h_im[0][i + 16]), v_out1);
+
+                v_out0 = _mm512_fmadd_ps(v_cre1, _mm512_load_ps(&h_re[1][i]), v_out0);
+                v_out1 = _mm512_fmadd_ps(v_cre1, _mm512_load_ps(&h_re[1][i + 16]), v_out1);
+                v_out0 = _mm512_fnmadd_ps(v_cim1, _mm512_load_ps(&h_im[1][i]), v_out0);
+                v_out1 = _mm512_fnmadd_ps(v_cim1, _mm512_load_ps(&h_im[1][i + 16]), v_out1);
+
+                v_out0 = _mm512_fmadd_ps(v_cre2, _mm512_load_ps(&h_re[2][i]), v_out0);
+                v_out1 = _mm512_fmadd_ps(v_cre2, _mm512_load_ps(&h_re[2][i + 16]), v_out1);
+                v_out0 = _mm512_fnmadd_ps(v_cim2, _mm512_load_ps(&h_im[2][i]), v_out0);
+                v_out1 = _mm512_fnmadd_ps(v_cim2, _mm512_load_ps(&h_im[2][i + 16]), v_out1);
+
+                v_out0 = _mm512_fmadd_ps(v_cre3, _mm512_load_ps(&h_re[3][i]), v_out0);
+                v_out1 = _mm512_fmadd_ps(v_cre3, _mm512_load_ps(&h_re[3][i + 16]), v_out1);
+                v_out0 = _mm512_fnmadd_ps(v_cim3, _mm512_load_ps(&h_im[3][i]), v_out0);
+                v_out1 = _mm512_fnmadd_ps(v_cim3, _mm512_load_ps(&h_im[3][i + 16]), v_out1);
+
+                _mm512_storeu_ps(&params->out_pha[row + i], v_out0);
+                _mm512_storeu_ps(&params->out_pha[row + i + 16], v_out1);
+            }
+            for (; i + 16 <= n; i += 16)
+            {
+                __m512 v_out = _mm512_loadu_ps(&params->out_pha[row + i]);
+
+                v_out = _mm512_fmadd_ps(v_cre0, _mm512_load_ps(&h_re[0][i]), v_out);
+                v_out = _mm512_fnmadd_ps(v_cim0, _mm512_load_ps(&h_im[0][i]), v_out);
+
+                v_out = _mm512_fmadd_ps(v_cre1, _mm512_load_ps(&h_re[1][i]), v_out);
+                v_out = _mm512_fnmadd_ps(v_cim1, _mm512_load_ps(&h_im[1][i]), v_out);
+
+                v_out = _mm512_fmadd_ps(v_cre2, _mm512_load_ps(&h_re[2][i]), v_out);
+                v_out = _mm512_fnmadd_ps(v_cim2, _mm512_load_ps(&h_im[2][i]), v_out);
+
+                v_out = _mm512_fmadd_ps(v_cre3, _mm512_load_ps(&h_re[3][i]), v_out);
+                v_out = _mm512_fnmadd_ps(v_cim3, _mm512_load_ps(&h_im[3][i]), v_out);
+
+                _mm512_storeu_ps(&params->out_pha[row + i], v_out);
+            }
+            for (; i < n; i++)
+            {
+                float val = (c_re[0] * h_re[0][i] - c_im[0] * h_im[0][i]) +
+                            (c_re[1] * h_re[1][i] - c_im[1] * h_im[1][i]) +
+                            (c_re[2] * h_re[2][i] - c_im[2] * h_im[2][i]) +
+                            (c_re[3] * h_re[3][i] - c_im[3] * h_im[3][i]);
+                params->out_pha[row + i] += val;
+            }
+        }
+    }
+}
+
+/**
  * atmturb_extrude_lowfreq_avx512 - AVX-512 separable low-order mode accumulation
  * @params: Low-frequency configuration and data pointers.
  */
@@ -561,7 +685,13 @@ void atmturb_extrude_lowfreq_avx512(
         aim = is_s1 ? lf->bim : lf->aim;
     }
 
-    for (int m = 0; m < lf->nmodes; m++)
+    int m = 0;
+    for (; m + 4 <= lf->nmodes; m += 4)
+    {
+        atmturb_lowfreq_batch4_accumulate_avx512(params, &lf->kx[m], &lf->ky[m],
+                                                 &are[m], &aim[m]);
+    }
+    for (; m < lf->nmodes; m++)
     {
         atmturb_lowfreq_mode_accumulate_avx512(params, lf->kx[m], lf->ky[m], are[m], aim[m]);
     }

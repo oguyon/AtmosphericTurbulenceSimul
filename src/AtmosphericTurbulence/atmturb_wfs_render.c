@@ -208,12 +208,30 @@ static void atmturb_wfs_render_geometric(
     {
         long slice = t * frame_pixels;
         float *pha_slice  = &dcimg[imgs->ID_pha].array.F[slice];
-        float *amp_slice  = &dcimg[imgs->ID_amp].array.F[slice];
-        float *spha_slice = &dcimg[imgs->ID_spha].array.F[slice];
-        float *samp_slice = &dcimg[imgs->ID_samp].array.F[slice];
+        float *amp_slice  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[slice] : NULL;
+        float *spha_slice = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[slice] : NULL;
+        float *samp_slice = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[slice] : NULL;
 
-        atmturb_init_phase_amp(pha_slice, amp_slice, frame_pixels);
-        atmturb_init_phase_amp(spha_slice, samp_slice, frame_pixels);
+        if (amp_slice != NULL)
+        {
+            atmturb_init_phase_amp(pha_slice, amp_slice, frame_pixels);
+        }
+        else
+        {
+            memset(pha_slice, 0, sizeof(float) * (size_t) frame_pixels);
+        }
+
+        if (spha_slice != NULL)
+        {
+            if (samp_slice != NULL)
+            {
+                atmturb_init_phase_amp(spha_slice, samp_slice, frame_pixels);
+            }
+            else
+            {
+                memset(spha_slice, 0, sizeof(float) * (size_t) frame_pixels);
+            }
+        }
 
         for (int k = 0; k < geom->nlayers; k++)
         {
@@ -295,9 +313,9 @@ static int atmturb_wfs_render_diffractive(
 #endif
         long slice = t * frame_pixels;
         float *pha_slice  = &dcimg[imgs->ID_pha].array.F[slice];
-        float *amp_slice  = &dcimg[imgs->ID_amp].array.F[slice];
-        float *spha_slice = &dcimg[imgs->ID_spha].array.F[slice];
-        float *samp_slice = &dcimg[imgs->ID_samp].array.F[slice];
+        float *amp_slice  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[slice] : NULL;
+        float *spha_slice = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[slice] : NULL;
+        float *samp_slice = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[slice] : NULL;
 
         atmturb_fresnel_render_step(&ctxs[tid], &plan, r, geom, t, params->time_step_s,
                                     master_size, pup_size, pha_slice, amp_slice,
