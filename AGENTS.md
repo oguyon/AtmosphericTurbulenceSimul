@@ -8,7 +8,7 @@ core instructions, architecture boundaries, and tools for AI coding assistants a
 ## 1. Project Overview & Architecture Principles
 
 `milkatmturb` is a high-performance atmospheric turbulence and wavefront propagation plugin
-for the `milk` framework (`framework-dev` branch). It provides dynamic multi-layer turbulence
+for the `milk` framework (`feat/bash-engine` branch). It provides dynamic multi-layer turbulence
 simulation, Fresnel diffraction, chromatic dispersion, and real-time shared memory streaming.
 
 ### Modular Architecture:
@@ -79,9 +79,10 @@ make -C _build -j$(nproc)
 # Verify code size and function scope ratchet
 ./scripts/check_code_size.sh
 
-# Run component and wavefront series tests
+# Run component, streaming, and wavefront series tests
 bash tests/test_fps_components.sh
 bash tests/test_wavefront_series.sh
+bash tests/test_wavefront_stream.sh
 bash tests/test_turbulence_physics.sh
 ```
 

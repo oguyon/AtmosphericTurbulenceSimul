@@ -4,14 +4,20 @@
 
 /**
  * @file    atmturb_mkvonkarman_FPS.h
- * @brief   FPS V2 compute unit header for von Karman wind velocity simulation
+ * @brief   MILK_RUNNABLE FPS compute unit header for von Karman wind velocity simulation
  */
 
 #ifndef ATMTURB_MKVONKARMAN_FPS_H
 #define ATMTURB_MKVONKARMAN_FPS_H
 
-#include "CLIcore.h"
+#include "milk_runnable.h"
 
-errno_t CLIADDCMD_milkatmturb__atmturb_mkvonkarman_FPS(void);
+/**
+ * runnable_atmturb_mkvonkarman - FPS runnable descriptor for von Karman wind cubes
+ *
+ * Exposes CLI command `atmturb.mkvonkarman` and standalone executable
+ * `milk-fpsexec-atmturb-mkvonkarman` to synthesize 3-component [u, v, w] series.
+ */
+extern const MILK_RUNNABLE runnable_atmturb_mkvonkarman;
 
 #endif // ATMTURB_MKVONKARMAN_FPS_H

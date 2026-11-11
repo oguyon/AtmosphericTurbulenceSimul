@@ -7,9 +7,11 @@
  * @brief   Atmospheric model configuration file parser and builder
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-#include "CLIcore.h"
-#include "COREMOD_tools/COREMOD_tools.h"
+
 #include "AtmosphereModel.h"
 #include "atmmod_types.h"
 

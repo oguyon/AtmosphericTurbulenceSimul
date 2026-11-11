@@ -5,6 +5,11 @@
 /**
  * @file    atmturb_c23_compat.h
  * @brief   C23 language feature shims and C11 fallbacks for milkatmturb
+ *
+ * Provides portable wrappers for C23 keywords (bool, nullptr, constexpr),
+ * standard attributes ([[nodiscard]], [[maybe_unused]], [[fallthrough]]),
+ * single-argument static_assert, and <stdbit.h> bit-counting utilities so
+ * the codebase compiles cleanly under both C23 and C11/CUDA host compilers.
  */
 
 #ifndef ATMTURB_C23_COMPAT_H

@@ -20,6 +20,11 @@
 
 #if defined(__AVX512F__)
 
+/**
+ * atmturb_keys_weights - Compute 4-tap Keys Catmull-Rom cubic interpolation weights (a = -0.5)
+ * @f: Fractional sub-pixel offset in [0, 1).
+ * @w: Output 4-element weight array for taps {-1, 0, +1, +2}.
+ */
 static inline void atmturb_keys_weights(
     float f,
     float w[4])
@@ -32,6 +37,18 @@ static inline void atmturb_keys_weights(
     w[3] = -0.5f * f2 + 0.5f * f3;
 }
 
+/**
+ * atmturb_bilinear_tap_avx512_os1 - Evaluate 16 contiguous bilinear samples at stride 1 (AVX-512)
+ * @row0: Upper master screen row pointer.
+ * @row1: Lower master screen row pointer.
+ * @sx: Starting column index in master screen.
+ * @vw00: Broadcast top-left weight.
+ * @vw10: Broadcast top-right weight.
+ * @vw01: Broadcast bottom-left weight.
+ * @vw11: Broadcast bottom-right weight.
+ *
+ * Return: 16-lane `__m512` vector of weighted bilinear phase values.
+ */
 static inline __m512 atmturb_bilinear_tap_avx512_os1(
     const float *row0,
     const float *row1,
@@ -51,6 +68,19 @@ static inline __m512 atmturb_bilinear_tap_avx512_os1(
     return _mm512_fmadd_ps(v11, vw11, acc);
 }
 
+/**
+ * atmturb_bilinear_tap_avx512_os2 - Gather and evaluate 16 bilinear samples at stride 2 (AVX-512)
+ * @row0: Upper master screen row pointer.
+ * @row1: Lower master screen row pointer.
+ * @sx: Starting column index in master screen.
+ * @vidx: Stride-2 gather index vector `{0, 2, ..., 30}`.
+ * @vw00: Broadcast top-left weight.
+ * @vw10: Broadcast top-right weight.
+ * @vw01: Broadcast bottom-left weight.
+ * @vw11: Broadcast bottom-right weight.
+ *
+ * Return: 16-lane `__m512` vector of weighted bilinear phase values.
+ */
 static inline __m512 atmturb_bilinear_tap_avx512_os2(
     const float *row0,
     const float *row1,
@@ -71,6 +101,17 @@ static inline __m512 atmturb_bilinear_tap_avx512_os2(
     return _mm512_fmadd_ps(v11, vw11, acc);
 }
 
+/**
+ * atmturb_bicubic_tap_avx512_os1 - Evaluate 16 horizontal cubic taps at stride 1 (AVX-512)
+ * @row: Master screen row pointer.
+ * @sx: Starting anchor column index (`sx - 1` must be valid).
+ * @vwx0: Broadcast horizontal cubic weight for tap -1.
+ * @vwx1: Broadcast horizontal cubic weight for tap 0.
+ * @vwx2: Broadcast horizontal cubic weight for tap +1.
+ * @vwx3: Broadcast horizontal cubic weight for tap +2.
+ *
+ * Return: 16-lane `__m512` vector of horizontally interpolated row samples.
+ */
 static inline __m512 atmturb_bicubic_tap_avx512_os1(
     const float *row,
     long         sx,
@@ -89,6 +130,18 @@ static inline __m512 atmturb_bicubic_tap_avx512_os1(
     return _mm512_fmadd_ps(v3, vwx3, h);
 }
 
+/**
+ * atmturb_bicubic_tap_avx512_os2 - Gather and evaluate 16 horizontal cubic taps at stride 2
+ * @row: Master screen row pointer.
+ * @sx: Starting anchor column index (`sx - 1` must be valid).
+ * @vidx: Stride-2 gather index vector `{0, 2, ..., 30}`.
+ * @vwx0: Broadcast horizontal cubic weight for tap -1.
+ * @vwx1: Broadcast horizontal cubic weight for tap 0.
+ * @vwx2: Broadcast horizontal cubic weight for tap +1.
+ * @vwx3: Broadcast horizontal cubic weight for tap +2.
+ *
+ * Return: 16-lane `__m512` vector of horizontally interpolated row samples.
+ */
 static inline __m512 atmturb_bicubic_tap_avx512_os2(
     const float *row,
     long         sx,
@@ -858,7 +911,12 @@ void atmturb_remove_piston_stream_avx512(
     }
 }
 
-#else
+#else /* !defined(__AVX512F__) */
+
+/*
+ * Scalar fallback wrappers compiled when the translation unit is built without
+ * AVX-512 target support (e.g. non-x86_64 architectures or scalar-only builds).
+ */
 
 void atmturb_extrude_accumulate_avx512(const atmturb_extrude_params_t *params)
 {

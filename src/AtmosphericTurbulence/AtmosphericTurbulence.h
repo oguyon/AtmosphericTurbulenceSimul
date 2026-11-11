@@ -4,7 +4,13 @@
 
 /**
  * @file    AtmosphericTurbulence.h
- * @brief   Atmospheric turbulence simulation public interface
+ * @brief   Atmospheric turbulence simulation public interface (Level 2)
+ *
+ * Provides Kolmogorov and von Karman Fourier phase screen synthesis, turbulent
+ * wind trajectory generation, multi-layer geometric and diffractive (Fresnel
+ * split-step and Rytov) wavefront rendering, real-time 2D ImageStreamIO shared
+ * memory streaming, Hufnagel-Valley Cn2 profile generation, closed-loop AO PSF
+ * simulation, and autoregressive linear wavefront prediction.
  */
 
 #ifndef ATMOSPHERETURBULENCE_H

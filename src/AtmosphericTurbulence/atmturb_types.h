@@ -4,7 +4,11 @@
 
 /**
  * @file    atmturb_types.h
- * @brief   Internal types, state, and prototypes for AtmosphericTurbulence module
+ * @brief   Internal types, global configuration state, and PRNG helpers
+ *
+ * Declares shared simulation configuration globals (CONF_*), physical constants,
+ * legacy layer records, internal helper prototypes, and deterministic SplitMix64
+ * / Box-Muller pseudorandom number generators used across AtmosphericTurbulence.
  */
 
 #ifndef ATMTURB_TYPES_H
@@ -24,7 +28,7 @@
 #include <omp.h>
 #endif
 
-#include "CLIcore.h"
+#include "milk_runnable.h"
 #include "COREMOD_arith/COREMOD_arith.h"
 #include "COREMOD_iofits/COREMOD_iofits.h"
 #include "COREMOD_memory/COREMOD_memory.h"
@@ -48,73 +52,87 @@
 #define PI 3.14159265358979323846264338328
 #endif
 
-// Physical constants
-extern double C_me;
-extern double C_e0;
-extern double C_Na;
-extern double C_e;
-extern double C_ls;
-extern double rhocoeff;
+/* Fundamental physical constants (SI units) */
+extern double C_me;     // Electron rest mass [kg]
+extern double C_e0;     // Vacuum permittivity [F/m]
+extern double C_Na;     // Avogadro constant [mol^-1]
+extern double C_e;      // Elementary charge [C]
+extern double C_ls;     // Speed of light in vacuum [m/s]
+extern double rhocoeff; // Classical electron radius / refractivity constant
 
-// Configuration variables
-extern char CONFFILE[200];
-extern float CONF_LAMBDA;
-extern float CONF_SEEING;
-extern char CONF_TURBULENCE_PROF_FILE[200];
-extern float CONF_ZANGLE;
-extern float CONF_PARALLACTIC_ANGLE;
-extern float CONF_SITE_ALT;
-extern uint64_t CONF_SEED;
-extern float CONF_SOURCE_Xpos;
-extern float CONF_SOURCE_Ypos;
+/* Observing & site configuration globals */
+extern char     CONFFILE[200];                  // Active WFsim.conf file path
+extern float    CONF_LAMBDA;                    // Reference seeing wavelength [m]
+extern float    CONF_SEEING;                    // Zenith seeing FWHM at CONF_LAMBDA [arcsec]
+extern char     CONF_TURBULENCE_PROF_FILE[200]; // Path to multi-layer Cn2 profile file
+extern float    CONF_ZANGLE;                    // Observation zenith angle [rad]
+extern float    CONF_PARALLACTIC_ANGLE;         // Parallactic angle [rad]
+extern float    CONF_SITE_ALT;                  // Observatory elevation ASL [m] (-1 = auto)
+extern uint64_t CONF_SEED;                      // Master PRNG seed (0 = clock-seeded)
+extern float    CONF_SOURCE_Xpos;               // Off-axis source X angle [rad]
+extern float    CONF_SOURCE_Ypos;               // Off-axis source Y angle [rad]
 
-extern int CONF_WFOUTPUT;
-extern char CONF_WF_FILE_PREFIX[200];
-extern char CONF_WF_PHASE_NAME[100];
-extern char CONF_WF_AMPL_NAME[100];
-extern int CONF_SHM_OUTPUT;
-extern int CONF_STREAM_MODE;
-extern int CONF_STREAM_CBSIZE;
+/* Primary wavefront output & 2D SHM streaming configuration */
+extern int  CONF_WFOUTPUT;           // FITS output bitmask (0=none, 1=ref, 2=sci, 3=both)
+extern char CONF_WF_FILE_PREFIX[200];// Output FITS file prefix for reference cubes
+extern char CONF_WF_PHASE_NAME[100]; // Output reference phase stream/image name
+extern char CONF_WF_AMPL_NAME[100];  // Output reference amplitude stream/image name
+extern int  CONF_SHM_OUTPUT;         // Publish 3D cubes to shared memory (0/1)
+extern int  CONF_STREAM_MODE;        // 0=3D cube, 1=continuous 2D, 2=finite 2D, 3=unpaced 2D
+extern int  CONF_STREAM_CBSIZE;      // ImageStreamIO circular history depth [frames]
 
-extern int CONF_MAKE_SWAVEFRONT;
-extern int CONF_SWF_WRITE2DISK;
-extern char CONF_SWF_FILE_PREFIX[200];
-extern int CONF_SHM_SOUTPUT;
-extern char CONF_SHM_SPREFIX[100];
-extern int CONF_SHM_SOUTPUTM;
+/* Secondary chromatic wavefront output configuration */
+extern int  CONF_MAKE_SWAVEFRONT;     // Synthesize secondary wavelength channel (0/1)
+extern int  CONF_SWF_WRITE2DISK;      // Save secondary FITS cubes to disk (0/1)
+extern char CONF_SWF_FILE_PREFIX[200];// Output FITS file prefix for secondary cubes
+extern int  CONF_SHM_SOUTPUT;         // Publish secondary streams to shared memory (0/1)
+extern char CONF_SHM_SPREFIX[100];    // Stream name prefix for secondary channel
+extern int  CONF_SHM_SOUTPUTM;        // Secondary SHM format mode
 
-extern long CONF_WFsize;
-extern float CONF_PUPIL_SCALE;
+/* Grid sampling & temporal pacing configuration */
+extern long   CONF_WFsize;               // Synthesized pupil grid linear size [pixels]
+extern float  CONF_PUPIL_SCALE;          // Pupil spatial sampling scale [m/pixel]
+extern int    CONF_ATMWF_REALTIME;       // Enable wall-clock frame pacing (0/1)
+extern double CONF_ATMWF_REALTIMEFACTOR; // Real-time pacing speed multiplier
+extern float  CONF_WFTIME_STEP;          // Physics time step per frame [s]
+extern float  CONF_TIME_SPAN;            // Duration per wavefront cube block [s]
+extern long   CONF_NB_TSPAN;             // Number of consecutive time-span blocks
+extern long   CONF_SIMTDELAY;            // Artificial per-frame delay [us]
+extern int    CONF_WAITFORSEM;           // Synchronize frame emission on external semaphore (0/1)
+extern char   CONF_WAITSEMIMNAME[100];   // External trigger stream name for CONF_WAITFORSEM
 
-extern int CONF_ATMWF_REALTIME;
-extern double CONF_ATMWF_REALTIMEFACTOR;
-extern float CONF_WFTIME_STEP;
-extern float CONF_TIME_SPAN;
-extern long CONF_NB_TSPAN;
-extern long CONF_SIMTDELAY;
-extern int CONF_WAITFORSEM;
-extern char CONF_WAITSEMIMNAME[100];
+/* Master screen synthesis & extrusion fidelity configuration */
+extern int   CONF_SKIP_EXISTING; // Reuse existing FITS cubes on disk when present (0/1)
+extern long  CONF_WF_RAW_SIZE;   // Unbinned raw wavefront grid size [pixels]
+extern long  CONF_MASTER_SIZE;   // Master Fourier phase screen linear size [pixels]
+extern int   CONF_OVERSAMPLE;    // Master screen spatial oversampling factor (1 or 2)
+extern int   CONF_INTERP;        // Sub-pixel kernel (0=bilinear, 1=Keys bicubic)
+extern int   CONF_LOWFREQ;       // Enable 24-mode Johansson-Gavel subharmonics (0/1)
+extern int   CONF_ROLLING;       // Enable multi-epoch rolling screen cross-fade (0/1)
+extern float CONF_BOIL_TIME;     // Maximum rolling screen epoch duration [s] (0=auto)
 
-extern int CONF_SKIP_EXISTING;
-extern long CONF_WF_RAW_SIZE;
-extern long CONF_MASTER_SIZE;
-extern int CONF_OVERSAMPLE;
-extern int CONF_INTERP;
-extern int CONF_LOWFREQ;
-extern int CONF_ROLLING;
-extern float CONF_BOIL_TIME;
+/* Diffractive propagation (Fresnel & Rytov) configuration */
+extern int   CONF_FRESNEL_PROPAGATION;     // 0=geometric, 1=Fresnel split-step, 2=Rytov
+extern int   CONF_WAVEFRONT_AMPLITUDE;     // Compute scintillation amplitude screens (0/1)
+extern float CONF_FRESNEL_PROPAGATION_BIN; // Super-layer distance binning threshold [m]
+extern int   CONF_FRESNEL_RYTOV_SEC_EXACT; // Force separate secondary Rytov FFT (0/1)
+extern int   CONF_FRESNEL_GUARD_PIX;       // Guard-band margin around pupil [pixels]
+extern int   CONF_FRESNEL_RYTOV_MOISAN;    // Moisan periodic+smooth (-1=auto, 0=off, 1=on)
+extern int   CONF_FRESNEL_RYTOV_ZINTERP;   // Linear distance-node interpolation in Rytov (0/1)
+extern int   CONF_FRESNEL_REFRACT_PATH;    // Use curved refracted optical path length (0/1)
+extern int   CONF_FRESNEL_SCINT_WEIGHT;    // z^(5/6) scintillation-weighted centroids (0/1)
 
-extern int CONF_FRESNEL_PROPAGATION;
-extern int CONF_WAVEFRONT_AMPLITUDE;
-extern float CONF_FRESNEL_PROPAGATION_BIN;
-extern int CONF_FRESNEL_RYTOV_SEC_EXACT;
-extern int CONF_FRESNEL_GUARD_PIX;
-extern int CONF_FRESNEL_RYTOV_MOISAN;
-extern int CONF_FRESNEL_RYTOV_ZINTERP;
-extern int CONF_FRESNEL_REFRACT_PATH;
-extern int CONF_FRESNEL_SCINT_WEIGHT;
-
-// Layer configuration structure
+/**
+ * struct atmturb_layer_info_t - Parsed atmospheric layer record from config/profile
+ * @alt:         Layer altitude above sea level [m].
+ * @cn2:         Layer Cn2 integral weight or fractional strength.
+ * @spd:         Mean horizontal wind speed [m/s].
+ * @dir:         Wind direction azimuth [rad].
+ * @outerscale:  Turbulence outer scale L0 [m].
+ * @innerscale:  Turbulence inner scale l0 [m].
+ * @sigmawspeed: Turbulent wind speed standard deviation [m/s].
+ * @lwind:       Wind velocity turbulence outer scale [m].
+ */
 typedef struct
 {
     double alt;
@@ -127,15 +145,72 @@ typedef struct
     double lwind;
 } atmturb_layer_info_t;
 
-// Module internal prototypes
+/**
+ * AtmosphericTurbulence_ReadConf - Parse active CONFFILE into CONF_* globals
+ *
+ * Return: 0 on success, -1 if CONFFILE cannot be opened.
+ */
 int AtmosphericTurbulence_ReadConf(void);
-double Z_Air(double P, double T, double RH);
-double Z_N2(double P, double T);
 
-int atmturb_screen_create_dist(const char *name, long size, double outer_f0,
-                              double rlim, int rlim_mode, long precision);
+/**
+ * Z_Air - Compressibility factor of moist air (CIPM-81 / Picard et al. 2008)
+ * @P:  Total atmospheric pressure [Pa].
+ * @T:  Air temperature [deg C].
+ * @RH: Relative humidity [%].
+ *
+ * Return: Dimensionless compressibility factor Z (also updates global rhocoeff).
+ */
+double Z_Air(
+    double P,
+    double T,
+    double RH);
 
-int atmturb_bin_2d_pixels(const float *src, float *dst, long in_x, long in_y, int factor);
+/**
+ * Z_N2 - Virial compressibility factor of pure molecular nitrogen
+ * @P: Gas pressure [Pa].
+ * @T: Thermodynamic temperature [K].
+ *
+ * Return: Dimensionless compressibility factor Z for N2.
+ */
+double Z_N2(
+    double P,
+    double T);
+
+/**
+ * atmturb_screen_create_dist - Populate 2D radial spatial-frequency distance map
+ * @name:      Destination image name in milk_data.image.
+ * @size:      Square 2D grid dimension [pixels].
+ * @outer_f0:  Outer-scale spatial frequency 1/L0 [cycles/pixel].
+ * @rlim:      Radial cutoff distance [pixels].
+ * @rlim_mode: Cutoff behavior flag (0=none, 1=zero inside/outside limit).
+ * @precision: Output datatype selector (0=float, 1=double).
+ *
+ * Return: Allocated imageID (>= 0) on success, or -1 on failure.
+ */
+int atmturb_screen_create_dist(
+    const char *name,
+    long        size,
+    double      outer_f0,
+    double      rlim,
+    int         rlim_mode,
+    long        precision);
+
+/**
+ * atmturb_bin_2d_pixels - Spatially average-bin a 2D float frame by 2^factor
+ * @src:    Input 2D float buffer (in_x * in_y elements).
+ * @dst:    Output 2D float buffer ((in_x >> factor) * (in_y >> factor) elements).
+ * @in_x:   Input width [pixels].
+ * @in_y:   Input height [pixels].
+ * @factor: Power-of-two decimation exponent (>= 0).
+ *
+ * Return: 0 on success, -1 on invalid dimensions or factor.
+ */
+int atmturb_bin_2d_pixels(
+    const float *src,
+    float       *dst,
+    long         in_x,
+    long         in_y,
+    int          factor);
 
 /**
  * atmturb_rng_splitmix64 - Advance 64-bit SplitMix PRNG state
@@ -143,7 +218,8 @@ int atmturb_bin_2d_pixels(const float *src, float *dst, long in_x, long in_y, in
  *
  * Return: Pseudorandom 64-bit unsigned integer.
  */
-static inline uint64_t atmturb_rng_splitmix64(uint64_t *state)
+static inline uint64_t atmturb_rng_splitmix64(
+    uint64_t *state)
 {
     uint64_t z = (*state += 0x9e3779b97f4a7c15ULL);
     z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
@@ -154,10 +230,13 @@ static inline uint64_t atmturb_rng_splitmix64(uint64_t *state)
 /**
  * atmturb_rng_gaussian_pair - Sample standard normal pair via Box-Muller transform
  * @state: Pointer to PRNG state.
- * @g0: Output pointer for first standard Gaussian sample.
- * @g1: Output pointer for second standard Gaussian sample.
+ * @g0:    Output pointer for first standard Gaussian sample.
+ * @g1:    Output pointer for second standard Gaussian sample.
  */
-static inline void atmturb_rng_gaussian_pair(uint64_t *state, double *g0, double *g1)
+static inline void atmturb_rng_gaussian_pair(
+    uint64_t *state,
+    double   *g0,
+    double   *g1)
 {
     double u1 = ((atmturb_rng_splitmix64(state) >> 11) + 1.0) * (1.0 / 9007199254740992.0);
     double u2 = (atmturb_rng_splitmix64(state) >> 11) * (1.0 / 9007199254740992.0);
@@ -173,7 +252,8 @@ static inline void atmturb_rng_gaussian_pair(uint64_t *state, double *g0, double
  *
  * Return: @seed if non-zero, otherwise a seed derived from the real-time clock.
  */
-static inline uint64_t atmturb_resolve_seed(uint64_t seed)
+static inline uint64_t atmturb_resolve_seed(
+    uint64_t seed)
 {
     if (seed != 0)
     {
@@ -187,12 +267,14 @@ static inline uint64_t atmturb_resolve_seed(uint64_t seed)
 
 /**
  * atmturb_rng_stream_seed - Derive a decorrelated RNG state for sub-stream @stream
- * @seed: Base seed.
+ * @seed:   Base seed.
  * @stream: Sub-stream index (component, layer, row, ...).
  *
  * Return: Initial PRNG state for the sub-stream.
  */
-static inline uint64_t atmturb_rng_stream_seed(uint64_t seed, uint64_t stream)
+static inline uint64_t atmturb_rng_stream_seed(
+    uint64_t seed,
+    uint64_t stream)
 {
     uint64_t s = seed ^ ((stream + 1ULL) * 0xd1b54a32d192ed03ULL);
     atmturb_rng_splitmix64(&s);

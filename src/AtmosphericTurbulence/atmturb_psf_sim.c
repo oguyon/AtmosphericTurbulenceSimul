@@ -526,6 +526,10 @@ static int atmturb_ao_wf_load(
     return -1;
 }
 
+/**
+ * atmturb_ao_wf_free - Release heap or shared-memory handles for loaded wavefront cube
+ * @wf: Wavefront source handle initialized by atmturb_ao_wf_load().
+ */
 static void atmturb_ao_wf_free(
     atmturb_ao_wf_t *wf)
 {
@@ -540,6 +544,15 @@ static void atmturb_ao_wf_free(
     memset(wf, 0, sizeof(*wf));
 }
 
+/**
+ * atmturb_ao_save_fits - Write a 2D single-precision PSF array to a FITS file
+ * @filename: Destination FITS path (existing file is overwritten).
+ * @data:     Contiguous 2D float image buffer (@nx * @ny elements).
+ * @nx:       Image width along axis 0 [pixels].
+ * @ny:       Image height along axis 1 [pixels].
+ *
+ * Return: 0 on success, -1 on CFITSIO error.
+ */
 static int atmturb_ao_save_fits(
     const char  *filename,
     const float *data,

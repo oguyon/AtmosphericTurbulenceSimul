@@ -10,7 +10,7 @@
 #ifndef ATMTURB_WFS_RENDER_H
 #define ATMTURB_WFS_RENDER_H
 
-#include "CLIcore.h"
+#include "milk_runnable.h"
 #include "atmturb_geometry.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"

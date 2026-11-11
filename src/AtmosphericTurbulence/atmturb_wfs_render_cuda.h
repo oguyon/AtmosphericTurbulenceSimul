@@ -121,6 +121,7 @@ int atmturb_cuda_rytov_stream_render_step(
  * @amp: Destination primary amplitude frame buffer.
  * @spha: Destination secondary phase frame buffer (or NULL).
  * @samp: Destination secondary amplitude frame buffer (or NULL).
+ * @slot: Double-buffer slot index (0 or 1).
  *
  * Return: 0 on success, -1 on failure.
  */

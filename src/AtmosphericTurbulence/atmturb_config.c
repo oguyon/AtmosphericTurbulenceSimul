@@ -228,6 +228,14 @@ static int atmturb_read_conf_str(
     return found;
 }
 
+/**
+ * atmturb_read_conf_long - Parse signed long integer keyword with default fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed signed long value, or @default_val.
+ */
 static long atmturb_read_conf_long(
     const char *conffile,
     const char *key,
@@ -246,6 +254,14 @@ static long atmturb_read_conf_long(
     return default_val;
 }
 
+/**
+ * atmturb_read_conf_int - Parse 32-bit signed integer keyword with default fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed integer value, or @default_val.
+ */
 static int atmturb_read_conf_int(
     const char *conffile,
     const char *key,
@@ -254,6 +270,14 @@ static int atmturb_read_conf_int(
     return (int) atmturb_read_conf_long(conffile, key, (long) default_val);
 }
 
+/**
+ * atmturb_read_conf_double - Parse double-precision keyword with default fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed double value, or @default_val.
+ */
 static double atmturb_read_conf_double(
     const char *conffile,
     const char *key,
@@ -272,6 +296,14 @@ static double atmturb_read_conf_double(
     return default_val;
 }
 
+/**
+ * atmturb_read_conf_float - Parse single-precision keyword with default fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed float value, or @default_val.
+ */
 static float atmturb_read_conf_float(
     const char *conffile,
     const char *key,
@@ -280,6 +312,14 @@ static float atmturb_read_conf_float(
     return (float) atmturb_read_conf_double(conffile, key, (double) default_val);
 }
 
+/**
+ * atmturb_read_conf_uint64 - Parse unsigned 64-bit integer keyword with fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed uint64_t value, or @default_val.
+ */
 static uint64_t atmturb_read_conf_uint64(
     const char *conffile,
     const char *key,

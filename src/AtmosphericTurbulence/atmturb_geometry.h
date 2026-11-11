@@ -66,6 +66,9 @@ typedef struct
  * @ez_y: Unit vector toward zenith in pupil frame (y component).
  * @oversample: Master grid oversampling factor.
  * @interp: Interpolation scheme (0=bilinear, 1=Keys bicubic).
+ * @lowfreq: Analytic low-order subharmonic mode flag (0=off, 1=on).
+ * @rolling: Multi-epoch rolling cross-fade flag (0=off, 1=on).
+ * @boil_time_s: Maximum rolling epoch duration [seconds] (0 for auto).
  * @nlayers: Number of layers.
  * @layers: Array of per-layer geometric properties.
  */
