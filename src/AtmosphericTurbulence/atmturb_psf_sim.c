@@ -244,8 +244,10 @@ static double atmturb_ao_render_psf(
             if (m > 0.0f)
             {
                 float p = (opd_res != NULL) ? (opd_res[pup_row + i] * k_sci) : 0.0f;
-                eng->in_grid[in_row + i][0] = m * cosf(p);
-                eng->in_grid[in_row + i][1] = m * sinf(p);
+                float s, c;
+                sincosf(p, &s, &c);
+                eng->in_grid[in_row + i][0] = m * c;
+                eng->in_grid[in_row + i][1] = m * s;
             }
         }
     }
@@ -356,11 +358,25 @@ static void atmturb_ao_controller_step(
     long ntot = ctrl->ntot;
     float *slot = ctrl->delay_ring[ctrl->head];
 
-    for (long i = 0; i < ntot; i++)
+    if (opd_atm != NULL)
     {
-        float res = (opd_atm != NULL) ? (opd_atm[i] - ctrl->dm_opd[i]) : (-ctrl->dm_opd[i]);
-        slot[i] = res * pupil_mask[i];
-        opd_res_out[i] = res;
+        #pragma omp simd
+        for (long i = 0; i < ntot; i++)
+        {
+            float res = opd_atm[i] - ctrl->dm_opd[i];
+            slot[i] = res * pupil_mask[i];
+            opd_res_out[i] = res;
+        }
+    }
+    else
+    {
+        #pragma omp simd
+        for (long i = 0; i < ntot; i++)
+        {
+            float res = -ctrl->dm_opd[i];
+            slot[i] = res * pupil_mask[i];
+            opd_res_out[i] = res;
+        }
     }
 
     int read_idx = (ctrl->head - ctrl->delay + ctrl->depth) % ctrl->depth;
@@ -368,18 +384,13 @@ static void atmturb_ao_controller_step(
 
     if (params->loop_mode == 1)
     {
-        float leak = (float) params->leak;
+        float keep = 1.0f - (float) params->leak;
         float gain = (float) params->gain;
+        float *restrict dm = ctrl->dm_opd;
+        #pragma omp simd
         for (long i = 0; i < ntot; i++)
         {
-            if (pupil_mask[i] > 0.0f)
-            {
-                ctrl->dm_opd[i] = (1.0f - leak) * ctrl->dm_opd[i] + gain * delayed_err[i];
-            }
-            else
-            {
-                ctrl->dm_opd[i] = (1.0f - leak) * ctrl->dm_opd[i];
-            }
+            dm[i] = keep * dm[i] + gain * delayed_err[i];
         }
     }
     else if (params->loop_mode == 2)

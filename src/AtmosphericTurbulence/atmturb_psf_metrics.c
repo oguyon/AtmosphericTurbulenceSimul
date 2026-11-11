@@ -7,6 +7,10 @@
  * @brief   Wavefront analysis, PSF aperture photometry, and frame selection metrics
  */
 
+#define _GNU_SOURCE
+#include <math.h>
+#include <stdio.h>
+
 #include "AtmosphericTurbulence.h"
 #include "atmturb_types.h"
 
@@ -43,8 +47,10 @@ static void atmturb_compute_frame_psf(
             {
                 a *= dcimg[id_pupamp].array.F[pix2d];
             }
-            dcimg[id_arr].array.CF[pix2d].re = a * cosf(p);
-            dcimg[id_arr].array.CF[pix2d].im = a * sinf(p);
+            float s, c;
+            sincosf(p, &s, &c);
+            dcimg[id_arr].array.CF[pix2d].re = a * c;
+            dcimg[id_arr].array.CF[pix2d].im = a * s;
         }
     }
 
@@ -89,15 +95,18 @@ static void atmturb_measure_psf_apertures(
         for (long ii = 0; ii < nx; ii++)
         {
             double dx = ((double) ii - cx) * (double) focal_scale;
-            double r = sqrt(dx * dx + dy2);
-            float val = dcimg[id_psf].array.F[jj * nx + ii];
+            double r2 = dx * dx + dy2;
+            double val = (double) dcimg[id_psf].array.F[jj * nx + ii];
 
             tot += val;
-            if (r < 1.0) f1 += val;
-            if (r < 2.0) f2 += val;
-            if (r < 5.0) f5 += val;
-            if (r < 10.0) f10 += val;
-            if (r < 20.0) f20 += val;
+            if (r2 < 400.0)
+            {
+                f20 += val;
+                f10 += (r2 < 100.0) ? val : 0.0;
+                f5  += (r2 < 25.0)  ? val : 0.0;
+                f2  += (r2 < 4.0)   ? val : 0.0;
+                f1  += (r2 < 1.0)   ? val : 0.0;
+            }
         }
     }
 

@@ -67,13 +67,13 @@ optics simulation with PSF synthesis.
   engine (`FRESNEL_PROPAGATION=1`).
 - `atmturb_fresnel_simd_scalar.c`, `atmturb_fresnel_simd_avx2.c`,
   `atmturb_fresnel_simd_dispatch.c`, `atmturb_fresnel_simd.h`: Vectorized split-step Fresnel
-  phase addition and normalization kernels.
+  phase modulation (`sincos256_ps`), transfer-function application, and unwrapped `atan2` kernels.
 - `atmturb_rytov.c`, `atmturb_rytov_kernels.c`, `atmturb_rytov.h`, `atmturb_rytov_internal.h`:
   First-order Rytov Fourier-space propagation engine (`FRESNEL_PROPAGATION=2`) with Moisan
   periodic-plus-smooth decomposition.
 - `atmturb_rytov_simd_scalar.c`, `atmturb_rytov_simd_avx2.c`,
-  `atmturb_rytov_simd_dispatch.c`, `atmturb_rytov_simd.h`: Vectorized Rytov diffractive quadratic
-  phase filters and complex multiply-accumulate kernels.
+  `atmturb_rytov_simd_dispatch.c`, `atmturb_rytov_simd.h`: Compiler-vectorized (`#pragma omp simd`)
+  Rytov quadratic phase filters, complex multiply-accumulate, and clamped fast-`expf` row assembly.
 - `atmturb_cuda.cu` / `atmturb_cuda.h`: CUDA GPU accelerated multi-layer wavefront extrusion and
   spatial interpolation kernels.
 - `atmturb_cuda_piston.cu` / `atmturb_cuda_piston.h`: CUDA GPU piston subtraction kernel.
@@ -85,11 +85,14 @@ optics simulation with PSF synthesis.
   Rytov wavefront synthesis, batched transforms, and CUDA Graph execution.
 - `atmturb_simd.h`: Declarations for SIMD-accelerated extrusion, scaling, initialization, and
   ISA queries.
+- `atmturb_simd_extrude_impl.h`, `atmturb_simd_ops_impl.h`: Shared compiler-vectorized
+  (`restrict` + `#pragma omp simd`) implementation templates instantiated per target ISA TU for
+  toroidal seam-split 2D extrusion, 1D array kernels, L1-tiled subharmonics, and FP64 piston sum.
 - `atmturb_simd_scalar.c`: Portable scalar reference implementation for extrusion and array ops.
-- `atmturb_simd_avx2.c`: AVX2 and FMA 256-bit 2D phase-screen extrusion kernels (bilinear/bicubic).
-- `atmturb_simd_avx2_ops.c`: AVX2 and FMA 256-bit 1D array, low-frequency subharmonic, and piston
-  subtraction kernels.
-- `atmturb_simd_avx512.c`: AVX-512 512-bit vectorized compute kernels (16 floats/vector).
+- `atmturb_simd_avx2.c`: AVX2+FMA 256-bit TU instantiation of 2D phase-screen extrusion kernels.
+- `atmturb_simd_avx2_ops.c`: AVX2+FMA 256-bit TU instantiation of 1D array, subharmonic, and
+  piston subtraction kernels.
+- `atmturb_simd_avx512.c`: AVX-512 512-bit TU instantiation of extrusion and 1D array kernels.
 - `atmturb_simd_dispatch.c`: Dynamic CPU capability detector and function pointer dispatcher
   (`atmturb_simd_active_isa`).
 - `atmturb_mkwfs_FPS.c` / `atmturb_mkwfs_FPS.h`: `MILK_RUNNABLE_FPS` compute unit for CLI and

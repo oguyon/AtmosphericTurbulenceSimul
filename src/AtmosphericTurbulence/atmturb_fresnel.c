@@ -213,51 +213,38 @@ int atmturb_fresnel_ctx_init(
     }
 
     memset(ctx, 0, sizeof(*ctx));
-    ctx->eng.n = pup_size;
+    ctx->eng.n     = pup_size;
+    ctx->eng_sec.n = pup_size;
 
-    size_t npix    = (size_t) (pup_size * pup_size);
-    ctx->field_pri = (fftwf_complex *) fftwf_alloc_complex(npix);
-    ctx->super_pha = (float *) malloc(sizeof(float) * npix);
+    size_t npix     = (size_t) (pup_size * pup_size);
+    ctx->field_pri  = fftwf_alloc_complex(npix);
+    ctx->field_sec  = fftwf_alloc_complex(npix);
+    ctx->super_pha  = fftwf_alloc_real(npix);
+    ctx->super_spha = fftwf_alloc_real(npix);
 
-    if (ctx->field_pri == NULL || ctx->super_pha == NULL)
+    if (ctx->field_pri == NULL || ctx->field_sec == NULL ||
+        ctx->super_pha == NULL || ctx->super_spha == NULL)
     {
         atmturb_fresnel_ctx_free(ctx);
         return -1;
     }
 
-    int has_sec = (CONF_MAKE_SWAVEFRONT == 1);
-    if (has_sec)
-    {
-        ctx->eng_sec.n  = pup_size;
-        ctx->field_sec  = (fftwf_complex *) fftwf_alloc_complex(npix);
-        ctx->super_spha = (float *) malloc(sizeof(float) * npix);
-        if (ctx->field_sec == NULL || ctx->super_spha == NULL)
-        {
-            atmturb_fresnel_ctx_free(ctx);
-            return -1;
-        }
-    }
-
     atmturb_fresnel_init_fftw_threads(pup_size);
-    ctx->eng.fwd_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                          ctx->field_pri, ctx->field_pri,
-                                          FFTW_FORWARD, FFTW_MEASURE);
-    ctx->eng.inv_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                          ctx->field_pri, ctx->field_pri,
-                                          FFTW_BACKWARD, FFTW_MEASURE);
-
-    if (has_sec)
-    {
-        ctx->eng_sec.fwd_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                                  ctx->field_sec, ctx->field_sec,
-                                                  FFTW_FORWARD, FFTW_MEASURE);
-        ctx->eng_sec.inv_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                                  ctx->field_sec, ctx->field_sec,
-                                                  FFTW_BACKWARD, FFTW_MEASURE);
-    }
+    ctx->eng.fwd_plan     = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                              ctx->field_pri, ctx->field_pri,
+                                              FFTW_FORWARD, FFTW_MEASURE);
+    ctx->eng.inv_plan     = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                              ctx->field_pri, ctx->field_pri,
+                                              FFTW_BACKWARD, FFTW_MEASURE);
+    ctx->eng_sec.fwd_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                              ctx->field_sec, ctx->field_sec,
+                                              FFTW_FORWARD, FFTW_MEASURE);
+    ctx->eng_sec.inv_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                              ctx->field_sec, ctx->field_sec,
+                                              FFTW_BACKWARD, FFTW_MEASURE);
 
     if (ctx->eng.fwd_plan == NULL || ctx->eng.inv_plan == NULL ||
-        (has_sec && (ctx->eng_sec.fwd_plan == NULL || ctx->eng_sec.inv_plan == NULL)))
+        ctx->eng_sec.fwd_plan == NULL || ctx->eng_sec.inv_plan == NULL)
     {
         atmturb_fresnel_ctx_free(ctx);
         return -1;
@@ -290,10 +277,16 @@ void atmturb_fresnel_ctx_free(
         fftwf_free(ctx->field_sec);
         ctx->field_sec = NULL;
     }
-    free(ctx->super_pha);
-    free(ctx->super_spha);
-    ctx->super_pha  = NULL;
-    ctx->super_spha = NULL;
+    if (ctx->super_pha != NULL)
+    {
+        fftwf_free(ctx->super_pha);
+        ctx->super_pha = NULL;
+    }
+    if (ctx->super_spha != NULL)
+    {
+        fftwf_free(ctx->super_spha);
+        ctx->super_spha = NULL;
+    }
 }
 
 /**
@@ -310,7 +303,26 @@ static inline void atmturb_fresnel_propagate_field(
     long                           npix)
 {
     fftwf_execute_dft(eng->fwd_plan, field, field);
-    atmturb_complex_mul_array((float *) field, (const float *) field, (const float *) tf, npix);
+#ifdef _OPENMP
+    if (npix >= 262144 && !omp_in_parallel())
+    {
+        int max_t = omp_get_max_threads();
+        int nth   = (max_t > 8) ? 8 : max_t;
+        #pragma omp parallel num_threads(nth)
+        {
+            int  tid = omp_get_thread_num();
+            int  nt  = omp_get_num_threads();
+            long c0  = (npix * (long) tid) / (long) nt;
+            long c1  = (npix * (long) (tid + 1)) / (long) nt;
+            atmturb_complex_mul_array((float *) &field[c0], (const float *) &field[c0],
+                                      (const float *) &tf[c0], c1 - c0);
+        }
+    }
+    else
+#endif
+    {
+        atmturb_complex_mul_array((float *) field, (const float *) field, (const float *) tf, npix);
+    }
     fftwf_execute_dft(eng->inv_plan, field, field);
 }
 
@@ -345,7 +357,8 @@ void atmturb_fresnel_render_step(
 {
     long npix = pup_size * pup_size;
     int has_sec = (plan->lambda_s_m > 0.0 && plan->tf_sec != NULL &&
-                   plan->tf_sec[0] != NULL && (spha_slice != NULL || samp_slice != NULL));
+                   plan->tf_sec[0] != NULL && ctx->field_sec != NULL &&
+                   ctx->super_spha != NULL && (spha_slice != NULL || samp_slice != NULL));
 
     memset(pha_slice, 0, sizeof(float) * (size_t) npix);
     if (has_sec && spha_slice != NULL)
@@ -396,6 +409,11 @@ void atmturb_fresnel_render_step(
             {
                 atmturb_fresnel_simd_modulate_field(ctx->field_sec, ctx->super_spha, npix);
             }
+        }
+
+        if (fabs(sl->step_dist_m) <= 0.0)
+        {
+            continue;
         }
 
         int par_sec = (do_sec_prop && pup_size < 512);

@@ -242,6 +242,27 @@ int atmturb_rytov_plan_init(
 }
 
 /**
+ * atmturb_rytov_free_filter_set - Free per-superlayer float filter array table
+ * @arr: Address of filter pointer table.
+ * @nsuper: Number of super-layers.
+ */
+static void atmturb_rytov_free_filter_set(
+    float ***arr,
+    int      nsuper)
+{
+    if (*arr == NULL)
+    {
+        return;
+    }
+    for (int m = 0; m < nsuper; m++)
+    {
+        free((*arr)[m]);
+    }
+    free(*arr);
+    *arr = NULL;
+}
+
+/**
  * atmturb_rytov_plan_free - Release resources held by Rytov propagation plan
  * @plan: Propagation plan container to tear down.
  */
@@ -259,45 +280,10 @@ void atmturb_rytov_plan_free(
         plan->supers = NULL;
     }
 
-    if (plan->filter_a_pri != NULL)
-    {
-        for (int m = 0; m < plan->nsuper; m++)
-        {
-            free(plan->filter_a_pri[m]);
-        }
-        free(plan->filter_a_pri);
-        plan->filter_a_pri = NULL;
-    }
-
-    if (plan->filter_b_pri != NULL)
-    {
-        for (int m = 0; m < plan->nsuper; m++)
-        {
-            free(plan->filter_b_pri[m]);
-        }
-        free(plan->filter_b_pri);
-        plan->filter_b_pri = NULL;
-    }
-
-    if (plan->filter_a_sec != NULL)
-    {
-        for (int m = 0; m < plan->nsuper; m++)
-        {
-            free(plan->filter_a_sec[m]);
-        }
-        free(plan->filter_a_sec);
-        plan->filter_a_sec = NULL;
-    }
-
-    if (plan->filter_b_sec != NULL)
-    {
-        for (int m = 0; m < plan->nsuper; m++)
-        {
-            free(plan->filter_b_sec[m]);
-        }
-        free(plan->filter_b_sec);
-        plan->filter_b_sec = NULL;
-    }
+    atmturb_rytov_free_filter_set(&plan->filter_a_pri, plan->nsuper);
+    atmturb_rytov_free_filter_set(&plan->filter_b_pri, plan->nsuper);
+    atmturb_rytov_free_filter_set(&plan->filter_a_sec, plan->nsuper);
+    atmturb_rytov_free_filter_set(&plan->filter_b_sec, plan->nsuper);
 
     if (plan->chrom_ramp != NULL)
     {
@@ -391,22 +377,20 @@ int atmturb_rytov_ctx_init(
     size_t npix_2d = (size_t) (pup_size * pup_size);
     size_t npix_spec = (size_t) (pup_size * n_half);
 
-    ctx->real_in    = (float *) malloc(sizeof(float) * npix_2d);
-    ctx->spec       = (fftwf_complex *) fftwf_alloc_complex(npix_spec);
-    ctx->bound_a    = (float *) malloc(sizeof(float) * (size_t) pup_size);
-    ctx->bound_b    = (float *) malloc(sizeof(float) * (size_t) pup_size);
-    ctx->hat_a      = (fftwf_complex *) fftwf_alloc_complex((size_t) n_half);
-    ctx->hat_b      = (fftwf_complex *) fftwf_alloc_complex((size_t) n_half);
-
-    ctx->acc_dphi_pri = (fftwf_complex *) fftwf_alloc_complex(npix_spec);
-    ctx->acc_chi_pri  = (fftwf_complex *) fftwf_alloc_complex(npix_spec);
-    ctx->acc_dphi_sec = (fftwf_complex *) fftwf_alloc_complex(npix_spec);
-    ctx->acc_chi_sec  = (fftwf_complex *) fftwf_alloc_complex(npix_spec);
-
-    ctx->super_pha  = (float *) malloc(sizeof(float) * npix_2d);
-    ctx->super_spha = (float *) malloc(sizeof(float) * npix_2d);
-    ctx->dphi_out   = (float *) malloc(sizeof(float) * npix_2d);
-    ctx->chi_out    = (float *) malloc(sizeof(float) * npix_2d);
+    ctx->real_in      = fftwf_alloc_real(npix_2d);
+    ctx->spec         = fftwf_alloc_complex(npix_spec);
+    ctx->bound_a      = fftwf_alloc_real((size_t) pup_size);
+    ctx->bound_b      = fftwf_alloc_real((size_t) pup_size);
+    ctx->hat_a        = fftwf_alloc_complex((size_t) n_half);
+    ctx->hat_b        = fftwf_alloc_complex((size_t) n_half);
+    ctx->acc_dphi_pri = fftwf_alloc_complex(npix_spec);
+    ctx->acc_chi_pri  = fftwf_alloc_complex(npix_spec);
+    ctx->acc_dphi_sec = fftwf_alloc_complex(npix_spec);
+    ctx->acc_chi_sec  = fftwf_alloc_complex(npix_spec);
+    ctx->super_pha    = fftwf_alloc_real(npix_2d);
+    ctx->super_spha   = fftwf_alloc_real(npix_2d);
+    ctx->dphi_out     = fftwf_alloc_real(npix_2d);
+    ctx->chi_out      = fftwf_alloc_real(npix_2d);
 
     if (!ctx->real_in || !ctx->spec || !ctx->bound_a || !ctx->bound_b ||
         !ctx->hat_a || !ctx->hat_b || !ctx->acc_dphi_pri || !ctx->acc_chi_pri ||
@@ -420,15 +404,15 @@ int atmturb_rytov_ctx_init(
     atmturb_rytov_wisdom_load();
     atmturb_rytov_fftw_threads(pup_size);
 
-    const char *env_meas = getenv("ATMTURB_FFTW_MEASURE");
-    unsigned int flags = (env_meas != NULL && atoi(env_meas) != 0)
-                             ? FFTW_MEASURE
-                             : FFTW_ESTIMATE;
+    const char  *env_meas = getenv("ATMTURB_FFTW_MEASURE");
+    unsigned int flags    = (env_meas != NULL && atoi(env_meas) != 0)
+                                ? FFTW_MEASURE
+                                : FFTW_ESTIMATE;
 
-    ctx->plan_r2c = fftwf_plan_dft_r2c_2d((int) pup_size, (int) pup_size,
-                                          ctx->real_in, ctx->spec, flags);
-    ctx->plan_c2r = fftwf_plan_dft_c2r_2d((int) pup_size, (int) pup_size,
-                                          ctx->spec, ctx->real_in, flags);
+    ctx->plan_r2c  = fftwf_plan_dft_r2c_2d((int) pup_size, (int) pup_size,
+                                           ctx->real_in, ctx->spec, flags);
+    ctx->plan_c2r  = fftwf_plan_dft_c2r_2d((int) pup_size, (int) pup_size,
+                                           ctx->spec, ctx->real_in, flags);
     ctx->plan_1d_a = fftwf_plan_dft_r2c_1d((int) pup_size, ctx->bound_a,
                                            ctx->hat_a, flags);
     ctx->plan_1d_b = fftwf_plan_dft_r2c_1d((int) pup_size, ctx->bound_b,
@@ -464,32 +448,25 @@ void atmturb_rytov_ctx_free(
     if (ctx->plan_1d_a) fftwf_destroy_plan(ctx->plan_1d_a);
     if (ctx->plan_1d_b) fftwf_destroy_plan(ctx->plan_1d_b);
 
-    free(ctx->real_in);
-    if (ctx->spec)          fftwf_free(ctx->spec);
-    free(ctx->bound_a);
-    free(ctx->bound_b);
-    if (ctx->hat_a)         fftwf_free(ctx->hat_a);
-    if (ctx->hat_b)         fftwf_free(ctx->hat_b);
-    if (ctx->acc_dphi_pri)  fftwf_free(ctx->acc_dphi_pri);
-    if (ctx->acc_chi_pri)   fftwf_free(ctx->acc_chi_pri);
-    if (ctx->acc_dphi_sec)  fftwf_free(ctx->acc_dphi_sec);
-    if (ctx->acc_chi_sec)   fftwf_free(ctx->acc_chi_sec);
-
-    free(ctx->super_pha);
-    free(ctx->super_spha);
-    free(ctx->dphi_out);
-    free(ctx->chi_out);
+    if (ctx->real_in)      fftwf_free(ctx->real_in);
+    if (ctx->spec)         fftwf_free(ctx->spec);
+    if (ctx->bound_a)      fftwf_free(ctx->bound_a);
+    if (ctx->bound_b)      fftwf_free(ctx->bound_b);
+    if (ctx->hat_a)        fftwf_free(ctx->hat_a);
+    if (ctx->hat_b)        fftwf_free(ctx->hat_b);
+    if (ctx->acc_dphi_pri) fftwf_free(ctx->acc_dphi_pri);
+    if (ctx->acc_chi_pri)  fftwf_free(ctx->acc_chi_pri);
+    if (ctx->acc_dphi_sec) fftwf_free(ctx->acc_dphi_sec);
+    if (ctx->acc_chi_sec)  fftwf_free(ctx->acc_chi_sec);
+    if (ctx->super_pha)    fftwf_free(ctx->super_pha);
+    if (ctx->super_spha)   fftwf_free(ctx->super_spha);
+    if (ctx->dphi_out)     fftwf_free(ctx->dphi_out);
+    if (ctx->chi_out)      fftwf_free(ctx->chi_out);
+    memset(ctx, 0, sizeof(*ctx));
 }
 
 /**
  * atmturb_rytov_accumulate_geom - Accumulate geometric phase from superlayer scratchpad
- * @pha: Destination primary phase slice.
- * @spha: Destination secondary phase slice.
- * @super_pha: Source padded superlayer primary phase.
- * @super_spha: Source padded superlayer secondary phase.
- * @pup_size: Linear dimension of pupil.
- * @guard: Guard band margin in pixels.
- * @pad_size: Linear dimension of padded compute grid.
  */
 static void atmturb_rytov_accumulate_geom(
     float       *pha,
@@ -516,15 +493,27 @@ static void atmturb_rytov_accumulate_geom(
 
     for (long y = 0; y < pup_size; y++)
     {
-        long src_row = (y + guard) * pad_size + guard;
-        long dst_row = y * pup_size;
+        long src_off = (y + guard) * pad_size + guard;
+        long dst_off = y * pup_size;
         if (pha != NULL && super_pha != NULL)
         {
-            atmturb_add_float_array(&pha[dst_row], &super_pha[src_row], pup_size);
+            float       *restrict d = &pha[dst_off];
+            const float *restrict s = &super_pha[src_off];
+            #pragma omp simd
+            for (long x = 0; x < pup_size; x++)
+            {
+                d[x] += s[x];
+            }
         }
         if (spha != NULL && super_spha != NULL)
         {
-            atmturb_add_float_array(&spha[dst_row], &super_spha[src_row], pup_size);
+            float       *restrict d = &spha[dst_off];
+            const float *restrict s = &super_spha[src_off];
+            #pragma omp simd
+            for (long x = 0; x < pup_size; x++)
+            {
+                d[x] += s[x];
+            }
         }
     }
 }
@@ -564,7 +553,16 @@ void atmturb_rytov_render_step(
     long pad_pixels = pad_size * pad_size;
     long n_half = pad_size / 2 + 1;
     long n_spec = pad_size * n_half;
-    int has_sec = (plan->lambda_s_m > 0.0 && (spha_slice != NULL || samp_slice != NULL));
+    int has_sec  = (plan->lambda_s_m > 0.0 && (spha_slice != NULL || samp_slice != NULL));
+    int any_diff = 0;
+    for (int m = 0; m < plan->nsuper; m++)
+    {
+        if (plan->supers[m].dist_m > 0.0)
+        {
+            any_diff = 1;
+            break;
+        }
+    }
 
     if (pha_slice != NULL)
     {
@@ -574,12 +572,15 @@ void atmturb_rytov_render_step(
     {
         memset(spha_slice, 0, sizeof(float) * (size_t) pup_pixels);
     }
-    memset(ctx->acc_dphi_pri, 0, sizeof(fftwf_complex) * (size_t) n_spec);
-    memset(ctx->acc_chi_pri,  0, sizeof(fftwf_complex) * (size_t) n_spec);
-    if (has_sec)
+    if (any_diff)
     {
-        memset(ctx->acc_dphi_sec, 0, sizeof(fftwf_complex) * (size_t) n_spec);
-        memset(ctx->acc_chi_sec,  0, sizeof(fftwf_complex) * (size_t) n_spec);
+        memset(ctx->acc_dphi_pri, 0, sizeof(fftwf_complex) * (size_t) n_spec);
+        memset(ctx->acc_chi_pri,  0, sizeof(fftwf_complex) * (size_t) n_spec);
+        if (has_sec)
+        {
+            memset(ctx->acc_dphi_sec, 0, sizeof(fftwf_complex) * (size_t) n_spec);
+            memset(ctx->acc_chi_sec,  0, sizeof(fftwf_complex) * (size_t) n_spec);
+        }
     }
 
     atmturb_wfs_render_target_t target;
@@ -616,8 +617,7 @@ void atmturb_rytov_render_step(
             }
             else
             {
-                memcpy(ctx->real_in, ctx->super_pha, sizeof(float) * (size_t) pad_pixels);
-                fftwf_execute(ctx->plan_r2c);
+                fftwf_execute_dft_r2c(ctx->plan_r2c, ctx->super_pha, ctx->spec);
             }
             atmturb_rytov_accumulate_filters(ctx->acc_dphi_pri, ctx->acc_chi_pri,
                                              ctx->spec, plan->filter_a_pri[m],
@@ -640,8 +640,7 @@ void atmturb_rytov_render_step(
                     }
                     else
                     {
-                        memcpy(ctx->real_in, ctx->super_spha, sizeof(float) * (size_t) pad_pixels);
-                        fftwf_execute(ctx->plan_r2c);
+                        fftwf_execute_dft_r2c(ctx->plan_r2c, ctx->super_spha, ctx->spec);
                     }
                     atmturb_rytov_accumulate_filters(ctx->acc_dphi_sec, ctx->acc_chi_sec,
                                                      ctx->spec, plan->filter_a_sec[m],
@@ -649,6 +648,16 @@ void atmturb_rytov_render_step(
                 }
             }
         }
+    }
+
+    if (!any_diff)
+    {
+        atmturb_init_phase_amp(NULL, amp_slice, pup_pixels);
+        if (has_sec)
+        {
+            atmturb_init_phase_amp(NULL, samp_slice, pup_pixels);
+        }
+        return;
     }
 
     fftwf_execute_dft_c2r(ctx->plan_c2r, ctx->acc_dphi_pri, ctx->dphi_out);

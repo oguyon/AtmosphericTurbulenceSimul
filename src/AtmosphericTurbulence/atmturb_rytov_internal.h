@@ -44,7 +44,7 @@ void atmturb_rytov_assemble_output(
 void atmturb_rytov_decompose_periodic(
     atmturb_rytov_ctx_t        *ctx,
     const atmturb_rytov_plan_t *plan,
-    const float                *phi);
+    float                      *phi);
 
 /**
  * atmturb_rytov_accumulate_filters - Multiply spectrum by filters and accumulate

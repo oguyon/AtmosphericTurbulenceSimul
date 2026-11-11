@@ -7,15 +7,16 @@
  * @brief   Wavefront cube spatial contraction and binning operations
  */
 
-#include "AtmosphericTurbulence.h"
-#include "atmturb_types.h"
-
+#define _GNU_SOURCE
 #include <math.h>
 #include <stdio.h>
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+
+#include "AtmosphericTurbulence.h"
+#include "atmturb_types.h"
 
 /**
  * atmturb_bin_complex_wavefront - Spatial 2D boxcar binning of complex wavefront cube
@@ -61,10 +62,12 @@ static void atmturb_bin_complex_wavefront(
                         long in_idx = kk * nx * ny + (pfactor * jj + j) * nx + (pfactor * ii + i);
                         float a = in_amp[in_idx];
                         float p = in_pha[in_idx];
+                        float s, c;
+                        sincosf(p, &s, &c);
                         pharef += a * p;
                         ampref += a;
-                        re += a * cosf(p);
-                        im += a * sinf(p);
+                        re += a * c;
+                        im += a * s;
                     }
                 }
 
@@ -129,9 +132,11 @@ static void atmturb_bin_phaseonly_wavefront(
                     {
                         long in_idx = kk * nx * ny + (pfactor * jj + j) * nx + (pfactor * ii + i);
                         float p = in_pha[in_idx];
+                        float s, c;
+                        sincosf(p, &s, &c);
                         pharef += p;
-                        re += cosf(p);
-                        im += sinf(p);
+                        re += c;
+                        im += s;
                     }
                 }
 

@@ -510,6 +510,7 @@ int make_master_turbulence_screen_pow(
         }
     }
 
+    atmturb_fftwf_ensure_threads();
     fftwf_plan plan = fftwf_plan_dft_2d((int) size, (int) size, buf, buf,
                                         FFTW_FORWARD, FFTW_ESTIMATE);
     fftwf_execute(plan);

@@ -22,10 +22,86 @@
 #include "atmturb_rytov.h"
 #include "atmturb_rytov_internal.h"
 #include "atmturb_rytov_simd.h"
+#include "atmturb_simd.h"
 
 #ifndef M_PI
 #    define M_PI 3.14159265358979323846
 #endif
+
+/**
+ * atmturb_rytov_assemble_pixel - Evaluate one clamped boundary pixel for Rytov output
+ */
+static inline double atmturb_rytov_assemble_pixel(
+    float       *pha,
+    float       *amp,
+    const float *dphi,
+    const float *chi,
+    long         dst_idx,
+    long         src_idx)
+{
+    if (pha != NULL)
+    {
+        pha[dst_idx] += dphi[src_idx];
+    }
+    if (amp == NULL)
+    {
+        return 0.0;
+    }
+    float c = chi[src_idx];
+    c = (c < -3.0f) ? -3.0f : ((c > 3.0f) ? 3.0f : c);
+    float a      = expf(c);
+    amp[dst_idx] = a;
+    return (double) (a * a);
+}
+
+/**
+ * atmturb_rytov_assemble_one_row - Assemble one pupil row with seam-peeled SIMD interior
+ */
+static inline double atmturb_rytov_assemble_one_row(
+    long         y,
+    long         pup_size,
+    long         guard_pix,
+    long         pad_size,
+    float       *pha,
+    float       *amp,
+    const float *dphi,
+    const float *chi)
+{
+    long max_clamp = (pup_size > 2) ? (pup_size - 2) : 0;
+    long sy        = (guard_pix == 0 && (y == 0 || y == pup_size - 1))
+                         ? ((y == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
+                         : y;
+    long src_row   = (sy + guard_pix) * pad_size + guard_pix;
+    long dst_row   = y * pup_size;
+
+    if (guard_pix > 0)
+    {
+        return atmturb_rytov_simd_assemble_row(
+            (pha != NULL) ? &pha[dst_row] : NULL,
+            (amp != NULL) ? &amp[dst_row] : NULL,
+            &dphi[src_row], &chi[src_row], pup_size);
+    }
+
+    if (pup_size <= 2)
+    {
+        double s = 0.0;
+        for (long x = 0; x < pup_size; x++)
+        {
+            long sx = (x == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp;
+            s += atmturb_rytov_assemble_pixel(pha, amp, dphi, chi, dst_row + x, src_row + sx);
+        }
+        return s;
+    }
+
+    double sum_i = atmturb_rytov_assemble_pixel(pha, amp, dphi, chi, dst_row, src_row + 1);
+    sum_i += atmturb_rytov_simd_assemble_row(
+        (pha != NULL) ? &pha[dst_row + 1] : NULL,
+        (amp != NULL) ? &amp[dst_row + 1] : NULL,
+        &dphi[src_row + 1], &chi[src_row + 1], pup_size - 2);
+    sum_i += atmturb_rytov_assemble_pixel(
+        pha, amp, dphi, chi, dst_row + pup_size - 1, src_row + pup_size - 2);
+    return sum_i;
+}
 
 /**
  * atmturb_rytov_assemble_output - Add diffractive phase and normalize amplitude
@@ -46,99 +122,53 @@ void atmturb_rytov_assemble_output(
     const float *dphi,
     const float *chi)
 {
-    long npix = pup_size * pup_size;
+    long   npix  = pup_size * pup_size;
     double sum_i = 0.0;
-    long max_clamp = (pup_size > 2) ? (pup_size - 2) : 0;
 
 #ifdef _OPENMP
-    #pragma omp parallel for if(!omp_in_parallel() && pup_size >= 128) \
-        reduction(+:sum_i) schedule(static)
-#endif
-    for (long y = 0; y < pup_size; y++)
+    if (pup_size >= 512 && !omp_in_parallel())
     {
-        long sy = (guard_pix == 0 && (y == 0 || y == pup_size - 1))
-                      ? ((y == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
-                      : y;
-        long src_row = (sy + guard_pix) * pad_size + guard_pix;
-        long dst_row = y * pup_size;
-
-        for (long x = 0; x < pup_size; x++)
+        int max_t = omp_get_max_threads();
+        int nth   = (max_t > 8) ? 8 : max_t;
+        #pragma omp parallel for num_threads(nth) reduction(+ : sum_i) schedule(static)
+        for (long y = 0; y < pup_size; y++)
         {
-            long sx = (guard_pix == 0 && (x == 0 || x == pup_size - 1))
-                          ? ((x == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
-                          : x;
-            long src_idx = src_row + sx;
-            long dst_idx = dst_row + x;
-
-            if (pha != NULL)
-            {
-                pha[dst_idx] += dphi[src_idx];
-            }
-            if (amp != NULL)
-            {
-                float c = chi[src_idx];
-                if (c > 3.0f)
-                {
-                    c = 3.0f;
-                }
-                else if (c < -3.0f)
-                {
-                    c = -3.0f;
-                }
-                float a = expf(c);
-                amp[dst_idx] = a;
-                sum_i += (double) (a * a);
-            }
+            sum_i += atmturb_rytov_assemble_one_row(y, pup_size, guard_pix, pad_size,
+                                                    pha, amp, dphi, chi);
+        }
+    }
+    else
+#endif
+    {
+        for (long y = 0; y < pup_size; y++)
+        {
+            sum_i += atmturb_rytov_assemble_one_row(y, pup_size, guard_pix, pad_size,
+                                                    pha, amp, dphi, chi);
         }
     }
 
     if (amp != NULL)
     {
         float norm = (sum_i > 0.0) ? (float) (1.0 / sqrt(sum_i / (double) npix)) : 1.0f;
-#ifdef _OPENMP
-        #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
-#endif
-        for (long i = 0; i < npix; i++)
-        {
-            amp[i] *= norm;
-        }
+        atmturb_scale_float_array(amp, amp, norm, npix);
     }
 }
 
 /**
- * atmturb_rytov_decompose_periodic - Subtract harmonic smooth component from 2D spectrum
- * @ctx: Thread execution context.
- * @plan: Propagation plan.
- * @phi: Input 2D real phase screen.
+ * atmturb_rytov_decompose_rows - Apply Moisan harmonic subtraction over row range [j0, j1)
  */
-void atmturb_rytov_decompose_periodic(
+static inline void atmturb_rytov_decompose_rows(
     atmturb_rytov_ctx_t        *ctx,
     const atmturb_rytov_plan_t *plan,
-    const float                *phi)
+    long                        n,
+    long                        n_half,
+    long                        j0,
+    long                        j1)
 {
-    long n    = plan->grid_size;
-    long n_half = n / 2 + 1;
-
-    for (long x = 0; x < n; x++)
+    for (long j = j0; j < j1; j++)
     {
-        ctx->bound_a[x] = phi[0 * n + x] - phi[(n - 1) * n + x];
-    }
-    for (long y = 0; y < n; y++)
-    {
-        ctx->bound_b[y] = phi[y * n + 0] - phi[y * n + (n - 1)];
-    }
-
-    memcpy(ctx->real_in, phi, sizeof(float) * (size_t) (n * n));
-    fftwf_execute(ctx->plan_1d_a);
-    fftwf_execute(ctx->plan_1d_b);
-    fftwf_execute(ctx->plan_r2c);
-
-#ifdef _OPENMP
-    #pragma omp parallel for if(!omp_in_parallel() && n >= 128) schedule(static)
-#endif
-    for (long j = 0; j < n; j++)
-    {
-        float b_re, b_im;
+        float b_re;
+        float b_im;
         if (j <= n / 2)
         {
             b_re = ctx->hat_b[j][0];
@@ -147,18 +177,69 @@ void atmturb_rytov_decompose_periodic(
         else
         {
             long j_sym = n - j;
-            b_re =  ctx->hat_b[j_sym][0];
-            b_im = -ctx->hat_b[j_sym][1];
+            b_re       =  ctx->hat_b[j_sym][0];
+            b_im       = -ctx->hat_b[j_sym][1];
         }
 
-        float ey_re = plan->exp_y[j][0];
-        float ey_im = plan->exp_y[j][1];
-        long row_idx = j * n_half;
+        float ey_re   = plan->exp_y[j][0];
+        float ey_im   = plan->exp_y[j][1];
+        long  row_idx = j * n_half;
 
         atmturb_rytov_simd_decompose_row(&ctx->spec[row_idx], ctx->hat_a,
                                          plan->exp_x, &plan->laplace_inv[row_idx],
                                          ey_re, ey_im, b_re, b_im, n_half);
     }
+}
+
+/**
+ * atmturb_rytov_decompose_periodic - Subtract harmonic smooth component from 2D spectrum
+ * @ctx: Thread execution context.
+ * @plan: Propagation plan.
+ * @phi: Input 2D real phase screen (32/64-byte FFTW-aligned).
+ */
+void atmturb_rytov_decompose_periodic(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    float                      *phi)
+{
+    long                  n      = plan->grid_size;
+    long                  n_half = n / 2 + 1;
+    float       *restrict ba     = ctx->bound_a;
+    float       *restrict bb     = ctx->bound_b;
+    const float *restrict r_top  = phi;
+    const float *restrict r_bot  = &phi[(n - 1) * n];
+
+    #pragma omp simd
+    for (long x = 0; x < n; x++)
+    {
+        ba[x] = r_top[x] - r_bot[x];
+    }
+    for (long y = 0; y < n; y++)
+    {
+        bb[y] = phi[y * n] - phi[y * n + (n - 1)];
+    }
+
+    fftwf_execute(ctx->plan_1d_a);
+    fftwf_execute(ctx->plan_1d_b);
+    fftwf_execute_dft_r2c(ctx->plan_r2c, phi, ctx->spec);
+
+#ifdef _OPENMP
+    if (n >= 512 && !omp_in_parallel())
+    {
+        int max_t = omp_get_max_threads();
+        int nth   = (max_t > 8) ? 8 : max_t;
+        #pragma omp parallel num_threads(nth)
+        {
+            int  tid = omp_get_thread_num();
+            int  nt  = omp_get_num_threads();
+            long j0  = (n * (long) tid) / (long) nt;
+            long j1  = (n * (long) (tid + 1)) / (long) nt;
+            atmturb_rytov_decompose_rows(ctx, plan, n, n_half, j0, j1);
+        }
+        return;
+    }
+#endif
+    atmturb_rytov_decompose_rows(ctx, plan, n, n_half, 0, n);
 }
 
 /**

@@ -146,11 +146,14 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     set_source_files_properties(
         src/AtmosphericTurbulence/atmturb_simd_avx2.c
         src/AtmosphericTurbulence/atmturb_simd_avx2_ops.c
-        src/AtmosphericTurbulence/atmturb_rytov_simd_avx2.c
         src/AtmosphericTurbulence/atmturb_fresnel_simd_avx2.c
-        PROPERTIES COMPILE_FLAGS "-mavx2 -mfma")
+        PROPERTIES COMPILE_FLAGS "-mavx2 -mfma -fno-math-errno")
+    set_source_files_properties(
+        src/AtmosphericTurbulence/atmturb_rytov_simd_avx2.c
+        PROPERTIES COMPILE_FLAGS
+        "-mavx2 -mfma -fno-math-errno -fno-trapping-math -fno-signed-zeros -ffinite-math-only")
     set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx512.c
-        PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq -mavx512bw -mavx512vl -mfma")
+        PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq -mavx512bw -mavx512vl -mfma -fno-math-errno")
 endif()
 
 # CUDA GPU Acceleration
@@ -467,6 +470,7 @@ int main(int argc, char *argv[])
                     -Wl,--allow-shlib-undefined
                 )
                 set_target_properties(${_exe} PROPERTIES
+                    BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR};${CMAKE_INSTALL_RPATH}"
                     INSTALL_RPATH "$ORIGIN/../lib;${CMAKE_INSTALL_RPATH}"
                 )
                 install(TARGETS ${_exe} DESTINATION bin)
@@ -504,6 +508,10 @@ int main(int argc, char *argv[])
         m
     )
 
+    set_target_properties(atmturb-validate-stats PROPERTIES
+        BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR};${CMAKE_INSTALL_RPATH}"
+    )
+
     # ── Performance benchmark executable ──────────────────────────────
     add_executable(atmturb-benchmark-perf
         tests/benchmark_perf.c
@@ -526,6 +534,9 @@ int main(int argc, char *argv[])
     if(USE_CUDA_ACCEL)
         target_link_libraries(atmturb-benchmark-perf PRIVATE CUDA::cudart CUDA::cufft)
     endif()
+    set_target_properties(atmturb-benchmark-perf PROPERTIES
+        BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR};${CMAKE_INSTALL_RPATH}"
+    )
 
     # ── Streaming performance benchmark executable ────────────────────
     add_executable(atmturb-benchmark-stream
@@ -549,4 +560,7 @@ int main(int argc, char *argv[])
     if(USE_CUDA_ACCEL)
         target_link_libraries(atmturb-benchmark-stream PRIVATE CUDA::cudart CUDA::cufft)
     endif()
+    set_target_properties(atmturb-benchmark-stream PROPERTIES
+        BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR};${CMAKE_INSTALL_RPATH}"
+    )
 endif()

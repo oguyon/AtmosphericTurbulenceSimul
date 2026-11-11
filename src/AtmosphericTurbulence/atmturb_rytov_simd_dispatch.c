@@ -40,6 +40,12 @@ typedef struct
         float                         b_re,
         float                         b_im,
         long                          n_half);
+    double (*assemble_row)(
+        float       *restrict pha_row,
+        float       *restrict amp_row,
+        const float *restrict dphi_row,
+        const float *restrict chi_row,
+        long                  len);
     const char *isa_name;
 } atmturb_rytov_simd_ops_t;
 
@@ -82,6 +88,7 @@ use_avx2:
     g_rytov_simd_ops.accumulate_filters         = atmturb_rytov_accumulate_filters_avx2;
     g_rytov_simd_ops.accumulate_filters_rotated = atmturb_rytov_accumulate_filters_rotated_avx2;
     g_rytov_simd_ops.decompose_row              = atmturb_rytov_decompose_row_avx2;
+    g_rytov_simd_ops.assemble_row               = atmturb_rytov_assemble_row_avx2;
     g_rytov_simd_ops.isa_name                   = "AVX2";
     g_rytov_simd_initialized                    = 1;
     return;
@@ -92,6 +99,7 @@ use_scalar:
     g_rytov_simd_ops.accumulate_filters         = atmturb_rytov_accumulate_filters_scalar;
     g_rytov_simd_ops.accumulate_filters_rotated = atmturb_rytov_accumulate_filters_rotated_scalar;
     g_rytov_simd_ops.decompose_row              = atmturb_rytov_decompose_row_scalar;
+    g_rytov_simd_ops.assemble_row               = atmturb_rytov_assemble_row_scalar;
     g_rytov_simd_ops.isa_name                   = "Scalar";
     g_rytov_simd_initialized                    = 1;
 }
@@ -184,4 +192,28 @@ void atmturb_rytov_simd_decompose_row(
     }
     g_rytov_simd_ops.decompose_row(spec_row, hat_a, exp_x, laplace_inv_row,
                                    ey_re, ey_im, b_re, b_im, n_half);
+}
+
+/**
+ * atmturb_rytov_simd_assemble_row - Dispatch Rytov output row assembly to optimal kernel
+ * @pha_row: Destination/in-out phase row (or NULL).
+ * @amp_row: Destination amplitude row (or NULL).
+ * @dphi_row: Source diffractive phase correction row.
+ * @chi_row: Source log-amplitude row.
+ * @len: Number of contiguous pixels in row span.
+ *
+ * Return: Sum of squared amplitudes across the row span.
+ */
+double atmturb_rytov_simd_assemble_row(
+    float       *restrict pha_row,
+    float       *restrict amp_row,
+    const float *restrict dphi_row,
+    const float *restrict chi_row,
+    long                  len)
+{
+    if (__builtin_expect(!g_rytov_simd_initialized, 0))
+    {
+        atmturb_rytov_simd_init_dispatch();
+    }
+    return g_rytov_simd_ops.assemble_row(pha_row, amp_row, dphi_row, chi_row, len);
 }
