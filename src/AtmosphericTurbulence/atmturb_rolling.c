@@ -4,7 +4,12 @@
 
 /**
  * @file    atmturb_rolling.c
- * @brief   Multi-epoch rolling screen management and cross-fading
+ * @brief   Multi-epoch rolling screen management and variance-preserving cross-fading
+ *
+ * Allocates pools of independent master phase screens and subharmonic amplitudes
+ * per turbulent layer and blends consecutive epochs via quadrature weights
+ * w_A = cos(theta), w_B = sin(theta) (w_A^2 + w_B^2 = 1) to prevent wrap-around
+ * periodicity and simulate temporal boiling.
  */
 
 #include <math.h>
@@ -177,6 +182,16 @@ static int atmturb_rolling_init_layer_screens(
 
 /**
  * atmturb_rolling_init - Allocate and generate rolling screens and low-order modes
+ * @r:           Output rolling context to initialize.
+ * @prof:        Active multi-layer atmospheric turbulence profile.
+ * @geom:        Computed observing geometry and layer decorrelation times.
+ * @msize:       Master phase screen linear dimension [pixels].
+ * @nbframes:    Total simulation frame count (used to size epoch screen pool).
+ * @time_step_s: Physics time step per frame [s].
+ * @precision:   Master screen FFT precision (0=single, 1=double).
+ * @seed:        Master PRNG seed (0 selects clock-derived seed).
+ *
+ * Return: 0 on success, -1 on allocation or screen synthesis failure.
  */
 int atmturb_rolling_init(
     atmturb_rolling_t       *r,
@@ -247,6 +262,7 @@ int atmturb_rolling_init(
 
 /**
  * atmturb_rolling_free - Release all resources associated with rolling context
+ * @r: Rolling context whose per-layer screen descriptors are freed (safe on NULL).
  */
 void atmturb_rolling_free(
     atmturb_rolling_t *r)
@@ -268,6 +284,12 @@ void atmturb_rolling_free(
 
 /**
  * atmturb_rolling_get_frame - Evaluate screen pointers, weights, and mode blending for frame t
+ * @r:           Initialized rolling simulation context.
+ * @layer_idx:   Turbulence layer index (0..r->nlayers - 1).
+ * @t:           Zero-based simulation frame index.
+ * @time_step_s: Physics time step per frame [s].
+ * @out:         Output descriptor receiving active screen pointers, quadrature weights,
+ *               and blended subharmonic mode amplitudes.
  */
 void atmturb_rolling_get_frame(
     const atmturb_rolling_t *r,

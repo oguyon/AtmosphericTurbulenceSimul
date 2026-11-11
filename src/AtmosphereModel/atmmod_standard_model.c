@@ -52,6 +52,11 @@ double AtmosphereModel_H2O_Saturation(double T)
 int AtmosphereModel_save_stdAtmModel(
     const char *fname)
 {
+    if (init_AtmosphereModel() != 0)
+    {
+        return -1;
+    }
+
     FILE *fp = fopen(fname, "w");
     if (fp == NULL)
     {
@@ -386,6 +391,8 @@ static void atmmod_compute_raw_profiles(FILE *fp, struct nrlmsise_input *input,
  * @TotPart0: Total particles per bin array.
  * @TotPart1: Background H2O particles.
  * @TotPart2: Exponential H2O particles.
+ *
+ * Return: 0 on success, -1 if requested precipitable water is below background.
  */
 static int atmmod_adjust_water_vapor(const double *TotPart0, double TotPart1, double TotPart2)
 {
@@ -460,6 +467,8 @@ static int atmmod_adjust_water_vapor(const double *TotPart0, double TotPart1, do
                                   exp(-3.0 * pow(h / 100000.0, 4.0)));
         }
     }
+
+    return 0;
 }
 
 /**

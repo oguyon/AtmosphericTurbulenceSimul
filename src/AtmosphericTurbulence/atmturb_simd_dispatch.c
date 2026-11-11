@@ -143,6 +143,9 @@ use_scalar:
     g_simd_initialized              = 1;
 }
 
+/**
+ * atmturb_simd_constructor - Shared-library load-time initializer for extrusion SIMD dispatch table
+ */
 __attribute__((constructor)) static void atmturb_simd_constructor(void)
 {
     atmturb_simd_init_dispatch();

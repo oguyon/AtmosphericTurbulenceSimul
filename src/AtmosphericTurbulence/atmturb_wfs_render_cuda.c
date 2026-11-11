@@ -16,7 +16,7 @@
 #include <omp.h>
 #endif
 
-#include "CommandLineInterface/CLIcore.h"
+#include "milk_runnable.h"
 #include "atmturb_cuda.h"
 #include "atmturb_cuda_rytov.h"
 #include "atmturb_geometry.h"

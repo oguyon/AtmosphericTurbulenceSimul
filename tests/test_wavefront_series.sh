@@ -8,7 +8,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-export LD_LIBRARY_PATH="$REPO_ROOT/_build:${LD_LIBRARY_PATH:-}"
+MILK_INSTALL_DIR="/home/oguyon/src-frameworkdev/milk/_install/milk-1.03.00"
+if [[ -d "$MILK_INSTALL_DIR" ]]; then
+    export PATH="$MILK_INSTALL_DIR/bin:${PATH}"
+    export LD_LIBRARY_PATH="$REPO_ROOT/_build:$MILK_INSTALL_DIR/lib:${LD_LIBRARY_PATH:-}"
+else
+    export LD_LIBRARY_PATH="$REPO_ROOT/_build:${LD_LIBRARY_PATH:-}"
+fi
 
 # Locate milk-fpsexec-atmturb-mkwfs
 MKWFS_EXEC="${MILK_MKWFS_EXEC:-}"
@@ -16,9 +22,9 @@ MKWFS_EXEC="${MILK_MKWFS_EXEC:-}"
 if [[ -z "$MKWFS_EXEC" ]]; then
     CANDIDATES=(
         "$REPO_ROOT/_build/milk-fpsexec-atmturb-mkwfs"
+        "$MILK_INSTALL_DIR/bin/milk-fpsexec-atmturb-mkwfs"
         "$REPO_ROOT/../../_build/plugins/milkatmturb/milk-fpsexec-atmturb-mkwfs"
         "$REPO_ROOT/../_build/plugins/milkatmturb/milk-fpsexec-atmturb-mkwfs"
-        "/home/oguyon/src/milk-framework-dev/_build/plugins/milkatmturb/milk-fpsexec-atmturb-mkwfs"
         "$(command -v milk-fpsexec-atmturb-mkwfs 2>/dev/null || true)"
     )
     for c in "${CANDIDATES[@]}"; do
@@ -62,10 +68,17 @@ echo "Executable: $MKWFS_EXEC"
 
 # Create a temporary scratch workspace
 TEST_TMPDIR="$(mktemp -d /tmp/test_milkatmturb_XXXXXX)"
-MILK_SHM_DIR="${MILK_SHM_DIR:-/milk/shm}"
+if [[ -d /milk/shm-fdev ]]; then
+    export MILK_SHM_DIR="/milk/shm-fdev"
+else
+    export MILK_SHM_DIR="${MILK_SHM_DIR:-/milk/shm}"
+fi
 FPS_NAME="twfs$$_mkwfs"
 # unique FPS name avoids reusing a stale parameter set; remove it on exit
-trap 'rm -rf "$TEST_TMPDIR"; rm -f "$MILK_SHM_DIR/${FPS_NAME}.fps.shm"' EXIT
+cleanup() {
+    rm -rf "$TEST_TMPDIR" "$MILK_SHM_DIR/${FPS_NAME}.fps.shm" "$MILK_SHM_DIR/${FPS_NAME}.fps.d"
+}
+trap cleanup EXIT
 
 cd "$TEST_TMPDIR"
 

@@ -234,7 +234,12 @@ void atmturb_rytov_decompose_row_avx2(
     }
 }
 
-#else
+#else /* !defined(__AVX2__) */
+
+/*
+ * Scalar fallback wrappers compiled when the translation unit is built without
+ * AVX2 target support (e.g. non-x86_64 architectures or scalar-only builds).
+ */
 
 void atmturb_rytov_accumulate_filters_avx2(
     fftwf_complex *restrict       acc_dphi,

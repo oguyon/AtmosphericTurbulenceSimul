@@ -230,6 +230,12 @@ float *atmturb_cuda_sync_device_masters(
     return s_d_m;
 }
 
+/**
+ * atmturb_cuda_sync_masters - Upload simulation master phase screens to cached device memory
+ * @p: Simulation parameters containing master screen dimensions and host pointers.
+ *
+ * Return: 0 on success, -1 on device allocation or transfer failure.
+ */
 static int atmturb_cuda_sync_masters(
     const atmturb_cuda_sim_params_t *p)
 {
@@ -529,6 +535,13 @@ void atmturb_cuda_geom_stream_free(
     free(ctx);
 }
 
+/**
+ * atmturb_cuda_host_register - Page-lock an existing host buffer for asynchronous CUDA DMA
+ * @ptr: Host memory pointer (e.g. ImageStreamIO shared memory region).
+ * @size: Size of region in bytes.
+ *
+ * Return: 0 on success, -1 on invalid arguments or CUDA registration failure.
+ */
 int atmturb_cuda_host_register(
     void   *ptr,
     size_t  size)
@@ -541,6 +554,10 @@ int atmturb_cuda_host_register(
     return (err == cudaSuccess) ? 0 : -1;
 }
 
+/**
+ * atmturb_cuda_host_unregister - Unpin a previously registered host memory buffer
+ * @ptr: Host memory pointer (safe to pass NULL).
+ */
 void atmturb_cuda_host_unregister(
     void *ptr)
 {
@@ -550,6 +567,13 @@ void atmturb_cuda_host_unregister(
     }
 }
 
+/**
+ * atmturb_cuda_host_alloc - Allocate page-locked pinned host memory for zero-copy/DMA transfers
+ * @ptr: Output pointer receiving allocated pinned memory address.
+ * @size: Requested allocation size in bytes.
+ *
+ * Return: 0 on success, -1 on invalid arguments or CUDA allocation failure.
+ */
 int atmturb_cuda_host_alloc(
     void  **ptr,
     size_t  size)
@@ -567,6 +591,10 @@ int atmturb_cuda_host_alloc(
     return 0;
 }
 
+/**
+ * atmturb_cuda_host_free - Free page-locked host memory allocated by atmturb_cuda_host_alloc()
+ * @ptr: Pinned host memory pointer (safe to pass NULL).
+ */
 void atmturb_cuda_host_free(
     void *ptr)
 {

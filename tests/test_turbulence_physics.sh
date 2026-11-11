@@ -15,7 +15,12 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-export LD_LIBRARY_PATH="$REPO_ROOT/_build:${LD_LIBRARY_PATH:-}"
+MILK_INSTALL_DIR="/home/oguyon/src-frameworkdev/milk/_install/milk-1.03.00"
+if [[ -d "$MILK_INSTALL_DIR" ]]; then
+    export LD_LIBRARY_PATH="$REPO_ROOT/_build:$MILK_INSTALL_DIR/lib:${LD_LIBRARY_PATH:-}"
+else
+    export LD_LIBRARY_PATH="$REPO_ROOT/_build:${LD_LIBRARY_PATH:-}"
+fi
 MILK_SHM_DIR="${MILK_SHM_DIR:-$([ -d /milk/shm-fdev ] && echo /milk/shm-fdev || echo /milk/shm)}"
 export MILK_SHM_DIR
 FPS_PREFIX="tphys$$"
@@ -24,9 +29,9 @@ find_executable() {
     local name="$1"
     local candidates=(
         "$REPO_ROOT/_build/$name"
+        "$MILK_INSTALL_DIR/bin/$name"
         "$REPO_ROOT/../../_build/plugins/milkatmturb/$name"
         "$REPO_ROOT/../_build/plugins/milkatmturb/$name"
-        "/home/oguyon/src/milk-framework-dev/_build/plugins/milkatmturb/$name"
         "$(command -v "$name" 2>/dev/null || true)"
     )
     for c in "${candidates[@]}"; do
@@ -56,7 +61,7 @@ MKAOLOOP=$(find_executable milk-fpsexec-atmturb-aoloop) \
 TEST_TMPDIR="$(mktemp -d /tmp/test_turb_physics_XXXXXX)"
 cleanup() {
     rm -rf "$TEST_TMPDIR"
-    rm -f "$MILK_SHM_DIR/${FPS_PREFIX}"_*.fps.shm
+    rm -rf "$MILK_SHM_DIR/${FPS_PREFIX}"_*.fps.shm "$MILK_SHM_DIR/${FPS_PREFIX}"_*.fps.d
 }
 trap cleanup EXIT
 

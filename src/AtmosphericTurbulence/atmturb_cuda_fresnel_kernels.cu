@@ -136,6 +136,12 @@ __global__ static void atmturb_cuda_fresnel_tf_mul_vec2_kernel(
     d_field[i] = out;
 }
 
+/**
+ * atmturb_cuda_fresnel_tf_mul_tail_kernel - Multiply odd trailing complex element by OTF
+ * @d_field: Complex spatial frequency field array.
+ * @d_tf: Complex optical transfer function array.
+ * @idx: Element index (`npix - 1`) when `npix` is odd.
+ */
 __global__ static void atmturb_cuda_fresnel_tf_mul_tail_kernel(
     cufftComplex       *d_field,
     const cufftComplex *d_tf,

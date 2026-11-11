@@ -96,6 +96,9 @@ use_scalar:
     g_rytov_simd_initialized                    = 1;
 }
 
+/**
+ * atmturb_rytov_simd_constructor - Shared-library load-time initializer for Rytov SIMD table
+ */
 __attribute__((constructor)) static void atmturb_rytov_simd_constructor(void)
 {
     atmturb_rytov_simd_init_dispatch();

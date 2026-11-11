@@ -84,6 +84,9 @@ use_scalar:
     g_fresnel_simd_initialized             = 1;
 }
 
+/**
+ * atmturb_fresnel_simd_constructor - Shared-library load-time initializer for Fresnel SIMD table
+ */
 __attribute__((constructor)) static void atmturb_fresnel_simd_constructor(void)
 {
     atmturb_fresnel_simd_init_dispatch();

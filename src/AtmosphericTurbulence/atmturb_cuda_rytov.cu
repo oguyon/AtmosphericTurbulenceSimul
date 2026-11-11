@@ -526,7 +526,8 @@ static void atmturb_cuda_rytov_accum_spectrum(
             {
                 atmturb_cuda_extract_bounds_launch(s_d_super_spha, s_d_bounds, (int) pad, stream);
                 cufftExecR2C(s_plan_1d, (cufftReal *) s_d_bounds, (cufftComplex *) s_d_hat_bounds);
-                cufftExecR2C(s_plan_2d_r2c, (cufftReal *) s_d_super_spha, (cufftComplex *) s_d_spec);
+                cufftExecR2C(
+                    s_plan_2d_r2c, (cufftReal *) s_d_super_spha, (cufftComplex *) s_d_spec);
                 args.d_acc_dphi = d_acc_dphi_sec;
                 args.d_acc_chi  = d_acc_chi_sec;
                 args.d_filt_a   = s_d_filt_a_sec + off;
@@ -636,7 +637,8 @@ static void atmturb_cuda_rytov_step_ops(
                                      s_d_frame_spha[slot], s_d_frame_samp[slot],
                                      d_dphi_out_sec, d_chi_out_sec,
                                      s_d_sum_I[slot], stream);
-        atmturb_cuda_normalize_launch(s_d_frame_samp[slot], (int) pup_pixels, s_d_sum_I[slot], stream);
+        atmturb_cuda_normalize_launch(
+            s_d_frame_samp[slot], (int) pup_pixels, s_d_sum_I[slot], stream);
     }
 
     if (params->remove_piston)
@@ -901,27 +903,23 @@ int atmturb_cuda_rytov_render(
         if (params->pha != NULL)
         {
             cudaMemcpyAsync(params->pha + frame_off, s_d_frame_pha[bslot],
-                            sizeof(float) * (size_t) pup_pixels,
-                            cudaMemcpyDeviceToHost, s_stream);
+                            sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
         }
         if (params->amp != NULL)
         {
             cudaMemcpyAsync(params->amp + frame_off, s_d_frame_amp[bslot],
-                            sizeof(float) * (size_t) pup_pixels,
-                            cudaMemcpyDeviceToHost, s_stream);
+                            sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
         }
 
         if (params->has_sec && params->spha != NULL)
         {
             cudaMemcpyAsync(params->spha + frame_off, s_d_frame_spha[bslot],
-                            sizeof(float) * (size_t) pup_pixels,
-                            cudaMemcpyDeviceToHost, s_stream);
+                            sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
         }
         if (params->has_sec && params->samp != NULL)
         {
             cudaMemcpyAsync(params->samp + frame_off, s_d_frame_samp[bslot],
-                            sizeof(float) * (size_t) pup_pixels,
-                            cudaMemcpyDeviceToHost, s_stream);
+                            sizeof(float) * (size_t) pup_pixels, cudaMemcpyDeviceToHost, s_stream);
         }
     }
 
@@ -934,6 +932,11 @@ int atmturb_cuda_rytov_render(
     return 0;
 }
 
+/**
+ * atmturb_cuda_rytov_create_event - Create an untimed CUDA event handle for DMA synchronization
+ * @ev: Output opaque event pointer.
+ * Return: 0 on success, -1 on failure.
+ */
 int atmturb_cuda_rytov_create_event(
     void **ev)
 {
@@ -951,6 +954,10 @@ int atmturb_cuda_rytov_create_event(
     return 0;
 }
 
+/**
+ * atmturb_cuda_rytov_destroy_event - Destroy a CUDA event handle created for Rytov DMA sync
+ * @ev: Opaque CUDA event pointer (safe to pass NULL).
+ */
 void atmturb_cuda_rytov_destroy_event(
     void *ev)
 {
@@ -960,6 +967,11 @@ void atmturb_cuda_rytov_destroy_event(
     }
 }
 
+/**
+ * atmturb_cuda_rytov_record_event - Record an event on the active Rytov CUDA execution stream
+ * @ev: Opaque CUDA event pointer.
+ * Return: 0 on success, -1 on invalid state or CUDA error.
+ */
 int atmturb_cuda_rytov_record_event(
     void *ev)
 {
@@ -970,6 +982,11 @@ int atmturb_cuda_rytov_record_event(
     return (cudaEventRecord((cudaEvent_t) ev, s_stream) == cudaSuccess) ? 0 : -1;
 }
 
+/**
+ * atmturb_cuda_rytov_wait_event - Block host thread until the recorded Rytov CUDA event completes
+ * @ev: Opaque CUDA event pointer.
+ * Return: 0 on success, -1 on NULL handle or CUDA error.
+ */
 int atmturb_cuda_rytov_wait_event(
     void *ev)
 {

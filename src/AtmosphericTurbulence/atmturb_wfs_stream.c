@@ -5,6 +5,10 @@
 /**
  * @file    atmturb_wfs_stream.c
  * @brief   Frame-by-frame 2D shared memory wavefront streaming engine
+ *
+ * Drives real-time paced, finite, and unpaced 2D ImageStreamIO shared-memory
+ * wavefront emission across CPU (scalar/SIMD) and CUDA GPU (geometric, Fresnel,
+ * and double-buffered asynchronous Rytov) engines with FPS processinfo control.
  */
 
 #include <math.h>
@@ -15,6 +19,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "fps.h"
+#include "fps_unit_startstop.h"
+#include "processinfo_signals.h"
+#include "processtools.h"
 #include "AtmosphereModel/AtmosphereModel.h"
 #include "AtmosphericTurbulence.h"
 #include "atmturb_compat.h"
@@ -31,9 +39,7 @@
 #include "atmturb_cuda_rytov.h"
 #include "atmturb_wfs_render_cuda.h"
 #include "atmturb_wfs_stream.h"
-#include "ImageStreamIO/ImageStreamIO.h"
-#include "fps.h"
-#include "processtools.h"
+#include "atmturb_wfs_stream_internal.h"
 
 static volatile sig_atomic_t g_stream_stop = 0;
 static PROCESSINFO          *g_stream_processinfo = NULL;
@@ -133,55 +139,16 @@ static inline void atmturb_wfs_stream_post(
 }
 
 /**
- * struct atmturb_stream_state_t - Container for stream execution state
- * @id_pha: Phase image ID.
- * @id_amp: Amplitude image ID.
- * @id_spha: Secondary phase image ID.
- * @id_samp: Secondary amplitude image ID.
- * @pha: Phase pointer.
- * @amp: Amplitude pointer.
- * @spha: Secondary phase pointer.
- * @samp: Secondary amplitude pointer.
- * @fplan: Fresnel plan pointer.
- * @fctx: Fresnel context pointer.
- * @rplan: Rytov plan pointer.
- * @rctx: Rytov context pointer.
- * @cuda_rstream: GPU Rytov streaming context pointer.
- * @cuda_gstream: GPU geometric streaming context pointer.
- */
-typedef struct
-{
-    imageID                       id_pha;
-    imageID                       id_amp;
-    imageID                       id_spha;
-    imageID                       id_samp;
-    float                        *pha;
-    float                        *amp;
-    float                        *spha;
-    float                        *samp;
-    const atmturb_fresnel_plan_t *fplan;
-    atmturb_fresnel_ctx_t        *fctx;
-    const atmturb_rytov_plan_t   *rplan;
-    atmturb_rytov_ctx_t          *rctx;
-    atmturb_cuda_fresnel_stream_t *cuda_fstream;
-    atmturb_cuda_rytov_stream_t  *cuda_rstream;
-    atmturb_cuda_geom_stream_t   *cuda_gstream;
-    int                           is_cuda;
-    float                        *dma_pha[2];
-    float                        *dma_amp[2];
-    float                        *dma_spha[2];
-    float                        *dma_samp[2];
-} atmturb_stream_state_t;
-
-/**
  * atmturb_wfs_stream_render_step - Compute a single simulation frame
- * @rsim: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @st: Stream state container.
- * @t: Frame index.
+ * @rsim:        Rolling simulation context.
+ * @geom:        Computed observing geometry.
+ * @st:          Stream state container.
+ * @t:           Frame index.
  * @time_step_s: Time step in seconds.
  * @master_size: Master screen linear dimension.
- * @pup_size: Linear pupil dimension.
+ * @pup_size:    Linear pupil dimension.
+ *
+ * Return: 0 on success, -1 on propagation engine failure.
  */
 static int atmturb_wfs_stream_render_step(
     const atmturb_rolling_t *rsim,
@@ -407,6 +374,61 @@ static inline int atmturb_wfs_stream_pipeline_launch_frame(
 }
 
 /**
+ * atmturb_wfs_stream_should_stop - Check if local signal or processinfo requested loop exit
+ * @pinfo: Active processinfo handle, or NULL.
+ *
+ * Return: Non-zero if streaming should terminate.
+ */
+static inline int atmturb_wfs_stream_should_stop(
+    const PROCESSINFO *pinfo)
+{
+    return (g_stream_stop != 0 || (pinfo != NULL && processinfo_exit_requested(pinfo)));
+}
+
+/**
+ * atmturb_wfs_stream_procinfo_step - Advance processinfo loop state between streamed frames
+ * @pinfo: Active processinfo handle.
+ *
+ * Return: 1 to proceed to next frame, 0 if exit was requested.
+ */
+static int atmturb_wfs_stream_procinfo_step(
+    PROCESSINFO *pinfo)
+{
+    processinfo_exec_end(pinfo);
+    for (;;)
+    {
+        (void) processinfo_loopstep(pinfo);
+        fps_unit_tick(pinfo->loopcnt);
+        if (atmturb_wfs_stream_should_stop(pinfo) ||
+            (pinfo->loopcntMax > 0 && pinfo->loopcnt >= pinfo->loopcntMax))
+        {
+            return 0;
+        }
+        if (dcfpsptr != NULL && dcfpsptr->md != NULL &&
+            (dcfpsptr->md->signal & FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE))
+        {
+            fps_to_processinfo(dcfpsptr, pinfo);
+            if (pinfo->loopcntMax == 1)
+            {
+                pinfo->loopcntMax = -1;
+            }
+            dcfpsptr->md->signal &= ~FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
+        }
+        processinfo_waitoninputstream(pinfo);
+        if (atmturb_wfs_stream_should_stop(pinfo))
+        {
+            return 0;
+        }
+        if (pinfo->triggerstatus != PROCESSINFO_TRIGGERSTATUS_TIMEDOUT ||
+            pinfo->triggermode != PROCESSINFO_TRIGGERMODE_SEMAPHORE)
+        {
+            processinfo_exec_start(pinfo);
+            return 1;
+        }
+    }
+}
+
+/**
  * atmturb_wfs_stream_loop_pipelined - Asynchronous double-buffered GPU streaming loop
  * @rsim: Rolling simulation context.
  * @geom: Computed observing geometry.
@@ -429,7 +451,8 @@ static long atmturb_wfs_stream_loop_pipelined(
     PROCESSINFO *pinfo = g_stream_processinfo;
     long t = 0;
     int in_flight = (atmturb_wfs_stream_pipeline_launch_frame(rsim, geom, params, st, 0, 0) == 0);
-    if (in_flight > 0 && g_stream_stop == 0 && (max_frames <= 0 || 1 < max_frames))
+    if (in_flight > 0 && !atmturb_wfs_stream_should_stop(pinfo) &&
+        (max_frames <= 0 || 1 < max_frames))
     {
         if (atmturb_wfs_stream_pipeline_launch_frame(rsim, geom, params, st, 1, 1) == 0)
         {
@@ -453,7 +476,7 @@ static long atmturb_wfs_stream_loop_pipelined(
         }
 
         long next_t = t + 2;
-        if (g_stream_stop == 0 && (max_frames <= 0 || next_t < max_frames))
+        if (!atmturb_wfs_stream_should_stop(pinfo) && (max_frames <= 0 || next_t < max_frames))
         {
             if (atmturb_wfs_stream_pipeline_launch_frame(
                     rsim, geom, params, st, next_t, cur_buf) == 0)
@@ -462,25 +485,13 @@ static long atmturb_wfs_stream_loop_pipelined(
             }
         }
 
-        if (pinfo != NULL && t > 0)
+        if (pinfo != NULL && t > 0 && !atmturb_wfs_stream_procinfo_step(pinfo))
         {
-            processinfo_exec_end(pinfo);
-            if (processinfo_loopstep(pinfo) == 0 || g_stream_stop != 0)
-            {
-                t++;
-                break;
-            }
-            if (dcfpsptr != NULL && dcfpsptr->md != NULL &&
-                (dcfpsptr->md->signal & FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE))
-            {
-                fps_to_processinfo(dcfpsptr, pinfo);
-                dcfpsptr->md->signal &= ~FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
-            }
-            processinfo_waitoninputstream(pinfo);
-            processinfo_exec_start(pinfo);
+            t++;
+            break;
         }
 
-        if (g_stream_stop != 0 || (max_frames > 0 && (t + 1) >= max_frames))
+        if (atmturb_wfs_stream_should_stop(pinfo) || (max_frames > 0 && (t + 1) >= max_frames))
         {
             t++;
             break;
@@ -530,32 +541,14 @@ static long atmturb_wfs_stream_loop(
 
     for (t = 0; ; t++)
     {
-        if (g_stream_stop != 0 || (max_frames > 0 && t >= max_frames))
+        if (atmturb_wfs_stream_should_stop(pinfo) || (max_frames > 0 && t >= max_frames))
         {
             break;
         }
 
-        if (pinfo != NULL && t > 0)
+        if (pinfo != NULL && t > 0 && !atmturb_wfs_stream_procinfo_step(pinfo))
         {
-            processinfo_exec_end(pinfo);
-            if (processinfo_loopstep(pinfo) == 0)
-            {
-                break;
-            }
-            if (dcfpsptr != NULL && dcfpsptr->md != NULL &&
-                (dcfpsptr->md->signal & FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE))
-            {
-                fps_to_processinfo(dcfpsptr, pinfo);
-                dcfpsptr->md->signal &= ~FUNCTION_PARAMETER_STRUCT_SIGNAL_UPDATE;
-            }
-            processinfo_waitoninputstream(pinfo);
-            if (pinfo->triggerstatus == PROCESSINFO_TRIGGERSTATUS_TIMEDOUT &&
-                pinfo->triggermode == PROCESSINFO_TRIGGERMODE_SEMAPHORE)
-            {
-                t--;
-                continue;
-            }
-            processinfo_exec_start(pinfo);
+            break;
         }
 
         if (atmturb_wfs_stream_render_step(rsim, geom, st, t, params->time_step_s,
@@ -563,7 +556,6 @@ static long atmturb_wfs_stream_loop(
         {
             struct timespec ts_now;
             clock_gettime(CLOCK_REALTIME, &ts_now);
-
             atmturb_wfs_stream_publish(st, frame_pixels, &ts_now);
         }
     }
@@ -647,29 +639,16 @@ static void atmturb_wfs_stream_print_output_targets(
 }
 
 /**
- * struct atmturb_stream_engines_t - Propagation plans and execution contexts
- * @fplan: Fresnel propagation plan.
- * @fctx: Fresnel execution context.
- * @rplan: Rytov propagation plan.
- * @rctx: Rytov execution context.
- */
-typedef struct
-{
-    atmturb_fresnel_plan_t fplan;
-    atmturb_fresnel_ctx_t  fctx;
-    atmturb_rytov_plan_t   rplan;
-    atmturb_rytov_ctx_t    rctx;
-} atmturb_stream_engines_t;
-
-/**
  * atmturb_wfs_stream_init_engine - Initialize GPU or CPU propagation engine
- * @st: Stream state container.
- * @rsim: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @prof: Active atmospheric profile.
- * @params: Observation parameters container.
+ * @st:       Stream state container.
+ * @rsim:     Rolling simulation context.
+ * @geom:     Computed observing geometry.
+ * @prof:     Active atmospheric profile.
+ * @params:   Observation parameters container.
  * @pup_size: Linear dimension of pupil.
- * @eng: CPU propagation engine container.
+ * @eng:      CPU propagation engine container.
+ *
+ * Return: 0 on success, -1 on plan or context allocation failure.
  */
 static int atmturb_wfs_stream_init_engine(
     atmturb_stream_state_t          *st,
@@ -780,56 +759,6 @@ static void atmturb_wfs_stream_free_engine(
 }
 
 /**
- * atmturb_wfs_dma_free_pair - Free a pair of pinned host buffers
- * @p: Array of 2 pointers to release.
- */
-static void atmturb_wfs_dma_free_pair(float **p)
-{
-    for (int b = 0; b < 2; b++)
-    {
-        if (p[b] != NULL)
-        {
-            atmturb_cuda_host_free(p[b]);
-            p[b] = NULL;
-        }
-    }
-}
-
-/**
- * atmturb_wfs_dma_alloc_pair - Allocate a pair of pinned host buffers
- * @p: Array of 2 pointers to allocate.
- * @nbytes: Size in bytes of each buffer.
- */
-static int atmturb_wfs_dma_alloc_pair(
-    float **p,
-    size_t  nbytes)
-{
-    if (atmturb_cuda_host_alloc((void **) &p[0], nbytes) != 0 ||
-        atmturb_cuda_host_alloc((void **) &p[1], nbytes) != 0)
-    {
-        atmturb_wfs_dma_free_pair(p);
-        return -1;
-    }
-    return 0;
-}
-
-static inline void atmturb_wfs_host_reg_channel(imageID id, size_t nbytes)
-{
-    if (id >= 0)
-    {
-        atmturb_cuda_host_register(dcimg[id].array.F, nbytes);
-    }
-}
-
-static inline void atmturb_wfs_host_unreg_channel(imageID id)
-{
-    if (id >= 0)
-    {
-        atmturb_cuda_host_unregister(dcimg[id].array.F);
-    }
-}
-
-/**
  * atmturb_wfs_stream_cleanup_dma - Release pinned host buffers and unregister SHM
  * @st: Stream state container.
  */
@@ -841,19 +770,29 @@ static void atmturb_wfs_stream_cleanup_dma(
         return;
     }
 
-    if (st->cuda_gstream != NULL)
+    const imageID ids[4]   = {st->id_pha, st->id_amp, st->id_spha, st->id_samp};
+    float       **pairs[4] = {st->dma_pha, st->dma_amp, st->dma_spha, st->dma_samp};
+
+    for (int ch = 0; ch < 4; ch++)
     {
-        atmturb_wfs_host_unreg_channel(st->id_pha);
-        atmturb_wfs_host_unreg_channel(st->id_amp);
-        atmturb_wfs_host_unreg_channel(st->id_spha);
-        atmturb_wfs_host_unreg_channel(st->id_samp);
-    }
-    else
-    {
-        atmturb_wfs_dma_free_pair(st->dma_pha);
-        atmturb_wfs_dma_free_pair(st->dma_amp);
-        atmturb_wfs_dma_free_pair(st->dma_spha);
-        atmturb_wfs_dma_free_pair(st->dma_samp);
+        if (st->cuda_gstream != NULL)
+        {
+            if (ids[ch] >= 0)
+            {
+                atmturb_cuda_host_unregister(dcimg[ids[ch]].array.F);
+            }
+        }
+        else
+        {
+            for (int b = 0; b < 2; b++)
+            {
+                if (pairs[ch][b] != NULL)
+                {
+                    atmturb_cuda_host_free(pairs[ch][b]);
+                    pairs[ch][b] = NULL;
+                }
+            }
+        }
     }
 }
 
@@ -873,23 +812,26 @@ static int atmturb_wfs_stream_setup_dma(
         return 0;
     }
 
-    size_t nbytes = (size_t) (pup_size * pup_size) * sizeof(float);
-    if (st->cuda_gstream != NULL)
-    {
-        atmturb_wfs_host_reg_channel(st->id_pha, nbytes);
-        atmturb_wfs_host_reg_channel(st->id_amp, nbytes);
-        atmturb_wfs_host_reg_channel(st->id_spha, nbytes);
-        atmturb_wfs_host_reg_channel(st->id_samp, nbytes);
-        return 0;
-    }
+    size_t        nbytes   = (size_t) (pup_size * pup_size) * sizeof(float);
+    const imageID ids[4]   = {st->id_pha, st->id_amp, st->id_spha, st->id_samp};
+    float       **pairs[4] = {st->dma_pha, st->dma_amp, st->dma_spha, st->dma_samp};
 
-    if (atmturb_wfs_dma_alloc_pair(st->dma_pha, nbytes) != 0 ||
-        (st->id_amp >= 0 && atmturb_wfs_dma_alloc_pair(st->dma_amp, nbytes) != 0) ||
-        (st->id_spha >= 0 && atmturb_wfs_dma_alloc_pair(st->dma_spha, nbytes) != 0) ||
-        (st->id_samp >= 0 && atmturb_wfs_dma_alloc_pair(st->dma_samp, nbytes) != 0))
+    for (int ch = 0; ch < 4; ch++)
     {
-        atmturb_wfs_stream_cleanup_dma(st);
-        return -1;
+        if (ids[ch] < 0)
+        {
+            continue;
+        }
+        if (st->cuda_gstream != NULL)
+        {
+            atmturb_cuda_host_register(dcimg[ids[ch]].array.F, nbytes);
+        }
+        else if (atmturb_cuda_host_alloc((void **) &pairs[ch][0], nbytes) != 0 ||
+                 atmturb_cuda_host_alloc((void **) &pairs[ch][1], nbytes) != 0)
+        {
+            atmturb_wfs_stream_cleanup_dma(st);
+            return -1;
+        }
     }
     return 0;
 }
@@ -921,46 +863,51 @@ int make_AtmosphericTurbulence_wavefront_stream(
         return -1;
     }
 
-    long pup_size = CONF_WFsize;
-    const char *pha_name = (CONF_WF_PHASE_NAME[0] != '\0') ? CONF_WF_PHASE_NAME : "outarraypha";
-    const char *amp_name = (CONF_WF_AMPL_NAME[0] != '\0') ? CONF_WF_AMPL_NAME : "outarrayamp";
-
-    atmturb_stream_state_t st;
+    int                      ret     = -1;
+    long                     pup_size = CONF_WFsize;
+    const char              *pha_name = (CONF_WF_PHASE_NAME[0] != '\0')
+                                            ? CONF_WF_PHASE_NAME : "outarraypha";
+    const char              *amp_name = (CONF_WF_AMPL_NAME[0] != '\0')
+                                            ? CONF_WF_AMPL_NAME : "outarrayamp";
+    atmturb_stream_state_t   st;
+    atmturb_stream_engines_t eng;
     memset(&st, 0, sizeof(st));
+    memset(&eng, 0, sizeof(eng));
+
     float *scratch = atmturb_wfs_stream_init_buffers(&st, pup_size, pha_name, amp_name);
     if (scratch == NULL)
     {
-        atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
-        return -1;
+        goto cleanup;
     }
 
     atmturb_wfs_stream_print_output_targets(pha_name, amp_name, pup_size, &st);
 
-    atmturb_stream_engines_t eng;
-    memset(&eng, 0, sizeof(eng));
     if (atmturb_wfs_stream_init_engine(&st, &rsim, &geom, &prof, &params, pup_size, &eng) != 0)
     {
-        free(scratch);
-        atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
-        return -1;
+        goto cleanup;
     }
 
     st.is_cuda = (st.cuda_rstream != NULL || st.cuda_gstream != NULL || st.cuda_fstream != NULL);
     if (atmturb_wfs_stream_setup_dma(&st, pup_size) != 0)
     {
-        atmturb_wfs_stream_free_engine(&st, &eng);
-        free(scratch);
-        atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
-        return -1;
+        goto cleanup;
     }
 
-    g_stream_stop = 0;
+    g_stream_stop     = 0;
+    int use_local_sig = (g_stream_processinfo == NULL);
+    if (g_stream_processinfo != NULL && g_stream_processinfo->loopcntMax == 1)
+    {
+        g_stream_processinfo->loopcntMax = -1;
+    }
     struct sigaction sa, old_sa_int, old_sa_term, old_sa_quit;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = atmturb_wfs_stream_sig_handler;
-    sigaction(SIGINT, &sa, &old_sa_int);
-    sigaction(SIGTERM, &sa, &old_sa_term);
-    sigaction(SIGQUIT, &sa, &old_sa_quit);
+    if (use_local_sig)
+    {
+        memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = atmturb_wfs_stream_sig_handler;
+        sigaction(SIGINT, &sa, &old_sa_int);
+        sigaction(SIGTERM, &sa, &old_sa_term);
+        sigaction(SIGQUIT, &sa, &old_sa_quit);
+    }
 
     const char *active  = atmturb_simd_active_isa();
     const char *isa_str = st.is_cuda ? "CUDA GPU" : active;
@@ -969,29 +916,31 @@ int make_AtmosphericTurbulence_wavefront_stream(
         isa_str = "AVX2";
     }
     printf("[milkatmturb] Streaming 2D wavefront frames (%ldx%ld pix) to SHM '%s'%s [%s]\n",
-           pup_size, pup_size, pha_name, (st.id_amp >= 0) ? " and amplitude" : "",
-           isa_str);
+           pup_size, pup_size, pha_name, (st.id_amp >= 0) ? " and amplitude" : "", isa_str);
     fflush(stdout);
 
     struct timespec ts0, ts1;
     clock_gettime(CLOCK_MONOTONIC, &ts0);
-    long n_streamed = atmturb_wfs_stream_loop(&rsim, &geom, &params, &st, pup_size,
-                                             max_frames);
+    long n_streamed = atmturb_wfs_stream_loop(&rsim, &geom, &params, &st, pup_size, max_frames);
     clock_gettime(CLOCK_MONOTONIC, &ts1);
 
-    sigaction(SIGINT, &old_sa_int, NULL);
-    sigaction(SIGTERM, &old_sa_term, NULL);
-    sigaction(SIGQUIT, &old_sa_quit, NULL);
+    if (use_local_sig)
+    {
+        sigaction(SIGINT, &old_sa_int, NULL);
+        sigaction(SIGTERM, &old_sa_term, NULL);
+        sigaction(SIGQUIT, &old_sa_quit, NULL);
+    }
 
-    double dt = (double) (ts1.tv_sec - ts0.tv_sec) + (double) (ts1.tv_nsec - ts0.tv_nsec) * 1e-9;
+    double dt  = (double) (ts1.tv_sec - ts0.tv_sec) + (double) (ts1.tv_nsec - ts0.tv_nsec) * 1e-9;
     double fps = (dt > 0.0) ? ((double) n_streamed / dt) : 0.0;
     printf("[milkatmturb] Streamed %ld frames in %.3f s (%.1f fps)\n", n_streamed, dt, fps);
     fflush(stdout);
+    ret = 0;
 
+cleanup:
     atmturb_wfs_stream_cleanup_dma(&st);
-
     atmturb_wfs_stream_free_engine(&st, &eng);
     free(scratch);
     atmturb_wfs_teardown_sim(&prof, &geom, &rsim);
-    return 0;
+    return ret;
 }

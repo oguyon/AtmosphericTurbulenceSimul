@@ -4,7 +4,12 @@
 
 /**
  * @file    atmturb_compat.h
- * @brief   Compatibility layer for milk framework-dev image APIs
+ * @brief   Internal convenience shims over milk_data and core image APIs
+ *
+ * Bridges concise return-by-imageID helper signatures used across milkatmturb
+ * onto the explicit out-pointer and milk_data.image APIs of milk
+ * (feat/bash-engine). Also provides variadic argument-count dispatch macros so
+ * both legacy short-form calls and full-argument core calls compile cleanly.
  */
 
 #ifndef _ATMTURB_COMPAT_H
@@ -13,11 +18,12 @@
 #include <string.h>
 
 #include "atmturb_c23_compat.h"
-#include "CLIcore.h"
+#include "milk_runnable.h"
 #include "COREMOD_memory/COREMOD_memory.h"
 #include "COREMOD_iofits/COREMOD_iofits.h"
 #include "linopt_imtools/compute_SVDpseudoInverse.h"
 
+/* Global workspace table shortcuts into milk_data */
 #ifndef dcimg
 #define dcimg (milk_data.image)
 #endif
@@ -28,7 +34,7 @@
 #define dcvar (milk_data.variable)
 #endif
 
-// Compatibility aliases for legacy datatype fields and defines
+/* Compatibility aliases for ImageStreamIO datatype fields and constants */
 #define atype datatype
 
 #ifndef FLOAT
@@ -46,7 +52,15 @@
 
 #define save_db_fits(in, out) save_fits(in, out)
 
-// image_ID wrapper
+/**
+ * atmturb_image_ID - Resolve an image by name in memory or shared memory
+ * @name: Image or shared-memory stream name.
+ *
+ * Searches the process-local milk_data.image table first and falls back to
+ * attaching an existing ImageStreamIO shared-memory stream of the same name.
+ *
+ * Return: Valid imageID (>= 0) on success, or -1 if not found.
+ */
 static inline imageID atmturb_image_ID(
     const char *name)
 {
@@ -58,14 +72,27 @@ static inline imageID atmturb_image_ID(
     return ID;
 }
 
-// delete_image_ID wrapper
+/**
+ * atmturb_delete_image_ID - Delete a named image ignoring missing-image errors
+ * @name: Image name in milk_data.image.
+ *
+ * Return: RETURN_SUCCESS or error code from delete_image_ID().
+ */
 static inline errno_t atmturb_delete_image_ID(
     const char *name)
 {
     return delete_image_ID(name, DELETE_IMAGE_ERRMODE_IGNORE);
 }
 
-// arith_set_pixel compatibility helper
+/**
+ * arith_set_pixel - Write a single 2D pixel and post stream semaphores
+ * @ID_name: Target 2D float or double image name.
+ * @value:   Scalar pixel value to store.
+ * @x:       Zero-based column index [pixels].
+ * @y:       Zero-based row index [pixels].
+ *
+ * Return: Resolved imageID (>= 0), or -1 if the image does not exist.
+ */
 static inline imageID arith_set_pixel(
     const char *ID_name,
     double      value,
@@ -99,7 +126,14 @@ static inline imageID arith_set_pixel(
     return ID;
 }
 
-// create_2Dimage_ID wrappers
+/**
+ * atmturb_create_2Dimage_ID - Create a 2D single-precision float image
+ * @name:  Image name to allocate in milk_data.image.
+ * @xsize: Width along axis 0 [pixels].
+ * @ysize: Height along axis 1 [pixels].
+ *
+ * Return: Newly allocated imageID, or -1 on failure.
+ */
 static inline imageID atmturb_create_2Dimage_ID(
     const char *name,
     uint32_t    xsize,
@@ -110,6 +144,14 @@ static inline imageID atmturb_create_2Dimage_ID(
     return ID;
 }
 
+/**
+ * atmturb_create_2Dimage_ID_double - Create a 2D double-precision float image
+ * @name:  Image name to allocate in milk_data.image.
+ * @xsize: Width along axis 0 [pixels].
+ * @ysize: Height along axis 1 [pixels].
+ *
+ * Return: Newly allocated imageID, or -1 on failure.
+ */
 static inline imageID atmturb_create_2Dimage_ID_double(
     const char *name,
     uint32_t    xsize,
@@ -120,6 +162,14 @@ static inline imageID atmturb_create_2Dimage_ID_double(
     return ID;
 }
 
+/**
+ * atmturb_create_2DCimage_ID - Create a 2D complex single-precision image
+ * @name:  Image name to allocate in milk_data.image.
+ * @xsize: Width along axis 0 [pixels].
+ * @ysize: Height along axis 1 [pixels].
+ *
+ * Return: Newly allocated imageID, or -1 on failure.
+ */
 static inline imageID atmturb_create_2DCimage_ID(
     const char *name,
     uint32_t    xsize,
@@ -130,6 +180,14 @@ static inline imageID atmturb_create_2DCimage_ID(
     return ID;
 }
 
+/**
+ * atmturb_create_2DCimage_ID_double - Create a 2D complex double image
+ * @name:  Image name to allocate in milk_data.image.
+ * @xsize: Width along axis 0 [pixels].
+ * @ysize: Height along axis 1 [pixels].
+ *
+ * Return: Newly allocated imageID, or -1 on failure.
+ */
 static inline imageID atmturb_create_2DCimage_ID_double(
     const char *name,
     uint32_t    xsize,
@@ -140,7 +198,18 @@ static inline imageID atmturb_create_2DCimage_ID_double(
     return ID;
 }
 
-// create_3Dimage_ID wrappers
+/**
+ * atmturb_create_3Dimage_ID - Create a shared 3D float image cube
+ * @name:  Stream/image name to allocate.
+ * @xsize: Width along axis 0 [pixels].
+ * @ysize: Height along axis 1 [pixels].
+ * @zsize: Depth along axis 2 [frames/slices].
+ *
+ * Allocates a 3D _DATATYPE_FLOAT cube with shared=1 and 10 keyword slots so
+ * phase screens and wavefront cubes are accessible across processes.
+ *
+ * Return: Newly allocated imageID, or -1 on failure.
+ */
 static inline imageID atmturb_create_3Dimage_ID(
     const char *name,
     uint32_t    xsize,
@@ -153,6 +222,15 @@ static inline imageID atmturb_create_3Dimage_ID(
     return ID;
 }
 
+/**
+ * atmturb_create_3Dimage_ID_double - Create a 3D double-precision image cube
+ * @name:  Image name to allocate in milk_data.image.
+ * @xsize: Width along axis 0 [pixels].
+ * @ysize: Height along axis 1 [pixels].
+ * @zsize: Depth along axis 2 [frames/slices].
+ *
+ * Return: Newly allocated imageID, or -1 on failure.
+ */
 static inline imageID atmturb_create_3Dimage_ID_double(
     const char *name,
     uint32_t    xsize,
@@ -164,7 +242,17 @@ static inline imageID atmturb_create_3Dimage_ID_double(
     return ID;
 }
 
-// create_image_ID wrapper (accepts both uint32_t* and long*)
+/**
+ * atmturb_create_image_ID - Create an N-dimensional image from a long* size array
+ * @name:     Image or shared stream name.
+ * @naxis:    Number of dimensions (1..8).
+ * @size:     Pointer to array of @naxis dimension sizes (stored as long).
+ * @datatype: ImageStreamIO _DATATYPE_* code.
+ * @shared:   1 to back with POSIX shared memory, 0 for local heap memory.
+ * @nbkw:     Number of metadata keyword slots to allocate.
+ *
+ * Return: Newly allocated imageID, or -1 on failure.
+ */
 static inline imageID atmturb_create_image_ID(
     const char *name,
     long        naxis,
@@ -184,7 +272,13 @@ static inline imageID atmturb_create_image_ID(
     return ID;
 }
 
-// load_fits wrappers
+/**
+ * atmturb_load_fits_2 - Load a FITS file into memory ignoring missing-file errors
+ * @file: Path to input FITS file on disk.
+ * @name: Destination image name in milk_data.image.
+ *
+ * Return: Loaded imageID (>= 0), or -1 on failure.
+ */
 static inline imageID atmturb_load_fits_2(
     const char *file,
     const char *name)
@@ -198,6 +292,14 @@ static inline imageID atmturb_load_fits_2(
     return ID;
 }
 
+/**
+ * atmturb_load_fits_3 - Load a FITS file with explicit error-handling mode
+ * @file:    Path to input FITS file on disk.
+ * @name:    Destination image name in milk_data.image.
+ * @errmode: LOADFITS_ERRMODE_* flag controlling failure reporting.
+ *
+ * Return: Loaded imageID (>= 0), or -1 on failure.
+ */
 static inline imageID atmturb_load_fits_3(
     const char *file,
     const char *name,
@@ -212,7 +314,16 @@ static inline imageID atmturb_load_fits_3(
     return ID;
 }
 
-// linopt_compute_SVDpseudoInverse wrapper
+/**
+ * atmturb_linopt_compute_SVDpseudoInverse - 5-argument SVD pseudoinverse shim
+ * @r:     Input matrix image name.
+ * @c:     Output pseudoinverse matrix image name.
+ * @eps:   Singular-value truncation threshold.
+ * @maxnb: Maximum number of singular modes to retain.
+ * @vt:    Output V^T matrix image name.
+ *
+ * Return: RETURN_SUCCESS on completion, or error code from milklinoptimtools.
+ */
 static inline errno_t atmturb_linopt_compute_SVDpseudoInverse(
     const char *r,
     const char *c,
@@ -224,7 +335,12 @@ static inline errno_t atmturb_linopt_compute_SVDpseudoInverse(
     return linopt_compute_SVDpseudoInverse(r, c, eps, maxnb, vt, &outID);
 }
 
-// arith_image_zero helper
+/**
+ * arith_image_zero - Zero all bytes of an in-memory image buffer
+ * @name: Target image name in milk_data.image.
+ *
+ * Return: 0 on success, -1 if @name is not found.
+ */
 static inline errno_t arith_image_zero(
     const char *name)
 {
@@ -238,7 +354,10 @@ static inline errno_t arith_image_zero(
     return -1;
 }
 
-// Overload macros using __VA_ARGS__
+/*
+ * Argument-count dispatch macros routing short-form calls to the helpers above
+ * while forwarding full-argument calls directly to the core milk functions.
+ */
 #define GET_MACRO_LOADFITS(_1, _2, _3, _4, NAME, ...) NAME
 #define load_fits(...) \
     GET_MACRO_LOADFITS(__VA_ARGS__, load_fits_4, atmturb_load_fits_3, \
