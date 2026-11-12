@@ -30,6 +30,8 @@ typedef struct
 } atmturb_simd_ops_t;
 
 static atmturb_simd_ops_t g_simd_ops;
+static const char        *g_cpu_isa_name     = "Scalar";
+static int                g_simd_gpu_forced  = 0;
 static int                g_simd_initialized = 0;
 
 /**
@@ -46,6 +48,7 @@ static void atmturb_simd_bind_scalar(void)
     g_simd_ops.complex_mul_array    = atmturb_complex_mul_array_scalar;
     g_simd_ops.remove_piston_stream = atmturb_remove_piston_stream_scalar;
     g_simd_ops.isa_name             = "Scalar";
+    g_cpu_isa_name                  = "Scalar";
 }
 
 #if defined(__x86_64__) || defined(_M_X64)
@@ -63,6 +66,7 @@ static void atmturb_simd_bind_avx2(void)
     g_simd_ops.complex_mul_array    = atmturb_complex_mul_array_avx2;
     g_simd_ops.remove_piston_stream = atmturb_remove_piston_stream_avx2;
     g_simd_ops.isa_name             = "AVX2";
+    g_cpu_isa_name                  = "AVX2";
 }
 
 /**
@@ -79,6 +83,7 @@ static void atmturb_simd_bind_avx512(void)
     g_simd_ops.complex_mul_array    = atmturb_complex_mul_array_avx512;
     g_simd_ops.remove_piston_stream = atmturb_remove_piston_stream_avx512;
     g_simd_ops.isa_name             = "AVX-512";
+    g_cpu_isa_name                  = "AVX-512";
 }
 
 /**
@@ -123,6 +128,7 @@ static void atmturb_simd_init_dispatch(void)
             atmturb_cuda_device_available())
         {
             g_simd_ops.isa_name = "CUDA GPU";
+            g_simd_gpu_forced   = 1;
             g_simd_initialized  = 1;
             return;
         }
@@ -184,6 +190,18 @@ const char *atmturb_simd_active_isa(void)
 }
 
 /**
+ * atmturb_simd_cpu_isa - Query name of bound host CPU SIMD ISA implementation
+ */
+const char *atmturb_simd_cpu_isa(void)
+{
+    if (__builtin_expect(!g_simd_initialized, 0))
+    {
+        atmturb_simd_init_dispatch();
+    }
+    return g_cpu_isa_name;
+}
+
+/**
  * atmturb_simd_is_gpu - Query if CUDA GPU execution is active
  *
  * Return: 1 if GPU mode is selected, 0 otherwise.
@@ -196,6 +214,18 @@ int atmturb_simd_is_gpu(void)
     }
     return (g_simd_ops.isa_name != NULL &&
             strcmp(g_simd_ops.isa_name, "CUDA GPU") == 0) ? 1 : 0;
+}
+
+/**
+ * atmturb_simd_is_gpu_forced - Query if CUDA GPU was explicitly requested via ATMTURB_SIMD
+ */
+int atmturb_simd_is_gpu_forced(void)
+{
+    if (__builtin_expect(!g_simd_initialized, 0))
+    {
+        atmturb_simd_init_dispatch();
+    }
+    return g_simd_gpu_forced;
 }
 
 /**

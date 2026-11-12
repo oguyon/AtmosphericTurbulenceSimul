@@ -588,3 +588,66 @@ void atmturb_cuda_normalize_launch(
     atmturb_cuda_normalize_kernel<<<g_norm, b_norm, 0, stream>>>(
         d_frame_amp, npix, d_sum_I);
 }
+
+/**
+ * atmturb_cuda_fill_ones_kernel - Populate device array with 1.0f
+ */
+__global__ static void atmturb_cuda_fill_ones_kernel(
+    float *d_arr,
+    int    npix)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < npix)
+    {
+        d_arr[idx] = 1.0f;
+    }
+}
+
+/**
+ * atmturb_cuda_fill_ones_launch - Fill device amplitude buffer with unit 1.0f values
+ */
+void atmturb_cuda_fill_ones_launch(
+    float       *d_arr,
+    int          npix,
+    cudaStream_t stream)
+{
+    if (d_arr == NULL || npix <= 0)
+    {
+        return;
+    }
+    dim3 b_one(256);
+    dim3 g_one((npix + b_one.x - 1) / b_one.x);
+    atmturb_cuda_fill_ones_kernel<<<g_one, b_one, 0, stream>>>(d_arr, npix);
+}
+
+/**
+ * atmturb_cuda_pin_host_cubes - Page-lock up to 4 host output cubes for async D2H DMA
+ */
+void atmturb_cuda_pin_host_cubes(
+    float *const ptrs[4],
+    size_t       nbytes,
+    int          pinned[4])
+{
+    for (int c = 0; c < 4; c++)
+    {
+        pinned[c] = (ptrs[c] != NULL && nbytes >= 65536 &&
+                     cudaHostRegister(ptrs[c], nbytes, cudaHostRegisterDefault) == cudaSuccess)
+                        ? 1 : 0;
+    }
+}
+
+/**
+ * atmturb_cuda_unpin_host_cubes - Unpin host output cubes registered by atmturb_cuda_pin_host_cubes
+ */
+void atmturb_cuda_unpin_host_cubes(
+    float *const ptrs[4],
+    const int    pinned[4])
+{
+    for (int c = 0; c < 4; c++)
+    {
+        if (pinned[c] && ptrs[c] != NULL)
+        {
+            cudaHostUnregister(ptrs[c]);
+        }
+    }
+}

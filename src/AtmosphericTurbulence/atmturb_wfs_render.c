@@ -458,10 +458,26 @@ void atmturb_wfs_render_frames(
     long                        nbframes,
     const atmturb_wfs_images_t *imgs)
 {
+#ifdef HAVE_CUDA
+    int gpu_ok      = atmturb_simd_is_gpu();
+    int gpu_forced  = atmturb_simd_is_gpu_forced();
+    int use_gpu_dif = gpu_ok && (gpu_forced || pup_size >= 256 ||
+                                 (pup_size >= 128 && nbframes >= 32));
+    int use_gpu_geo = gpu_ok && (gpu_forced || pup_size >= 512);
+#endif
+
     if (CONF_FRESNEL_PROPAGATION == 1)
     {
+#ifdef HAVE_CUDA
+        if (use_gpu_dif &&
+            atmturb_wfs_render_fresnel_cuda(r, geom, prof, params, master_size,
+                                            pup_size, nbframes, imgs) == 0)
+        {
+            return;
+        }
+#endif
         if (atmturb_wfs_render_diffractive(r, geom, prof, params, master_size,
-                                           pup_size, nbframes, imgs) == 0)
+                                            pup_size, nbframes, imgs) == 0)
         {
             return;
         }
@@ -469,32 +485,28 @@ void atmturb_wfs_render_frames(
     else if (CONF_FRESNEL_PROPAGATION == 2)
     {
 #ifdef HAVE_CUDA
-        if (atmturb_simd_is_gpu())
+        if (use_gpu_dif &&
+            atmturb_wfs_render_rytov_cuda(r, geom, prof, params, master_size,
+                                          pup_size, nbframes, imgs) == 0)
         {
-            if (atmturb_wfs_render_rytov_cuda(r, geom, prof, params, master_size,
-                                              pup_size, nbframes, imgs) == 0)
-            {
-                return;
-            }
+            return;
         }
 #endif
         if (atmturb_wfs_render_rytov(r, geom, prof, params, master_size,
-                                     pup_size, nbframes, imgs) == 0)
+                                      pup_size, nbframes, imgs) == 0)
         {
             return;
         }
     }
 
 #ifdef HAVE_CUDA
-    if (atmturb_simd_is_gpu())
+    if (use_gpu_geo &&
+        atmturb_wfs_render_cuda(r, geom, master_size, pup_size, nbframes, imgs) == 0)
     {
-        if (atmturb_wfs_render_cuda(r, geom, master_size, pup_size, nbframes, imgs) == 0)
-        {
-            return;
-        }
+        return;
     }
 #endif
 
     atmturb_wfs_render_geometric(r, geom, master_size, pup_size, nbframes,
-                                 params->time_step_s, imgs);
+                                  params->time_step_s, imgs);
 }

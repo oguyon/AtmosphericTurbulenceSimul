@@ -375,6 +375,177 @@ void atmturb_fresnel_extract_unwrapped_avx2(
     }
 }
 
+/**
+ * log256_ps - Vectorized 8-lane natural logarithm for positive normalized floats (~1.2 ULP)
+ */
+static inline __m256 log256_ps(
+    __m256 x)
+{
+    const __m256i mant_mask = _mm256_set1_epi32(0x007fffff);
+    const __m256i one_bits  = _mm256_set1_epi32(0x3f800000);
+    const __m256  sqrt_half = _mm256_set1_ps(0.707106781186547524f);
+    const __m256  one       = _mm256_set1_ps(1.0f);
+
+    __m256i ix = _mm256_castps_si256(x);
+    __m256i ie = _mm256_sub_epi32(_mm256_srli_epi32(ix, 23), _mm256_set1_epi32(0x7f));
+    __m256  e  = _mm256_cvtepi32_ps(ie);
+    __m256  m  = _mm256_castsi256_ps(
+        _mm256_or_si256(_mm256_and_si256(ix, mant_mask), _mm256_set1_epi32(0x3f000000)));
+
+    __m256 mask = _mm256_cmp_ps(m, sqrt_half, _CMP_LT_OQ);
+    __m256 addm = _mm256_and_ps(m, mask);
+    m           = _mm256_sub_ps(m, one);
+    e           = _mm256_add_ps(e, _mm256_andnot_ps(mask, one));
+    m           = _mm256_add_ps(m, addm);
+    (void) one_bits;
+
+    __m256 z = _mm256_mul_ps(m, m);
+    __m256 y = _mm256_set1_ps(7.0376836292e-2f);
+    y        = _mm256_fmadd_ps(y, m, _mm256_set1_ps(-1.1514610310e-1f));
+    y        = _mm256_fmadd_ps(y, m, _mm256_set1_ps(1.1676998740e-1f));
+    y        = _mm256_fmadd_ps(y, m, _mm256_set1_ps(-1.2420140846e-1f));
+    y        = _mm256_fmadd_ps(y, m, _mm256_set1_ps(1.4249322787e-1f));
+    y        = _mm256_fmadd_ps(y, m, _mm256_set1_ps(-1.6668057665e-1f));
+    y        = _mm256_fmadd_ps(y, m, _mm256_set1_ps(2.0000714765e-1f));
+    y        = _mm256_fmadd_ps(y, m, _mm256_set1_ps(-2.4999993993e-1f));
+    y        = _mm256_fmadd_ps(y, m, _mm256_set1_ps(3.3333331174e-1f));
+    y        = _mm256_mul_ps(y, _mm256_mul_ps(m, z));
+    y        = _mm256_fmadd_ps(e, _mm256_set1_ps(-2.12194440e-4f), y);
+    y        = _mm256_fnmadd_ps(z, _mm256_set1_ps(0.5f), y);
+    y        = _mm256_add_ps(m, y);
+    return _mm256_fmadd_ps(e, _mm256_set1_ps(0.693359375f), y);
+}
+
+/**
+ * exp256_ps - Vectorized 8-lane natural exponential with clean underflow zeroing (~1.2 ULP)
+ */
+static inline __m256 exp256_ps(
+    __m256 x)
+{
+    const __m256 lo_lim = _mm256_set1_ps(-87.33654475f);
+    const __m256 hi_lim = _mm256_set1_ps(88.37626266f);
+    __m256       uflow  = _mm256_cmp_ps(x, lo_lim, _CMP_LT_OQ);
+    __m256       xc     = _mm256_min_ps(_mm256_max_ps(x, lo_lim), hi_lim);
+
+    __m256 fx = _mm256_round_ps(_mm256_mul_ps(xc, _mm256_set1_ps(1.44269504088896341f)),
+                                _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+    __m256 r  = _mm256_fnmadd_ps(fx, _mm256_set1_ps(0.693359375f), xc);
+    r         = _mm256_fnmadd_ps(fx, _mm256_set1_ps(-2.12194440e-4f), r);
+
+    __m256 z = _mm256_mul_ps(r, r);
+    __m256 y = _mm256_set1_ps(1.9875691500e-4f);
+    y        = _mm256_fmadd_ps(y, r, _mm256_set1_ps(1.3981999507e-3f));
+    y        = _mm256_fmadd_ps(y, r, _mm256_set1_ps(8.3334519073e-3f));
+    y        = _mm256_fmadd_ps(y, r, _mm256_set1_ps(4.1665795894e-2f));
+    y        = _mm256_fmadd_ps(y, r, _mm256_set1_ps(1.6666665459e-1f));
+    y        = _mm256_fmadd_ps(y, r, _mm256_set1_ps(5.0000001201e-1f));
+    y        = _mm256_fmadd_ps(y, z, _mm256_add_ps(r, _mm256_set1_ps(1.0f)));
+
+    __m256i ik    = _mm256_add_epi32(_mm256_cvtps_epi32(fx), _mm256_set1_epi32(0x7f));
+    __m256  pow2k = _mm256_castsi256_ps(_mm256_slli_epi32(ik, 23));
+    return _mm256_andnot_ps(uflow, _mm256_mul_ps(y, pow2k));
+}
+
+/**
+ * atmturb_fresnel_phasor_masked_avx2 - AVX2 masked pupil complex field synthesis
+ */
+void atmturb_fresnel_phasor_masked_avx2(
+    fftwf_complex *restrict field,
+    const float   *restrict opd,
+    const float   *restrict mask,
+    float                   scale,
+    long                    npix)
+{
+    static const int s_idx_lo[8] = {0, 0, 1, 1, 2, 2, 3, 3};
+    static const int s_idx_hi[8] = {4, 4, 5, 5, 6, 6, 7, 7};
+    __m256i          idx_lo      = _mm256_loadu_si256((const __m256i *) s_idx_lo);
+    __m256i          idx_hi      = _mm256_loadu_si256((const __m256i *) s_idx_hi);
+    float           *f_flt       = (float *) field;
+    long             nblocks     = npix / 8;
+
+    if (opd == NULL)
+    {
+        __m256 vz = _mm256_setzero_ps();
+        for (long b = 0; b < nblocks; b++)
+        {
+            long   i    = b * 8;
+            __m256 vm   = _mm256_loadu_ps(&mask[i]);
+            __m256 m_lo = _mm256_permutevar8x32_ps(vm, idx_lo);
+            __m256 m_hi = _mm256_permutevar8x32_ps(vm, idx_hi);
+            _mm256_storeu_ps(&f_flt[2 * i],     _mm256_blend_ps(m_lo, vz, 0xAA));
+            _mm256_storeu_ps(&f_flt[2 * i + 8], _mm256_blend_ps(m_hi, vz, 0xAA));
+        }
+        atmturb_fresnel_phasor_masked_scalar(&field[nblocks * 8], NULL, &mask[nblocks * 8],
+                                             scale, npix - nblocks * 8);
+        return;
+    }
+
+    __m256 vscale = _mm256_set1_ps(scale);
+    for (long b = 0; b < nblocks; b++)
+    {
+        long   i  = b * 8;
+        __m256 vm = _mm256_loadu_ps(&mask[i]);
+        __m256 vp = _mm256_mul_ps(_mm256_loadu_ps(&opd[i]), vscale);
+        __m256 vs, vc;
+        sincos256_ps(vp, &vs, &vc);
+        vc = _mm256_mul_ps(vc, vm);
+        vs = _mm256_mul_ps(vs, vm);
+
+        __m256 c_lo = _mm256_permutevar8x32_ps(vc, idx_lo);
+        __m256 s_lo = _mm256_permutevar8x32_ps(vs, idx_lo);
+        __m256 c_hi = _mm256_permutevar8x32_ps(vc, idx_hi);
+        __m256 s_hi = _mm256_permutevar8x32_ps(vs, idx_hi);
+        _mm256_storeu_ps(&f_flt[2 * i],     _mm256_blend_ps(c_lo, s_lo, 0xAA));
+        _mm256_storeu_ps(&f_flt[2 * i + 8], _mm256_blend_ps(c_hi, s_hi, 0xAA));
+    }
+    atmturb_fresnel_phasor_masked_scalar(&field[nblocks * 8], &opd[nblocks * 8],
+                                         &mask[nblocks * 8], scale, npix - nblocks * 8);
+}
+
+/**
+ * atmturb_fresnel_spectrum_strip_avx2 - AVX2 8-lane von Karman Fourier mode synthesis
+ */
+void atmturb_fresnel_spectrum_strip_avx2(
+    fftwf_complex *restrict out,
+    const float   *restrict u1,
+    const float   *restrict u2,
+    float                   fx0,
+    const float   *restrict spec_p)
+{
+    static const int   s_idx_lo[8] = {0, 0, 1, 1, 2, 2, 3, 3};
+    static const int   s_idx_hi[8] = {4, 4, 5, 5, 6, 6, 7, 7};
+    static const float s_lanes[8]  = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f};
+
+    __m256 vfx    = _mm256_add_ps(_mm256_set1_ps(fx0), _mm256_loadu_ps(s_lanes));
+    __m256 vr2    = _mm256_fmadd_ps(vfx, vfx, _mm256_set1_ps(spec_p[0]));
+    __m256 vdist2 = _mm256_add_ps(vr2, _mm256_set1_ps(spec_p[1]));
+
+    __m256 vrbm   = _mm256_sqrt_ps(_mm256_mul_ps(_mm256_set1_ps(-2.0f),
+                                                 log256_ps(_mm256_loadu_ps(u1))));
+    __m256 vtheta = _mm256_mul_ps(_mm256_set1_ps(2.0f * (float) M_PI), _mm256_loadu_ps(u2));
+    __m256 vs, vc;
+    sincos256_ps(vtheta, &vs, &vc);
+
+    __m256 vlog_d = log256_ps(vdist2);
+    __m256 vexp_a = _mm256_mul_ps(_mm256_set1_ps(-11.0f / 12.0f), vlog_d);
+    if (spec_p[3] > 0.0f)
+    {
+        vexp_a = _mm256_fnmadd_ps(vr2, _mm256_set1_ps(spec_p[3]), vexp_a);
+    }
+    __m256 vamp = _mm256_mul_ps(_mm256_set1_ps(spec_p[2]), exp256_ps(vexp_a));
+    __m256 vmag = _mm256_mul_ps(vamp, vrbm);
+    __m256 vre  = _mm256_mul_ps(vmag, vc);
+    __m256 vim  = _mm256_mul_ps(vmag, vs);
+
+    __m256i idx_lo = _mm256_loadu_si256((const __m256i *) s_idx_lo);
+    __m256i idx_hi = _mm256_loadu_si256((const __m256i *) s_idx_hi);
+    float  *f_out  = (float *) out;
+    _mm256_storeu_ps(&f_out[0], _mm256_blend_ps(_mm256_permutevar8x32_ps(vre, idx_lo),
+                                                _mm256_permutevar8x32_ps(vim, idx_lo), 0xAA));
+    _mm256_storeu_ps(&f_out[8], _mm256_blend_ps(_mm256_permutevar8x32_ps(vre, idx_hi),
+                                                _mm256_permutevar8x32_ps(vim, idx_hi), 0xAA));
+}
+
 #else /* !defined(__AVX2__) */
 
 void atmturb_fresnel_modulate_field_avx2(
@@ -400,6 +571,26 @@ void atmturb_fresnel_extract_unwrapped_avx2(
     long                          npix)
 {
     atmturb_fresnel_extract_unwrapped_scalar(field, pha, amp, npix);
+}
+
+void atmturb_fresnel_phasor_masked_avx2(
+    fftwf_complex *restrict field,
+    const float   *restrict opd,
+    const float   *restrict mask,
+    float                   scale,
+    long                    npix)
+{
+    atmturb_fresnel_phasor_masked_scalar(field, opd, mask, scale, npix);
+}
+
+void atmturb_fresnel_spectrum_strip_avx2(
+    fftwf_complex *restrict out,
+    const float   *restrict u1,
+    const float   *restrict u2,
+    float                   fx0,
+    const float   *restrict spec_p)
+{
+    atmturb_fresnel_spectrum_strip_scalar(out, u1, u2, fx0, spec_p);
 }
 
 #endif

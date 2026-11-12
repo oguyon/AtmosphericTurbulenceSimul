@@ -16,6 +16,7 @@
 #include <omp.h>
 #endif
 
+#include "atmturb_fft_wisdom.h"
 #include "atmturb_fresnel.h"
 #include "atmturb_fresnel_simd.h"
 #include "atmturb_simd.h"
@@ -229,25 +230,32 @@ int atmturb_fresnel_ctx_init(
         return -1;
     }
 
+    atmturb_fftwf_wisdom_load();
     atmturb_fresnel_init_fftw_threads(pup_size);
+    unsigned int flags    = atmturb_fftwf_plan_flags();
     ctx->eng.fwd_plan     = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
                                               ctx->field_pri, ctx->field_pri,
-                                              FFTW_FORWARD, FFTW_MEASURE);
+                                              FFTW_FORWARD, flags);
     ctx->eng.inv_plan     = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
                                               ctx->field_pri, ctx->field_pri,
-                                              FFTW_BACKWARD, FFTW_MEASURE);
+                                              FFTW_BACKWARD, flags);
     ctx->eng_sec.fwd_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
                                               ctx->field_sec, ctx->field_sec,
-                                              FFTW_FORWARD, FFTW_MEASURE);
+                                              FFTW_FORWARD, flags);
     ctx->eng_sec.inv_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
                                               ctx->field_sec, ctx->field_sec,
-                                              FFTW_BACKWARD, FFTW_MEASURE);
+                                              FFTW_BACKWARD, flags);
 
     if (ctx->eng.fwd_plan == NULL || ctx->eng.inv_plan == NULL ||
         ctx->eng_sec.fwd_plan == NULL || ctx->eng_sec.inv_plan == NULL)
     {
         atmturb_fresnel_ctx_free(ctx);
         return -1;
+    }
+
+    if (flags == FFTW_MEASURE)
+    {
+        atmturb_fftwf_wisdom_save();
     }
 
     return 0;

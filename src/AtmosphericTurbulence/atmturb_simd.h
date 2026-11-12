@@ -162,11 +162,25 @@ void atmturb_remove_piston_stream(
 const char *atmturb_simd_active_isa(void);
 
 /**
+ * atmturb_simd_cpu_isa - Query name of bound host CPU SIMD ISA implementation
+ *
+ * Return: String name of host CPU ISA ("AVX-512", "AVX2", or "Scalar").
+ */
+const char *atmturb_simd_cpu_isa(void);
+
+/**
  * atmturb_simd_is_gpu - Query if CUDA GPU execution is active
  *
  * Return: 1 if GPU mode is selected, 0 otherwise.
  */
 int atmturb_simd_is_gpu(void);
+
+/**
+ * atmturb_simd_is_gpu_forced - Query if CUDA GPU was explicitly requested via ATMTURB_SIMD
+ *
+ * Return: 1 if ATMTURB_SIMD=CUDA or GPU was explicitly set, 0 if auto-detected.
+ */
+int atmturb_simd_is_gpu_forced(void);
 
 /* Scalar reference implementations */
 void atmturb_extrude_accumulate_scalar(

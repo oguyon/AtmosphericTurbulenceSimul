@@ -659,9 +659,12 @@ static int atmturb_wfs_stream_init_engine(
     long                             pup_size,
     atmturb_stream_engines_t        *eng)
 {
+    int gpu_ok     = atmturb_simd_is_gpu();
+    int gpu_forced = atmturb_simd_is_gpu_forced();
+
     if (CONF_FRESNEL_PROPAGATION == 0)
     {
-        if (atmturb_simd_is_gpu())
+        if (gpu_ok && (gpu_forced || pup_size >= 256))
         {
             st->cuda_gstream = atmturb_wfs_cuda_geom_stream_init(
                 rsim, geom, CONF_MASTER_SIZE, pup_size);
@@ -669,7 +672,7 @@ static int atmturb_wfs_stream_init_engine(
     }
     else if (CONF_FRESNEL_PROPAGATION == 1)
     {
-        if (atmturb_simd_is_gpu())
+        if (gpu_ok && (gpu_forced || pup_size >= 128))
         {
             st->cuda_fstream = atmturb_cuda_fresnel_stream_init(
                 rsim, geom, prof, params, CONF_MASTER_SIZE, pup_size);
@@ -693,7 +696,7 @@ static int atmturb_wfs_stream_init_engine(
     }
     else if (CONF_FRESNEL_PROPAGATION == 2)
     {
-        if (atmturb_simd_is_gpu())
+        if (gpu_ok && (gpu_forced || pup_size >= 256))
         {
             st->cuda_rstream = atmturb_cuda_rytov_stream_init(
                 rsim, geom, prof, params, CONF_MASTER_SIZE, pup_size);
@@ -909,12 +912,7 @@ int make_AtmosphericTurbulence_wavefront_stream(
         sigaction(SIGQUIT, &sa, &old_sa_quit);
     }
 
-    const char *active  = atmturb_simd_active_isa();
-    const char *isa_str = st.is_cuda ? "CUDA GPU" : active;
-    if (!st.is_cuda && strcmp(active, "CUDA GPU") == 0)
-    {
-        isa_str = "AVX2";
-    }
+    const char *isa_str = st.is_cuda ? "CUDA GPU" : atmturb_simd_cpu_isa();
     printf("[milkatmturb] Streaming 2D wavefront frames (%ldx%ld pix) to SHM '%s'%s [%s]\n",
            pup_size, pup_size, pha_name, (st.id_amp >= 0) ? " and amplitude" : "", isa_str);
     fflush(stdout);

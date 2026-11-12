@@ -89,6 +89,7 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_wfs_stream.c
     src/AtmosphericTurbulence/atmturb_superlayer.c
     src/AtmosphericTurbulence/atmturb_superlayer_nodes.c
+    src/AtmosphericTurbulence/atmturb_fft_wisdom.c
     src/AtmosphericTurbulence/atmturb_fresnel.c
     src/AtmosphericTurbulence/atmturb_fresnel_simd_scalar.c
     src/AtmosphericTurbulence/atmturb_fresnel_simd_avx2.c
@@ -121,6 +122,7 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/atmturb_profile.h
     src/AtmosphericTurbulence/atmturb_geometry.h
     src/AtmosphericTurbulence/atmturb_superlayer.h
+    src/AtmosphericTurbulence/atmturb_fft_wisdom.h
     src/AtmosphericTurbulence/atmturb_fresnel.h
     src/AtmosphericTurbulence/atmturb_fresnel_simd.h
     src/AtmosphericTurbulence/atmturb_rytov.h

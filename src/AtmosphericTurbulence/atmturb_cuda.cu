@@ -29,11 +29,14 @@ static size_t        s_cached_mbytes = 0;
 static long          s_cached_nblayers = 0;
 static const float  *s_cached_screen_ptrs[ATMTURB_CUDA_MAX_LAYERS];
 
-static float *s_d_pha  = NULL;
-static float *s_d_amp  = NULL;
-static float *s_d_spha = NULL;
-static float *s_d_samp = NULL;
-static size_t s_cached_out_bytes = 0;
+static float       *s_d_pha             = NULL;
+static float       *s_d_amp             = NULL;
+static float       *s_d_spha            = NULL;
+static float       *s_d_samp            = NULL;
+static size_t       s_cached_pha_bytes  = 0;
+static size_t       s_cached_spha_bytes = 0;
+static size_t       s_cached_amp_bytes  = 0;
+static cudaStream_t s_batch_stream      = 0;
 
 /**
  * atmturb_render_kernel - GPU kernel synthesizing multi-layer extruded wavefront frames
@@ -75,7 +78,15 @@ __global__ static void atmturb_render_kernel(
     size_t msize_sq = (size_t) msize * (size_t) msize;
     size_t pup_sq = (size_t) pup_size * (size_t) pup_size;
 
-    for (int f = blockIdx.z; f < nbframes; f += gridDim.z)
+    int chunk = (nbframes + (int) gridDim.z - 1) / (int) gridDim.z;
+    int f_beg = (int) blockIdx.z * chunk;
+    int f_end = f_beg + chunk;
+    if (f_end > nbframes)
+    {
+        f_end = nbframes;
+    }
+
+    for (int f = f_beg; f < f_end; f++)
     {
         int t = t_offset + f;
         float total_pha = 0.0f;
@@ -154,6 +165,12 @@ int atmturb_cuda_device_available(void)
  */
 void atmturb_cuda_cleanup(void)
 {
+    if (s_batch_stream != 0)
+    {
+        cudaStreamSynchronize(s_batch_stream);
+        cudaStreamDestroy(s_batch_stream);
+        s_batch_stream = 0;
+    }
     if (s_d_m != NULL)    { cudaFree(s_d_m);    s_d_m = NULL; }
     if (s_d_pha != NULL)  { cudaFree(s_d_pha);  s_d_pha = NULL; }
     if (s_d_amp != NULL)  { cudaFree(s_d_amp);  s_d_amp = NULL; }
@@ -162,7 +179,9 @@ void atmturb_cuda_cleanup(void)
     s_cached_mbytes = 0;
     s_cached_nblayers = 0;
     memset(s_cached_screen_ptrs, 0, sizeof(s_cached_screen_ptrs));
-    s_cached_out_bytes = 0;
+    s_cached_pha_bytes  = 0;
+    s_cached_spha_bytes = 0;
+    s_cached_amp_bytes  = 0;
 }
 
 /**
@@ -282,41 +301,55 @@ static int atmturb_cuda_sync_kinematics(
 }
 
 /**
- * atmturb_cuda_sync_outputs - Allocate device output buffers if capacity insufficient
+ * atmturb_cuda_sync_outputs - Allocate device output buffers lazily for active channels
  * @out_bytes: Required output buffer size in bytes.
  * @need_amp: Flag indicating if amplitude buffers are required on device.
+ * @need_spha: Flag indicating if secondary phase buffer is required on device.
  *
  * Return: 0 on success, -1 on allocation failure.
  */
 static int atmturb_cuda_sync_outputs(
     size_t out_bytes,
-    int    need_amp)
+    int    need_amp,
+    int    need_spha)
 {
-    if (s_d_pha == NULL || s_cached_out_bytes < out_bytes)
+    if (s_d_pha == NULL || s_cached_pha_bytes < out_bytes)
     {
-        if (s_d_pha != NULL)
+        cudaFree(s_d_pha);
+        s_d_pha = NULL;
+        if (cudaMalloc((void **) &s_d_pha, out_bytes) != cudaSuccess)
         {
-            cudaFree(s_d_pha);
-            cudaFree(s_d_amp);
-            cudaFree(s_d_spha);
-            cudaFree(s_d_samp);
-            s_d_amp = NULL;
-            s_d_samp = NULL;
-        }
-        if (cudaMalloc((void **) &s_d_pha, out_bytes) != cudaSuccess ||
-            cudaMalloc((void **) &s_d_spha, out_bytes) != cudaSuccess)
-        {
+            s_cached_pha_bytes = 0;
             return -1;
         }
-        if (need_amp)
+        s_cached_pha_bytes = out_bytes;
+    }
+
+    if (need_spha && (s_d_spha == NULL || s_cached_spha_bytes < out_bytes))
+    {
+        cudaFree(s_d_spha);
+        s_d_spha = NULL;
+        if (cudaMalloc((void **) &s_d_spha, out_bytes) != cudaSuccess)
         {
-            if (cudaMalloc((void **) &s_d_amp, out_bytes) != cudaSuccess ||
-                cudaMalloc((void **) &s_d_samp, out_bytes) != cudaSuccess)
-            {
-                return -1;
-            }
+            s_cached_spha_bytes = 0;
+            return -1;
         }
-        s_cached_out_bytes = out_bytes;
+        s_cached_spha_bytes = out_bytes;
+    }
+
+    if (need_amp && (s_d_amp == NULL || s_d_samp == NULL || s_cached_amp_bytes < out_bytes))
+    {
+        cudaFree(s_d_amp);
+        cudaFree(s_d_samp);
+        s_d_amp  = NULL;
+        s_d_samp = NULL;
+        if (cudaMalloc((void **) &s_d_amp, out_bytes) != cudaSuccess ||
+            cudaMalloc((void **) &s_d_samp, out_bytes) != cudaSuccess)
+        {
+            s_cached_amp_bytes = 0;
+            return -1;
+        }
+        s_cached_amp_bytes = out_bytes;
     }
     return 0;
 }
@@ -332,52 +365,87 @@ int atmturb_wfs_render_frames_cuda(
     const atmturb_cuda_sim_params_t *params,
     atmturb_cuda_sim_outputs_t      *outputs)
 {
+    if (s_batch_stream == 0 && cudaStreamCreate(&s_batch_stream) != cudaSuccess)
+    {
+        return -1;
+    }
     if (atmturb_cuda_sync_masters(params) != 0 ||
         atmturb_cuda_sync_kinematics(params) != 0)
     {
         return -1;
     }
 
-    size_t npix = (size_t) (params->nbframes * params->pup_size * params->pup_size);
+    size_t npix      = (size_t) (params->nbframes * params->pup_size * params->pup_size);
     size_t out_bytes = sizeof(float) * npix;
-    int need_amp = (outputs->amp != NULL || outputs->samp != NULL) ? 1 : 0;
-    if (atmturb_cuda_sync_outputs(out_bytes, need_amp) != 0)
+    int    need_amp  = (outputs->amp != NULL || outputs->samp != NULL) ? 1 : 0;
+    int    need_spha = (outputs->spha != NULL) ? 1 : 0;
+    if (atmturb_cuda_sync_outputs(out_bytes, need_amp, need_spha) != 0)
     {
         return -1;
     }
 
-    int grid_z = (params->nbframes > 65535) ? 65535 : (int) params->nbframes;
     dim3 block(32, 8);
-    dim3 grid(((int) params->pup_size + block.x - 1) / block.x,
-              ((int) params->pup_size + block.y - 1) / block.y,
-              grid_z);
+    int  gx        = ((int) params->pup_size + (int) block.x - 1) / (int) block.x;
+    int  gy        = ((int) params->pup_size + (int) block.y - 1) / (int) block.y;
+    int  xy_blocks = gx * gy;
+    int  min_gz    = (512 + xy_blocks - 1) / xy_blocks;
+    int  chunk_gz  = ((int) params->nbframes + 15) / 16;
+    int  grid_z    = (min_gz > chunk_gz) ? min_gz : chunk_gz;
+    if (grid_z > (int) params->nbframes)
+    {
+        grid_z = (int) params->nbframes;
+    }
+    if (grid_z > 65535)
+    {
+        grid_z = 65535;
+    }
+    dim3 grid(gx, gy, grid_z);
 
-    atmturb_render_kernel<<<grid, block>>>(
+    float *host_ptrs[4] = {outputs->pha, outputs->amp, outputs->spha, outputs->samp};
+    int    pinned[4]    = {0, 0, 0, 0};
+    for (int c = 0; c < 4; c++)
+    {
+        if (host_ptrs[c] != NULL && out_bytes >= 65536 &&
+            cudaHostRegister(host_ptrs[c], out_bytes, cudaHostRegisterDefault) == cudaSuccess)
+        {
+            pinned[c] = 1;
+        }
+    }
+
+    atmturb_render_kernel<<<grid, block, 0, s_batch_stream>>>(
         s_d_m, (int) params->msize, (int) params->pup_size,
         (int) params->nbframes, (int) params->nblayers,
         (float) params->Scoeff, 0,
-        s_d_pha, s_d_amp, s_d_spha, s_d_samp);
+        s_d_pha, need_amp ? s_d_amp : NULL,
+        need_spha ? s_d_spha : NULL, need_amp ? s_d_samp : NULL);
 
-    if (cudaGetLastError() != cudaSuccess)
+    int ret = (cudaGetLastError() == cudaSuccess) ? 0 : -1;
+    if (ret == 0)
     {
-        return -1;
+        float *dev_ptrs[4] = {s_d_pha, s_d_amp, s_d_spha, s_d_samp};
+        for (int c = 0; c < 4; c++)
+        {
+            if (host_ptrs[c] != NULL && dev_ptrs[c] != NULL &&
+                cudaMemcpyAsync(host_ptrs[c], dev_ptrs[c], out_bytes,
+                                cudaMemcpyDeviceToHost, s_batch_stream) != cudaSuccess)
+            {
+                ret = -1;
+                break;
+            }
+        }
     }
-
-    if (cudaMemcpy(outputs->pha, s_d_pha, out_bytes, cudaMemcpyDeviceToHost) != cudaSuccess)
+    if (cudaStreamSynchronize(s_batch_stream) != cudaSuccess)
     {
-        return -1;
+        ret = -1;
     }
-    if ((outputs->amp != NULL && s_d_amp != NULL &&
-         cudaMemcpy(outputs->amp, s_d_amp, out_bytes, cudaMemcpyDeviceToHost) != cudaSuccess) ||
-        (outputs->spha != NULL &&
-         cudaMemcpy(outputs->spha, s_d_spha, out_bytes, cudaMemcpyDeviceToHost) != cudaSuccess) ||
-        (outputs->samp != NULL && s_d_samp != NULL &&
-         cudaMemcpy(outputs->samp, s_d_samp, out_bytes, cudaMemcpyDeviceToHost) != cudaSuccess))
+    for (int c = 0; c < 4; c++)
     {
-        return -1;
+        if (pinned[c])
+        {
+            cudaHostUnregister(host_ptrs[c]);
+        }
     }
-
-    return 0;
+    return ret;
 }
 
 struct atmturb_cuda_geom_stream

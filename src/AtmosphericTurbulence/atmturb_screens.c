@@ -7,6 +7,7 @@
  * @brief   Master atmospheric turbulence phase screen generation
  */
 
+#define _GNU_SOURCE
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -19,7 +20,70 @@
 #endif
 
 #include "AtmosphericTurbulence.h"
+#include "atmturb_fft_wisdom.h"
+#include "atmturb_fresnel_simd.h"
 #include "atmturb_types.h"
+
+/**
+ * atmturb_fill_spectrum_row_float - Populate one row of 2D single-precision von Karman spectrum
+ */
+static void atmturb_fill_spectrum_row_float(
+    fftwf_complex *restrict row_buf,
+    long                    size,
+    long                    jj,
+    uint64_t                base_seed,
+    const float   *restrict base_p)
+{
+    const double inv_2p53 = 1.0 / 9007199254740992.0;
+    const long   half     = size / 2;
+    uint64_t     rng      = atmturb_rng_stream_seed(base_seed, (uint64_t) jj);
+    long         fy       = (jj < half) ? jj : (jj - size);
+    float        fy2      = (float) (fy * fy);
+    float        spec_p[4] = {fy2, base_p[0], base_p[1], base_p[2]};
+
+    for (long ii = 0; ii < size; ii++)
+    {
+        int in_half = (ii + 8 <= half) || (ii >= half && ii + 8 <= size);
+        int far_dc  = (fy2 >= 256.0f) || (ii >= 16 && ii + 8 <= size - 16);
+        if (in_half && far_dc)
+        {
+            float u1[8];
+            float u2[8];
+            for (int lane = 0; lane < 8; lane++)
+            {
+                double d1 = ((atmturb_rng_splitmix64(&rng) >> 11) + 1.0) * inv_2p53;
+                double d2 = (atmturb_rng_splitmix64(&rng) >> 11) * inv_2p53;
+                float  f1 = (float) d1;
+                u1[lane]  = (f1 < 0.99999994f) ? f1 : 0.99999994f;
+                u2[lane]  = (float) d2;
+            }
+            float fx0 = (float) ((ii < half) ? ii : (ii - size));
+            atmturb_fresnel_simd_spectrum_strip(&row_buf[ii], u1, u2, fx0, spec_p);
+            ii += 7;
+            continue;
+        }
+
+        long   fx = (ii < half) ? ii : (ii - size);
+        float  r2 = (float) (fx * fx) + fy2;
+        double g0, g1;
+        atmturb_rng_gaussian_pair(&rng, &g0, &g1);
+        if (fx == 0 && fy == 0)
+        {
+            row_buf[ii][0] = 0.0f;
+            row_buf[ii][1] = 0.0f;
+        }
+        else
+        {
+            float amp = spec_p[2] * powf(r2 + spec_p[1], -11.0f / 12.0f);
+            if (spec_p[3] > 0.0f)
+            {
+                amp *= expf(-r2 * spec_p[3]);
+            }
+            row_buf[ii][0] = amp * (float) g0;
+            row_buf[ii][1] = amp * (float) g1;
+        }
+    }
+}
 
 /**
  * atmturb_fill_spectrum_float - Fill 2D Fourier spectrum with shaped Gaussian noise (float)
@@ -30,50 +94,21 @@ static void atmturb_fill_spectrum_float(
     fftwf_complex               *buf,
     const atmturb_screen_spec_t *spec)
 {
-    long size = spec->size;
-    float r0_pix = (spec->r0_pix > 0.0) ? (float) spec->r0_pix : powf(6.88f, 0.6f);
-    float k0 = (spec->L0_pix > 0.0) ? ((float) size / (float) spec->L0_pix) : 0.0f;
-    float km = (spec->l0_pix > 0.0)
-                    ? ((5.92f / (2.0f * (float) M_PI)) * (float) size / (float) spec->l0_pix)
-                    : 0.0f;
-    float pref = 0.023f * powf(r0_pix, -5.0f / 3.0f) * powf((float) size, 5.0f / 3.0f);
-    float sqrt_pref = sqrtf(pref);
-    float inv_two_km2 = (km > 0.0f) ? (0.5f / (km * km)) : 0.0f;
-    float k0_sq = k0 * k0;
-    uint64_t base_seed = atmturb_resolve_seed(spec->seed);
+    long     size        = spec->size;
+    float    r0_pix      = (spec->r0_pix > 0.0) ? (float) spec->r0_pix : powf(6.88f, 0.6f);
+    float    k0          = (spec->L0_pix > 0.0) ? ((float) size / (float) spec->L0_pix) : 0.0f;
+    float    km_scale  = 5.92f / (2.0f * (float) M_PI);
+    float    km        = (spec->l0_pix > 0.0)
+                             ? (km_scale * (float) size / (float) spec->l0_pix)
+                             : 0.0f;
+    float    pref        = 0.023f * powf(r0_pix, -5.0f / 3.0f) * powf((float) size, 5.0f / 3.0f);
+    float    base_p[3]   = {k0 * k0, sqrtf(pref), (km > 0.0f) ? (0.5f / (km * km)) : 0.0f};
+    uint64_t base_seed   = atmturb_resolve_seed(spec->seed);
 
     #pragma omp parallel for schedule(static)
     for (long jj = 0; jj < size; jj++)
     {
-        uint64_t rng = atmturb_rng_stream_seed(base_seed, (uint64_t) jj);
-        long fy = (jj < size / 2) ? jj : (jj - size);
-        float fy2 = (float) (fy * fy);
-        long row = jj * size;
-
-        for (long ii = 0; ii < size; ii++)
-        {
-            long fx = (ii < size / 2) ? ii : (ii - size);
-            float r2 = (float) (fx * fx) + fy2;
-            double g0, g1;
-            atmturb_rng_gaussian_pair(&rng, &g0, &g1);
-
-            if (fx == 0 && fy == 0)
-            {
-                buf[row + ii][0] = 0.0f;
-                buf[row + ii][1] = 0.0f;
-            }
-            else
-            {
-                float dist2 = r2 + k0_sq;
-                float amp = sqrt_pref * powf(dist2, -11.0f / 12.0f);
-                if (inv_two_km2 > 0.0f)
-                {
-                    amp *= expf(-r2 * inv_two_km2);
-                }
-                buf[row + ii][0] = amp * (float) g0;
-                buf[row + ii][1] = amp * (float) g1;
-            }
-        }
+        atmturb_fill_spectrum_row_float(&buf[jj * size], size, jj, base_seed, base_p);
     }
 }
 
@@ -218,20 +253,34 @@ static int atmturb_generate_screen_pair_float(
 
     atmturb_fill_spectrum_float(buf, spec);
 
+    atmturb_fftwf_wisdom_load();
     atmturb_fftwf_ensure_threads();
     fftwf_plan plan = fftwf_plan_dft_2d((int) size, (int) size, buf, buf,
                                         FFTW_FORWARD, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
 
-    #pragma omp parallel for schedule(static)
-    for (long i = 0; i < total; i++)
+    if (screen_a != NULL && screen_b != NULL)
     {
-        if (screen_a)
+        #pragma omp parallel for schedule(static)
+        for (long i = 0; i < total; i++)
+        {
+            screen_a[i] = buf[i][0];
+            screen_b[i] = buf[i][1];
+        }
+    }
+    else if (screen_a != NULL)
+    {
+        #pragma omp parallel for schedule(static)
+        for (long i = 0; i < total; i++)
         {
             screen_a[i] = buf[i][0];
         }
-        if (screen_b)
+    }
+    else if (screen_b != NULL)
+    {
+        #pragma omp parallel for schedule(static)
+        for (long i = 0; i < total; i++)
         {
             screen_b[i] = buf[i][1];
         }
@@ -270,16 +319,28 @@ static int atmturb_generate_screen_pair_double(
     fftw_execute(plan);
     fftw_destroy_plan(plan);
 
-    #pragma omp parallel for schedule(static)
-    for (long i = 0; i < total; i++)
+    if (screen_a != NULL && screen_b != NULL)
     {
-        if (screen_a)
+        #pragma omp parallel for schedule(static)
+        for (long i = 0; i < total; i++)
         {
             screen_a[i] = (float) buf[i][0];
-        }
-        if (screen_b)
-        {
             screen_b[i] = (float) buf[i][1];
+        }
+    }
+    else
+    {
+        #pragma omp parallel for schedule(static)
+        for (long i = 0; i < total; i++)
+        {
+            if (screen_a != NULL)
+            {
+                screen_a[i] = (float) buf[i][0];
+            }
+            if (screen_b != NULL)
+            {
+                screen_b[i] = (float) buf[i][1];
+            }
         }
     }
 
@@ -329,23 +390,28 @@ double atmturb_measure_r0_pix(
     }
 
     double sum_sq = 0.0;
-    long count = 0;
+    long   count  = 2 * size * size;
 
-    #pragma omp parallel for reduction(+:sum_sq,count) schedule(static)
+    #pragma omp parallel for reduction(+:sum_sq) schedule(static)
     for (long y = 0; y < size; y++)
     {
-        long y_next = (y + 1) % size;
-        long row = y * size;
-        long row_next = y_next * size;
+        long         y_next = (y + 1 < size) ? (y + 1) : 0;
+        const float *r_cur  = &data[y * size];
+        const float *r_nxt  = &data[y_next * size];
+        double       row_sq = 0.0;
 
-        for (long x = 0; x < size; x++)
+        #pragma omp simd reduction(+:row_sq)
+        for (long x = 0; x < size - 1; x++)
         {
-            long x_next = (x + 1) % size;
-            double dx = (double) data[row + x_next] - (double) data[row + x];
-            double dy = (double) data[row_next + x] - (double) data[row + x];
-            sum_sq += dx * dx + dy * dy;
-            count += 2;
+            double cur = (double) r_cur[x];
+            double dx  = (double) r_cur[x + 1] - cur;
+            double dy  = (double) r_nxt[x] - cur;
+            row_sq += dx * dx + dy * dy;
         }
+        double last_cur = (double) r_cur[size - 1];
+        double last_dx  = (double) r_cur[0] - last_cur;
+        double last_dy  = (double) r_nxt[size - 1] - last_cur;
+        sum_sq += row_sq + last_dx * last_dx + last_dy * last_dy;
     }
 
     double d1 = sum_sq / (double) count;
@@ -510,6 +576,7 @@ int make_master_turbulence_screen_pow(
         }
     }
 
+    atmturb_fftwf_wisdom_load();
     atmturb_fftwf_ensure_threads();
     fftwf_plan plan = fftwf_plan_dft_2d((int) size, (int) size, buf, buf,
                                         FFTW_FORWARD, FFTW_ESTIMATE);

@@ -238,12 +238,19 @@ static inline void atmturb_rng_gaussian_pair(
     double   *g0,
     double   *g1)
 {
-    double u1 = ((atmturb_rng_splitmix64(state) >> 11) + 1.0) * (1.0 / 9007199254740992.0);
-    double u2 = (atmturb_rng_splitmix64(state) >> 11) * (1.0 / 9007199254740992.0);
-    double r = sqrt(-2.0 * log(u1));
+    double u1    = ((atmturb_rng_splitmix64(state) >> 11) + 1.0) * (1.0 / 9007199254740992.0);
+    double u2    = (atmturb_rng_splitmix64(state) >> 11) * (1.0 / 9007199254740992.0);
+    double r     = sqrt(-2.0 * log(u1));
     double theta = 2.0 * M_PI * u2;
+#if defined(__GLIBC__) && defined(_GNU_SOURCE)
+    double s, c;
+    sincos(theta, &s, &c);
+    *g0 = r * c;
+    *g1 = r * s;
+#else
     *g0 = r * cos(theta);
     *g1 = r * sin(theta);
+#endif
 }
 
 /**

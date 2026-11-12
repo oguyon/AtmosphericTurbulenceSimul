@@ -28,6 +28,18 @@ typedef struct
         float               *restrict pha,
         float               *restrict amp,
         long                          npix);
+    void (*phasor_masked)(
+        fftwf_complex *restrict field,
+        const float   *restrict opd,
+        const float   *restrict mask,
+        float                   scale,
+        long                    npix);
+    void (*spectrum_strip)(
+        fftwf_complex *restrict out,
+        const float   *restrict u1,
+        const float   *restrict u2,
+        float                   fx0,
+        const float   *restrict spec_p);
     const char *isa_name;
 } atmturb_fresnel_simd_ops_t;
 
@@ -70,6 +82,8 @@ use_avx2:
     g_fresnel_simd_ops.modulate_field      = atmturb_fresnel_modulate_field_avx2;
     g_fresnel_simd_ops.init_modulate_field = atmturb_fresnel_init_modulate_field_avx2;
     g_fresnel_simd_ops.extract_unwrapped   = atmturb_fresnel_extract_unwrapped_avx2;
+    g_fresnel_simd_ops.phasor_masked       = atmturb_fresnel_phasor_masked_avx2;
+    g_fresnel_simd_ops.spectrum_strip      = atmturb_fresnel_spectrum_strip_avx2;
     g_fresnel_simd_ops.isa_name            = "AVX2";
     g_fresnel_simd_initialized             = 1;
     return;
@@ -80,6 +94,8 @@ use_scalar:
     g_fresnel_simd_ops.modulate_field      = atmturb_fresnel_modulate_field_scalar;
     g_fresnel_simd_ops.init_modulate_field = atmturb_fresnel_init_modulate_field_scalar;
     g_fresnel_simd_ops.extract_unwrapped   = atmturb_fresnel_extract_unwrapped_scalar;
+    g_fresnel_simd_ops.phasor_masked       = atmturb_fresnel_phasor_masked_scalar;
+    g_fresnel_simd_ops.spectrum_strip      = atmturb_fresnel_spectrum_strip_scalar;
     g_fresnel_simd_ops.isa_name            = "Scalar";
     g_fresnel_simd_initialized             = 1;
 }
@@ -146,4 +162,38 @@ void atmturb_fresnel_simd_extract_unwrapped(
         atmturb_fresnel_simd_init_dispatch();
     }
     g_fresnel_simd_ops.extract_unwrapped(field, pha, amp, npix);
+}
+
+/**
+ * atmturb_fresnel_simd_phasor_masked - Dispatch masked pupil complex field synthesis
+ */
+void atmturb_fresnel_simd_phasor_masked(
+    fftwf_complex *restrict field,
+    const float   *restrict opd,
+    const float   *restrict mask,
+    float                   scale,
+    long                    npix)
+{
+    if (__builtin_expect(!g_fresnel_simd_initialized, 0))
+    {
+        atmturb_fresnel_simd_init_dispatch();
+    }
+    g_fresnel_simd_ops.phasor_masked(field, opd, mask, scale, npix);
+}
+
+/**
+ * atmturb_fresnel_simd_spectrum_strip - Dispatch 8-lane von Karman Fourier mode synthesis
+ */
+void atmturb_fresnel_simd_spectrum_strip(
+    fftwf_complex *restrict out,
+    const float   *restrict u1,
+    const float   *restrict u2,
+    float                   fx0,
+    const float   *restrict spec_p)
+{
+    if (__builtin_expect(!g_fresnel_simd_initialized, 0))
+    {
+        atmturb_fresnel_simd_init_dispatch();
+    }
+    g_fresnel_simd_ops.spectrum_strip(out, u1, u2, fx0, spec_p);
 }

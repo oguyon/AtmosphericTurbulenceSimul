@@ -97,6 +97,14 @@ static inline int atmturb_cuda_fresnel_stream_render_wait(
     return -1;
 }
 
+static inline void atmturb_cuda_fresnel_set_remove_piston(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    int                            remove_piston)
+{
+    (void) ctx;
+    (void) remove_piston;
+}
+
 static inline void atmturb_cuda_fresnel_stream_free(
     atmturb_cuda_fresnel_stream_t *ctx)
 {
@@ -188,6 +196,15 @@ int atmturb_cuda_fresnel_stream_render_launch(
 int atmturb_cuda_fresnel_stream_render_wait(
     atmturb_cuda_fresnel_stream_t *ctx,
     int                            slot);
+
+/**
+ * atmturb_cuda_fresnel_set_remove_piston - Enable or disable per-frame mean piston subtraction
+ * @ctx: Persistent stream context.
+ * @remove_piston: Non-zero to subtract mean piston per frame (default 1), 0 to preserve full phase.
+ */
+void atmturb_cuda_fresnel_set_remove_piston(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    int                            remove_piston);
 
 /**
  * atmturb_cuda_fresnel_stream_free - Free persistent GPU Fresnel streaming context

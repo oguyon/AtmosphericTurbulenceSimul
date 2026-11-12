@@ -23,6 +23,8 @@ optics simulation with PSF synthesis.
   validation, and sorting.
 - `atmturb_screens.c`: von Karman and power-law master phase screen generator
   (`atmturb_generate_screen_pair`, `make_master_turbulence_screen_seeded`).
+- `atmturb_fft_wisdom.c` / `atmturb_fft_wisdom.h`: Persistent FFTW3F wisdom file loading,
+  saving, and planner flag selection (`atmturb_fftwf_wisdom_load`, `atmturb_fftwf_plan_flags`).
 - `atmturb_wind.c`: 1D von Karman turbulent wind velocity synthesis and trajectory computation
   (`make_AtmosphericTurbulence_vonKarmanWind`, `atmturb_wind_synthesize_trajectory`).
 - `atmturb_hvturb.c`: Hufnagel-Valley $C_n^2$ vertical profile generator with Fried parameter

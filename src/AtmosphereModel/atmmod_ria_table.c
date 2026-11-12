@@ -133,6 +133,7 @@ void atmmod_reset_precomp_indices(void)
     lliprecompO = -1;
     lliprecompN = -1;
     lliprecompH = -1;
+    atmmod_invalidate_mixture_cache();
 }
 
 /**
@@ -261,6 +262,7 @@ void atmmod_load_species_ria(
         if (ATMOSPHEREMODEL_loadRIA(pathbuf, *lambda_out, *ri_out, *abs_out) == 0)
         {
             *init_flag = 1;
+            atmmod_invalidate_mixture_cache();
         }
         else
         {

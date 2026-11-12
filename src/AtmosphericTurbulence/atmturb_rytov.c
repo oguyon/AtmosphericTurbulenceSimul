@@ -17,6 +17,7 @@
 #include <omp.h>
 #endif
 
+#include "atmturb_fft_wisdom.h"
 #include "atmturb_geometry.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
@@ -401,13 +402,10 @@ int atmturb_rytov_ctx_init(
         return -1;
     }
 
-    atmturb_rytov_wisdom_load();
+    atmturb_fftwf_wisdom_load();
     atmturb_rytov_fftw_threads(pup_size);
 
-    const char  *env_meas = getenv("ATMTURB_FFTW_MEASURE");
-    unsigned int flags    = (env_meas != NULL && atoi(env_meas) != 0)
-                                ? FFTW_MEASURE
-                                : FFTW_ESTIMATE;
+    unsigned int flags = atmturb_fftwf_plan_flags();
 
     ctx->plan_r2c  = fftwf_plan_dft_r2c_2d((int) pup_size, (int) pup_size,
                                            ctx->real_in, ctx->spec, flags);
@@ -420,7 +418,7 @@ int atmturb_rytov_ctx_init(
 
     if (flags == FFTW_MEASURE)
     {
-        atmturb_rytov_wisdom_save();
+        atmturb_fftwf_wisdom_save();
     }
 
     if (!ctx->plan_r2c || !ctx->plan_c2r || !ctx->plan_1d_a || !ctx->plan_1d_b)

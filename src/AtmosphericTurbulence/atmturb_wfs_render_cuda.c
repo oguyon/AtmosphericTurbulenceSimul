@@ -18,6 +18,7 @@
 
 #include "milk_runnable.h"
 #include "atmturb_cuda.h"
+#include "atmturb_cuda_fresnel.h"
 #include "atmturb_cuda_rytov.h"
 #include "atmturb_geometry.h"
 #include "atmturb_lowfreq.h"
@@ -143,6 +144,99 @@ int atmturb_wfs_render_cuda(
 
     int ret = atmturb_wfs_render_frames_cuda(&cparams, &outputs);
     free(buf);
+    return ret;
+}
+
+/**
+ * atmturb_wfs_render_fresnel_cuda - Render multi-layer Fresnel split-step frames on GPU
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @prof: Active turbulence profile.
+ * @params: Observation parameters container.
+ * @master_size: Master screen dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ * @nbframes: Number of simulation frames.
+ * @imgs: Container of output 3D image handles.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_wfs_render_fresnel_cuda(
+    const atmturb_rolling_t    *r,
+    const atmturb_geom_t       *geom,
+    const atmturb_profile_t    *prof,
+    const atmturb_obs_params_t *params,
+    long                        master_size,
+    long                        pup_size,
+    long                        nbframes,
+    const atmturb_wfs_images_t *imgs)
+{
+    if (r == NULL || geom == NULL || prof == NULL || params == NULL || imgs == NULL ||
+        nbframes <= 0 || master_size <= 0 || pup_size <= 0 || !atmturb_cuda_device_available())
+    {
+        return -1;
+    }
+
+    atmturb_cuda_fresnel_stream_t *ctx =
+        atmturb_cuda_fresnel_stream_init(r, geom, prof, params, master_size, pup_size);
+    if (ctx == NULL)
+    {
+        return -1;
+    }
+    atmturb_cuda_fresnel_set_remove_piston(ctx, 0);
+
+    long   frame_pix  = pup_size * pup_size;
+    size_t cube_bytes = sizeof(float) * (size_t) (nbframes * frame_pix);
+    float *bases[4]   = {
+        (imgs->ID_pha >= 0) ? &dcimg[imgs->ID_pha].array.F[0] : NULL,
+        (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[0] : NULL,
+        (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[0] : NULL,
+        (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[0] : NULL
+    };
+    int pinned[4] = {0, 0, 0, 0};
+    for (int c = 0; c < 4; c++)
+    {
+        if (bases[c] != NULL && cube_bytes >= 65536 &&
+            atmturb_cuda_host_register(bases[c], cube_bytes) == 0)
+        {
+            pinned[c] = 1;
+        }
+    }
+
+    int ret = 0;
+    for (long t = 0; t < nbframes; t++)
+    {
+        int    slot = (int) (t & 1);
+        size_t off  = (size_t) (t * frame_pix);
+        if (t >= 2 && atmturb_cuda_fresnel_stream_render_wait(ctx, slot) != 0)
+        {
+            ret = -1;
+            break;
+        }
+        if (atmturb_cuda_fresnel_stream_render_launch(
+                ctx, r, geom, t, params->time_step_s,
+                bases[0] ? (bases[0] + off) : NULL, bases[1] ? (bases[1] + off) : NULL,
+                bases[2] ? (bases[2] + off) : NULL, bases[3] ? (bases[3] + off) : NULL,
+                slot) != 0)
+        {
+            ret = -1;
+            break;
+        }
+    }
+
+    if (atmturb_cuda_fresnel_stream_render_wait(ctx, 0) != 0 ||
+        (nbframes >= 2 && atmturb_cuda_fresnel_stream_render_wait(ctx, 1) != 0))
+    {
+        ret = -1;
+    }
+
+    for (int c = 0; c < 4; c++)
+    {
+        if (pinned[c])
+        {
+            atmturb_cuda_host_unregister(bases[c]);
+        }
+    }
+    atmturb_cuda_fresnel_stream_free(ctx);
     return ret;
 }
 

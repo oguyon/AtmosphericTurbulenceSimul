@@ -290,6 +290,37 @@ void atmturb_cuda_normalize_launch(
     const float *d_sum_I,
     cudaStream_t stream);
 
+/**
+ * atmturb_cuda_fill_ones_launch - Fill device amplitude buffer with unit 1.0f values
+ * @d_arr: Destination device float array.
+ * @npix: Number of pixels to set to 1.0f.
+ * @stream: CUDA execution stream.
+ */
+void atmturb_cuda_fill_ones_launch(
+    float       *d_arr,
+    int          npix,
+    cudaStream_t stream);
+
+/**
+ * atmturb_cuda_pin_host_cubes - Page-lock up to 4 host output cubes for async D2H DMA
+ * @ptrs: 4-element array of host pointers (entries may be NULL).
+ * @nbytes: Size in bytes of each non-NULL cube.
+ * @pinned: Output 4-element flag array recording successful registrations.
+ */
+void atmturb_cuda_pin_host_cubes(
+    float *const ptrs[4],
+    size_t       nbytes,
+    int          pinned[4]);
+
+/**
+ * atmturb_cuda_unpin_host_cubes - Unpin host output cubes registered by atmturb_cuda_pin_host_cubes
+ * @ptrs: 4-element array of host pointers.
+ * @pinned: 4-element flag array from atmturb_cuda_pin_host_cubes().
+ */
+void atmturb_cuda_unpin_host_cubes(
+    float *const ptrs[4],
+    const int    pinned[4]);
+
 #ifdef __cplusplus
 }
 #endif

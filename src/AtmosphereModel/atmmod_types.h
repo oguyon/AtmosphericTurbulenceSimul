@@ -177,6 +177,11 @@ extern int lliprecompH;
 void atmmod_reset_precomp_indices(void);
 
 /**
+ * atmmod_invalidate_mixture_cache - Invalidate cached per-wavelength gas mixture coefficients
+ */
+void atmmod_invalidate_mixture_cache(void);
+
+/**
  * atmmod_load_species_ria - Allocate and load RIA dispersion arrays for a species
  * @name:       Species identifier string (e.g. "N2", "H2O").
  * @path:       Path to RIA ASCII data file.

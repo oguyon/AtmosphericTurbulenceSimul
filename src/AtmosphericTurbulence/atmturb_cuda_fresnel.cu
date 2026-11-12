@@ -107,8 +107,25 @@ struct atmturb_cuda_fresnel_stream
     float                         *d_frame_spha[2];
     float                         *d_frame_samp[2];
     float                         *d_sum_buf[2];
+    int                            remove_piston;
+    int                            graph_has_amp[2];
+    int                            graph_has_sec_out[2];
+    int                            graph_remove_piston[2];
     cudaGraphExec_t                graph_exec[2];
 };
+
+/**
+ * atmturb_cuda_fresnel_set_remove_piston - Enable or disable per-frame mean piston subtraction
+ */
+void atmturb_cuda_fresnel_set_remove_piston(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    int                            remove_piston)
+{
+    if (ctx != NULL)
+    {
+        ctx->remove_piston = (remove_piston != 0) ? 1 : 0;
+    }
+}
 
 /**
  * atmturb_cuda_fresnel_stream_free - Free persistent GPU Fresnel streaming context
@@ -356,12 +373,19 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
         return NULL;
     }
 
-    ctx->msize    = master_size;
-    ctx->pup_size = pup_size;
-    ctx->npix     = pup_size * pup_size;
-    ctx->has_sec  = (params->lambda_s_m > 0.0) ? 1 : 0;
-    ctx->interp   = geom->interp;
-    ctx->os       = (int) geom->oversample;
+    ctx->msize         = master_size;
+    ctx->pup_size      = pup_size;
+    ctx->npix          = pup_size * pup_size;
+    ctx->has_sec       = (params->lambda_s_m > 0.0) ? 1 : 0;
+    ctx->interp        = geom->interp;
+    ctx->os            = (int) geom->oversample;
+    ctx->remove_piston = 1;
+    for (int s = 0; s < 2; s++)
+    {
+        ctx->graph_has_amp[s]       = -1;
+        ctx->graph_has_sec_out[s]   = -1;
+        ctx->graph_remove_piston[s] = -1;
+    }
 
     int max_sublayers = 1;
     for (int m = 0; m < ctx->plan.nsuper; m++)
@@ -493,6 +517,8 @@ static void atmturb_cuda_fresnel_propagate_superlayer(
     int                            m,
     int                            do_batch2)
 {
+    int need_prop = (fabs(ctx->plan.supers[m].step_dist_m) > 0.0) ? 1 : 0;
+
     if (do_batch2)
     {
         if (m == 0)
@@ -508,6 +534,11 @@ static void atmturb_cuda_fresnel_propagate_superlayer(
                 ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
             atmturb_cuda_fresnel_modulate_launch(
                 ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix, ctx->stream);
+        }
+
+        if (!need_prop)
+        {
+            return;
         }
 
         cufftExecC2C(ctx->plan_batch2, ctx->d_field_pri, ctx->d_field_pri, CUFFT_FORWARD);
@@ -530,6 +561,11 @@ static void atmturb_cuda_fresnel_propagate_superlayer(
         {
             atmturb_cuda_fresnel_modulate_launch(
                 ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
+        }
+
+        if (!need_prop)
+        {
+            return;
         }
 
         cufftExecC2C(ctx->plan_c2c, ctx->d_field_pri, ctx->d_field_pri, CUFFT_FORWARD);
@@ -582,14 +618,15 @@ static void atmturb_cuda_fresnel_step_ops(
         atmturb_cuda_fresnel_propagate_superlayer(ctx, m, do_batch2);
     }
 
-    if (ctx->d_sum_buf[slot] != NULL)
+    float *d_sum = (ctx->remove_piston) ? ctx->d_sum_buf[slot] : NULL;
+    if (d_sum != NULL)
     {
-        cudaMemsetAsync(ctx->d_sum_buf[slot], 0, sizeof(float), ctx->stream);
+        cudaMemsetAsync(d_sum, 0, sizeof(float), ctx->stream);
     }
 
     atmturb_cuda_fresnel_extract_launch(
         ctx->d_field_pri, ctx->d_frame_pha[slot], (has_amp) ? ctx->d_frame_amp[slot] : NULL,
-        ctx->d_sum_buf[slot], (int) ctx->npix, ctx->stream);
+        d_sum, (int) ctx->npix, ctx->stream);
 
     if (ctx->has_sec && has_sec_out)
     {
@@ -598,10 +635,10 @@ static void atmturb_cuda_fresnel_step_ops(
             NULL, (int) ctx->npix, ctx->stream);
     }
 
-    if (ctx->d_sum_buf[slot] != NULL)
+    if (d_sum != NULL)
     {
         atmturb_cuda_piston_sub_launch(
-            ctx->d_frame_pha[slot], ctx->d_sum_buf[slot], (int) ctx->npix, ctx->stream);
+            ctx->d_frame_pha[slot], d_sum, (int) ctx->npix, ctx->stream);
         if (ctx->has_sec && has_sec_out)
         {
             atmturb_cuda_remove_piston_launch(
@@ -666,6 +703,15 @@ int atmturb_cuda_fresnel_stream_render_launch(
     int has_amp     = (amp != NULL) ? 1 : 0;
     int has_sec_out = (ctx->has_sec && (spha != NULL || samp != NULL)) ? 1 : 0;
 
+    if (ctx->graph_exec[s] != NULL &&
+        (ctx->graph_has_amp[s] != has_amp ||
+         ctx->graph_has_sec_out[s] != has_sec_out ||
+         ctx->graph_remove_piston[s] != ctx->remove_piston))
+    {
+        cudaGraphExecDestroy(ctx->graph_exec[s]);
+        ctx->graph_exec[s] = NULL;
+    }
+
     if (ctx->graph_exec[s] == NULL)
     {
         cudaGraph_t graph;
@@ -674,7 +720,13 @@ int atmturb_cuda_fresnel_stream_render_launch(
             atmturb_cuda_fresnel_step_ops(ctx, s, has_amp, has_sec_out);
             if (cudaStreamEndCapture(ctx->stream, &graph) == cudaSuccess)
             {
-                if (cudaGraphInstantiate(&ctx->graph_exec[s], graph, NULL, NULL, 0) != cudaSuccess)
+                if (cudaGraphInstantiate(&ctx->graph_exec[s], graph, NULL, NULL, 0) == cudaSuccess)
+                {
+                    ctx->graph_has_amp[s]       = has_amp;
+                    ctx->graph_has_sec_out[s]   = has_sec_out;
+                    ctx->graph_remove_piston[s] = ctx->remove_piston;
+                }
+                else
                 {
                     ctx->graph_exec[s] = NULL;
                 }
