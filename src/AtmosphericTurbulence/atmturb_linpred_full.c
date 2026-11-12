@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -203,20 +204,59 @@ static void atmturb_linpred_multiply_ainv_c(
         }
 
         #pragma omp parallel for schedule(static)
-        for (long p = 0; p < nbpix; p++)
+        for (long p0 = 0; p0 < nbpix; p0 += 4)
         {
-            const float *restrict c_row = &mat_c_t[p * nbmvec];
-            float       *restrict f_row = &filt_out[p * mvecsize];
-            for (long j = 0; j < mvecsize; j++)
+            if (p0 + 4 <= nbpix)
             {
-                const float *restrict a_row = &a_inv[j * nbmvec];
-                double                sum   = 0.0;
-                #pragma omp simd reduction(+ : sum)
-                for (long m = 0; m < nbmvec; m++)
+                const float *restrict c0 = &mat_c_t[(p0 + 0) * nbmvec];
+                const float *restrict c1 = &mat_c_t[(p0 + 1) * nbmvec];
+                const float *restrict c2 = &mat_c_t[(p0 + 2) * nbmvec];
+                const float *restrict c3 = &mat_c_t[(p0 + 3) * nbmvec];
+                float       *restrict f0 = &filt_out[(p0 + 0) * mvecsize];
+                float       *restrict f1 = &filt_out[(p0 + 1) * mvecsize];
+                float       *restrict f2 = &filt_out[(p0 + 2) * mvecsize];
+                float       *restrict f3 = &filt_out[(p0 + 3) * mvecsize];
+
+                for (long j = 0; j < mvecsize; j++)
                 {
-                    sum += (double) a_row[m] * (double) c_row[m];
+                    const float *restrict a_row = &a_inv[j * nbmvec];
+                    float                 s0    = 0.0f;
+                    float                 s1    = 0.0f;
+                    float                 s2    = 0.0f;
+                    float                 s3    = 0.0f;
+                    #pragma omp simd reduction(+ : s0, s1, s2, s3)
+                    for (long m = 0; m < nbmvec; m++)
+                    {
+                        float av = a_row[m];
+                        s0 += av * c0[m];
+                        s1 += av * c1[m];
+                        s2 += av * c2[m];
+                        s3 += av * c3[m];
+                    }
+                    f0[j] = s0;
+                    f1[j] = s1;
+                    f2[j] = s2;
+                    f3[j] = s3;
                 }
-                f_row[j] = (float) sum;
+            }
+            else
+            {
+                for (long p = p0; p < nbpix; p++)
+                {
+                    const float *restrict c_row = &mat_c_t[p * nbmvec];
+                    float       *restrict f_row = &filt_out[p * mvecsize];
+                    for (long j = 0; j < mvecsize; j++)
+                    {
+                        const float *restrict a_row = &a_inv[j * nbmvec];
+                        float                 sum   = 0.0f;
+                        #pragma omp simd reduction(+ : sum)
+                        for (long m = 0; m < nbmvec; m++)
+                        {
+                            sum += a_row[m] * c_row[m];
+                        }
+                        f_row[j] = sum;
+                    }
+                }
             }
         }
         free(mat_c_t);
@@ -326,6 +366,146 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(
 }
 
 /**
+ * atmturb_get_or_create_3d_float - Reuse matching 3D float image or create a fresh one
+ */
+static imageID atmturb_get_or_create_3d_float(
+    const char *name,
+    long        nx,
+    long        ny,
+    long        nz)
+{
+    imageID id = image_ID(name);
+    if (id >= 0 && dcimg[id].used == 1 &&
+        dcimg[id].md[0].naxis == 3 &&
+        dcimg[id].md[0].datatype == _DATATYPE_FLOAT &&
+        (long) dcimg[id].md[0].size[0] == nx &&
+        (long) dcimg[id].md[0].size[1] == ny &&
+        (long) dcimg[id].md[0].size[2] == nz)
+    {
+        memset(dcimg[id].array.F, 0, sizeof(float) * (size_t) nx * (size_t) ny * (size_t) nz);
+        return id;
+    }
+    if (id >= 0)
+    {
+        delete_image_ID(name);
+    }
+    return create_3Dimage_ID(name, nx, ny, nz);
+}
+
+typedef struct
+{
+    const float *wf_in;
+    const float *filt;
+    const long  *mask_idx;
+    float       *wf_outp;
+    float       *wf_outf;
+    float       *hist_pack;
+    long         nxy;
+    long         nbpix;
+    long         mvecsize;
+    int          pf_order;
+    long         pf_lag;
+} atmturb_linpred_apply_ctx_t;
+
+/**
+ * atmturb_linpred_eval_tile16 - Evaluate 4x16 register-blocked SGEMM for up to 16 frames
+ */
+static void atmturb_linpred_eval_tile16(
+    const atmturb_linpred_apply_ctx_t *c,
+    long                               t0,
+    int                                blk)
+{
+    memset(c->hist_pack, 0, sizeof(float) * (size_t) c->mvecsize * 16U);
+    for (int dt = 0; dt < c->pf_order; dt++)
+    {
+        for (int b = 0; b < blk; b++)
+        {
+            long         t      = t0 + (long) b - (long) c->pf_order + (long) dt;
+            const float *hslice = &c->wf_in[t * c->nxy];
+            long         k_base = (long) dt * c->nbpix;
+            for (long q = 0; q < c->nbpix; q++)
+            {
+                c->hist_pack[(k_base + q) * 16 + b] = hslice[c->mask_idx[q]];
+            }
+        }
+    }
+
+    #pragma omp parallel for schedule(static)
+    for (long p0 = 0; p0 < c->nbpix; p0 += 4)
+    {
+        long p_end = (p0 + 4 <= c->nbpix) ? (p0 + 4) : c->nbpix;
+        if (p_end - p0 == 4)
+        {
+            float acc0[16] = {0.0f};
+            float acc1[16] = {0.0f};
+            float acc2[16] = {0.0f};
+            float acc3[16] = {0.0f};
+            const float *restrict r0 = &c->filt[(p0 + 0) * c->mvecsize];
+            const float *restrict r1 = &c->filt[(p0 + 1) * c->mvecsize];
+            const float *restrict r2 = &c->filt[(p0 + 2) * c->mvecsize];
+            const float *restrict r3 = &c->filt[(p0 + 3) * c->mvecsize];
+
+            for (long k = 0; k < c->mvecsize; k++)
+            {
+                const float *restrict hp = &c->hist_pack[k * 16];
+                float                 f0 = r0[k];
+                float                 f1 = r1[k];
+                float                 f2 = r2[k];
+                float                 f3 = r3[k];
+                #pragma omp simd
+                for (int b = 0; b < 16; b++)
+                {
+                    float hv = hp[b];
+                    acc0[b] += f0 * hv;
+                    acc1[b] += f1 * hv;
+                    acc2[b] += f2 * hv;
+                    acc3[b] += f3 * hv;
+                }
+            }
+
+            const float *accs[4] = {acc0, acc1, acc2, acc3};
+            for (int r = 0; r < 4; r++)
+            {
+                long mp = c->mask_idx[p0 + r];
+                for (int b = 0; b < blk; b++)
+                {
+                    long  toff = (t0 + (long) b - 1 + c->pf_lag) * c->nxy + mp;
+                    float pf   = accs[r][b];
+                    c->wf_outp[toff] = pf;
+                    c->wf_outf[toff] = c->wf_in[toff] - pf;
+                }
+            }
+        }
+        else
+        {
+            for (long p = p0; p < p_end; p++)
+            {
+                float                 acc[16] = {0.0f};
+                const float *restrict r0      = &c->filt[p * c->mvecsize];
+                for (long k = 0; k < c->mvecsize; k++)
+                {
+                    const float *restrict hp = &c->hist_pack[k * 16];
+                    float                 f0 = r0[k];
+                    #pragma omp simd
+                    for (int b = 0; b < 16; b++)
+                    {
+                        acc[b] += f0 * hp[b];
+                    }
+                }
+                long mp = c->mask_idx[p];
+                for (int b = 0; b < blk; b++)
+                {
+                    long  toff = (t0 + (long) b - 1 + c->pf_lag) * c->nxy + mp;
+                    float pf   = acc[b];
+                    c->wf_outp[toff] = pf;
+                    c->wf_outf[toff] = c->wf_in[toff] - pf;
+                }
+            }
+        }
+    }
+}
+
+/**
  * AtmosphericTurbulence_Apply_LinPredictor_Full - Evaluate linear prediction on series
  * @MODE:        0 for direct evaluation.
  * @WFin_name:   Input wavefront cube.
@@ -361,7 +541,6 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(
     long  nx       = dcimg[id_wfin].md[0].size[0];
     long  ny       = dcimg[id_wfin].md[0].size[1];
     long  nz       = dcimg[id_wfin].md[0].size[2];
-    long  nxy      = nx * ny;
     long  nbpix    = 0;
     long *mask_idx = atmturb_extract_mask_indices(id_wfmask, nx, ny, &nbpix);
     if (mask_idx == NULL || nbpix <= 0)
@@ -370,57 +549,39 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(
         return -1;
     }
 
-    long         mvecsize = nbpix * (long) PForder;
-    long         t_max    = nz - (long) PFlag;
-    imageID      id_outp  = create_3Dimage_ID(WFoutp_name, nx, ny, nz);
-    imageID      id_outf  = create_3Dimage_ID(WFoutf_name, nx, ny, nz);
-    const float *wf_in    = dcimg[id_wfin].array.F;
-    const float *filt     = dcimg[id_filt].array.F;
-    float       *wf_outp  = dcimg[id_outp].array.F;
-    float       *wf_outf  = dcimg[id_outf].array.F;
-
-    #pragma omp parallel
+    long    mvecsize  = nbpix * (long) PForder;
+    long    t_max     = nz - (long) PFlag;
+    imageID id_outp   = atmturb_get_or_create_3d_float(WFoutp_name, nx, ny, nz);
+    imageID id_outf   = atmturb_get_or_create_3d_float(WFoutf_name, nx, ny, nz);
+    float  *hist_pack = NULL;
+    if (id_outp < 0 || id_outf < 0 ||
+        posix_memalign((void **) &hist_pack, 64, sizeof(float) * (size_t) mvecsize * 16U) != 0)
     {
-        float *hist_vec = (float *) malloc(sizeof(float) * (size_t) mvecsize);
-        if (hist_vec != NULL)
-        {
-            #pragma omp for schedule(static)
-            for (long t = (long) PForder; t <= t_max; t++)
-            {
-                for (int dt = 0; dt < PForder; dt++)
-                {
-                    const float *hslice = &wf_in[(t - (long) PForder + (long) dt) * nxy];
-                    float       *hdst   = &hist_vec[(long) dt * nbpix];
-                    for (long q = 0; q < nbpix; q++)
-                    {
-                        hdst[q] = hslice[mask_idx[q]];
-                    }
-                }
-
-                long         target_off = (t - 1 + (long) PFlag) * nxy;
-                const float *tslice     = &wf_in[target_off];
-                float       *pslice     = &wf_outp[target_off];
-                float       *fslice     = &wf_outf[target_off];
-
-                for (long p = 0; p < nbpix; p++)
-                {
-                    const float *restrict f_row = &filt[p * mvecsize];
-                    double                pred  = 0.0;
-                    #pragma omp simd reduction(+ : pred)
-                    for (long k = 0; k < mvecsize; k++)
-                    {
-                        pred += (double) f_row[k] * (double) hist_vec[k];
-                    }
-                    long  mp   = mask_idx[p];
-                    float pf   = (float) pred;
-                    pslice[mp] = pf;
-                    fslice[mp] = tslice[mp] - pf;
-                }
-            }
-            free(hist_vec);
-        }
+        free(mask_idx);
+        return -1;
     }
 
+    atmturb_linpred_apply_ctx_t ctx = {
+        .wf_in     = dcimg[id_wfin].array.F,
+        .filt      = dcimg[id_filt].array.F,
+        .mask_idx  = mask_idx,
+        .wf_outp   = dcimg[id_outp].array.F,
+        .wf_outf   = dcimg[id_outf].array.F,
+        .hist_pack = hist_pack,
+        .nxy       = nx * ny,
+        .nbpix     = nbpix,
+        .mvecsize  = mvecsize,
+        .pf_order  = PForder,
+        .pf_lag    = (long) PFlag
+    };
+
+    for (long t0 = (long) PForder; t0 <= t_max; t0 += 16)
+    {
+        int blk = (t0 + 15 <= t_max) ? 16 : (int) (t_max - t0 + 1);
+        atmturb_linpred_eval_tile16(&ctx, t0, blk);
+    }
+
+    free(hist_pack);
     free(mask_idx);
     return 0;
 }

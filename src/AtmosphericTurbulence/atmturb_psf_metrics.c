@@ -10,97 +10,263 @@
 #define _GNU_SOURCE
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fftw3.h>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #include "AtmosphericTurbulence.h"
+#include "atmturb_fft_wisdom.h"
+#include "atmturb_fresnel_simd.h"
+#include "atmturb_screens_batch.h"
 #include "atmturb_types.h"
 
+typedef struct
+{
+    long           nx;
+    long           ny;
+    fftwf_complex *in_buf;
+    fftwf_complex *out_buf;
+    float         *amp_row;
+    fftwf_plan     plan;
+} atmturb_psf_metrics_fft_t;
+
 /**
- * atmturb_compute_frame_psf - Form complex pupil field and calculate PSF via FFT
- * @id_amp: Amplitude image ID (-1 if unity amplitude).
- * @id_pha: Phase image ID.
- * @slice_idx: Frame index along cube Z-axis.
- * @id_pupamp: Pupil mask image ID (-1 if none).
- * @nx: Pupil linear width.
- * @ny: Pupil linear height.
- * @id_psf: Output PSF image ID.
+ * atmturb_psf_metrics_fft_init - Allocate persistent buffers and cached 2D FFTW plan
+ */
+static int atmturb_psf_metrics_fft_init(
+    atmturb_psf_metrics_fft_t *ctx,
+    long                       nx,
+    long                       ny)
+{
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->nx      = nx;
+    ctx->ny      = ny;
+    ctx->in_buf  = fftwf_alloc_complex((size_t) nx * (size_t) ny);
+    ctx->out_buf = fftwf_alloc_complex((size_t) nx * (size_t) ny);
+    ctx->amp_row = (float *) malloc(sizeof(float) * (size_t) nx);
+    if (ctx->in_buf == NULL || ctx->out_buf == NULL || ctx->amp_row == NULL)
+    {
+        fftwf_free(ctx->in_buf);
+        fftwf_free(ctx->out_buf);
+        free(ctx->amp_row);
+        memset(ctx, 0, sizeof(*ctx));
+        return -1;
+    }
+
+    atmturb_fftwf_plan_threads(0);
+    atmturb_fftwf_wisdom_load();
+    unsigned int flags = atmturb_fftwf_plan_flags();
+    ctx->plan          = fftwf_plan_dft_2d((int) ny, (int) nx, ctx->in_buf, ctx->out_buf,
+                                           FFTW_FORWARD, flags);
+    if (ctx->plan == NULL)
+    {
+        fftwf_free(ctx->in_buf);
+        fftwf_free(ctx->out_buf);
+        free(ctx->amp_row);
+        memset(ctx, 0, sizeof(*ctx));
+        return -1;
+    }
+    if (flags == FFTW_MEASURE)
+    {
+        atmturb_fftwf_wisdom_save();
+    }
+    return 0;
+}
+
+/**
+ * atmturb_psf_metrics_fft_free - Release persistent 2D FFTW plan and buffers
+ */
+static void atmturb_psf_metrics_fft_free(
+    atmturb_psf_metrics_fft_t *ctx)
+{
+    if (ctx->plan != NULL)
+    {
+        fftwf_destroy_plan(ctx->plan);
+    }
+    fftwf_free(ctx->in_buf);
+    fftwf_free(ctx->out_buf);
+    free(ctx->amp_row);
+    memset(ctx, 0, sizeof(*ctx));
+}
+
+/**
+ * atmturb_psf_metrics_accum_span - Write or accumulate squared modulus over a contiguous span
+ */
+static inline void atmturb_psf_metrics_accum_span(
+    const fftwf_complex *restrict src,
+    float               *restrict dst,
+    long                          len,
+    int                           accum)
+{
+    if (accum)
+    {
+        #pragma omp simd
+        for (long i = 0; i < len; i++)
+        {
+            float r  = src[i][0];
+            float im = src[i][1];
+            dst[i] += r * r + im * im;
+        }
+    }
+    else
+    {
+        #pragma omp simd
+        for (long i = 0; i < len; i++)
+        {
+            float r  = src[i][0];
+            float im = src[i][1];
+            dst[i]   = r * r + im * im;
+        }
+    }
+}
+
+/**
+ * atmturb_compute_frame_psf - Form complex pupil field and calculate centered PSF via cached FFT
  */
 static void atmturb_compute_frame_psf(
-    imageID id_amp,
-    imageID id_pha,
-    long    slice_idx,
-    imageID id_pupamp,
-    long    nx,
-    long    ny,
-    imageID id_psf)
+    const atmturb_psf_metrics_fft_t *ctx,
+    imageID                          id_amp,
+    imageID                          id_pha,
+    long                             slice_idx,
+    imageID                          id_pupamp,
+    float                           *psf_dst,
+    int                              accum)
 {
-    imageID id_arr = create_2DCimage_ID("tmp_carr", nx, ny);
+    long         nx        = ctx->nx;
+    long         ny        = ctx->ny;
+    long         slice_off = slice_idx * nx * ny;
+    const float *pha_base  = (id_pha >= 0) ? &dcimg[id_pha].array.F[slice_off] : NULL;
+    const float *amp_base  = (id_amp >= 0) ? &dcimg[id_amp].array.F[slice_off] : NULL;
+    const float *pup_base  = (id_pupamp >= 0) ? dcimg[id_pupamp].array.F : NULL;
 
-    for (long jj = 0; jj < ny; jj++)
+    if (amp_base == NULL && pup_base == NULL)
     {
+        #pragma omp simd
         for (long ii = 0; ii < nx; ii++)
         {
-            long pidx = slice_idx * nx * ny + jj * nx + ii;
-            long pix2d = jj * nx + ii;
-            float p = (id_pha >= 0) ? dcimg[id_pha].array.F[pidx] : 0.0f;
-            float a = (id_amp >= 0) ? dcimg[id_amp].array.F[pidx] : 1.0f;
-            if (id_pupamp >= 0)
-            {
-                a *= dcimg[id_pupamp].array.F[pix2d];
-            }
-            float s, c;
-            sincosf(p, &s, &c);
-            dcimg[id_arr].array.CF[pix2d].re = a * c;
-            dcimg[id_arr].array.CF[pix2d].im = a * s;
+            ctx->amp_row[ii] = 1.0f;
         }
     }
 
-    permut("tmp_carr");
-    do2dfft("tmp_carr", "tmp_cfft");
-    delete_image_ID("tmp_carr");
-    permut("tmp_cfft");
-
-    imageID id_cfft = image_ID("tmp_cfft");
-    for (long i = 0; i < nx * ny; i++)
+    for (long jj = 0; jj < ny; jj++)
     {
-        float r = dcimg[id_cfft].array.CF[i].re;
-        float im = dcimg[id_cfft].array.CF[i].im;
-        dcimg[id_psf].array.F[i] = r * r + im * im;
+        long         roff = jj * nx;
+        const float *prow = (pha_base != NULL) ? &pha_base[roff] : NULL;
+        const float *mask = ctx->amp_row;
+
+        if (amp_base != NULL && pup_base != NULL)
+        {
+            const float *restrict arow = &amp_base[roff];
+            const float *restrict mrow = &pup_base[roff];
+            float       *restrict dst  = ctx->amp_row;
+            #pragma omp simd
+            for (long ii = 0; ii < nx; ii++)
+            {
+                dst[ii] = arow[ii] * mrow[ii];
+            }
+        }
+        else if (amp_base != NULL)
+        {
+            mask = &amp_base[roff];
+        }
+        else if (pup_base != NULL)
+        {
+            mask = &pup_base[roff];
+        }
+
+        atmturb_fresnel_simd_phasor_masked(&ctx->in_buf[roff], prow, mask, 1.0f, nx);
     }
-    delete_image_ID("tmp_cfft");
+
+    fftwf_execute_dft(ctx->plan, ctx->in_buf, ctx->out_buf);
+
+    long xhalf = nx / 2;
+    long yhalf = ny / 2;
+    for (long jj = 0; jj < ny; jj++)
+    {
+        long sy = (jj < yhalf) ? (jj + yhalf) : (jj - yhalf);
+        if (sy >= ny)
+        {
+            sy = jj;
+        }
+        const fftwf_complex *srow = &ctx->out_buf[sy * nx];
+        float               *drow = &psf_dst[jj * nx];
+        atmturb_psf_metrics_accum_span(&srow[xhalf], drow, xhalf, accum);
+        atmturb_psf_metrics_accum_span(srow, &drow[xhalf], xhalf, accum);
+        for (long ii = 2 * xhalf; ii < nx; ii++)
+        {
+            float r    = srow[ii][0];
+            float im   = srow[ii][1];
+            float val  = r * r + im * im;
+            drow[ii]   = accum ? (drow[ii] + val) : val;
+        }
+    }
 }
 
 /**
  * atmturb_measure_psf_apertures - Measure integrated flux in concentric circular apertures
- * @id_psf: PSF image ID.
- * @nx: Image width.
- * @ny: Image height.
- * @focal_scale: Plate scale in arcseconds/pixel.
- * @fluxes_out: Output array of 6 fluxes (total, 1", 2", 5", 10", 20").
  */
 static void atmturb_measure_psf_apertures(
-    imageID  id_psf,
-    long     nx,
-    long     ny,
-    float    focal_scale,
-    double  *fluxes_out)
+    const float *restrict psf,
+    long                  nx,
+    long                  ny,
+    float                 focal_scale,
+    double               *fluxes_out)
 {
-    double tot = 0.0, f1 = 0.0, f2 = 0.0, f5 = 0.0, f10 = 0.0, f20 = 0.0;
-    double cx = 0.5 * (double) nx;
-    double cy = 0.5 * (double) ny;
+    double tot = 0.0;
+    double f1  = 0.0;
+    double f2  = 0.0;
+    double f5  = 0.0;
+    double f10 = 0.0;
+    double f20 = 0.0;
+    long   np  = nx * ny;
 
-    for (long jj = 0; jj < ny; jj++)
+    #pragma omp simd reduction(+:tot)
+    for (long i = 0; i < np; i++)
     {
-        double dy = ((double) jj - cy) * (double) focal_scale;
-        double dy2 = dy * dy;
-        for (long ii = 0; ii < nx; ii++)
-        {
-            double dx = ((double) ii - cx) * (double) focal_scale;
-            double r2 = dx * dx + dy2;
-            double val = (double) dcimg[id_psf].array.F[jj * nx + ii];
+        tot += (double) psf[i];
+    }
 
-            tot += val;
+    double cx    = 0.5 * (double) nx;
+    double cy    = 0.5 * (double) ny;
+    double fs    = (double) focal_scale;
+    double rmax  = (fs > 0.0) ? (20.0 / fs) : (double) ((nx > ny) ? nx : ny);
+    long   j_min = (long) floor(cy - rmax);
+    long   j_max = (long) ceil(cy + rmax);
+    long   i_min = (long) floor(cx - rmax);
+    long   i_max = (long) ceil(cx + rmax);
+    if (j_min < 0)
+    {
+        j_min = 0;
+    }
+    if (j_max >= ny)
+    {
+        j_max = ny - 1;
+    }
+    if (i_min < 0)
+    {
+        i_min = 0;
+    }
+    if (i_max >= nx)
+    {
+        i_max = nx - 1;
+    }
+
+    for (long jj = j_min; jj <= j_max; jj++)
+    {
+        double               dy   = ((double) jj - cy) * fs;
+        double               dy2  = dy * dy;
+        const float *restrict row = &psf[jj * nx];
+        for (long ii = i_min; ii <= i_max; ii++)
+        {
+            double dx = ((double) ii - cx) * fs;
+            double r2 = dx * dx + dy2;
             if (r2 < 400.0)
             {
+                double val = (double) row[ii];
                 f20 += val;
                 f10 += (r2 < 100.0) ? val : 0.0;
                 f5  += (r2 < 25.0)  ? val : 0.0;
@@ -124,49 +290,64 @@ static void atmturb_measure_psf_apertures(
  *
  * Return: 0 on success.
  */
-int measure_wavefront_series(float factor)
+int measure_wavefront_series(
+    float factor)
 {
-    (void)factor;
+    (void) factor;
     AtmosphericTurbulence_ReadConf();
 
-    const double SLAMBDA = 1.65e-6;
-    imageID IDpupamp = image_ID("ST_pa");
+    const double SLAMBDA  = 1.65e-6;
+    imageID      IDpupamp = image_ID("ST_pa");
     if (IDpupamp == -1)
     {
         printf("ERROR: pupil amplitude map not loaded\n");
         return -1;
     }
 
-    long nx = dcimg[IDpupamp].md[0].size[0];
-    long ny = dcimg[IDpupamp].md[0].size[1];
+    long  nx          = dcimg[IDpupamp].md[0].size[0];
+    long  ny          = dcimg[IDpupamp].md[0].size[1];
     float focal_scale = (float) (SLAMBDA / ((double) nx * (double) CONF_PUPIL_SCALE)
                                  / M_PI * 180.0 * 3600.0);
-    long nbframes = (long)(CONF_TIME_SPAN / CONF_WFTIME_STEP);
-    imageID IDpsf = create_2Dimage_ID("PSF", nx, ny);
+    long  nbframes    = (long) (CONF_TIME_SPAN / CONF_WFTIME_STEP);
 
-    FILE *fpphot = fopen("phot.txt", "w");
-    if (fpphot == NULL)
+    atmturb_psf_metrics_fft_t fft_ctx;
+    if (atmturb_psf_metrics_fft_init(&fft_ctx, nx, ny) != 0)
     {
+        return -1;
+    }
+
+    imageID IDpsf  = create_2Dimage_ID("PSF", nx, ny);
+    FILE   *fpphot = fopen("phot.txt", "w");
+    if (fpphot == NULL || IDpsf < 0)
+    {
+        if (fpphot != NULL)
+        {
+            fclose(fpphot);
+        }
         delete_image_ID("PSF");
+        atmturb_psf_metrics_fft_free(&fft_ctx);
         return -1;
     }
 
     for (long tspan = 0; tspan < CONF_NB_TSPAN; tspan++)
     {
-        char fnamepha[512], fnameamp[512];
+        char fnamepha[512];
+        char fnameamp[512];
+        long lam_pm = (long) (1.0e12 * SLAMBDA + 0.5);
         snprintf(fnamepha, sizeof(fnamepha), "%s%08ld.%09ld.pha.fits",
-                 CONF_WF_FILE_PREFIX, tspan, (long)(1.0e12 * SLAMBDA + 0.5));
+                 CONF_WF_FILE_PREFIX, tspan, lam_pm);
         snprintf(fnameamp, sizeof(fnameamp), "%s%08ld.%09ld.amp.fits",
-                 CONF_WF_FILE_PREFIX, tspan, (long)(1.0e12 * SLAMBDA + 0.5));
+                 CONF_WF_FILE_PREFIX, tspan, lam_pm);
 
         imageID IDpha = load_fits(fnamepha, "wfpha", 1);
         imageID IDamp = (CONF_WAVEFRONT_AMPLITUDE == 1) ? load_fits(fnameamp, "wfamp", 1) : -1;
 
         for (long frame = 0; frame < nbframes; frame++)
         {
-            atmturb_compute_frame_psf(IDamp, IDpha, frame, IDpupamp, nx, ny, IDpsf);
+            atmturb_compute_frame_psf(&fft_ctx, IDamp, IDpha, frame, IDpupamp,
+                                      dcimg[IDpsf].array.F, 0);
             double fluxes[6];
-            atmturb_measure_psf_apertures(IDpsf, nx, ny, focal_scale, fluxes);
+            atmturb_measure_psf_apertures(dcimg[IDpsf].array.F, nx, ny, focal_scale, fluxes);
             fprintf(fpphot, "%ld %ld %g %g %g %g %g %g\n",
                     tspan, frame, fluxes[0], fluxes[1], fluxes[2], fluxes[3], fluxes[4], fluxes[5]);
         }
@@ -180,6 +361,7 @@ int measure_wavefront_series(float factor)
 
     fclose(fpphot);
     delete_image_ID("PSF");
+    atmturb_psf_metrics_fft_free(&fft_ctx);
     return 0;
 }
 
@@ -196,62 +378,73 @@ int measure_wavefront_series_expoframes(
 {
     AtmosphericTurbulence_ReadConf();
 
-    const double SLAMBDA = 1.65e-6;
-    imageID IDpupamp = image_ID("ST_pa");
+    const double SLAMBDA  = 1.65e-6;
+    imageID      IDpupamp = image_ID("ST_pa");
     if (IDpupamp == -1)
     {
         return -1;
     }
 
-    long nx = dcimg[IDpupamp].md[0].size[0];
-    long ny = dcimg[IDpupamp].md[0].size[1];
-    float focal_scale = (float) (SLAMBDA / ((double) nx * (double) CONF_PUPIL_SCALE)
-                                 / M_PI * 180.0 * 3600.0);
-    long nbframes_per_span = (long)(CONF_TIME_SPAN / CONF_WFTIME_STEP);
-    long nbframes_per_expo = (long)(etime / CONF_WFTIME_STEP);
-    if (nbframes_per_expo < 1) nbframes_per_expo = 1;
-
-    imageID IDpsf = create_2Dimage_ID("PSF", nx, ny);
-    imageID IDpsf_acc = create_2Dimage_ID("PSF_acc", nx, ny);
-
-    FILE *fp = fopen(outfile, "w");
-    if (fp == NULL)
+    long  nx                = dcimg[IDpupamp].md[0].size[0];
+    long  ny                = dcimg[IDpupamp].md[0].size[1];
+    float focal_scale       = (float) (SLAMBDA / ((double) nx * (double) CONF_PUPIL_SCALE)
+                                       / M_PI * 180.0 * 3600.0);
+    long  nbframes_per_span = (long) (CONF_TIME_SPAN / CONF_WFTIME_STEP);
+    long  nbframes_per_expo = (long) (etime / CONF_WFTIME_STEP);
+    if (nbframes_per_expo < 1)
     {
-        delete_image_ID("PSF");
+        nbframes_per_expo = 1;
+    }
+
+    atmturb_psf_metrics_fft_t fft_ctx;
+    if (atmturb_psf_metrics_fft_init(&fft_ctx, nx, ny) != 0)
+    {
+        return -1;
+    }
+
+    imageID IDpsf_acc = create_2Dimage_ID("PSF_acc", nx, ny);
+    FILE   *fp        = fopen(outfile, "w");
+    if (fp == NULL || IDpsf_acc < 0)
+    {
+        if (fp != NULL)
+        {
+            fclose(fp);
+        }
         delete_image_ID("PSF_acc");
+        atmturb_psf_metrics_fft_free(&fft_ctx);
         return -1;
     }
 
     long acc_count = 0;
-    long expo_idx = 0;
+    long expo_idx  = 0;
 
     for (long tspan = 0; tspan < CONF_NB_TSPAN; tspan++)
     {
-        char fnamepha[512], fnameamp[512];
+        char fnamepha[512];
+        char fnameamp[512];
+        long lam_pm = (long) (1.0e12 * SLAMBDA + 0.5);
         snprintf(fnamepha, sizeof(fnamepha), "%s%08ld.%09ld.pha.fits",
-                 CONF_WF_FILE_PREFIX, tspan, (long)(1.0e12 * SLAMBDA + 0.5));
+                 CONF_WF_FILE_PREFIX, tspan, lam_pm);
         snprintf(fnameamp, sizeof(fnameamp), "%s%08ld.%09ld.amp.fits",
-                 CONF_WF_FILE_PREFIX, tspan, (long)(1.0e12 * SLAMBDA + 0.5));
+                 CONF_WF_FILE_PREFIX, tspan, lam_pm);
 
         imageID IDpha = load_fits(fnamepha, "wfpha", 1);
         imageID IDamp = (CONF_WAVEFRONT_AMPLITUDE == 1) ? load_fits(fnameamp, "wfamp", 1) : -1;
 
         for (long frame = 0; frame < nbframes_per_span; frame++)
         {
-            atmturb_compute_frame_psf(IDamp, IDpha, frame, IDpupamp, nx, ny, IDpsf);
-            for (long p = 0; p < nx * ny; p++)
-            {
-                dcimg[IDpsf_acc].array.F[p] += dcimg[IDpsf].array.F[p];
-            }
+            atmturb_compute_frame_psf(&fft_ctx, IDamp, IDpha, frame, IDpupamp,
+                                      dcimg[IDpsf_acc].array.F, 1);
             acc_count++;
 
             if (acc_count >= nbframes_per_expo)
             {
                 double fluxes[6];
-                atmturb_measure_psf_apertures(IDpsf_acc, nx, ny, focal_scale, fluxes);
+                atmturb_measure_psf_apertures(dcimg[IDpsf_acc].array.F, nx, ny,
+                                              focal_scale, fluxes);
                 fprintf(fp, "%ld %g %g %g %g %g %g\n", expo_idx++,
                         fluxes[0], fluxes[1], fluxes[2], fluxes[3], fluxes[4], fluxes[5]);
-                memset(dcimg[IDpsf_acc].array.raw, 0, sizeof(float) * nx * ny);
+                memset(dcimg[IDpsf_acc].array.F, 0, sizeof(float) * (size_t) nx * (size_t) ny);
                 acc_count = 0;
             }
         }
@@ -264,8 +457,8 @@ int measure_wavefront_series_expoframes(
     }
 
     fclose(fp);
-    delete_image_ID("PSF");
     delete_image_ID("PSF_acc");
+    atmturb_psf_metrics_fft_free(&fft_ctx);
     return 0;
 }
 
@@ -289,30 +482,40 @@ long AtmosphericTurbulence_psfCubeContrast(
         return -1;
     }
 
-    long nx = dcimg[IDcube].md[0].size[0];
-    long ny = dcimg[IDcube].md[0].size[1];
-    long nz = (dcimg[IDcube].md[0].naxis > 2) ? dcimg[IDcube].md[0].size[2] : 1;
+    long                  nx  = dcimg[IDcube].md[0].size[0];
+    long                  ny  = dcimg[IDcube].md[0].size[1];
+    long                  nz  =
+        (dcimg[IDcube].md[0].naxis > 2) ? dcimg[IDcube].md[0].size[2] : 1;
+    long                  nxy = nx * ny;
+    const float *restrict cube_data = dcimg[IDcube].array.F;
+    const float *restrict mask_data = dcimg[IDmask].array.F;
+    double                mask_norm = 0.0;
 
-    double mask_norm = 0.0;
-    for (long i = 0; i < nx * ny; i++)
+    #pragma omp simd reduction(+:mask_norm)
+    for (long i = 0; i < nxy; i++)
     {
-        mask_norm += dcimg[IDmask].array.F[i];
+        mask_norm += (double) mask_data[i];
     }
     if (mask_norm < 1.0)
     {
         mask_norm = 1.0;
     }
 
-    imageID IDout = create_2Dimage_ID(IDpsfc_name, nz, 1);
+    imageID         IDout     = create_2Dimage_ID(IDpsfc_name, nz, 1);
+    float *restrict out_data  = dcimg[IDout].array.F;
+    double          inv_norm  = 1.0 / mask_norm;
 
+    #pragma omp parallel for schedule(static) if (nz >= 4)
     for (long k = 0; k < nz; k++)
     {
-        double sum = 0.0;
-        for (long i = 0; i < nx * ny; i++)
+        const float *restrict slice = &cube_data[k * nxy];
+        double                sum   = 0.0;
+        #pragma omp simd reduction(+:sum)
+        for (long i = 0; i < nxy; i++)
         {
-            sum += dcimg[IDcube].array.F[k * nx * ny + i] * dcimg[IDmask].array.F[i];
+            sum += (double) slice[i] * (double) mask_data[i];
         }
-        dcimg[IDout].array.F[k] = (float)(sum / mask_norm);
+        out_data[k] = (float) (sum * inv_norm);
     }
 
     return nz;
@@ -337,18 +540,25 @@ int frame_select_PSF(
         return -1;
     }
 
-    long n_select = (long)(NBfiles * frac);
+    long n_select = (long) ((float) NBfiles * frac);
     if (n_select < 1)
     {
         n_select = 1;
     }
 
-    float *metrics = malloc(sizeof(float) * NBfiles);
-    long *indices = malloc(sizeof(long) * NBfiles);
+    float *metrics = (float *) calloc((size_t) NBfiles, sizeof(float));
+    long  *indices = (long *) calloc((size_t) NBfiles, sizeof(long));
+    if (metrics == NULL || indices == NULL)
+    {
+        free(metrics);
+        free(indices);
+        fclose(fp);
+        return -1;
+    }
 
     for (long i = 0; i < NBfiles; i++)
     {
-        long idx = 0;
+        long  idx = 0;
         float val = 0.0f;
         if (fscanf(fp, "%ld %*f %f %*[^\n]", &idx, &val) >= 2)
         {
@@ -358,7 +568,6 @@ int frame_select_PSF(
     }
     fclose(fp);
 
-    // Simple selection sort for top n_select frames
     for (long i = 0; i < n_select; i++)
     {
         long best_j = i;
@@ -369,11 +578,11 @@ int frame_select_PSF(
                 best_j = j;
             }
         }
-        float tmp_m = metrics[i];
-        metrics[i] = metrics[best_j];
+        float tmp_m     = metrics[i];
+        metrics[i]      = metrics[best_j];
         metrics[best_j] = tmp_m;
-        long tmp_idx = indices[i];
-        indices[i] = indices[best_j];
+        long tmp_idx    = indices[i];
+        indices[i]      = indices[best_j];
         indices[best_j] = tmp_idx;
     }
 

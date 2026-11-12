@@ -23,6 +23,8 @@ optics simulation with PSF synthesis.
   validation, and sorting.
 - `atmturb_screens.c`: von Karman and power-law master phase screen generator
   (`atmturb_generate_screen_pair`, `make_master_turbulence_screen_seeded`).
+- `atmturb_screens_batch.c` / `atmturb_screens_batch.h`: Multi-pair CPU/GPU batch synthesis of
+  master turbulence screens sharing read-only FFTW3 plans and persistent single-pair caches.
 - `atmturb_fft_wisdom.c` / `atmturb_fft_wisdom.h`: Persistent FFTW3F wisdom file loading,
   saving, and planner flag selection (`atmturb_fftwf_wisdom_load`, `atmturb_fftwf_plan_flags`).
 - `atmturb_wind.c`: 1D von Karman turbulent wind velocity synthesis and trajectory computation
@@ -33,8 +35,10 @@ optics simulation with PSF synthesis.
   (`contract_wavefront_cube`).
 - `atmturb_psf_metrics.c`: Encircled energy aperture photometry, contrast extraction, and lucky
   imaging frame selection (`measure_wavefront_series`, `frame_select_PSF`).
+- `atmturb_psf_engine.c` / `atmturb_psf_engine.h`: Pruned 2-stage 1D FFTW3 Fourier optics engine
+  for Nyquist science PSF synthesis with L1-tiled cache-padded transposes.
 - `atmturb_psf_sim.c`: End-to-end closed-loop adaptive optics simulation with PID feedback,
-  latency modeling, and PSF accumulation (`atmturb_ao_sim_run`, `AtmosphericTurbulence_makePSF`).
+  latency modeling, and CPU/GPU PSF accumulation (`atmturb_ao_sim_run`).
 - `atmturb_linpred_full.c`: Full-aperture autoregressive linear prediction matrix building and
   evaluation (`AtmosphericTurbulence_Build_LinPredictor_Full`).
 - `atmturb_linpred_pixel.c`: Pixel-level predictor training and shift-invariant 2D kernel
@@ -76,12 +80,16 @@ optics simulation with PSF synthesis.
 - `atmturb_rytov_simd_scalar.c`, `atmturb_rytov_simd_avx2.c`,
   `atmturb_rytov_simd_dispatch.c`, `atmturb_rytov_simd.h`: Compiler-vectorized (`#pragma omp simd`)
   Rytov quadratic phase filters, complex multiply-accumulate, and clamped fast-`expf` row assembly.
-- `atmturb_cuda.cu` / `atmturb_cuda.h`: CUDA GPU accelerated multi-layer wavefront extrusion and
-  spatial interpolation kernels.
+- `atmturb_cuda.cu` / `atmturb_cuda.h`: CUDA GPU accelerated multi-layer wavefront extrusion,
+  2D layered Morton texture caching, and spatial interpolation kernels.
+- `atmturb_cuda_screens.cu` / `atmturb_cuda_screens.h`: Batched GPU `cuFFT` master screen
+  synthesis with counter-addressed SplitMix64 spectrum generation directly into VRAM.
 - `atmturb_cuda_piston.cu` / `atmturb_cuda_piston.h`: CUDA GPU piston subtraction kernel.
-- `atmturb_cuda_fresnel.cu`, `atmturb_cuda_fresnel_kernels.cu`, `atmturb_cuda_fresnel.h`,
-  `atmturb_cuda_fresnel_kernels.h`: CUDA GPU split-step Fresnel propagation engine with CUDA Graph
-  capture.
+- `atmturb_cuda_fresnel.cu`, `atmturb_cuda_fresnel_batch.cu`, `atmturb_cuda_fresnel_kernels.cu`,
+  `atmturb_cuda_fresnel.h`, `atmturb_cuda_fresnel_kernels.h`: CUDA GPU split-step Fresnel
+  propagation engine with CUDA Graph capture (2D streams) and multi-frame batched `cuFFT` (3D).
+- `atmturb_cuda_psf.cu` / `atmturb_cuda_psf.h`: CUDA/cuFFT open-loop batched and closed-loop
+  L2-resident adaptive optics science PSF simulation engine.
 - `atmturb_cuda_rytov.cu`, `atmturb_cuda_rytov_extrude.cu`, `atmturb_cuda_rytov_filter.cu`,
   `atmturb_cuda_rytov.h`, `atmturb_cuda_rytov_internal.h`: CUDA and cuFFT GPU acceleration for
   Rytov wavefront synthesis, batched transforms, and CUDA Graph execution.

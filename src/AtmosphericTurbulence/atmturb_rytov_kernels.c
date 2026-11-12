@@ -219,8 +219,8 @@ void atmturb_rytov_decompose_periodic(
         bb[y] = phi[y * n] - phi[y * n + (n - 1)];
     }
 
-    fftwf_execute(ctx->plan_1d_a);
-    fftwf_execute(ctx->plan_1d_b);
+    fftwf_execute_dft_r2c(ctx->plan_1d_a, ctx->bound_a, ctx->hat_a);
+    fftwf_execute_dft_r2c(ctx->plan_1d_b, ctx->bound_b, ctx->hat_b);
     fftwf_execute_dft_r2c(ctx->plan_r2c, phi, ctx->spec);
 
 #ifdef _OPENMP

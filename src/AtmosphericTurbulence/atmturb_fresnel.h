@@ -51,6 +51,7 @@ typedef struct
  * @field_sec: Working complex array for secondary optical field.
  * @super_pha: Scratchpad for super-layer primary phase screen.
  * @super_spha: Scratchpad for super-layer secondary phase screen.
+ * @owns_plans: Non-zero when this context owns and destroys its FFTW plans.
  */
 typedef struct
 {
@@ -60,6 +61,7 @@ typedef struct
     fftwf_complex          *field_sec;
     float                  *super_pha;
     float                  *super_spha;
+    int                     owns_plans;
 } atmturb_fresnel_ctx_t;
 
 /**
@@ -102,6 +104,21 @@ void atmturb_fresnel_plan_free(
 int atmturb_fresnel_ctx_init(
     atmturb_fresnel_ctx_t *ctx,
     long                   pup_size);
+
+/**
+ * atmturb_fresnel_ctx_init_mt - Initialize Fresnel context with explicit threading/shared plans
+ * @ctx: Thread context structure to initialize.
+ * @pup_size: Linear dimension of wavefront in pixels.
+ * @fftw_nthreads: Explicit FFTW thread count (>0), or 0 for automatic sizing.
+ * @shared_src: Optional donor context whose FFTW plans are reused read-only (or NULL).
+ *
+ * Return: 0 on success, -1 on allocation failure.
+ */
+int atmturb_fresnel_ctx_init_mt(
+    atmturb_fresnel_ctx_t       *ctx,
+    long                         pup_size,
+    int                          fftw_nthreads,
+    const atmturb_fresnel_ctx_t *shared_src);
 
 /**
  * atmturb_fresnel_ctx_free - Release resources held by thread context

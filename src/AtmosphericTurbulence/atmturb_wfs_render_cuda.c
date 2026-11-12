@@ -176,6 +176,27 @@ int atmturb_wfs_render_fresnel_cuda(
         return -1;
     }
 
+    if (nbframes >= 2)
+    {
+        atmturb_cuda_fresnel_batch_req_t req = {
+            .r           = r,
+            .geom        = geom,
+            .prof        = prof,
+            .params      = params,
+            .master_size = master_size,
+            .pup_size    = pup_size,
+            .nbframes    = nbframes,
+            .pha         = (imgs->ID_pha >= 0) ? &dcimg[imgs->ID_pha].array.F[0] : NULL,
+            .amp         = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[0] : NULL,
+            .spha        = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[0] : NULL,
+            .samp        = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[0] : NULL
+        };
+        if (atmturb_cuda_fresnel_render_batch(&req) == 0)
+        {
+            return 0;
+        }
+    }
+
     atmturb_cuda_fresnel_stream_t *ctx =
         atmturb_cuda_fresnel_stream_init(r, geom, prof, params, master_size, pup_size);
     if (ctx == NULL)

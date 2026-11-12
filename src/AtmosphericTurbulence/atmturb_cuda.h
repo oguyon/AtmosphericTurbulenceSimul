@@ -146,6 +146,11 @@ static inline void atmturb_cuda_host_free(
     free(ptr);
 }
 
+static inline unsigned long long atmturb_cuda_get_master_tex(void)
+{
+    return 0ULL;
+}
+
 #else
 
 typedef struct atmturb_cuda_geom_stream atmturb_cuda_geom_stream_t;
@@ -177,6 +182,37 @@ int atmturb_wfs_render_frames_cuda(
  * Return: Pointer to device master screens array, or NULL on failure.
  */
 float *atmturb_cuda_sync_device_masters(
+    long                msize,
+    long                nblayers,
+    const float *const *h_masters);
+
+/**
+ * atmturb_cuda_get_master_tex - Query cached 2D layered texture object for master screens
+ *
+ * Return: Active cudaTextureObject_t cast to unsigned long long, or 0 if unavailable.
+ */
+unsigned long long atmturb_cuda_get_master_tex(void);
+
+/**
+ * atmturb_cuda_alloc_master_cache - Allocate linear device master screen cache for GPU synthesis
+ * @msize: Master screen dimension in pixels.
+ * @nblayers: Total number of master screens across layers.
+ *
+ * Return: Device buffer pointer, or NULL on allocation failure.
+ */
+float *atmturb_cuda_alloc_master_cache(
+    long msize,
+    long nblayers);
+
+/**
+ * atmturb_cuda_commit_master_cache - Bind GPU-synthesized master screens and build 2D texture
+ * @msize: Master screen dimension in pixels.
+ * @nblayers: Total number of master screens across layers.
+ * @h_masters: Host pointer tags matching dcimg screen buffers for cache-hit tracking.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_commit_master_cache(
     long                msize,
     long                nblayers,
     const float *const *h_masters);

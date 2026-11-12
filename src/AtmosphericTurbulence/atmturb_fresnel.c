@@ -148,32 +148,30 @@ void atmturb_fresnel_plan_free(
 }
 
 /**
- * atmturb_fresnel_init_fftw_threads - Initialize OpenMP thread pool for FFTW plans
- * @pup_size: Linear dimension of wavefront in pixels.
+ * atmturb_fresnel_init_fftw_threads - Configure FFTW thread count for Fresnel propagation
+ * @pup_size: Grid linear dimension in pixels.
+ * @req_nthreads: Explicit thread count (>0), or 0 for automatic selection.
  */
 static void atmturb_fresnel_init_fftw_threads(
-    long pup_size)
+    long pup_size,
+    int  req_nthreads)
 {
 #ifdef _OPENMP
     static int s_threads_init = 0;
     if (!s_threads_init)
     {
-        #pragma omp critical
+        #pragma omp critical(atmturb_fresnel_fftw_init)
         {
-            if (!s_threads_init)
+            if (!s_threads_init && fftwf_init_threads())
             {
-                if (fftwf_init_threads())
-                {
-                    s_threads_init = 1;
-                }
+                s_threads_init = 1;
             }
         }
     }
     if (s_threads_init)
     {
-        int nth = 1;
-#ifdef _OPENMP
-        if (!omp_in_parallel())
+        int nth = (req_nthreads > 0) ? req_nthreads : 1;
+        if (req_nthreads <= 0 && !omp_in_parallel())
         {
             int max_th = omp_get_max_threads();
             if (pup_size > 128 && pup_size <= 256)
@@ -189,24 +187,28 @@ static void atmturb_fresnel_init_fftw_threads(
                 nth = (max_th < 16) ? max_th : 16;
             }
         }
-#endif
         fftwf_plan_with_nthreads(nth);
     }
 #else
     (void) pup_size;
+    (void) req_nthreads;
 #endif
 }
 
 /**
- * atmturb_fresnel_ctx_init - Allocate thread-local scratchpad and init FFTW engine
+ * atmturb_fresnel_ctx_init_mt - Initialize Fresnel context with explicit threading/shared plans
  * @ctx: Thread context structure to initialize.
  * @pup_size: Linear dimension of wavefront in pixels.
+ * @fftw_nthreads: Explicit FFTW thread count (>0), or 0 for automatic sizing.
+ * @shared_src: Optional donor context whose FFTW plans are reused read-only (or NULL).
  *
  * Return: 0 on success, -1 on allocation failure.
  */
-int atmturb_fresnel_ctx_init(
-    atmturb_fresnel_ctx_t *ctx,
-    long                   pup_size)
+int atmturb_fresnel_ctx_init_mt(
+    atmturb_fresnel_ctx_t       *ctx,
+    long                         pup_size,
+    int                          fftw_nthreads,
+    const atmturb_fresnel_ctx_t *shared_src)
 {
     if (ctx == NULL || pup_size <= 0)
     {
@@ -230,28 +232,33 @@ int atmturb_fresnel_ctx_init(
         return -1;
     }
 
-    atmturb_fftwf_wisdom_load();
-    atmturb_fresnel_init_fftw_threads(pup_size);
-    unsigned int flags    = atmturb_fftwf_plan_flags();
-    ctx->eng.fwd_plan     = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                              ctx->field_pri, ctx->field_pri,
-                                              FFTW_FORWARD, flags);
-    ctx->eng.inv_plan     = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                              ctx->field_pri, ctx->field_pri,
-                                              FFTW_BACKWARD, flags);
-    ctx->eng_sec.fwd_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                              ctx->field_sec, ctx->field_sec,
-                                              FFTW_FORWARD, flags);
-    ctx->eng_sec.inv_plan = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
-                                              ctx->field_sec, ctx->field_sec,
-                                              FFTW_BACKWARD, flags);
+    if (shared_src != NULL)
+    {
+        ctx->eng        = shared_src->eng;
+        ctx->eng_sec    = shared_src->eng_sec;
+        ctx->owns_plans = 0;
+        return 0;
+    }
 
-    if (ctx->eng.fwd_plan == NULL || ctx->eng.inv_plan == NULL ||
-        ctx->eng_sec.fwd_plan == NULL || ctx->eng_sec.inv_plan == NULL)
+    atmturb_fftwf_wisdom_load();
+    atmturb_fresnel_init_fftw_threads(pup_size, fftw_nthreads);
+    unsigned int flags = atmturb_fftwf_plan_flags();
+    ctx->eng.fwd_plan  = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                           ctx->field_pri, ctx->field_pri,
+                                           FFTW_FORWARD, flags);
+    ctx->eng.inv_plan  = fftwf_plan_dft_2d((int) pup_size, (int) pup_size,
+                                           ctx->field_pri, ctx->field_pri,
+                                           FFTW_BACKWARD, flags);
+    ctx->owns_plans    = 1;
+
+    if (ctx->eng.fwd_plan == NULL || ctx->eng.inv_plan == NULL)
     {
         atmturb_fresnel_ctx_free(ctx);
         return -1;
     }
+
+    ctx->eng_sec.fwd_plan = ctx->eng.fwd_plan;
+    ctx->eng_sec.inv_plan = ctx->eng.inv_plan;
 
     if (flags == FFTW_MEASURE)
     {
@@ -259,6 +266,20 @@ int atmturb_fresnel_ctx_init(
     }
 
     return 0;
+}
+
+/**
+ * atmturb_fresnel_ctx_init - Allocate thread-local scratchpad and init FFTW engine
+ * @ctx: Thread context structure to initialize.
+ * @pup_size: Linear dimension of wavefront in pixels.
+ *
+ * Return: 0 on success, -1 on allocation failure.
+ */
+int atmturb_fresnel_ctx_init(
+    atmturb_fresnel_ctx_t *ctx,
+    long                   pup_size)
+{
+    return atmturb_fresnel_ctx_init_mt(ctx, pup_size, 0, NULL);
 }
 
 /**
@@ -273,8 +294,13 @@ void atmturb_fresnel_ctx_free(
         return;
     }
 
-    wfprop_fresnel_engine_free(&ctx->eng);
-    wfprop_fresnel_engine_free(&ctx->eng_sec);
+    if (ctx->owns_plans)
+    {
+        wfprop_fresnel_engine_free(&ctx->eng);
+    }
+    memset(&ctx->eng, 0, sizeof(ctx->eng));
+    memset(&ctx->eng_sec, 0, sizeof(ctx->eng_sec));
+    ctx->owns_plans = 0;
     if (ctx->field_pri != NULL)
     {
         fftwf_free(ctx->field_pri);

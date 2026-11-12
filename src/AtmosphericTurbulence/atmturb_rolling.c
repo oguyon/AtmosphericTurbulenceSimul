@@ -22,6 +22,7 @@
 #include "atmturb_lowfreq.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
+#include "atmturb_screens_batch.h"
 #include "atmturb_types.h"
 
 /**
@@ -75,109 +76,177 @@ static imageID atmturb_rolling_ensure_screen(
     return id;
 }
 
-/**
- * atmturb_rolling_init_screen_pair - Synthesize or load a pair of master screens
- * @name0: Name of screen 0.
- * @name1: Name of screen 1.
- * @spec: Screen generation specifications.
- * @id0: Output image ID for screen 0.
- * @id1: Output image ID for screen 1.
- *
- * Return: 0 on success, -1 on failure.
- */
-static int atmturb_rolling_init_screen_pair(
-    const char                  *name0,
-    const char                  *name1,
-    const atmturb_screen_spec_t *spec,
-    imageID                     *id0,
-    imageID                     *id1)
+typedef struct
 {
-    long msize = spec->size;
-    if (!CONF_SKIP_EXISTING || image_ID(name0) < 0 || image_ID(name1) < 0)
+    atmturb_screen_spec_t *specs;
+    float                **out_a;
+    float                **out_b;
+    int                   *slot_a;
+    int                   *slot_b;
+    const float          **host_tags;
+    int                    npairs;
+    int                    all_fresh;
+} atmturb_rolling_batch_state_t;
+
+/**
+ * atmturb_rolling_calc_nscreens - Compute required master screen pool depth for one layer
+ */
+static int atmturb_rolling_calc_nscreens(
+    int    rolling,
+    double t_dec_s,
+    long   nbframes,
+    double time_step_s)
+{
+    if (!rolling)
     {
-        delete_image_ID(name0);
-        delete_image_ID(name1);
-        *id0 = create_2Dimage_ID(name0, msize, msize);
-        *id1 = create_2Dimage_ID(name1, msize, msize);
-        if (*id0 < 0 || *id1 < 0)
+        return 1;
+    }
+
+    double sim_duration = (nbframes > 1) ? ((double) (nbframes - 1) * time_step_s) : 20.0;
+    long   max_epoch    = (long) (sim_duration / t_dec_s);
+    int    nscreens     = (int) (max_epoch + 2);
+    if (nscreens < 4)
+    {
+        nscreens = 4;
+    }
+    if (CONF_STREAM_MODE > 0 && nscreens > 6)
+    {
+        nscreens = 6;
+    }
+    else if (nscreens > 32)
+    {
+        nscreens = 32;
+    }
+    return nscreens;
+}
+
+/**
+ * atmturb_rolling_prepare_pair_ids - Reuse or allocate dcimg master screen buffers for a pair
+ */
+static int atmturb_rolling_prepare_pair_ids(
+    int      k,
+    int      s,
+    int      has_second,
+    long     msize,
+    imageID *id0,
+    imageID *id1,
+    int     *reused)
+{
+    char name0[200];
+    char name1[200];
+    snprintf(name0, sizeof(name0), "turbm%02d_p%d", k, s);
+    snprintf(name1, sizeof(name1), "turbm%02d_p%d", k, s + 1);
+
+    if (CONF_SKIP_EXISTING)
+    {
+        *id0 = atmturb_rolling_ensure_screen(name0, msize);
+        *id1 = has_second ? atmturb_rolling_ensure_screen(name1, msize) : 0;
+        if (*id0 >= 0 && (!has_second || *id1 >= 0))
         {
-            return -1;
+            *reused = 1;
+            return 0;
         }
-        if (atmturb_generate_screen_pair(spec, dcimg[*id0].array.F, dcimg[*id1].array.F) != 0)
+    }
+
+    *reused = 0;
+    delete_image_ID(name0);
+    *id0 = create_2Dimage_ID(name0, msize, msize);
+    if (*id0 < 0)
+    {
+        return -1;
+    }
+    if (has_second)
+    {
+        delete_image_ID(name1);
+        *id1 = create_2Dimage_ID(name1, msize, msize);
+        if (*id1 < 0)
         {
             return -1;
         }
     }
-    *id0 = atmturb_rolling_ensure_screen(name0, msize);
-    *id1 = atmturb_rolling_ensure_screen(name1, msize);
-    return (*id0 >= 0 && *id1 >= 0) ? 0 : -1;
+    return 0;
 }
 
 /**
- * atmturb_rolling_init_layer_screens - Allocate and populate screens for a single layer
- * @rl: Target layer rolling container.
- * @k: Layer index.
- * @prof: Active atmospheric profile.
- * @geom: Computed observing geometry.
- * @msize: Master screen linear dimension.
- * @precision: FFT precision mode.
- * @seed: Master PRNG seed.
- *
- * Return: 0 on success, -1 on failure.
+ * atmturb_rolling_queue_layer - Setup dcimg buffers, lowfreq modes, and batch queue for layer k
  */
-static int atmturb_rolling_init_layer_screens(
-    atmturb_rolling_layer_t *rl,
-    int                      k,
-    const atmturb_profile_t *prof,
-    const atmturb_geom_t    *geom,
-    long                     msize,
-    long                     precision,
-    uint64_t                 seed)
+static int atmturb_rolling_queue_layer(
+    atmturb_rolling_layer_t       *rl,
+    int                            k,
+    int                            vram_base,
+    const atmturb_profile_t       *prof,
+    const atmturb_geom_t          *geom,
+    long                           msize,
+    long                           precision,
+    uint64_t                       seed,
+    atmturb_rolling_batch_state_t *bs)
 {
-    double L0_pix = (prof->layers[k].L0_m > 0.0)
-                        ? (prof->layers[k].L0_m / geom->dx_master_m) : 0.0;
-    double l0_pix = (prof->layers[k].l0_m > 0.0)
-                        ? (prof->layers[k].l0_m / geom->dx_master_m) : 0.0;
-
+    double L0_pix = (prof->layers[k].L0_m > 0.0) ? (prof->layers[k].L0_m / geom->dx_master_m) : 0.0;
+    double l0_pix = (prof->layers[k].l0_m > 0.0) ? (prof->layers[k].l0_m / geom->dx_master_m) : 0.0;
     atmturb_lowfreq_init(&rl->lf_base, msize, geom->r0_ref_pix, L0_pix, l0_pix, seed);
 
     for (int s = 0; s < rl->nscreens; s += 2)
     {
-        char name0[200], name1[200];
-        snprintf(name0, sizeof(name0), "turbm%02d_p%d", k, s);
-        snprintf(name1, sizeof(name1), "turbm%02d_p%d", k, s + 1);
-
-        atmturb_screen_spec_t spec;
-        memset(&spec, 0, sizeof(spec));
-        spec.size      = msize;
-        spec.r0_pix    = geom->r0_ref_pix;
-        spec.L0_pix    = L0_pix;
-        spec.l0_pix    = l0_pix;
-        spec.seed      = atmturb_rng_stream_seed(seed, (uint64_t) (k + s * 1000));
-        spec.precision = (int) precision;
-
-        imageID id0 = -1, id1 = -1;
-        if (atmturb_rolling_init_screen_pair(name0, name1, &spec, &id0, &id1) != 0)
+        int     has_second = (s + 1 < rl->nscreens) ? 1 : 0;
+        imageID id0        = -1;
+        imageID id1        = -1;
+        int     reused     = 0;
+        if (atmturb_rolling_prepare_pair_ids(k, s, has_second, msize, &id0, &id1, &reused) != 0)
         {
             return -1;
         }
 
-        rl->screens[s].image_id = id0;
-        rl->screens[s].data     = dcimg[id0].array.F;
+        rl->screens[s].image_id      = id0;
+        rl->screens[s].data          = dcimg[id0].array.F;
+        bs->host_tags[vram_base + s] = rl->screens[s].data;
         uint64_t seed0 = atmturb_rng_stream_seed(seed, (uint64_t) (10000 + k + s * 1000));
         atmturb_lowfreq_draw_amplitudes(rl->screens[s].are, rl->screens[s].aim,
                                         msize, geom->r0_ref_pix, L0_pix, l0_pix, seed0);
 
-        if (s + 1 < rl->nscreens)
+        if (has_second)
         {
-            rl->screens[s + 1].image_id = id1;
-            rl->screens[s + 1].data     = dcimg[id1].array.F;
+            rl->screens[s + 1].image_id          = id1;
+            rl->screens[s + 1].data              = dcimg[id1].array.F;
+            bs->host_tags[vram_base + s + 1]     = rl->screens[s + 1].data;
             uint64_t seed1 = atmturb_rng_stream_seed(seed, (uint64_t) (10000 + k + (s + 1) * 1000));
             atmturb_lowfreq_draw_amplitudes(rl->screens[s + 1].are, rl->screens[s + 1].aim,
                                             msize, geom->r0_ref_pix, L0_pix, l0_pix, seed1);
         }
+
+        if (reused)
+        {
+            bs->all_fresh = 0;
+            continue;
+        }
+
+        int p = bs->npairs++;
+        memset(&bs->specs[p], 0, sizeof(bs->specs[p]));
+        bs->specs[p].size      = msize;
+        bs->specs[p].r0_pix    = geom->r0_ref_pix;
+        bs->specs[p].L0_pix    = L0_pix;
+        bs->specs[p].l0_pix    = l0_pix;
+        bs->specs[p].seed      = atmturb_rng_stream_seed(seed, (uint64_t) (k + s * 1000));
+        bs->specs[p].precision = (int) precision;
+        bs->out_a[p]           = rl->screens[s].data;
+        bs->out_b[p]           = has_second ? rl->screens[s + 1].data : NULL;
+        bs->slot_a[p]          = vram_base + s;
+        bs->slot_b[p]          = has_second ? (vram_base + s + 1) : -1;
     }
     return 0;
+}
+
+/**
+ * atmturb_rolling_free_batch_state - Release temporary batch queue buffers
+ */
+static void atmturb_rolling_free_batch_state(
+    atmturb_rolling_batch_state_t *bs)
+{
+    free(bs->specs);
+    free(bs->out_a);
+    free(bs->out_b);
+    free(bs->slot_a);
+    free(bs->slot_b);
+    free(bs->host_tags);
 }
 
 /**
@@ -204,7 +273,7 @@ int atmturb_rolling_init(
     uint64_t                 seed)
 {
     memset(r, 0, sizeof(*r));
-    seed = atmturb_resolve_seed(seed);
+    seed       = atmturb_resolve_seed(seed);
     r->nlayers = prof->nlayers;
     r->msize   = msize;
     r->rolling = geom->rolling;
@@ -217,47 +286,76 @@ int atmturb_rolling_init(
         return -1;
     }
 
+    int max_pairs     = 0;
+    int total_screens = 0;
     for (int k = 0; k < r->nlayers; k++)
     {
         atmturb_rolling_layer_t *rl = &r->layers[k];
-        double t_dec = geom->layers[k].t_dec_s;
-        rl->t_dec_s  = (t_dec > 0.0) ? t_dec : 10.0;
-
-        int nscreens = 1;
-        if (r->rolling)
-        {
-            double sim_duration = (nbframes > 1) ? ((double) (nbframes - 1) * time_step_s) : 20.0;
-            long max_epoch = (long) (sim_duration / rl->t_dec_s);
-            nscreens = (int) (max_epoch + 2);
-            if (nscreens < 4)
-            {
-                nscreens = 4;
-            }
-            if (CONF_STREAM_MODE > 0 && nscreens > 6)
-            {
-                nscreens = 6;
-            }
-            else if (nscreens > 32)
-            {
-                nscreens = 32;
-            }
-        }
-        rl->nscreens = nscreens;
-        rl->screens  = (atmturb_rolling_screen_t *) calloc((size_t) (nscreens + 1),
-                                                           sizeof(atmturb_rolling_screen_t));
+        double t_dec  = geom->layers[k].t_dec_s;
+        rl->t_dec_s   = (t_dec > 0.0) ? t_dec : 10.0;
+        rl->nscreens  = atmturb_rolling_calc_nscreens(r->rolling, rl->t_dec_s,
+                                                      nbframes, time_step_s);
+        rl->screens   = (atmturb_rolling_screen_t *) calloc((size_t) (rl->nscreens + 1),
+                                                            sizeof(atmturb_rolling_screen_t));
         if (rl->screens == NULL)
         {
             atmturb_rolling_free(r);
             return -1;
         }
-
-        if (atmturb_rolling_init_layer_screens(rl, k, prof, geom, msize, precision, seed) != 0)
-        {
-            atmturb_rolling_free(r);
-            return -1;
-        }
+        max_pairs     += (rl->nscreens + 1) / 2;
+        total_screens += rl->nscreens;
     }
-    return 0;
+
+    atmturb_rolling_batch_state_t bs;
+    memset(&bs, 0, sizeof(bs));
+    bs.all_fresh = 1;
+    bs.specs     = (atmturb_screen_spec_t *) calloc((size_t) (max_pairs + 1), sizeof(*bs.specs));
+    bs.out_a     = (float **) calloc((size_t) (max_pairs + 1), sizeof(float *));
+    bs.out_b     = (float **) calloc((size_t) (max_pairs + 1), sizeof(float *));
+    bs.slot_a    = (int *) calloc((size_t) (max_pairs + 1), sizeof(int));
+    bs.slot_b    = (int *) calloc((size_t) (max_pairs + 1), sizeof(int));
+    bs.host_tags = (const float **) calloc((size_t) (total_screens + 1), sizeof(float *));
+    if (!bs.specs || !bs.out_a || !bs.out_b || !bs.slot_a || !bs.slot_b || !bs.host_tags)
+    {
+        atmturb_rolling_free_batch_state(&bs);
+        atmturb_rolling_free(r);
+        return -1;
+    }
+
+    int vram_off = 0;
+    int ret      = 0;
+    for (int k = 0; k < r->nlayers; k++)
+    {
+        if (atmturb_rolling_queue_layer(&r->layers[k], k, vram_off, prof, geom,
+                                        msize, precision, seed, &bs) != 0)
+        {
+            ret = -1;
+            break;
+        }
+        vram_off += r->layers[k].nscreens;
+    }
+
+    if (ret == 0 && bs.npairs > 0)
+    {
+        atmturb_screen_batch_req_t req;
+        memset(&req, 0, sizeof(req));
+        req.specs              = bs.specs;
+        req.out_a              = bs.out_a;
+        req.out_b              = bs.out_b;
+        req.npairs             = bs.npairs;
+        req.vram_slot_a        = bs.all_fresh ? bs.slot_a : NULL;
+        req.vram_slot_b        = bs.all_fresh ? bs.slot_b : NULL;
+        req.total_vram_screens = bs.all_fresh ? total_screens : 0;
+        req.vram_host_tags     = bs.all_fresh ? bs.host_tags : NULL;
+        ret = atmturb_generate_screen_pairs_batch(&req);
+    }
+
+    atmturb_rolling_free_batch_state(&bs);
+    if (ret != 0)
+    {
+        atmturb_rolling_free(r);
+    }
+    return ret;
 }
 
 /**

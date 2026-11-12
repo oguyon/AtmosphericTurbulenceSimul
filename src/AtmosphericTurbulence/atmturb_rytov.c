@@ -317,26 +317,25 @@ void atmturb_rytov_plan_free(
 /**
  * atmturb_rytov_fftw_threads - Configure OpenMP thread count for Rytov FFTW plans
  * @pup_size: Linear dimension of wavefront in pixels.
+ * @req_nthreads: Explicit thread count (>0), or 0 for automatic selection.
  */
-static void atmturb_rytov_fftw_threads(long pup_size)
+static void atmturb_rytov_fftw_threads(
+    long pup_size,
+    int  req_nthreads)
 {
 #ifdef _OPENMP
     static int s_threads_init = 0;
     #pragma omp critical(milkatmturb_fftw_rytov_init)
     {
-        if (!s_threads_init)
+        if (!s_threads_init && fftwf_init_threads())
         {
-            if (fftwf_init_threads())
-            {
-                s_threads_init = 1;
-            }
+            s_threads_init = 1;
         }
     }
     if (s_threads_init)
     {
-        int nth = 1;
-#ifdef _OPENMP
-        if (!omp_in_parallel())
+        int nth = (req_nthreads > 0) ? req_nthreads : 1;
+        if (req_nthreads <= 0 && !omp_in_parallel())
         {
             int max_th = omp_get_max_threads();
             if (pup_size > 128 && pup_size <= 256)
@@ -348,24 +347,28 @@ static void atmturb_rytov_fftw_threads(long pup_size)
                 nth = (max_th < 8) ? max_th : 8;
             }
         }
-#endif
         fftwf_plan_with_nthreads(nth);
     }
 #else
     (void) pup_size;
+    (void) req_nthreads;
 #endif
 }
 
 /**
- * atmturb_rytov_ctx_init - Initialize thread-local Rytov render context and FFTW plans
+ * atmturb_rytov_ctx_init_mt - Initialize Rytov context with explicit threading/shared plans
  * @ctx: Thread context structure to initialize.
  * @pup_size: Linear dimension of wavefront in pixels.
+ * @fftw_nthreads: Explicit FFTW thread count (>0), or 0 for automatic sizing.
+ * @shared_src: Optional donor context whose FFTW plans are reused read-only (or NULL).
  *
  * Return: 0 on success, -1 on allocation failure.
  */
-int atmturb_rytov_ctx_init(
-    atmturb_rytov_ctx_t *ctx,
-    long                 pup_size)
+int atmturb_rytov_ctx_init_mt(
+    atmturb_rytov_ctx_t       *ctx,
+    long                       pup_size,
+    int                        fftw_nthreads,
+    const atmturb_rytov_ctx_t *shared_src)
 {
     if (ctx == NULL || pup_size <= 0)
     {
@@ -373,12 +376,12 @@ int atmturb_rytov_ctx_init(
     }
 
     memset(ctx, 0, sizeof(*ctx));
-    ctx->grid_size = pup_size;
-    long n_half    = pup_size / 2 + 1;
-    size_t npix_2d = (size_t) (pup_size * pup_size);
+    ctx->grid_size   = pup_size;
+    long   n_half    = pup_size / 2 + 1;
+    size_t npix_2d   = (size_t) (pup_size * pup_size);
     size_t npix_spec = (size_t) (pup_size * n_half);
 
-    ctx->real_in      = fftwf_alloc_real(npix_2d);
+    ctx->real_in      = (shared_src == NULL) ? fftwf_alloc_real(npix_2d) : NULL;
     ctx->spec         = fftwf_alloc_complex(npix_spec);
     ctx->bound_a      = fftwf_alloc_real((size_t) pup_size);
     ctx->bound_b      = fftwf_alloc_real((size_t) pup_size);
@@ -393,40 +396,63 @@ int atmturb_rytov_ctx_init(
     ctx->dphi_out     = fftwf_alloc_real(npix_2d);
     ctx->chi_out      = fftwf_alloc_real(npix_2d);
 
-    if (!ctx->real_in || !ctx->spec || !ctx->bound_a || !ctx->bound_b ||
-        !ctx->hat_a || !ctx->hat_b || !ctx->acc_dphi_pri || !ctx->acc_chi_pri ||
-        !ctx->acc_dphi_sec || !ctx->acc_chi_sec || !ctx->super_pha ||
-        !ctx->super_spha || !ctx->dphi_out || !ctx->chi_out)
+    if ((shared_src == NULL && !ctx->real_in) || !ctx->spec || !ctx->bound_a ||
+        !ctx->bound_b || !ctx->hat_a || !ctx->hat_b || !ctx->acc_dphi_pri ||
+        !ctx->acc_chi_pri || !ctx->acc_dphi_sec || !ctx->acc_chi_sec ||
+        !ctx->super_pha || !ctx->super_spha || !ctx->dphi_out || !ctx->chi_out)
     {
         atmturb_rytov_ctx_free(ctx);
         return -1;
     }
 
-    atmturb_fftwf_wisdom_load();
-    atmturb_rytov_fftw_threads(pup_size);
+    if (shared_src != NULL)
+    {
+        ctx->plan_r2c   = shared_src->plan_r2c;
+        ctx->plan_c2r   = shared_src->plan_c2r;
+        ctx->plan_1d_a  = shared_src->plan_1d_a;
+        ctx->plan_1d_b  = shared_src->plan_1d_b;
+        ctx->owns_plans = 0;
+        return 0;
+    }
 
+    atmturb_fftwf_wisdom_load();
+    atmturb_rytov_fftw_threads(pup_size, fftw_nthreads);
     unsigned int flags = atmturb_fftwf_plan_flags();
 
-    ctx->plan_r2c  = fftwf_plan_dft_r2c_2d((int) pup_size, (int) pup_size,
-                                           ctx->real_in, ctx->spec, flags);
-    ctx->plan_c2r  = fftwf_plan_dft_c2r_2d((int) pup_size, (int) pup_size,
-                                           ctx->spec, ctx->real_in, flags);
-    ctx->plan_1d_a = fftwf_plan_dft_r2c_1d((int) pup_size, ctx->bound_a,
-                                           ctx->hat_a, flags);
-    ctx->plan_1d_b = fftwf_plan_dft_r2c_1d((int) pup_size, ctx->bound_b,
-                                           ctx->hat_b, flags);
+    ctx->plan_r2c   = fftwf_plan_dft_r2c_2d((int) pup_size, (int) pup_size,
+                                            ctx->real_in, ctx->spec, flags);
+    ctx->plan_c2r   = fftwf_plan_dft_c2r_2d((int) pup_size, (int) pup_size,
+                                            ctx->spec, ctx->real_in, flags);
+    ctx->plan_1d_a  = fftwf_plan_dft_r2c_1d((int) pup_size, ctx->bound_a,
+                                            ctx->hat_a, flags);
+    ctx->plan_1d_b  = ctx->plan_1d_a;
+    ctx->owns_plans = 1;
 
     if (flags == FFTW_MEASURE)
     {
         atmturb_fftwf_wisdom_save();
     }
 
-    if (!ctx->plan_r2c || !ctx->plan_c2r || !ctx->plan_1d_a || !ctx->plan_1d_b)
+    if (!ctx->plan_r2c || !ctx->plan_c2r || !ctx->plan_1d_a)
     {
         atmturb_rytov_ctx_free(ctx);
         return -1;
     }
     return 0;
+}
+
+/**
+ * atmturb_rytov_ctx_init - Initialize thread-local Rytov render context and FFTW plans
+ * @ctx: Thread context structure to initialize.
+ * @pup_size: Linear dimension of wavefront in pixels.
+ *
+ * Return: 0 on success, -1 on allocation failure.
+ */
+int atmturb_rytov_ctx_init(
+    atmturb_rytov_ctx_t *ctx,
+    long                 pup_size)
+{
+    return atmturb_rytov_ctx_init_mt(ctx, pup_size, 0, NULL);
 }
 
 /**
@@ -441,10 +467,16 @@ void atmturb_rytov_ctx_free(
         return;
     }
 
-    if (ctx->plan_r2c)  fftwf_destroy_plan(ctx->plan_r2c);
-    if (ctx->plan_c2r)  fftwf_destroy_plan(ctx->plan_c2r);
-    if (ctx->plan_1d_a) fftwf_destroy_plan(ctx->plan_1d_a);
-    if (ctx->plan_1d_b) fftwf_destroy_plan(ctx->plan_1d_b);
+    if (ctx->owns_plans)
+    {
+        if (ctx->plan_r2c)  fftwf_destroy_plan(ctx->plan_r2c);
+        if (ctx->plan_c2r)  fftwf_destroy_plan(ctx->plan_c2r);
+        if (ctx->plan_1d_a) fftwf_destroy_plan(ctx->plan_1d_a);
+        if (ctx->plan_1d_b && ctx->plan_1d_b != ctx->plan_1d_a)
+        {
+            fftwf_destroy_plan(ctx->plan_1d_b);
+        }
+    }
 
     if (ctx->real_in)      fftwf_free(ctx->real_in);
     if (ctx->spec)         fftwf_free(ctx->spec);

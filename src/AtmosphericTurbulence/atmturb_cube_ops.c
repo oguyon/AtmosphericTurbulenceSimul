@@ -10,12 +10,16 @@
 #define _GNU_SOURCE
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fftw3.h>
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
 #include "AtmosphericTurbulence.h"
+#include "atmturb_fresnel_simd.h"
 #include "atmturb_types.h"
 
 /**
@@ -39,57 +43,85 @@ static void atmturb_bin_complex_wavefront(
     long         nz,
     int          pfactor)
 {
-    long out_nx = nx / pfactor;
-    long out_ny = ny / pfactor;
-    long LARGE = 10000;
+    long        out_nx    = nx / pfactor;
+    long        out_ny    = ny / pfactor;
+    long        LARGE     = 10000;
+    const float inv_pf2   = 1.0f / (float) (pfactor * pfactor);
+    const float inv_twopi = 1.0f / (2.0f * (float) PI);
+    const float twopi     = 2.0f * (float) PI;
 
-#ifdef _OPENMP
-    #pragma omp parallel for schedule(static)
-#endif
-    for (long kk = 0; kk < nz; kk++)
+    #pragma omp parallel
     {
-        for (long jj = 0; jj < out_ny; jj++)
+        fftwf_complex *row_z = fftwf_alloc_complex((size_t) nx);
+        float         *acc   = (float *) malloc(sizeof(float) * (size_t) (4 * out_nx));
+        if (row_z != NULL && acc != NULL)
         {
-            for (long ii = 0; ii < out_nx; ii++)
-            {
-                float re = 0.0f, im = 0.0f;
-                float pharef = 0.0f, ampref = 0.0f;
+            float *restrict acc_re  = acc;
+            float *restrict acc_im  = acc + out_nx;
+            float *restrict acc_pr  = acc + 2 * out_nx;
+            float *restrict acc_ar  = acc + 3 * out_nx;
 
-                for (long j = 0; j < pfactor; j++)
+            #pragma omp for schedule(static)
+            for (long kk = 0; kk < nz; kk++)
+            {
+                long in_base  = kk * nx * ny;
+                long out_base = kk * out_nx * out_ny;
+                for (long jj = 0; jj < out_ny; jj++)
                 {
-                    for (long i = 0; i < pfactor; i++)
+                    memset(acc, 0, sizeof(float) * (size_t) (4 * out_nx));
+                    for (int j = 0; j < pfactor; j++)
                     {
-                        long in_idx = kk * nx * ny + (pfactor * jj + j) * nx + (pfactor * ii + i);
-                        float a = in_amp[in_idx];
-                        float p = in_pha[in_idx];
-                        float s, c;
-                        sincosf(p, &s, &c);
-                        pharef += a * p;
-                        ampref += a;
-                        re += a * c;
-                        im += a * s;
+                        long         roff = in_base + (pfactor * jj + j) * nx;
+                        const float *arow = &in_amp[roff];
+                        const float *prow = &in_pha[roff];
+                        atmturb_fresnel_simd_phasor_masked(row_z, prow, arow, 1.0f, nx);
+
+                        for (long ii = 0; ii < out_nx; ii++)
+                        {
+                            long  x0 = (long) pfactor * ii;
+                            float re = 0.0f;
+                            float im = 0.0f;
+                            float pr = 0.0f;
+                            float ar = 0.0f;
+                            for (int i = 0; i < pfactor; i++)
+                            {
+                                float a = arow[x0 + i];
+                                pr += a * prow[x0 + i];
+                                ar += a;
+                                re += row_z[x0 + i][0];
+                                im += row_z[x0 + i][1];
+                            }
+                            acc_re[ii] += re;
+                            acc_im[ii] += im;
+                            acc_pr[ii] += pr;
+                            acc_ar[ii] += ar;
+                        }
+                    }
+
+                    long ooff = out_base + jj * out_nx;
+                    for (long ii = 0; ii < out_nx; ii++)
+                    {
+                        float re     = acc_re[ii];
+                        float im     = acc_im[ii];
+                        float ampref = acc_ar[ii];
+                        float pharef = (ampref > 0.0001f) ? (acc_pr[ii] / ampref) : acc_pr[ii];
+                        float a_out  = sqrtf(re * re + im * im);
+                        float p_out  = atan2f(im, re);
+                        float P      = 0.0f;
+                        if (ampref >= 0.01f)
+                        {
+                            long kwrap = (long) (0.5f + (float) LARGE +
+                                                 (pharef - p_out) * inv_twopi) - LARGE;
+                            P          = twopi * (float) kwrap;
+                        }
+                        out_pha[ooff + ii] = p_out + P;
+                        out_amp[ooff + ii] = a_out * inv_pf2;
                     }
                 }
-
-                float a_out = sqrtf(re * re + im * im);
-                float p_out = atan2f(im, re);
-                if (ampref > 0.0001f)
-                {
-                    pharef /= ampref;
-                }
-                float P = 2.0f * (float)PI *
-                          ((long)(0.5f + 1.0f * LARGE
-                                  + (pharef - p_out) / (2.0f * (float)PI)) - LARGE);
-                if (ampref < 0.01f)
-                {
-                    P = 0.0f;
-                }
-
-                long out_idx = kk * out_nx * out_ny + jj * out_nx + ii;
-                out_pha[out_idx] = p_out + P;
-                out_amp[out_idx] = a_out / (pfactor * pfactor);
             }
         }
+        free(acc);
+        fftwf_free(row_z);
     }
 }
 
@@ -110,46 +142,68 @@ static void atmturb_bin_phaseonly_wavefront(
     long         nz,
     int          pfactor)
 {
-    long out_nx = nx / pfactor;
-    long out_ny = ny / pfactor;
-    long LARGE = 10000;
+    long        out_nx    = nx / pfactor;
+    long        out_ny    = ny / pfactor;
+    long        LARGE     = 10000;
+    const float inv_pf2   = 1.0f / (float) (pfactor * pfactor);
+    const float inv_twopi = 1.0f / (2.0f * (float) PI);
+    const float twopi     = 2.0f * (float) PI;
 
-#ifdef _OPENMP
-    #pragma omp parallel for schedule(static)
-#endif
-    for (long kk = 0; kk < nz; kk++)
+    #pragma omp parallel
     {
-        for (long jj = 0; jj < out_ny; jj++)
+        fftwf_complex *row_z = fftwf_alloc_complex((size_t) nx);
+        float         *acc   = (float *) malloc(sizeof(float) * (size_t) (3 * out_nx));
+        if (row_z != NULL && acc != NULL)
         {
-            for (long ii = 0; ii < out_nx; ii++)
-            {
-                float re = 0.0f, im = 0.0f;
-                float pharef = 0.0f;
+            float *restrict acc_re = acc;
+            float *restrict acc_im = acc + out_nx;
+            float *restrict acc_pr = acc + 2 * out_nx;
 
-                for (long j = 0; j < pfactor; j++)
+            #pragma omp for schedule(static)
+            for (long kk = 0; kk < nz; kk++)
+            {
+                long in_base  = kk * nx * ny;
+                long out_base = kk * out_nx * out_ny;
+                for (long jj = 0; jj < out_ny; jj++)
                 {
-                    for (long i = 0; i < pfactor; i++)
+                    memset(acc, 0, sizeof(float) * (size_t) (3 * out_nx));
+                    for (int j = 0; j < pfactor; j++)
                     {
-                        long in_idx = kk * nx * ny + (pfactor * jj + j) * nx + (pfactor * ii + i);
-                        float p = in_pha[in_idx];
-                        float s, c;
-                        sincosf(p, &s, &c);
-                        pharef += p;
-                        re += c;
-                        im += s;
+                        const float *prow = &in_pha[in_base + (pfactor * jj + j) * nx];
+                        atmturb_fresnel_simd_init_modulate_field(row_z, prow, nx);
+
+                        for (long ii = 0; ii < out_nx; ii++)
+                        {
+                            long  x0 = (long) pfactor * ii;
+                            float re = 0.0f;
+                            float im = 0.0f;
+                            float pr = 0.0f;
+                            for (int i = 0; i < pfactor; i++)
+                            {
+                                pr += prow[x0 + i];
+                                re += row_z[x0 + i][0];
+                                im += row_z[x0 + i][1];
+                            }
+                            acc_re[ii] += re;
+                            acc_im[ii] += im;
+                            acc_pr[ii] += pr;
+                        }
+                    }
+
+                    long ooff = out_base + jj * out_nx;
+                    for (long ii = 0; ii < out_nx; ii++)
+                    {
+                        float pharef = acc_pr[ii] * inv_pf2;
+                        float p_out  = atan2f(acc_im[ii], acc_re[ii]);
+                        long  kwrap  = (long) (0.5f + (float) LARGE +
+                                               (pharef - p_out) * inv_twopi) - LARGE;
+                        out_pha[ooff + ii] = p_out + twopi * (float) kwrap;
                     }
                 }
-
-                float p_out = atan2f(im, re);
-                pharef /= (pfactor * pfactor);
-                float P = 2.0f * (float)PI *
-                          ((long)(0.5f + 1.0f * LARGE
-                                  + (pharef - p_out) / (2.0f * (float)PI)) - LARGE);
-
-                long out_idx = kk * out_nx * out_ny + jj * out_nx + ii;
-                out_pha[out_idx] = p_out + P;
             }
         }
+        free(acc);
+        fftwf_free(row_z);
     }
 }
 

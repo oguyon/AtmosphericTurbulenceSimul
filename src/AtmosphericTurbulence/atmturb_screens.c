@@ -22,6 +22,7 @@
 #include "AtmosphericTurbulence.h"
 #include "atmturb_fft_wisdom.h"
 #include "atmturb_fresnel_simd.h"
+#include "atmturb_screens_batch.h"
 #include "atmturb_types.h"
 
 /**
@@ -86,26 +87,32 @@ static void atmturb_fill_spectrum_row_float(
 }
 
 /**
- * atmturb_fill_spectrum_float - Fill 2D Fourier spectrum with shaped Gaussian noise (float)
+ * atmturb_fill_spectrum_float_rows - Fill 2D Fourier spectrum with shaped Gaussian noise (float)
  * @buf: Pointer to FFTW single-precision complex frequency buffer.
  * @spec: Pointer to screen generation specifications.
+ * @use_omp: 1 to parallelize rows via OpenMP, 0 inside an outer worker team.
  */
-static void atmturb_fill_spectrum_float(
+void atmturb_fill_spectrum_float_rows(
     fftwf_complex               *buf,
-    const atmturb_screen_spec_t *spec)
+    const atmturb_screen_spec_t *spec,
+    int                          use_omp)
 {
-    long     size        = spec->size;
-    float    r0_pix      = (spec->r0_pix > 0.0) ? (float) spec->r0_pix : powf(6.88f, 0.6f);
-    float    k0          = (spec->L0_pix > 0.0) ? ((float) size / (float) spec->L0_pix) : 0.0f;
+    long     size      = spec->size;
+    float    r0_pix    = (spec->r0_pix > 0.0) ? (float) spec->r0_pix : powf(6.88f, 0.6f);
+    float    k0        = (spec->L0_pix > 0.0) ? ((float) size / (float) spec->L0_pix) : 0.0f;
     float    km_scale  = 5.92f / (2.0f * (float) M_PI);
     float    km        = (spec->l0_pix > 0.0)
                              ? (km_scale * (float) size / (float) spec->l0_pix)
                              : 0.0f;
-    float    pref        = 0.023f * powf(r0_pix, -5.0f / 3.0f) * powf((float) size, 5.0f / 3.0f);
-    float    base_p[3]   = {k0 * k0, sqrtf(pref), (km > 0.0f) ? (0.5f / (km * km)) : 0.0f};
-    uint64_t base_seed   = atmturb_resolve_seed(spec->seed);
+    float    pref      = 0.023f * powf(r0_pix, -5.0f / 3.0f) * powf((float) size, 5.0f / 3.0f);
+    float    base_p[3] = {k0 * k0, sqrtf(pref), (km > 0.0f) ? (0.5f / (km * km)) : 0.0f};
+    uint64_t base_seed = atmturb_resolve_seed(spec->seed);
 
-    #pragma omp parallel for schedule(static)
+#ifdef _OPENMP
+    #pragma omp parallel for if (use_omp) schedule(static)
+#else
+    (void) use_omp;
+#endif
     for (long jj = 0; jj < size; jj++)
     {
         atmturb_fill_spectrum_row_float(&buf[jj * size], size, jj, base_seed, base_p);
@@ -169,9 +176,11 @@ static void atmturb_fill_spectrum_double(
 }
 
 /**
- * atmturb_fftwf_ensure_threads - Initialize FFTW single-precision multi-threading
+ * atmturb_fftwf_plan_threads - Configure FFTW single-precision planner thread count
+ * @req_nthreads: Requested thread count (>0 explicit, <=0 uses omp_get_max_threads()).
  */
-static void atmturb_fftwf_ensure_threads(void)
+void atmturb_fftwf_plan_threads(
+    int req_nthreads)
 {
 #ifdef _OPENMP
     static int s_threads_init = 0;
@@ -190,12 +199,15 @@ static void atmturb_fftwf_ensure_threads(void)
     }
     if (s_threads_init)
     {
-        int nth = omp_get_max_threads();
-        if (nth > 1)
+        int nth = (req_nthreads > 0) ? req_nthreads : omp_get_max_threads();
+        if (nth < 1)
         {
-            fftwf_plan_with_nthreads(nth);
+            nth = 1;
         }
+        fftwf_plan_with_nthreads(nth);
     }
+#else
+    (void) req_nthreads;
 #endif
 }
 
@@ -243,51 +255,15 @@ static int atmturb_generate_screen_pair_float(
     float                       *screen_a,
     float                       *screen_b)
 {
-    long size = spec->size;
-    long total = size * size;
-    fftwf_complex *buf = (fftwf_complex *) fftwf_alloc_complex(total);
-    if (!buf)
-    {
-        return -1;
-    }
-
-    atmturb_fill_spectrum_float(buf, spec);
-
-    atmturb_fftwf_wisdom_load();
-    atmturb_fftwf_ensure_threads();
-    fftwf_plan plan = fftwf_plan_dft_2d((int) size, (int) size, buf, buf,
-                                        FFTW_FORWARD, FFTW_ESTIMATE);
-    fftwf_execute(plan);
-    fftwf_destroy_plan(plan);
-
-    if (screen_a != NULL && screen_b != NULL)
-    {
-        #pragma omp parallel for schedule(static)
-        for (long i = 0; i < total; i++)
-        {
-            screen_a[i] = buf[i][0];
-            screen_b[i] = buf[i][1];
-        }
-    }
-    else if (screen_a != NULL)
-    {
-        #pragma omp parallel for schedule(static)
-        for (long i = 0; i < total; i++)
-        {
-            screen_a[i] = buf[i][0];
-        }
-    }
-    else if (screen_b != NULL)
-    {
-        #pragma omp parallel for schedule(static)
-        for (long i = 0; i < total; i++)
-        {
-            screen_b[i] = buf[i][1];
-        }
-    }
-
-    fftwf_free(buf);
-    return 0;
+    float *oa[1] = {screen_a};
+    float *ob[1] = {screen_b};
+    atmturb_screen_batch_req_t req;
+    memset(&req, 0, sizeof(req));
+    req.specs  = spec;
+    req.out_a  = oa;
+    req.out_b  = ob;
+    req.npairs = 1;
+    return atmturb_generate_screen_pairs_batch(&req);
 }
 
 /**
@@ -577,7 +553,7 @@ int make_master_turbulence_screen_pow(
     }
 
     atmturb_fftwf_wisdom_load();
-    atmturb_fftwf_ensure_threads();
+    atmturb_fftwf_plan_threads(0);
     fftwf_plan plan = fftwf_plan_dft_2d((int) size, (int) size, buf, buf,
                                         FFTW_FORWARD, FFTW_ESTIMATE);
     fftwf_execute(plan);

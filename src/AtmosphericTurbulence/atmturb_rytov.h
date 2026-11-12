@@ -107,6 +107,7 @@ typedef struct
     float         *super_spha;
     float         *dphi_out;
     float         *chi_out;
+    int            owns_plans;
 } atmturb_rytov_ctx_t;
 
 /**
@@ -151,6 +152,21 @@ void atmturb_rytov_plan_free(
 int atmturb_rytov_ctx_init(
     atmturb_rytov_ctx_t *ctx,
     long                 pup_size);
+
+/**
+ * atmturb_rytov_ctx_init_mt - Initialize Rytov context with explicit threading/shared plans
+ * @ctx: Thread context structure to initialize.
+ * @pup_size: Linear dimension of wavefront in pixels.
+ * @fftw_nthreads: Explicit FFTW thread count (>0), or 0 for automatic sizing.
+ * @shared_src: Optional donor context whose FFTW plans are reused read-only (or NULL).
+ *
+ * Return: 0 on success, -1 on allocation failure.
+ */
+int atmturb_rytov_ctx_init_mt(
+    atmturb_rytov_ctx_t       *ctx,
+    long                       pup_size,
+    int                        fftw_nthreads,
+    const atmturb_rytov_ctx_t *shared_src);
 
 /**
  * atmturb_rytov_ctx_free - Release resources held by thread context

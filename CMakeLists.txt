@@ -73,10 +73,12 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_profile.c
     src/AtmosphericTurbulence/atmturb_geometry.c
     src/AtmosphericTurbulence/atmturb_screens.c
+    src/AtmosphericTurbulence/atmturb_screens_batch.c
     src/AtmosphericTurbulence/atmturb_wind.c
     src/AtmosphericTurbulence/atmturb_hvturb.c
     src/AtmosphericTurbulence/atmturb_cube_ops.c
     src/AtmosphericTurbulence/atmturb_psf_metrics.c
+    src/AtmosphericTurbulence/atmturb_psf_engine.c
     src/AtmosphericTurbulence/atmturb_psf_sim.c
     src/AtmosphericTurbulence/atmturb_linpred_full.c
     src/AtmosphericTurbulence/atmturb_linpred_pixel.c
@@ -121,6 +123,10 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/AtmosphericTurbulence.h
     src/AtmosphericTurbulence/atmturb_profile.h
     src/AtmosphericTurbulence/atmturb_geometry.h
+    src/AtmosphericTurbulence/atmturb_screens_batch.h
+    src/AtmosphericTurbulence/atmturb_cuda_screens.h
+    src/AtmosphericTurbulence/atmturb_cuda_psf.h
+    src/AtmosphericTurbulence/atmturb_psf_engine.h
     src/AtmosphericTurbulence/atmturb_superlayer.h
     src/AtmosphericTurbulence/atmturb_fft_wisdom.h
     src/AtmosphericTurbulence/atmturb_fresnel.h
@@ -177,12 +183,15 @@ if(HAVE_CUDA OR USE_CUDA)
             add_compile_definitions(HAVE_CUDA)
             list(APPEND SOURCEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.cu
+                src/AtmosphericTurbulence/atmturb_cuda_screens.cu
                 src/AtmosphericTurbulence/atmturb_cuda_piston.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov_extrude.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov_filter.cu
                 src/AtmosphericTurbulence/atmturb_cuda_fresnel_kernels.cu
                 src/AtmosphericTurbulence/atmturb_cuda_fresnel.cu
+                src/AtmosphericTurbulence/atmturb_cuda_fresnel_batch.cu
+                src/AtmosphericTurbulence/atmturb_cuda_psf.cu
             )
             list(APPEND INCLUDEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.h

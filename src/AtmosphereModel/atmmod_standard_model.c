@@ -7,6 +7,10 @@
  * @brief   Standard atmospheric profile generation, saving, and loading
  */
 
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "AtmosphereModel.h"
 #include "atmmod_types.h"
 #include "nrlmsise-00.h"
@@ -17,7 +21,8 @@
  *
  * Return: Saturation vapor pressure in Pascals using IAPWS-95 formulation.
  */
-double AtmosphereModel_H2O_Saturation(double T)
+double AtmosphereModel_H2O_Saturation(
+    double T)
 {
     const double Tc = 647.096;      // critical temperature [K]
     const double Pc = 22064000.0;   // critical pressure [Pa]
@@ -34,13 +39,22 @@ double AtmosphereModel_H2O_Saturation(double T)
 
     if (T > 273.0)
     {
-        double ups = 1.0 - T / Tc;
-        return Pc * exp(Tc / T * (C1 * ups + C2 * pow(ups, 1.5) + C3 * pow(ups, 3.0) +
-                                  C4 * pow(ups, 3.5) + C5 * pow(ups, 4.0) + C6 * pow(ups, 7.5)));
+        double ups  = 1.0 - T / Tc;
+        double s_up = (ups > 0.0) ? sqrt(ups) : 0.0;
+        double u2   = ups * ups;
+        double u3   = u2 * ups;
+        double u4   = u2 * u2;
+        double poly = C1 * ups + C2 * ups * s_up + C3 * u3 +
+                      C4 * u3 * s_up + C5 * u4 + C6 * u4 * u3 * s_up;
+        return Pc * exp((Tc / T) * poly);
     }
 
-    double ups = T / Tn;
-    return Pn * exp(a0 * (1.0 - pow(ups, -1.5)) + a1 * (1.0 - pow(ups, -1.25)));
+    double inv_u  = Tn / T;
+    double s_inv  = sqrt(inv_u);
+    double q_inv  = sqrt(s_inv);
+    double u_m150 = inv_u * s_inv;
+    double u_m125 = inv_u * q_inv;
+    return Pn * exp(a0 * (1.0 - u_m150) + a1 * (1.0 - u_m125));
 }
 
 /**
@@ -62,6 +76,8 @@ int AtmosphereModel_save_stdAtmModel(
     {
         return -1;
     }
+    char io_buf[65536];
+    setvbuf(fp, io_buf, _IOFBF, sizeof(io_buf));
 
     fprintf(fp, "#  1:alt[m]  2:denstot[part/cm3] 3:N2  4:O2  5:Ar  6:H2O  7:CO2  8:Ne  "
                 "9:He  10:CH4  11:Kr  12:H2  13:N  14:O  15:H    16:density[g/cm3]  "
@@ -306,36 +322,27 @@ static void atmmod_match_site_conditions(struct nrlmsise_input *input,
 }
 
 /**
- * atmmod_compute_raw_profiles - Query NRLMSISE for all altitude bins
- * @fp: File pointer to dump raw profile.
- * @input: Array of NRLMSISE inputs.
- * @flags: NRLMSISE control flags.
- * @output: Array of NRLMSISE outputs.
- * @deltah: Altitude offset in meters.
- * @press_coeff: Pressure scaling factor.
- * @TotPart0: Output array for total particles per bin.
- * @TotPart_out: Cumulative particles above site.
- * @TotPart1_out: Cumulative H2O background particles.
- * @TotPart2_out: Cumulative H2O exponential mixing particles.
+ * atmmod_compute_raw_profiles - Query NRLMSISE-00 for all altitude bins in memory
  */
-static void atmmod_compute_raw_profiles(FILE *fp, struct nrlmsise_input *input,
-                                        struct nrlmsise_flags *flags,
-                                        struct nrlmsise_output *output,
-                                        double deltah, double press_coeff,
-                                        double *TotPart0, double *TotPart_out,
-                                        double *TotPart1_out, double *TotPart2_out)
+static void atmmod_compute_raw_profiles(
+    struct nrlmsise_input  *input,
+    struct nrlmsise_flags  *flags,
+    struct nrlmsise_output *output,
+    double                  deltah,
+    double                  press_coeff,
+    double                 *TotPart0,
+    double                 *TotPart1_out,
+    double                 *TotPart2_out)
 {
-    double tot_part = 0.0, tot_part1 = 0.0, tot_part2 = 0.0;
+    double       tot_part1 = 0.0;
+    double       tot_part2 = 0.0;
+    const double o3_norm   = 300.0 * 2.69e20 / (4250.0 * sqrt(2.0 * M_PI)) * 1.0e-6;
 
     for (long i = 0; i < ATMMOD_NB_BINS; i++)
     {
-        double h = 10.0 * i + deltah;
+        double h     = 10.0 * (double) i + deltah;
         input[i].alt = 0.001 * h;
         gtd7(&input[i], flags, &output[i]);
-        fprintf(fp, "%6.0f %12f %12f %12f %12f %12f %12f %12f %.8g %5f\n",
-                input[i].alt * 1000.0, output[i].d[2], output[i].d[3], output[i].d[4],
-                output[i].d[6], output[i].d[0], output[i].d[1] + output[i].d[8],
-                output[i].d[7], output[i].d[5], output[i].t[1]);
 
         for (int k = 0; k < 9; k++)
         {
@@ -345,43 +352,44 @@ static void atmmod_compute_raw_profiles(FILE *fp, struct nrlmsise_input *input,
         TotPart0[i] = output[i].d[0] + output[i].d[1] + output[i].d[2] + output[i].d[3] +
                       output[i].d[4] + output[i].d[6] + output[i].d[7] + output[i].d[8];
 
-        densNe[i] = output[i].d[2] * 2.33e-5;
+        densNe[i] = (float) (output[i].d[2] * 2.33e-5);
         TotPart0[i] += densNe[i];
 
-        densCH4[i] = (h < 45000.0) ? TotPart0[i] * 2e-6 * (1.0 - h / 45000.0) : 0.0f;
+        densCH4[i] = (h < 45000.0) ? (float) (TotPart0[i] * 2e-6 * (1.0 - h / 45000.0)) : 0.0f;
         TotPart0[i] += densCH4[i];
 
-        densKr[i] = output[i].d[2] * 1.46e-6;
+        densKr[i] = (float) (output[i].d[2] * 1.46e-6);
         TotPart0[i] += densKr[i];
 
-        densH2[i] = output[i].d[2] * 7.04e-7;
+        densH2[i] = (float) (output[i].d[2] * 7.04e-7);
         TotPart0[i] += densH2[i];
 
-        densO3[i] = (float)(300.0 * 2.69e20 / (4250.0 * sqrt(2.0 * M_PI)) *
-                            exp(-0.5 * pow((h - 25000.0) / 4250.0, 2.0)) * 1.0e-6);
+        double dh_o3 = (h - 25000.0) * (1.0 / 4250.0);
+        densO3[i]    = (float) (o3_norm * exp(-0.5 * dh_o3 * dh_o3));
 
-        densCO2[i] = (h < 70000.0) ? (float)(CO2_ppm * 1e-6 * TotPart0[i])
-                                   : (float)((CO2_ppm - 0.007 * (h - 70000.0))
-                                             * 1e-6 * TotPart0[i]);
+        densCO2[i] = (h < 70000.0) ? (float) (CO2_ppm * 1e-6 * TotPart0[i])
+                                   : (float) ((CO2_ppm - 0.007 * (h - 70000.0))
+                                              * 1e-6 * TotPart0[i]);
         output[i].d[3] -= densCO2[i];
 
         if (i == 0)
         {
-            dens0 = (float)TotPart0[i];
+            dens0 = (float) TotPart0[i];
         }
         TotPart0[i] *= 1000.0;
-        temperature[i] = (float)output[i].t[1];
+        temperature[i] = (float) output[i].t[1];
 
         if (h > SiteAlt)
         {
-            tot_part += TotPart0[i];
-            tot_part1 += 2.5e-6 * TotPart0[i] * exp(-3.0 * pow(h / 100000.0, 4.0));
-            tot_part2 += exp(-h / SitePWSH) * TotPart0[i] * exp(-3.0 * pow(h / 100000.0, 4.0));
+            double h100  = h * 1.0e-5;
+            double h2    = h100 * h100;
+            double taper = exp(-3.0 * h2 * h2);
+            tot_part1 += 2.5e-6 * TotPart0[i] * taper;
+            tot_part2 += exp(-h / SitePWSH) * TotPart0[i] * taper;
         }
-        densH2O[i] = (float)(2.5e-6 * TotPart0[i] / 1000.0);
+        densH2O[i] = (float) (2.5e-6 * TotPart0[i] * 1.0e-3);
     }
 
-    *TotPart_out = tot_part;
     *TotPart1_out = tot_part1;
     *TotPart2_out = tot_part2;
 }
@@ -394,12 +402,15 @@ static void atmmod_compute_raw_profiles(FILE *fp, struct nrlmsise_input *input,
  *
  * Return: 0 on success, -1 if requested precipitable water is below background.
  */
-static int atmmod_adjust_water_vapor(const double *TotPart0, double TotPart1, double TotPart2)
+static int atmmod_adjust_water_vapor(
+    const double *TotPart0,
+    double        TotPart1,
+    double        TotPart2)
 {
     if (SiteH2OMethod == 1)
     {
-        double X = (SiteTPW * 0.1) * 6.0221413e23 / 18.0;
-        alpha1H2O = (float)((X - TotPart1) / TotPart2);
+        double X  = (SiteTPW * 0.1) * 6.0221413e23 / 18.0;
+        alpha1H2O = (float) ((X - TotPart1) / TotPart2);
         if (alpha1H2O < 0.0f)
         {
             fprintf(stderr, "ERROR: total precipitable water value is too low\n");
@@ -407,41 +418,46 @@ static int atmmod_adjust_water_vapor(const double *TotPart0, double TotPart1, do
         }
         for (long i = 0; i < ATMMOD_NB_BINS; i++)
         {
-            double h = 10.0 * i;
-            densH2O[i] += (float)(alpha1H2O * exp(-h / SitePWSH) * (TotPart0[i] / 1000.0) *
-                                  exp(-3.0 * pow(h / 100000.0, 4.0)));
+            double h    = 10.0 * (double) i;
+            double h100 = h * 1.0e-5;
+            double h2   = h100 * h100;
+            densH2O[i] += (float) (alpha1H2O * exp(-h / SitePWSH - 3.0 * h2 * h2) *
+                                   (TotPart0[i] * 1.0e-3));
         }
     }
     else if (SiteH2OMethod == 2 || SiteH2OMethod == 3)
     {
-        long i0 = (long)(SiteAlt / 10.0);
-        float ifrac = SiteAlt / 10.0f - i0;
-        double T_site = (1.0 - ifrac) * temperature[i0] + ifrac * temperature[i0 + 1];
-        double H2OSat = AtmosphereModel_H2O_Saturation(T_site);
+        long   i0           = (long) (SiteAlt / 10.0);
+        float  ifrac        = SiteAlt / 10.0f - (float) i0;
+        double T_site       = (1.0 - ifrac) * temperature[i0] + ifrac * temperature[i0 + 1];
+        double H2OSat       = AtmosphereModel_H2O_Saturation(T_site);
         double densH2O_site = (SiteRH / 100.0) * ATMMOD_LOSCHMIDT * 1e-6 *
                               (H2OSat / 101325.0) * (273.15 / (T_site > 0.0 ? T_site : 273.15));
 
         double pwsh = SitePWSH;
         if (SiteH2OMethod == 3)
         {
-            double tpw0 = SiteTPW - (TotPart1 * 10.0 * 18.0 / 6.022e23);
-            pwsh = 1000.0;
+            double tpw0      = SiteTPW - (TotPart1 * 10.0 * 18.0 / 6.022e23);
             double deltapwsh = 100.0;
-            int dir = 1;
+            int    dir       = 1;
+            pwsh             = 1000.0;
             for (long iter = 0; iter < 15; iter++)
             {
-                double part2 = 0.0;
+                double part2    = 0.0;
+                double inv_pwsh = 1.0 / pwsh;
                 for (long i = 0; i < ATMMOD_NB_BINS; i++)
                 {
-                    double h = 10.0 * i;
+                    double h = 10.0 * (double) i;
                     if (h > SiteAlt)
                     {
-                        part2 += 1000.0 * densH2O_site * exp(-(h - SiteAlt) / pwsh) *
-                                 exp(-3.0 * pow(h / 100000.0, 4.0));
+                        double h100 = h * 1.0e-5;
+                        double h2   = h100 * h100;
+                        part2 += 1000.0 * densH2O_site *
+                                 exp(-(h - SiteAlt) * inv_pwsh - 3.0 * h2 * h2);
                     }
                 }
-                double tpw = part2 * 10.0 * 18.0 / 6.022e23;
-                int odir = dir;
+                double tpw  = part2 * 10.0 * 18.0 / 6.022e23;
+                int    odir = dir;
                 if (tpw > tpw0)
                 {
                     pwsh -= deltapwsh;
@@ -459,12 +475,15 @@ static int atmmod_adjust_water_vapor(const double *TotPart0, double TotPart1, do
             }
         }
 
+        double inv_pwsh = 1.0 / pwsh;
+        double inv_tp0  = 1.0 / TotPart0[i0];
         for (long i = 0; i < ATMMOD_NB_BINS; i++)
         {
-            double h = 10.0 * i;
-            densH2O[i] += (float)(densH2O_site * exp(-(h - SiteAlt) / pwsh) *
-                                  (TotPart0[i] / TotPart0[i0]) *
-                                  exp(-3.0 * pow(h / 100000.0, 4.0)));
+            double h    = 10.0 * (double) i;
+            double h100 = h * 1.0e-5;
+            double h2   = h100 * h100;
+            densH2O[i] += (float) (densH2O_site * exp(-(h - SiteAlt) * inv_pwsh - 3.0 * h2 * h2) *
+                                   (TotPart0[i] * inv_tp0));
         }
     }
 
@@ -544,24 +563,14 @@ int AtmosphereModel_build_stdAtmModel(const char *fname)
     struct nrlmsise_flags flags;
     atmmod_setup_nrlmsise_inputs(input, &flags);
 
-    double deltah = 0.0;
+    double deltah      = 0.0;
     double press_coeff = 1.0;
     atmmod_match_site_conditions(&input[0], &flags, &output[0], &deltah, &press_coeff);
 
-    FILE *fp = fopen(fname, "w");
-    if (fp == NULL)
-    {
-        free(output);
-        free(input);
-        free(TotPart0);
-        return -1;
-    }
-    fprintf(fp, "#  alt[m]  N2  O2  Ar  H  He  O   N  density   Temperature\n");
-
-    double tot_part = 0.0, tot_part1 = 0.0, tot_part2 = 0.0;
-    atmmod_compute_raw_profiles(fp, input, &flags, output, deltah, press_coeff,
-                               TotPart0, &tot_part, &tot_part1, &tot_part2);
-    fclose(fp);
+    double tot_part1 = 0.0;
+    double tot_part2 = 0.0;
+    atmmod_compute_raw_profiles(input, &flags, output, deltah, press_coeff,
+                                TotPart0, &tot_part1, &tot_part2);
 
     if (atmmod_adjust_water_vapor(TotPart0, tot_part1, tot_part2) != 0)
     {
@@ -576,7 +585,10 @@ int AtmosphereModel_build_stdAtmModel(const char *fname)
     free(input);
     free(output);
 
-    AtmosphereModel_save_stdAtmModel(fname);
+    if (AtmosphereModel_save_stdAtmModel(fname) != 0)
+    {
+        return -1;
+    }
     stdAtmModel_loaded = 1;
     return 0;
 }

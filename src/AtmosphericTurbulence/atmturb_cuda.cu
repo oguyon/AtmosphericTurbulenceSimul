@@ -14,33 +14,39 @@
 
 #include "atmturb_cuda.h"
 #include "atmturb_cuda_piston.h"
+#include "atmturb_cuda_psf.h"
+#include "atmturb_cuda_screens.h"
+extern "C" {
+#include "atmturb_simd.h"
+}
 
-// Maximum supported layers in constant memory cache
-#define ATMTURB_CUDA_MAX_LAYERS 64
+// Maximum supported layers in constant memory cache and cached rolling screens
+#define ATMTURB_CUDA_MAX_LAYERS  64
+#define ATMTURB_CUDA_MAX_SCREENS 512
 __constant__ float c_vx[ATMTURB_CUDA_MAX_LAYERS];
 __constant__ float c_vy[ATMTURB_CUDA_MAX_LAYERS];
 __constant__ float c_x0[ATMTURB_CUDA_MAX_LAYERS];
 __constant__ float c_y0[ATMTURB_CUDA_MAX_LAYERS];
 __constant__ float c_weights[ATMTURB_CUDA_MAX_LAYERS];
 
-// Persistent GPU memory caches to avoid per-render cudaMalloc/free overhead
-static float        *s_d_m = NULL;
-static size_t        s_cached_mbytes = 0;
-static long          s_cached_nblayers = 0;
-static const float  *s_cached_screen_ptrs[ATMTURB_CUDA_MAX_LAYERS];
+// Persistent GPU memory and 2D layered texture caches
+static float              *s_d_m              = NULL;
+static size_t              s_cached_mbytes    = 0;
+static long                s_cached_nblayers  = 0;
+static const float        *s_cached_screen_ptrs[ATMTURB_CUDA_MAX_SCREENS];
+static cudaArray_t         s_master_array     = NULL;
+static cudaTextureObject_t s_master_tex       = 0;
 
 static float       *s_d_pha             = NULL;
-static float       *s_d_amp             = NULL;
 static float       *s_d_spha            = NULL;
-static float       *s_d_samp            = NULL;
 static size_t       s_cached_pha_bytes  = 0;
 static size_t       s_cached_spha_bytes = 0;
-static size_t       s_cached_amp_bytes  = 0;
 static cudaStream_t s_batch_stream      = 0;
 
 /**
  * atmturb_render_kernel - GPU kernel synthesizing multi-layer extruded wavefront frames
  * @d_masters: Device master screen data concatenated.
+ * @master_tex: 2D layered hardware texture object (or 0 for linear memory fallback).
  * @msize: Master screen dimension.
  * @pup_size: Synthesized pupil dimension.
  * @nbframes: Number of frames.
@@ -48,22 +54,19 @@ static cudaStream_t s_batch_stream      = 0;
  * @Scoeff: Secondary wavelength scale factor.
  * @t_offset: Starting frame offset for streaming synthesis.
  * @d_pha: Primary phase output array.
- * @d_amp: Primary amplitude output array.
- * @d_spha: Secondary phase output array.
- * @d_samp: Secondary amplitude output array.
+ * @d_spha: Secondary phase output array (or NULL).
  */
 __global__ static void atmturb_render_kernel(
-    const float *d_masters,
-    int          msize,
-    int          pup_size,
-    int          nbframes,
-    int          nblayers,
-    float        Scoeff,
-    int          t_offset,
-    float       *d_pha,
-    float       *d_amp,
-    float       *d_spha,
-    float       *d_samp)
+    const float        *d_masters,
+    cudaTextureObject_t master_tex,
+    int                 msize,
+    int                 pup_size,
+    int                 nbframes,
+    int                 nblayers,
+    float               Scoeff,
+    int                 t_offset,
+    float              *d_pha,
+    float              *d_spha)
 {
     int ii = blockIdx.x * blockDim.x + threadIdx.x;
     int jj = blockIdx.y * blockDim.y + threadIdx.y;
@@ -119,11 +122,26 @@ __global__ static void atmturb_render_kernel(
                 iy1 = (iy0 + 1 == msize) ? 0 : (iy0 + 1);
             }
 
-            const float *screen = d_masters + (size_t) k * msize_sq;
-            float v00 = __ldg(&screen[(size_t) iy0 * (size_t) msize + (size_t) ix0]);
-            float v10 = __ldg(&screen[(size_t) iy0 * (size_t) msize + (size_t) ix1]);
-            float v01 = __ldg(&screen[(size_t) iy1 * (size_t) msize + (size_t) ix0]);
-            float v11 = __ldg(&screen[(size_t) iy1 * (size_t) msize + (size_t) ix1]);
+            float v00, v10, v01, v11;
+            if (master_tex != 0)
+            {
+                float tx0 = (float) ix0 + 0.5f;
+                float tx1 = (float) ix1 + 0.5f;
+                float ty0 = (float) iy0 + 0.5f;
+                float ty1 = (float) iy1 + 0.5f;
+                v00 = tex2DLayered<float>(master_tex, tx0, ty0, k);
+                v10 = tex2DLayered<float>(master_tex, tx1, ty0, k);
+                v01 = tex2DLayered<float>(master_tex, tx0, ty1, k);
+                v11 = tex2DLayered<float>(master_tex, tx1, ty1, k);
+            }
+            else
+            {
+                const float *screen = d_masters + (size_t) k * msize_sq;
+                v00 = __ldg(&screen[(size_t) iy0 * (size_t) msize + (size_t) ix0]);
+                v10 = __ldg(&screen[(size_t) iy0 * (size_t) msize + (size_t) ix1]);
+                v01 = __ldg(&screen[(size_t) iy1 * (size_t) msize + (size_t) ix0]);
+                v11 = __ldg(&screen[(size_t) iy1 * (size_t) msize + (size_t) ix1]);
+            }
 
             float top = v00 + fx * (v10 - v00);
             float bot = v01 + fx * (v11 - v01);
@@ -133,19 +151,89 @@ __global__ static void atmturb_render_kernel(
 
         size_t out_idx = (size_t) f * pup_sq + (size_t) jj * (size_t) pup_size + (size_t) ii;
         d_pha[out_idx] = total_pha;
-        if (d_amp != NULL)
-        {
-            d_amp[out_idx] = 1.0f;
-        }
         if (d_spha != NULL)
         {
             d_spha[out_idx] = total_pha * Scoeff;
         }
-        if (d_samp != NULL)
-        {
-            d_samp[out_idx] = 1.0f;
-        }
     }
+}
+
+/**
+ * atmturb_cuda_free_master_tex - Destroy cached 2D layered texture object and array
+ */
+static void atmturb_cuda_free_master_tex(void)
+{
+    if (s_master_tex != 0)
+    {
+        cudaDestroyTextureObject(s_master_tex);
+        s_master_tex = 0;
+    }
+    if (s_master_array != NULL)
+    {
+        cudaFreeArray(s_master_array);
+        s_master_array = NULL;
+    }
+}
+
+/**
+ * atmturb_cuda_rebuild_master_tex - Populate 2D layered Morton-tiled texture from s_d_m
+ * @msize: Master screen dimension in pixels.
+ * @nblayers: Number of screens stored in s_d_m.
+ */
+static void atmturb_cuda_rebuild_master_tex(
+    long msize,
+    long nblayers)
+{
+    atmturb_cuda_free_master_tex();
+    if (s_d_m == NULL || msize <= 0 || msize > 16384 || nblayers <= 0 || nblayers > 2048)
+    {
+        return;
+    }
+
+    cudaChannelFormatDesc desc = cudaCreateChannelDesc<float>();
+    cudaExtent            ext  = make_cudaExtent((size_t) msize, (size_t) msize, (size_t) nblayers);
+    if (cudaMalloc3DArray(&s_master_array, &desc, ext, cudaArrayLayered) != cudaSuccess)
+    {
+        s_master_array = NULL;
+        return;
+    }
+
+    cudaMemcpy3DParms cp;
+    memset(&cp, 0, sizeof(cp));
+    cp.srcPtr = make_cudaPitchedPtr(s_d_m, sizeof(float) * (size_t) msize,
+                                    (size_t) msize, (size_t) msize);
+    cp.dstArray = s_master_array;
+    cp.extent   = ext;
+    cp.kind     = cudaMemcpyDeviceToDevice;
+    if (cudaMemcpy3D(&cp) != cudaSuccess)
+    {
+        atmturb_cuda_free_master_tex();
+        return;
+    }
+
+    cudaResourceDesc res_desc;
+    memset(&res_desc, 0, sizeof(res_desc));
+    res_desc.resType         = cudaResourceTypeArray;
+    res_desc.res.array.array = s_master_array;
+
+    cudaTextureDesc tex_desc;
+    memset(&tex_desc, 0, sizeof(tex_desc));
+    tex_desc.addressMode[0]   = cudaAddressModeClamp;
+    tex_desc.addressMode[1]   = cudaAddressModeClamp;
+    tex_desc.filterMode       = cudaFilterModePoint;
+    tex_desc.readMode         = cudaReadModeElementType;
+    tex_desc.normalizedCoords = 0;
+
+    if (cudaCreateTextureObject(&s_master_tex, &res_desc, &tex_desc, NULL) != cudaSuccess)
+    {
+        s_master_tex = 0;
+        atmturb_cuda_free_master_tex();
+    }
+}
+
+unsigned long long atmturb_cuda_get_master_tex(void)
+{
+    return (unsigned long long) s_master_tex;
 }
 
 /**
@@ -171,17 +259,95 @@ void atmturb_cuda_cleanup(void)
         cudaStreamDestroy(s_batch_stream);
         s_batch_stream = 0;
     }
-    if (s_d_m != NULL)    { cudaFree(s_d_m);    s_d_m = NULL; }
-    if (s_d_pha != NULL)  { cudaFree(s_d_pha);  s_d_pha = NULL; }
-    if (s_d_amp != NULL)  { cudaFree(s_d_amp);  s_d_amp = NULL; }
-    if (s_d_spha != NULL) { cudaFree(s_d_spha); s_d_spha = NULL; }
-    if (s_d_samp != NULL) { cudaFree(s_d_samp); s_d_samp = NULL; }
+    atmturb_cuda_screens_cleanup();
+    atmturb_cuda_psf_cleanup();
+    atmturb_cuda_free_master_tex();
+    if (s_d_m != NULL)
+    {
+        cudaFree(s_d_m);
+        s_d_m = NULL;
+    }
+    if (s_d_pha != NULL)
+    {
+        cudaFree(s_d_pha);
+        s_d_pha = NULL;
+    }
+    if (s_d_spha != NULL)
+    {
+        cudaFree(s_d_spha);
+        s_d_spha = NULL;
+    }
     s_cached_mbytes = 0;
     s_cached_nblayers = 0;
     memset(s_cached_screen_ptrs, 0, sizeof(s_cached_screen_ptrs));
     s_cached_pha_bytes  = 0;
     s_cached_spha_bytes = 0;
-    s_cached_amp_bytes  = 0;
+}
+
+/**
+ * atmturb_cuda_alloc_master_cache - Allocate linear device master screen cache for GPU synthesis
+ * @msize: Master screen dimension in pixels.
+ * @nblayers: Total number of master screens across layers.
+ *
+ * Return: Device buffer pointer, or NULL on allocation failure.
+ */
+float *atmturb_cuda_alloc_master_cache(
+    long msize,
+    long nblayers)
+{
+    if (msize <= 0 || nblayers <= 0 || nblayers > ATMTURB_CUDA_MAX_SCREENS)
+    {
+        return NULL;
+    }
+
+    size_t total_mbytes = sizeof(float) * (size_t) msize * (size_t) msize * (size_t) nblayers;
+    if (s_d_m == NULL || s_cached_mbytes != total_mbytes)
+    {
+        atmturb_cuda_free_master_tex();
+        if (s_d_m != NULL)
+        {
+            cudaFree(s_d_m);
+            s_d_m = NULL;
+        }
+        if (cudaMalloc((void **) &s_d_m, total_mbytes) != cudaSuccess)
+        {
+            s_cached_mbytes = 0;
+            s_cached_nblayers = 0;
+            return NULL;
+        }
+        s_cached_mbytes = total_mbytes;
+    }
+    s_cached_nblayers = 0;
+    memset(s_cached_screen_ptrs, 0, sizeof(s_cached_screen_ptrs));
+    return s_d_m;
+}
+
+/**
+ * atmturb_cuda_commit_master_cache - Bind GPU-synthesized master screens and build 2D texture
+ * @msize: Master screen dimension in pixels.
+ * @nblayers: Total number of master screens across layers.
+ * @h_masters: Host pointer tags matching dcimg screen buffers for cache-hit tracking.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_commit_master_cache(
+    long                msize,
+    long                nblayers,
+    const float *const *h_masters)
+{
+    if (s_d_m == NULL || h_masters == NULL || msize <= 0 ||
+        nblayers <= 0 || nblayers > ATMTURB_CUDA_MAX_SCREENS)
+    {
+        return -1;
+    }
+
+    for (long k = 0; k < nblayers; k++)
+    {
+        s_cached_screen_ptrs[k] = h_masters[k];
+    }
+    s_cached_nblayers = nblayers;
+    atmturb_cuda_rebuild_master_tex(msize, nblayers);
+    return 0;
 }
 
 /**
@@ -197,9 +363,14 @@ float *atmturb_cuda_sync_device_masters(
     long                nblayers,
     const float *const *h_masters)
 {
-    size_t screen_bytes = sizeof(float) * (size_t) (msize * msize);
+    if (msize <= 0 || nblayers <= 0 || nblayers > ATMTURB_CUDA_MAX_SCREENS || h_masters == NULL)
+    {
+        return NULL;
+    }
+
+    size_t screen_bytes = sizeof(float) * (size_t) msize * (size_t) msize;
     size_t total_mbytes = screen_bytes * (size_t) nblayers;
-    int need_upload = 0;
+    int    need_upload  = 0;
 
     if (s_d_m == NULL || s_cached_mbytes != total_mbytes || s_cached_nblayers != nblayers)
     {
@@ -219,6 +390,7 @@ float *atmturb_cuda_sync_device_masters(
 
     if (need_upload)
     {
+        atmturb_cuda_free_master_tex();
         if (s_d_m != NULL)
         {
             cudaFree(s_d_m);
@@ -232,7 +404,7 @@ float *atmturb_cuda_sync_device_masters(
         }
         for (long k = 0; k < nblayers; k++)
         {
-            if (cudaMemcpy(s_d_m + (size_t) k * (size_t) (msize * msize), h_masters[k],
+            if (cudaMemcpy(s_d_m + (size_t) k * (size_t) msize * (size_t) msize, h_masters[k],
                            screen_bytes, cudaMemcpyHostToDevice) != cudaSuccess)
             {
                 cudaFree(s_d_m);
@@ -245,6 +417,7 @@ float *atmturb_cuda_sync_device_masters(
         }
         s_cached_mbytes = total_mbytes;
         s_cached_nblayers = nblayers;
+        atmturb_cuda_rebuild_master_tex(msize, nblayers);
     }
     return s_d_m;
 }
@@ -259,7 +432,7 @@ static int atmturb_cuda_sync_masters(
     const atmturb_cuda_sim_params_t *p)
 {
     return (atmturb_cuda_sync_device_masters(p->msize, p->nblayers,
-                                            p->h_masters) != NULL) ? 0 : -1;
+                                             p->h_masters) != NULL) ? 0 : -1;
 }
 
 /**
@@ -301,16 +474,14 @@ static int atmturb_cuda_sync_kinematics(
 }
 
 /**
- * atmturb_cuda_sync_outputs - Allocate device output buffers lazily for active channels
+ * atmturb_cuda_sync_outputs - Allocate device phase output buffers lazily for active channels
  * @out_bytes: Required output buffer size in bytes.
- * @need_amp: Flag indicating if amplitude buffers are required on device.
  * @need_spha: Flag indicating if secondary phase buffer is required on device.
  *
  * Return: 0 on success, -1 on allocation failure.
  */
 static int atmturb_cuda_sync_outputs(
     size_t out_bytes,
-    int    need_amp,
     int    need_spha)
 {
     if (s_d_pha == NULL || s_cached_pha_bytes < out_bytes)
@@ -336,22 +507,37 @@ static int atmturb_cuda_sync_outputs(
         }
         s_cached_spha_bytes = out_bytes;
     }
-
-    if (need_amp && (s_d_amp == NULL || s_d_samp == NULL || s_cached_amp_bytes < out_bytes))
-    {
-        cudaFree(s_d_amp);
-        cudaFree(s_d_samp);
-        s_d_amp  = NULL;
-        s_d_samp = NULL;
-        if (cudaMalloc((void **) &s_d_amp, out_bytes) != cudaSuccess ||
-            cudaMalloc((void **) &s_d_samp, out_bytes) != cudaSuccess)
-        {
-            s_cached_amp_bytes = 0;
-            return -1;
-        }
-        s_cached_amp_bytes = out_bytes;
-    }
     return 0;
+}
+
+/**
+ * atmturb_cuda_make_batch_grid - Compute 3D launch grid dimensions for batch extrusion
+ * @pup_size: Pupil dimension in pixels.
+ * @nbframes: Number of frames in batch.
+ * @block: 2D thread block dimensions.
+ *
+ * Return: 3D launch grid dimensions.
+ */
+static dim3 atmturb_cuda_make_batch_grid(
+    long pup_size,
+    long nbframes,
+    dim3 block)
+{
+    int gx        = ((int) pup_size + (int) block.x - 1) / (int) block.x;
+    int gy        = ((int) pup_size + (int) block.y - 1) / (int) block.y;
+    int xy_blocks = gx * gy;
+    int min_gz    = (512 + xy_blocks - 1) / xy_blocks;
+    int chunk_gz  = ((int) nbframes + 15) / 16;
+    int grid_z    = (min_gz > chunk_gz) ? min_gz : chunk_gz;
+    if (grid_z > (int) nbframes)
+    {
+        grid_z = (int) nbframes;
+    }
+    if (grid_z > 65535)
+    {
+        grid_z = 65535;
+    }
+    return dim3(gx, gy, grid_z);
 }
 
 /**
@@ -375,55 +561,29 @@ int atmturb_wfs_render_frames_cuda(
         return -1;
     }
 
-    size_t npix      = (size_t) (params->nbframes * params->pup_size * params->pup_size);
+    size_t npix      = (size_t) params->nbframes * (size_t) params->pup_size *
+                       (size_t) params->pup_size;
     size_t out_bytes = sizeof(float) * npix;
-    int    need_amp  = (outputs->amp != NULL || outputs->samp != NULL) ? 1 : 0;
     int    need_spha = (outputs->spha != NULL) ? 1 : 0;
-    if (atmturb_cuda_sync_outputs(out_bytes, need_amp, need_spha) != 0)
+    if (atmturb_cuda_sync_outputs(out_bytes, need_spha) != 0)
     {
         return -1;
     }
 
-    dim3 block(32, 8);
-    int  gx        = ((int) params->pup_size + (int) block.x - 1) / (int) block.x;
-    int  gy        = ((int) params->pup_size + (int) block.y - 1) / (int) block.y;
-    int  xy_blocks = gx * gy;
-    int  min_gz    = (512 + xy_blocks - 1) / xy_blocks;
-    int  chunk_gz  = ((int) params->nbframes + 15) / 16;
-    int  grid_z    = (min_gz > chunk_gz) ? min_gz : chunk_gz;
-    if (grid_z > (int) params->nbframes)
-    {
-        grid_z = (int) params->nbframes;
-    }
-    if (grid_z > 65535)
-    {
-        grid_z = 65535;
-    }
-    dim3 grid(gx, gy, grid_z);
-
-    float *host_ptrs[4] = {outputs->pha, outputs->amp, outputs->spha, outputs->samp};
-    int    pinned[4]    = {0, 0, 0, 0};
-    for (int c = 0; c < 4; c++)
-    {
-        if (host_ptrs[c] != NULL && out_bytes >= 65536 &&
-            cudaHostRegister(host_ptrs[c], out_bytes, cudaHostRegisterDefault) == cudaSuccess)
-        {
-            pinned[c] = 1;
-        }
-    }
+    dim3   block(32, 8);
+    dim3   grid         = atmturb_cuda_make_batch_grid(params->pup_size, params->nbframes, block);
+    float *host_ptrs[2] = {outputs->pha, outputs->spha};
 
     atmturb_render_kernel<<<grid, block, 0, s_batch_stream>>>(
-        s_d_m, (int) params->msize, (int) params->pup_size,
+        s_d_m, s_master_tex, (int) params->msize, (int) params->pup_size,
         (int) params->nbframes, (int) params->nblayers,
-        (float) params->Scoeff, 0,
-        s_d_pha, need_amp ? s_d_amp : NULL,
-        need_spha ? s_d_spha : NULL, need_amp ? s_d_samp : NULL);
+        (float) params->Scoeff, 0, s_d_pha, need_spha ? s_d_spha : NULL);
 
     int ret = (cudaGetLastError() == cudaSuccess) ? 0 : -1;
     if (ret == 0)
     {
-        float *dev_ptrs[4] = {s_d_pha, s_d_amp, s_d_spha, s_d_samp};
-        for (int c = 0; c < 4; c++)
+        float *dev_ptrs[2] = {s_d_pha, s_d_spha};
+        for (int c = 0; c < 2; c++)
         {
             if (host_ptrs[c] != NULL && dev_ptrs[c] != NULL &&
                 cudaMemcpyAsync(host_ptrs[c], dev_ptrs[c], out_bytes,
@@ -434,16 +594,20 @@ int atmturb_wfs_render_frames_cuda(
             }
         }
     }
+
+    // Overlap host SIMD constant-1.0f amplitude fill with asynchronous GPU phase DMA
+    if (outputs->amp != NULL)
+    {
+        atmturb_init_phase_amp(NULL, outputs->amp, (long) npix);
+    }
+    if (outputs->samp != NULL)
+    {
+        atmturb_init_phase_amp(NULL, outputs->samp, (long) npix);
+    }
+
     if (cudaStreamSynchronize(s_batch_stream) != cudaSuccess)
     {
         ret = -1;
-    }
-    for (int c = 0; c < 4; c++)
-    {
-        if (pinned[c])
-        {
-            cudaHostUnregister(host_ptrs[c]);
-        }
     }
     return ret;
 }
@@ -456,9 +620,7 @@ struct atmturb_cuda_geom_stream
     float         Scoeff;
     cudaStream_t  stream;
     float        *d_pha;
-    float        *d_amp;
     float        *d_spha;
-    float        *d_samp;
     float        *d_sum;
     size_t        npix;
 };
@@ -493,7 +655,7 @@ atmturb_cuda_geom_stream_t *atmturb_cuda_geom_stream_init(
     ctx->msize    = params->msize;
     ctx->pup_size = params->pup_size;
     ctx->Scoeff   = (float) params->Scoeff;
-    ctx->npix     = (size_t) (params->pup_size * params->pup_size);
+    ctx->npix     = (size_t) params->pup_size * (size_t) params->pup_size;
     size_t nbytes = sizeof(float) * ctx->npix;
 
     if (cudaStreamCreate(&ctx->stream) != cudaSuccess)
@@ -503,9 +665,7 @@ atmturb_cuda_geom_stream_t *atmturb_cuda_geom_stream_init(
     }
 
     if (cudaMalloc((void **) &ctx->d_pha, nbytes) != cudaSuccess ||
-        cudaMalloc((void **) &ctx->d_amp, nbytes) != cudaSuccess ||
         cudaMalloc((void **) &ctx->d_spha, nbytes) != cudaSuccess ||
-        cudaMalloc((void **) &ctx->d_samp, nbytes) != cudaSuccess ||
         cudaMalloc((void **) &ctx->d_sum, sizeof(float)) != cudaSuccess)
     {
         atmturb_cuda_geom_stream_free(ctx);
@@ -545,10 +705,9 @@ int atmturb_cuda_geom_stream_render_step(
               1);
 
     atmturb_render_kernel<<<grid, block, 0, ctx->stream>>>(
-        s_d_m, (int) ctx->msize, (int) ctx->pup_size,
+        s_d_m, s_master_tex, (int) ctx->msize, (int) ctx->pup_size,
         1, (int) ctx->nblayers, ctx->Scoeff, (int) t,
-        ctx->d_pha, (amp != NULL) ? ctx->d_amp : NULL,
-        (spha != NULL) ? ctx->d_spha : NULL, (samp != NULL) ? ctx->d_samp : NULL);
+        ctx->d_pha, (spha != NULL) ? ctx->d_spha : NULL);
 
     atmturb_cuda_remove_piston_launch(ctx->d_pha, ctx->d_sum, (int) ctx->npix, ctx->stream);
     if (spha != NULL)
@@ -567,17 +726,20 @@ int atmturb_cuda_geom_stream_render_step(
     {
         return -1;
     }
-    if ((amp != NULL &&
-         cudaMemcpyAsync(amp, ctx->d_amp, nbytes, cudaMemcpyDeviceToHost, ctx->stream) !=
-         cudaSuccess) ||
-        (spha != NULL &&
-         cudaMemcpyAsync(spha, ctx->d_spha, nbytes, cudaMemcpyDeviceToHost, ctx->stream) !=
-         cudaSuccess) ||
-        (samp != NULL &&
-         cudaMemcpyAsync(samp, ctx->d_samp, nbytes, cudaMemcpyDeviceToHost, ctx->stream) !=
-         cudaSuccess))
+    if (spha != NULL &&
+        cudaMemcpyAsync(spha, ctx->d_spha, nbytes, cudaMemcpyDeviceToHost, ctx->stream) !=
+        cudaSuccess)
     {
         return -1;
+    }
+
+    if (amp != NULL)
+    {
+        atmturb_init_phase_amp(NULL, amp, (long) ctx->npix);
+    }
+    if (samp != NULL)
+    {
+        atmturb_init_phase_amp(NULL, samp, (long) ctx->npix);
     }
 
     return (cudaStreamSynchronize(ctx->stream) == cudaSuccess) ? 0 : -1;
@@ -594,12 +756,22 @@ void atmturb_cuda_geom_stream_free(
     {
         return;
     }
-    if (ctx->d_pha != NULL)  cudaFree(ctx->d_pha);
-    if (ctx->d_amp != NULL)  cudaFree(ctx->d_amp);
-    if (ctx->d_spha != NULL) cudaFree(ctx->d_spha);
-    if (ctx->d_samp != NULL) cudaFree(ctx->d_samp);
-    if (ctx->d_sum != NULL)  cudaFree(ctx->d_sum);
-    if (ctx->stream != 0)    cudaStreamDestroy(ctx->stream);
+    if (ctx->d_pha != NULL)
+    {
+        cudaFree(ctx->d_pha);
+    }
+    if (ctx->d_spha != NULL)
+    {
+        cudaFree(ctx->d_spha);
+    }
+    if (ctx->d_sum != NULL)
+    {
+        cudaFree(ctx->d_sum);
+    }
+    if (ctx->stream != 0)
+    {
+        cudaStreamDestroy(ctx->stream);
+    }
     free(ctx);
 }
 
