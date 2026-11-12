@@ -55,9 +55,9 @@ typedef struct
     atmturb_fresnel_ctx_t         *fctx;
     const atmturb_rytov_plan_t    *rplan;
     atmturb_rytov_ctx_t           *rctx;
-    atmturb_cuda_fresnel_stream_t *cuda_fstream;
-    atmturb_cuda_rytov_stream_t   *cuda_rstream;
-    atmturb_cuda_geom_stream_t    *cuda_gstream;
+    atmturb_cuda_fresnel_stream_t  *cuda_fstream;
+    atmturb_cuda_rytov_stream_t    *cuda_rstream;
+    atmturb_wfs_cuda_geom_stream_t *cuda_gstream;
     int                            is_cuda;
     float                         *dma_pha[2];
     float                         *dma_amp[2];

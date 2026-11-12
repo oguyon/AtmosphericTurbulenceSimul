@@ -22,6 +22,7 @@
 #include "atmturb_simd.h"
 #include "atmturb_superlayer.h"
 #include "atmturb_types.h"
+#include "atmturb_wfs_render.h"
 
 /**
  * atmturb_fresnel_plan_init - Initialize super-layer binning and transfer functions
@@ -361,6 +362,87 @@ static inline void atmturb_fresnel_propagate_field(
 }
 
 /**
+ * atmturb_fresnel_step_propagate - Execute single or dual-channel Fresnel FFT step
+ */
+static void atmturb_fresnel_step_propagate(
+    atmturb_fresnel_ctx_t        *ctx,
+    const atmturb_fresnel_plan_t *plan,
+    int                           m,
+    int                           do_sec_prop,
+    long                          pup_size,
+    long                          npix)
+{
+    int par_sec = (do_sec_prop && pup_size < 512);
+#ifdef _OPENMP
+    par_sec = par_sec && !omp_in_parallel();
+#endif
+    if (par_sec)
+    {
+        #pragma omp parallel sections
+        {
+            #pragma omp section
+            {
+                atmturb_fresnel_propagate_field(&ctx->eng, ctx->field_pri,
+                                                plan->tf_pri[m], npix);
+            }
+            #pragma omp section
+            {
+                atmturb_fresnel_propagate_field(&ctx->eng_sec, ctx->field_sec,
+                                                plan->tf_sec[m], npix);
+            }
+        }
+        return;
+    }
+
+    atmturb_fresnel_propagate_field(&ctx->eng, ctx->field_pri, plan->tf_pri[m], npix);
+    if (do_sec_prop)
+    {
+        atmturb_fresnel_propagate_field(&ctx->eng_sec, ctx->field_sec, plan->tf_sec[m], npix);
+    }
+}
+
+/**
+ * atmturb_fresnel_step_extract - Extract unwrapped phase and amplitude for active channels
+ */
+static void atmturb_fresnel_step_extract(
+    atmturb_fresnel_ctx_t *ctx,
+    int                    has_sec,
+    long                   pup_size,
+    long                   npix,
+    float                 *pha_slice,
+    float                 *amp_slice,
+    float                 *spha_slice,
+    float                 *samp_slice)
+{
+    int par_extract = (has_sec && pup_size < 512);
+#ifdef _OPENMP
+    par_extract = par_extract && !omp_in_parallel();
+#endif
+    if (par_extract)
+    {
+        #pragma omp parallel sections
+        {
+            #pragma omp section
+            {
+                atmturb_fresnel_simd_extract_unwrapped(ctx->field_pri, pha_slice, amp_slice, npix);
+            }
+            #pragma omp section
+            {
+                atmturb_fresnel_simd_extract_unwrapped(ctx->field_sec, spha_slice,
+                                                       samp_slice, npix);
+            }
+        }
+        return;
+    }
+
+    atmturb_fresnel_simd_extract_unwrapped(ctx->field_pri, pha_slice, amp_slice, npix);
+    if (has_sec)
+    {
+        atmturb_fresnel_simd_extract_unwrapped(ctx->field_sec, spha_slice, samp_slice, npix);
+    }
+}
+
+/**
  * atmturb_fresnel_render_step - Render one frame using multi-layer diffractive propagation
  * @ctx: Thread-local execution context.
  * @plan: Precomputed diffractive propagation plan.
@@ -389,10 +471,11 @@ void atmturb_fresnel_render_step(
     float                        *spha_slice,
     float                        *samp_slice)
 {
-    long npix = pup_size * pup_size;
-    int has_sec = (plan->lambda_s_m > 0.0 && plan->tf_sec != NULL &&
-                   plan->tf_sec[0] != NULL && ctx->field_sec != NULL &&
-                   ctx->super_spha != NULL && (spha_slice != NULL || samp_slice != NULL));
+    (void) master_size;
+    long npix    = pup_size * pup_size;
+    int  has_sec = (plan->lambda_s_m > 0.0 && plan->tf_sec != NULL &&
+                    plan->tf_sec[0] != NULL && ctx->field_sec != NULL &&
+                    ctx->super_spha != NULL && (spha_slice != NULL || samp_slice != NULL));
 
     memset(pha_slice, 0, sizeof(float) * (size_t) npix);
     if (has_sec && spha_slice != NULL)
@@ -400,114 +483,101 @@ void atmturb_fresnel_render_step(
         memset(spha_slice, 0, sizeof(float) * (size_t) npix);
     }
 
-    float *sec_target = has_sec ? ctx->super_spha : NULL;
+    int has_trail_zero = (plan->nsuper > 0 &&
+                          fabs(plan->supers[plan->nsuper - 1].step_dist_m) <= 0.0);
+    int n_prop         = has_trail_zero ? (plan->nsuper - 1) : plan->nsuper;
 
-    for (int m = 0; m < plan->nsuper; m++)
+    if (n_prop <= 0)
     {
-        memset(ctx->super_pha, 0, sizeof(float) * (size_t) npix);
+        if (has_trail_zero)
+        {
+            atmturb_wfs_render_target_t zt = {
+                .pup_size = pup_size, .guard_pix = 0,
+                .pha = pha_slice, .spha = (has_sec ? spha_slice : NULL), .weight_scale = 1.0f
+            };
+            atmturb_wfs_render_superlayer(r, geom, &plan->supers[0], t, time_step_s, &zt);
+        }
+        atmturb_init_phase_amp(NULL, amp_slice, npix);
         if (has_sec)
+        {
+            atmturb_init_phase_amp(NULL, samp_slice, npix);
+        }
+        return;
+    }
+
+    float *sec_s0 = (has_sec && spha_slice == NULL) ? ctx->super_spha : spha_slice;
+    for (int m = 0; m < n_prop; m++)
+    {
+        const atmturb_superlayer_t *sl      = &plan->supers[m];
+        float                      *cur_pha = (m == 0) ? pha_slice : ctx->super_pha;
+        float *cur_sec = !has_sec ? NULL : ((m == 0) ? sec_s0 : ctx->super_spha);
+
+        if (m > 0)
+        {
+            memset(ctx->super_pha, 0, sizeof(float) * (size_t) npix);
+        }
+        if (has_sec && cur_sec == ctx->super_spha)
         {
             memset(ctx->super_spha, 0, sizeof(float) * (size_t) npix);
         }
 
-        const atmturb_superlayer_t *sl = &plan->supers[m];
-        for (int j = 0; j < sl->nlayers; j++)
-        {
-            int k = sl->layer_indices[j];
-            atmturb_wfs_render_layer(r, geom, k, t, time_step_s, master_size,
-                                     pup_size, ctx->super_pha, sec_target);
-        }
+        atmturb_wfs_render_target_t target = {
+            .pup_size = pup_size, .guard_pix = 0,
+            .pha = cur_pha, .spha = cur_sec, .weight_scale = 1.0f
+        };
+        atmturb_wfs_render_superlayer(r, geom, sl, t, time_step_s, &target);
 
-        atmturb_add_float_array(pha_slice, ctx->super_pha, npix);
         if (m == 0)
         {
-            atmturb_fresnel_simd_init_modulate_field(ctx->field_pri, ctx->super_pha, npix);
+            atmturb_fresnel_simd_init_modulate_field(ctx->field_pri, cur_pha, npix);
         }
         else
         {
-            atmturb_fresnel_simd_modulate_field(ctx->field_pri, ctx->super_pha, npix);
+            atmturb_add_float_array(pha_slice, cur_pha, npix);
+            atmturb_fresnel_simd_modulate_field(ctx->field_pri, cur_pha, npix);
         }
 
         int do_sec_prop = (has_sec && plan->tf_sec[m] != NULL);
         if (do_sec_prop)
         {
-            if (spha_slice != NULL)
-            {
-                atmturb_add_float_array(spha_slice, ctx->super_spha, npix);
-            }
             if (m == 0)
             {
-                atmturb_fresnel_simd_init_modulate_field(ctx->field_sec, ctx->super_spha, npix);
+                atmturb_fresnel_simd_init_modulate_field(ctx->field_sec, cur_sec, npix);
             }
             else
             {
-                atmturb_fresnel_simd_modulate_field(ctx->field_sec, ctx->super_spha, npix);
+                if (spha_slice != NULL)
+                {
+                    atmturb_add_float_array(spha_slice, cur_sec, npix);
+                }
+                atmturb_fresnel_simd_modulate_field(ctx->field_sec, cur_sec, npix);
             }
         }
 
-        if (fabs(sl->step_dist_m) <= 0.0)
+        if (fabs(sl->step_dist_m) > 0.0)
         {
-            continue;
-        }
-
-        int par_sec = (do_sec_prop && pup_size < 512);
-#ifdef _OPENMP
-        par_sec = par_sec && !omp_in_parallel();
-#endif
-        if (par_sec)
-        {
-            #pragma omp parallel sections
-            {
-                #pragma omp section
-                {
-                    atmturb_fresnel_propagate_field(&ctx->eng, ctx->field_pri,
-                                                    plan->tf_pri[m], npix);
-                }
-                #pragma omp section
-                {
-                    atmturb_fresnel_propagate_field(&ctx->eng_sec, ctx->field_sec,
-                                                    plan->tf_sec[m], npix);
-                }
-            }
-        }
-        else
-        {
-            atmturb_fresnel_propagate_field(&ctx->eng, ctx->field_pri,
-                                            plan->tf_pri[m], npix);
-            if (do_sec_prop)
-            {
-                atmturb_fresnel_propagate_field(&ctx->eng_sec, ctx->field_sec,
-                                                plan->tf_sec[m], npix);
-            }
+            atmturb_fresnel_step_propagate(ctx, plan, m, do_sec_prop, pup_size, npix);
         }
     }
 
-    int par_extract = (has_sec && pup_size < 512);
-#ifdef _OPENMP
-    par_extract = par_extract && !omp_in_parallel();
-#endif
-    if (par_extract)
+    float *sec_pha_ext = (has_sec && spha_slice == NULL) ? ctx->super_spha : spha_slice;
+    if (has_sec && spha_slice == NULL && n_prop > 1)
     {
-        #pragma omp parallel sections
-        {
-            #pragma omp section
-            {
-                atmturb_fresnel_simd_extract_unwrapped(ctx->field_pri, pha_slice, amp_slice, npix);
-            }
-            #pragma omp section
-            {
-                atmturb_fresnel_simd_extract_unwrapped(ctx->field_sec, spha_slice,
-                                                       samp_slice, npix);
-            }
-        }
+        memset(ctx->super_spha, 0, sizeof(float) * (size_t) npix);
     }
-    else
+    atmturb_fresnel_step_extract(ctx, has_sec, pup_size, npix,
+                                 pha_slice, amp_slice, sec_pha_ext, samp_slice);
+
+    if (has_trail_zero)
     {
-        atmturb_fresnel_simd_extract_unwrapped(ctx->field_pri, pha_slice, amp_slice, npix);
-        if (has_sec)
-        {
-            atmturb_fresnel_simd_extract_unwrapped(ctx->field_sec, spha_slice,
-                                                   samp_slice, npix);
-        }
+        atmturb_wfs_render_target_t zt = {
+            .pup_size     = pup_size,
+            .guard_pix    = 0,
+            .pha          = pha_slice,
+            .spha         = (has_sec && spha_slice != NULL) ? spha_slice : NULL,
+            .weight_scale = 1.0f
+        };
+        atmturb_wfs_render_superlayer(r, geom, &plan->supers[plan->nsuper - 1],
+                                      t, time_step_s, &zt);
     }
 }

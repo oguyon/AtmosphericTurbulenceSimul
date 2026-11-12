@@ -57,6 +57,39 @@ if(FFTW_OMP_LIB)
     list(APPEND FFTW_LIBRARIES ${FFTW_OMP_LIB})
 endif()
 
+# Optional OpenBLAS + LAPACKE acceleration for AR linear predictor normal equations
+find_path(ATMTURB_CBLAS_INC NAMES cblas.h
+    HINTS
+        /usr/include/x86_64-linux-gnu/openblas-pthread
+        /usr/include/x86_64-linux-gnu/openblas-openmp
+        /usr/include/openblas
+        /usr/include/x86_64-linux-gnu
+        /usr/include
+)
+find_path(ATMTURB_LAPACKE_INC NAMES lapacke.h
+    HINTS
+        /usr/include/x86_64-linux-gnu
+        /usr/include
+)
+find_library(ATMTURB_OPENBLAS_LIB NAMES openblas
+    HINTS
+        /usr/lib/x86_64-linux-gnu/openblas-pthread
+        /usr/lib/x86_64-linux-gnu/openblas-openmp
+        /usr/lib/x86_64-linux-gnu
+)
+find_library(ATMTURB_LAPACKE_LIB NAMES lapacke
+    HINTS
+        /usr/lib/x86_64-linux-gnu
+)
+set(ATMTURB_BLAS_INCS "")
+set(ATMTURB_BLAS_LIBS "")
+if(ATMTURB_CBLAS_INC AND ATMTURB_LAPACKE_INC AND ATMTURB_OPENBLAS_LIB AND ATMTURB_LAPACKE_LIB)
+    add_compile_definitions(HAVE_OPENBLAS_LAPACKE)
+    list(APPEND ATMTURB_BLAS_INCS ${ATMTURB_CBLAS_INC} ${ATMTURB_LAPACKE_INC})
+    list(APPEND ATMTURB_BLAS_LIBS ${ATMTURB_OPENBLAS_LIB} ${ATMTURB_LAPACKE_LIB})
+    message(STATUS "milkatmturb: OpenBLAS + LAPACKE acceleration ENABLED")
+endif()
+
 # Collect source files
 set(SOURCEFILES
     src/milkatmturb.c
@@ -82,6 +115,7 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_psf_sim.c
     src/AtmosphericTurbulence/atmturb_linpred_full.c
     src/AtmosphericTurbulence/atmturb_linpred_pixel.c
+    src/AtmosphericTurbulence/atmturb_linpred_solve.c
     src/AtmosphericTurbulence/atmturb_linpred_test.c
     src/AtmosphericTurbulence/atmturb_wfs_sim.c
     src/AtmosphericTurbulence/atmturb_wfs_render.c
@@ -127,6 +161,7 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/atmturb_cuda_screens.h
     src/AtmosphericTurbulence/atmturb_cuda_psf.h
     src/AtmosphericTurbulence/atmturb_psf_engine.h
+    src/AtmosphericTurbulence/atmturb_linpred_solve.h
     src/AtmosphericTurbulence/atmturb_superlayer.h
     src/AtmosphericTurbulence/atmturb_fft_wisdom.h
     src/AtmosphericTurbulence/atmturb_fresnel.h
@@ -162,6 +197,27 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
         "-mavx2 -mfma -fno-math-errno -fno-trapping-math -fno-signed-zeros -ffinite-math-only")
     set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx512.c
         PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq -mavx512bw -mavx512vl -mfma -fno-math-errno")
+
+    option(ATMTURB_HOST_AVX2 "Enable AVX2+FMA on host compute TUs when supported" ON)
+    if(ATMTURB_HOST_AVX2 AND EXISTS "/proc/cpuinfo")
+        file(READ "/proc/cpuinfo" _cpuinfo_txt)
+        if(_cpuinfo_txt MATCHES "avx2" AND _cpuinfo_txt MATCHES "fma")
+            set_source_files_properties(
+                src/AtmosphericTurbulence/atmturb_screens.c
+                src/AtmosphericTurbulence/atmturb_screens_batch.c
+                src/AtmosphericTurbulence/atmturb_psf_engine.c
+                src/AtmosphericTurbulence/atmturb_psf_sim.c
+                src/AtmosphericTurbulence/atmturb_fresnel.c
+                src/AtmosphericTurbulence/atmturb_rytov.c
+                src/AtmosphericTurbulence/atmturb_rytov_kernels.c
+                src/AtmosphericTurbulence/atmturb_lowfreq.c
+                src/AtmosphericTurbulence/atmturb_wfs_render.c
+                src/AtmosphericTurbulence/atmturb_linpred_full.c
+                src/AtmosphericTurbulence/atmturb_linpred_pixel.c
+                src/AtmosphericTurbulence/atmturb_linpred_solve.c
+                PROPERTIES COMPILE_FLAGS "-mavx2 -mfma -fno-math-errno")
+        endif()
+    endif()
 endif()
 
 # CUDA GPU Acceleration
@@ -183,9 +239,13 @@ if(HAVE_CUDA OR USE_CUDA)
             add_compile_definitions(HAVE_CUDA)
             list(APPEND SOURCEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.cu
+                src/AtmosphericTurbulence/atmturb_cuda_dma_ring.cu
+                src/AtmosphericTurbulence/atmturb_cuda_geom_ext.cu
+                src/AtmosphericTurbulence/atmturb_cuda_linpred.cu
                 src/AtmosphericTurbulence/atmturb_cuda_screens.cu
                 src/AtmosphericTurbulence/atmturb_cuda_piston.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov.cu
+                src/AtmosphericTurbulence/atmturb_cuda_rytov_batch.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov_extrude.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov_filter.cu
                 src/AtmosphericTurbulence/atmturb_cuda_fresnel_kernels.cu
@@ -195,6 +255,8 @@ if(HAVE_CUDA OR USE_CUDA)
             )
             list(APPEND INCLUDEFILES
                 src/AtmosphericTurbulence/atmturb_cuda.h
+                src/AtmosphericTurbulence/atmturb_cuda_dma_ring.h
+                src/AtmosphericTurbulence/atmturb_cuda_geom_ext.h
                 src/AtmosphericTurbulence/atmturb_cuda_piston.h
                 src/AtmosphericTurbulence/atmturb_cuda_rytov.h
                 src/AtmosphericTurbulence/atmturb_cuda_fresnel_kernels.h
@@ -230,7 +292,11 @@ if(COMMAND milk_add_runnable_module)
             OpenMP::OpenMP_C
             ${FFTW_LIBRARIES}
             ${FFTWF_LIBRARIES}
+            ${ATMTURB_BLAS_LIBS}
     )
+    if(ATMTURB_BLAS_INCS)
+        target_include_directories(${LIBNAME} SYSTEM PRIVATE ${ATMTURB_BLAS_INCS})
+    endif()
     milk_runnable_module_usage(${LIBNAME}
         INCLUDES
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
@@ -241,7 +307,10 @@ if(COMMAND milk_add_runnable_module)
             $<INSTALL_INTERFACE:include/${SRCNAME}>
     )
     if(USE_CUDA_ACCEL)
-        target_link_libraries(${LIBNAME} PRIVATE CUDA::cudart CUDA::cufft)
+        target_compile_options(${LIBNAME} PRIVATE
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fopenmp>)
+        target_link_libraries(${LIBNAME} PRIVATE
+            CUDA::cudart CUDA::cufft CUDA::cublas CUDA::cusolver)
     endif()
     milk_add_fpsexec_stubs(${LIBNAME})
 
@@ -361,7 +430,10 @@ else()
     target_compile_options(${LIBNAME} PRIVATE
         $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Wno-unused-const-variable -Wno-stringop-truncation>
     )
-    target_include_directories(${LIBNAME} SYSTEM PRIVATE ${MILK_STANDALONE_INCLUDES})
+    target_include_directories(${LIBNAME} SYSTEM PRIVATE
+        ${MILK_STANDALONE_INCLUDES}
+        ${ATMTURB_BLAS_INCS}
+    )
     target_include_directories(${LIBNAME} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/AtmosphereModel>
@@ -424,11 +496,15 @@ else()
         OpenMP::OpenMP_C
         ${FFTW_LIBRARIES}
         ${FFTWF_LIBRARIES}
+        ${ATMTURB_BLAS_LIBS}
         m
     )
 
     if(USE_CUDA_ACCEL)
-        target_link_libraries(${LIBNAME} PRIVATE CUDA::cudart CUDA::cufft)
+        target_compile_options(${LIBNAME} PRIVATE
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fopenmp>)
+        target_link_libraries(${LIBNAME} PRIVATE
+            CUDA::cudart CUDA::cufft CUDA::cublas CUDA::cusolver)
     endif()
 
     install(TARGETS ${LIBNAME} DESTINATION lib)

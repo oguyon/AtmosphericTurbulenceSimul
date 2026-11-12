@@ -312,10 +312,14 @@ __global__ static void atmturb_cuda_extrude_sl_kernel(
     atmturb_cuda_extrude_batch_args_t args,
     cudaTextureObject_t               master_tex)
 {
-    int i     = blockIdx.x * blockDim.x + threadIdx.x;
-    int j     = blockIdx.y * blockDim.y + threadIdx.y;
-    int b     = (int) blockIdx.z;
-    int valid = (i < args.pad_size && j < args.pad_size);
+    int pupil_only = (args.d_super_pha == NULL && args.d_super_spha == NULL);
+    int gx         = blockIdx.x * blockDim.x + threadIdx.x;
+    int gy         = blockIdx.y * blockDim.y + threadIdx.y;
+    int b          = (int) blockIdx.z;
+    int i          = pupil_only ? (gx + args.guard) : gx;
+    int j          = pupil_only ? (gy + args.guard) : gy;
+    int grid_lim   = pupil_only ? (args.guard + args.pup_size) : args.pad_size;
+    int valid      = (i < grid_lim && j < grid_lim);
 
     int is_pow2 = ((args.msize & (args.msize - 1)) == 0);
     int mask    = args.msize - 1;
@@ -384,7 +388,7 @@ __global__ static void atmturb_cuda_extrude_sl_kernel(
     if (args.n_lf_modes > 0 && lf_b != NULL)
     {
         atmturb_cuda_accumulate_lowfreq_shared(
-            args.n_lf_modes, args.has_sec, lf_b, i, j, args.pad_size, &p_val, &sp_val);
+            args.n_lf_modes, args.has_sec, lf_b, i, j, grid_lim, &p_val, &sp_val);
     }
 
     if (!valid)
@@ -394,7 +398,10 @@ __global__ static void atmturb_cuda_extrude_sl_kernel(
 
     size_t pad_sq  = (size_t) args.pad_size * (size_t) args.pad_size;
     size_t pad_idx = (size_t) b * pad_sq + (size_t) j * (size_t) args.pad_size + (size_t) i;
-    args.d_super_pha[pad_idx] = p_val;
+    if (args.d_super_pha != NULL)
+    {
+        args.d_super_pha[pad_idx] = p_val;
+    }
     if (args.has_sec && args.d_super_spha != NULL)
     {
         args.d_super_spha[pad_idx] = sp_val;
@@ -433,9 +440,11 @@ void atmturb_cuda_extrude_sl_batch_launch(
     }
 
     cudaTextureObject_t master_tex = (cudaTextureObject_t) atmturb_cuda_get_master_tex();
+    int grid_dim = (args->d_super_pha == NULL && args->d_super_spha == NULL)
+                       ? args->pup_size : args->pad_size;
     dim3 b_ext(16, 16, 1);
-    dim3 g_ext(((int) args->pad_size + b_ext.x - 1) / b_ext.x,
-               ((int) args->pad_size + b_ext.y - 1) / b_ext.y,
+    dim3 g_ext(((int) grid_dim + b_ext.x - 1) / b_ext.x,
+               ((int) grid_dim + b_ext.y - 1) / b_ext.y,
                (unsigned int) args->batch_count);
     if (args->interp_mode == 1)
     {

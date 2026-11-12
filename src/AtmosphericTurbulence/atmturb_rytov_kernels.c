@@ -155,6 +155,64 @@ void atmturb_rytov_assemble_output(
 }
 
 /**
+ * atmturb_rytov_prepare_moisan_bounds - Compute 1D boundary difference spectra for Moisan
+ */
+static void atmturb_rytov_prepare_moisan_bounds(
+    atmturb_rytov_ctx_t *ctx,
+    long                 n,
+    const float         *phi)
+{
+    float       *restrict ba    = ctx->bound_a;
+    float       *restrict bb    = ctx->bound_b;
+    const float *restrict r_top = phi;
+    const float *restrict r_bot = &phi[(n - 1) * n];
+
+    #pragma omp simd
+    for (long x = 0; x < n; x++)
+    {
+        ba[x] = r_top[x] - r_bot[x];
+    }
+    for (long y = 0; y < n; y++)
+    {
+        bb[y] = phi[y * n] - phi[y * n + (n - 1)];
+    }
+
+    fftwf_execute_dft_r2c(ctx->plan_1d_a, ctx->bound_a, ctx->hat_a);
+    fftwf_execute_dft_r2c(ctx->plan_1d_b, ctx->bound_b, ctx->hat_b);
+}
+
+/**
+ * atmturb_rytov_decompose_one_row - Apply Moisan harmonic subtraction on spectrum row @j
+ */
+static inline void atmturb_rytov_decompose_one_row(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    long                        n,
+    long                        n_half,
+    long                        j)
+{
+    float b_re;
+    float b_im;
+    if (j <= n / 2)
+    {
+        b_re = ctx->hat_b[j][0];
+        b_im = ctx->hat_b[j][1];
+    }
+    else
+    {
+        long j_sym = n - j;
+        b_re       =  ctx->hat_b[j_sym][0];
+        b_im       = -ctx->hat_b[j_sym][1];
+    }
+
+    long row_idx = j * n_half;
+    atmturb_rytov_simd_decompose_row(&ctx->spec[row_idx], ctx->hat_a,
+                                     plan->exp_x, &plan->laplace_inv[row_idx],
+                                     plan->exp_y[j][0], plan->exp_y[j][1],
+                                     b_re, b_im, n_half);
+}
+
+/**
  * atmturb_rytov_decompose_rows - Apply Moisan harmonic subtraction over row range [j0, j1)
  */
 static inline void atmturb_rytov_decompose_rows(
@@ -167,27 +225,7 @@ static inline void atmturb_rytov_decompose_rows(
 {
     for (long j = j0; j < j1; j++)
     {
-        float b_re;
-        float b_im;
-        if (j <= n / 2)
-        {
-            b_re = ctx->hat_b[j][0];
-            b_im = ctx->hat_b[j][1];
-        }
-        else
-        {
-            long j_sym = n - j;
-            b_re       =  ctx->hat_b[j_sym][0];
-            b_im       = -ctx->hat_b[j_sym][1];
-        }
-
-        float ey_re   = plan->exp_y[j][0];
-        float ey_im   = plan->exp_y[j][1];
-        long  row_idx = j * n_half;
-
-        atmturb_rytov_simd_decompose_row(&ctx->spec[row_idx], ctx->hat_a,
-                                         plan->exp_x, &plan->laplace_inv[row_idx],
-                                         ey_re, ey_im, b_re, b_im, n_half);
+        atmturb_rytov_decompose_one_row(ctx, plan, n, n_half, j);
     }
 }
 
@@ -202,25 +240,9 @@ void atmturb_rytov_decompose_periodic(
     const atmturb_rytov_plan_t *plan,
     float                      *phi)
 {
-    long                  n      = plan->grid_size;
-    long                  n_half = n / 2 + 1;
-    float       *restrict ba     = ctx->bound_a;
-    float       *restrict bb     = ctx->bound_b;
-    const float *restrict r_top  = phi;
-    const float *restrict r_bot  = &phi[(n - 1) * n];
-
-    #pragma omp simd
-    for (long x = 0; x < n; x++)
-    {
-        ba[x] = r_top[x] - r_bot[x];
-    }
-    for (long y = 0; y < n; y++)
-    {
-        bb[y] = phi[y * n] - phi[y * n + (n - 1)];
-    }
-
-    fftwf_execute_dft_r2c(ctx->plan_1d_a, ctx->bound_a, ctx->hat_a);
-    fftwf_execute_dft_r2c(ctx->plan_1d_b, ctx->bound_b, ctx->hat_b);
+    long n      = plan->grid_size;
+    long n_half = n / 2 + 1;
+    atmturb_rytov_prepare_moisan_bounds(ctx, n, phi);
     fftwf_execute_dft_r2c(ctx->plan_r2c, phi, ctx->spec);
 
 #ifdef _OPENMP
@@ -240,6 +262,105 @@ void atmturb_rytov_decompose_periodic(
     }
 #endif
     atmturb_rytov_decompose_rows(ctx, plan, n, n_half, 0, n);
+}
+
+/**
+ * atmturb_rytov_fused_rows - Fused row-wise L1-resident Moisan + Rytov filter accumulation
+ */
+static void atmturb_rytov_fused_rows(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    int                         m,
+    int                         rot_sec,
+    int                         sec_only,
+    long                        j0,
+    long                        j1)
+{
+    long                  n      = plan->grid_size;
+    long                  n_half = n / 2 + 1;
+    fftwf_complex        *d_acc  = sec_only ? ctx->acc_dphi_sec : ctx->acc_dphi_pri;
+    fftwf_complex        *c_acc  = sec_only ? ctx->acc_chi_sec  : ctx->acc_chi_pri;
+    const float          *fa     = sec_only ? plan->filter_a_sec[m] : plan->filter_a_pri[m];
+    const float          *fb     = sec_only ? plan->filter_b_sec[m] : plan->filter_b_pri[m];
+    const fftwf_complex  *ramp   = rot_sec ? plan->chrom_ramp[m] : NULL;
+
+    for (long j = j0; j < j1; j++)
+    {
+        long row_idx = j * n_half;
+        if (plan->use_moisan)
+        {
+            atmturb_rytov_decompose_one_row(ctx, plan, n, n_half, j);
+        }
+        atmturb_rytov_simd_accumulate_filters(
+            &d_acc[row_idx], &c_acc[row_idx], &ctx->spec[row_idx],
+            &fa[row_idx], &fb[row_idx], n_half);
+        if (rot_sec)
+        {
+            atmturb_rytov_simd_accumulate_filters_rotated(
+                &ctx->acc_dphi_sec[row_idx], &ctx->acc_chi_sec[row_idx], &ctx->spec[row_idx],
+                &ramp[row_idx], &plan->filter_a_sec[m][row_idx],
+                &plan->filter_b_sec[m][row_idx], n_half);
+        }
+    }
+}
+
+/**
+ * atmturb_rytov_run_fused_channel - Execute R2C FFT and fused row filter pass for one channel
+ */
+static void atmturb_rytov_run_fused_channel(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    float                      *phi,
+    int                         m,
+    int                         rot_sec,
+    int                         sec_only)
+{
+    long n = plan->grid_size;
+    if (plan->use_moisan)
+    {
+        atmturb_rytov_prepare_moisan_bounds(ctx, n, phi);
+    }
+    fftwf_execute_dft_r2c(ctx->plan_r2c, phi, ctx->spec);
+
+#ifdef _OPENMP
+    if (n >= 512 && !omp_in_parallel())
+    {
+        int max_t = omp_get_max_threads();
+        int nth   = (max_t > 8) ? 8 : max_t;
+        #pragma omp parallel num_threads(nth)
+        {
+            int  tid = omp_get_thread_num();
+            int  nt  = omp_get_num_threads();
+            long j0  = (n * (long) tid) / (long) nt;
+            long j1  = (n * (long) (tid + 1)) / (long) nt;
+            atmturb_rytov_fused_rows(ctx, plan, m, rot_sec, sec_only, j0, j1);
+        }
+        return;
+    }
+#endif
+    atmturb_rytov_fused_rows(ctx, plan, m, rot_sec, sec_only, 0, n);
+}
+
+/**
+ * atmturb_rytov_process_superlayer - Fused R2C, Moisan, and L1-resident filter accumulation
+ * @ctx: Thread execution context.
+ * @plan: Propagation plan.
+ * @m: Super-layer index.
+ * @has_sec: Non-zero when secondary polychromatic channel is active.
+ */
+void atmturb_rytov_process_superlayer(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    int                         m,
+    int                         has_sec)
+{
+    int rot_sec = (has_sec && plan->sec_shared &&
+                   plan->chrom_ramp != NULL && plan->chrom_ramp[m] != NULL);
+    atmturb_rytov_run_fused_channel(ctx, plan, ctx->super_pha, m, rot_sec, 0);
+    if (has_sec && !rot_sec)
+    {
+        atmturb_rytov_run_fused_channel(ctx, plan, ctx->super_spha, m, 0, 1);
+    }
 }
 
 /**

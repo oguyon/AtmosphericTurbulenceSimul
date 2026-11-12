@@ -216,7 +216,7 @@ static int atmturb_wfs_stream_render_step(
             if (st->id_samp >= 0) { dcimg[st->id_samp].md[0].write = 1; }
         }
         return atmturb_wfs_cuda_geom_stream_render_step(
-            st->cuda_gstream, t, pha_dst, amp_dst, spha_dst, samp_dst);
+            st->cuda_gstream, t, pha_dst, NULL, spha_dst, NULL);
     }
 
     long frame_pixels = pup_size * pup_size;
@@ -226,11 +226,14 @@ static int atmturb_wfs_stream_render_step(
         atmturb_init_phase_amp(spha_dst, samp_dst, frame_pixels);
     }
 
-    for (int k = 0; k < geom->nlayers; k++)
-    {
-        atmturb_wfs_render_layer(rsim, geom, k, t, time_step_s, master_size,
-                                 pup_size, st->pha, spha_dst);
-    }
+    atmturb_wfs_render_target_t target = {
+        .pup_size     = pup_size,
+        .guard_pix    = 0,
+        .pha          = st->pha,
+        .spha         = spha_dst,
+        .weight_scale = 1.0f
+    };
+    atmturb_wfs_render_all_layers(rsim, geom, t, time_step_s, master_size, &target);
     return 0;
 }
 
@@ -304,6 +307,10 @@ static inline int atmturb_wfs_stream_render_wait(
     atmturb_stream_state_t *st,
     int                     buf_idx)
 {
+    if (CONF_FRESNEL_PROPAGATION == 0 && st->cuda_gstream != NULL)
+    {
+        return atmturb_wfs_cuda_geom_stream_render_wait(st->cuda_gstream, buf_idx);
+    }
     if (CONF_FRESNEL_PROPAGATION == 1 && st->cuda_fstream != NULL)
     {
         return atmturb_cuda_fresnel_stream_render_wait(st->cuda_fstream, buf_idx);
@@ -358,6 +365,11 @@ static inline int atmturb_wfs_stream_pipeline_launch_frame(
     float *spha_dst = (st->id_spha >= 0) ? st->dma_spha[buf_idx] : NULL;
     float *samp_dst = (st->id_samp >= 0) ? st->dma_samp[buf_idx] : NULL;
 
+    if (CONF_FRESNEL_PROPAGATION == 0 && st->cuda_gstream != NULL)
+    {
+        return atmturb_wfs_cuda_geom_stream_render_launch(
+            st->cuda_gstream, t, params->time_step_s, pha_dst, spha_dst, buf_idx);
+    }
     if (CONF_FRESNEL_PROPAGATION == 1 && st->cuda_fstream != NULL)
     {
         return atmturb_cuda_fresnel_stream_render_launch(
@@ -529,7 +541,8 @@ static long atmturb_wfs_stream_loop(
     long                        pup_size,
     long                        max_frames)
 {
-    if (st->dma_pha[0] != NULL && (st->cuda_fstream != NULL || st->cuda_rstream != NULL))
+    if (st->dma_pha[0] != NULL &&
+        (st->cuda_fstream != NULL || st->cuda_rstream != NULL || st->cuda_gstream != NULL))
     {
         return atmturb_wfs_stream_loop_pipelined(
             rsim, geom, params, st, pup_size, max_frames);
@@ -664,7 +677,7 @@ static int atmturb_wfs_stream_init_engine(
 
     if (CONF_FRESNEL_PROPAGATION == 0)
     {
-        if (gpu_ok && (gpu_forced || pup_size >= 256))
+        if (gpu_ok && (gpu_forced || pup_size >= 128))
         {
             st->cuda_gstream = atmturb_wfs_cuda_geom_stream_init(
                 rsim, geom, CONF_MASTER_SIZE, pup_size);
@@ -696,7 +709,7 @@ static int atmturb_wfs_stream_init_engine(
     }
     else if (CONF_FRESNEL_PROPAGATION == 2)
     {
-        if (gpu_ok && (gpu_forced || pup_size >= 256))
+        if (gpu_ok && (gpu_forced || pup_size >= 128))
         {
             st->cuda_rstream = atmturb_cuda_rytov_stream_init(
                 rsim, geom, prof, params, CONF_MASTER_SIZE, pup_size);
@@ -772,35 +785,21 @@ static void atmturb_wfs_stream_cleanup_dma(
     {
         return;
     }
-
-    const imageID ids[4]   = {st->id_pha, st->id_amp, st->id_spha, st->id_samp};
-    float       **pairs[4] = {st->dma_pha, st->dma_amp, st->dma_spha, st->dma_samp};
-
-    for (int ch = 0; ch < 4; ch++)
+    if (st->cuda_gstream != NULL)
     {
-        if (st->cuda_gstream != NULL)
-        {
-            if (ids[ch] >= 0)
-            {
-                atmturb_cuda_host_unregister(dcimg[ids[ch]].array.F);
-            }
-        }
-        else
-        {
-            for (int b = 0; b < 2; b++)
-            {
-                if (pairs[ch][b] != NULL)
-                {
-                    atmturb_cuda_host_free(pairs[ch][b]);
-                    pairs[ch][b] = NULL;
-                }
-            }
-        }
+        if (st->id_pha >= 0)  { atmturb_cuda_host_unregister(dcimg[st->id_pha].array.F); }
+        if (st->id_spha >= 0) { atmturb_cuda_host_unregister(dcimg[st->id_spha].array.F); }
+        return;
     }
+    atmturb_cuda_host_free(st->dma_pha[0]);
+    memset(st->dma_pha, 0, sizeof(st->dma_pha));
+    memset(st->dma_amp, 0, sizeof(st->dma_amp));
+    memset(st->dma_spha, 0, sizeof(st->dma_spha));
+    memset(st->dma_samp, 0, sizeof(st->dma_samp));
 }
 
 /**
- * atmturb_wfs_stream_setup_dma - Allocate pinned host buffers or register SHM for GPU DMA
+ * atmturb_wfs_stream_setup_dma - Pin geometric SHM or allocate double-buffered DMA arena
  * @st: Stream state container.
  * @pup_size: Linear dimension of square pupil.
  *
@@ -814,26 +813,39 @@ static int atmturb_wfs_stream_setup_dma(
     {
         return 0;
     }
+    long   npix   = pup_size * pup_size;
+    size_t nbytes = (size_t) npix * sizeof(float);
+    if (st->cuda_gstream != NULL)
+    {
+        if (st->id_pha >= 0)  { atmturb_cuda_host_register(dcimg[st->id_pha].array.F, nbytes); }
+        if (st->id_spha >= 0) { atmturb_cuda_host_register(dcimg[st->id_spha].array.F, nbytes); }
+        if (st->id_amp >= 0)  { atmturb_init_phase_amp(NULL, dcimg[st->id_amp].array.F, npix); }
+        if (st->id_samp >= 0) { atmturb_init_phase_amp(NULL, dcimg[st->id_samp].array.F, npix); }
+        return 0;
+    }
 
-    size_t        nbytes   = (size_t) (pup_size * pup_size) * sizeof(float);
+    size_t        stride   = ((size_t) npix + 63) & ~(size_t) 63;
     const imageID ids[4]   = {st->id_pha, st->id_amp, st->id_spha, st->id_samp};
     float       **pairs[4] = {st->dma_pha, st->dma_amp, st->dma_spha, st->dma_samp};
-
-    for (int ch = 0; ch < 4; ch++)
+    int           n_dma_ch = (ids[0] >= 0) + (ids[1] >= 0) + (ids[2] >= 0) + (ids[3] >= 0);
+    if (n_dma_ch == 0)
     {
-        if (ids[ch] < 0)
+        return 0;
+    }
+
+    float *arena = NULL;
+    if (atmturb_cuda_host_alloc((void **) &arena,
+                                sizeof(float) * stride * (size_t) (2 * n_dma_ch)) != 0)
+    {
+        return -1;
+    }
+    for (int ch = 0, idx = 0; ch < 4; ch++)
+    {
+        if (ids[ch] >= 0)
         {
-            continue;
-        }
-        if (st->cuda_gstream != NULL)
-        {
-            atmturb_cuda_host_register(dcimg[ids[ch]].array.F, nbytes);
-        }
-        else if (atmturb_cuda_host_alloc((void **) &pairs[ch][0], nbytes) != 0 ||
-                 atmturb_cuda_host_alloc((void **) &pairs[ch][1], nbytes) != 0)
-        {
-            atmturb_wfs_stream_cleanup_dma(st);
-            return -1;
+            pairs[ch][0] = arena + ((size_t) idx * stride);
+            pairs[ch][1] = arena + ((size_t) (idx + 1) * stride);
+            idx += 2;
         }
     }
     return 0;

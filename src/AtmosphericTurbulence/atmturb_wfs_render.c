@@ -33,25 +33,24 @@
 #endif
 
 /**
- * atmturb_wfs_extrude_channel - Extrude a single turbulence layer phase into pupil
- * @scr: Master screen pointer.
+ * atmturb_wfs_extrude_channel - Extrude one or two rolling epochs into pupil
+ * @rev: Evaluated rolling frame state (scrA, scrB, wA, wB).
  * @master_size: Master screen linear dimension.
  * @x: Unwrapped X position in master pixels.
  * @y: Unwrapped Y position in master pixels.
- * @pup_size: Linear dimension of pupil.
- * @geom: Observing geometry context.
- * @weight: Scaled layer weight.
+ * @geom_pup: Packed [pup_size, oversample, interp] integers.
+ * @w_layer: Base layer amplitude weight.
  * @out_pha: Destination phase array to accumulate into.
  */
 static inline void atmturb_wfs_extrude_channel(
-    const float          *scr,
-    long                  master_size,
-    double                x,
-    double                y,
-    long                  pup_size,
-    const atmturb_geom_t *geom,
-    float                 weight,
-    float                *out_pha)
+    const atmturb_rolling_eval_t *rev,
+    long                          master_size,
+    double                        x,
+    double                        y,
+    const atmturb_geom_t         *geom,
+    long                          pup_size,
+    double                        w_layer,
+    float                        *out_pha)
 {
     double cur_x = fmod(x, (double) master_size);
     if (cur_x < 0.0)
@@ -64,17 +63,104 @@ static inline void atmturb_wfs_extrude_channel(
         cur_y += (double) master_size;
     }
 
-    atmturb_extrude_params_t ep;
-    ep.master   = scr;
-    ep.msize    = master_size;
-    ep.x0       = cur_x;
-    ep.y0       = cur_y;
-    ep.pup_size = pup_size;
-    ep.os       = (long) geom->oversample;
-    ep.interp   = geom->interp;
-    ep.weight   = weight;
-    ep.out_pha  = out_pha;
+    int has_b = (rev->wB > 0.0f && rev->scrB != NULL);
+    atmturb_extrude_params_t ep = {
+        .master   = rev->scrA,
+        .msize    = master_size,
+        .x0       = cur_x,
+        .y0       = cur_y,
+        .pup_size = pup_size,
+        .os       = (long) geom->oversample,
+        .interp   = geom->interp,
+        .weight   = (float) (w_layer * (double) rev->wA),
+        .out_pha  = out_pha,
+        .master_b = has_b ? rev->scrB : NULL,
+        .weight_b = has_b ? (float) (w_layer * (double) rev->wB) : 0.0f
+    };
     atmturb_extrude_accumulate(&ep);
+}
+
+/**
+ * atmturb_wfs_render_layer_step - Extrude one layer and optionally fuse subharmonics
+ */
+static void atmturb_wfs_render_layer_step(
+    const atmturb_rolling_t           *r,
+    const atmturb_geom_t              *geom,
+    int                                k,
+    long                               t,
+    double                             time_step_s,
+    long                               master_size,
+    const atmturb_wfs_render_target_t *target,
+    atmturb_lf_fused_t                *lf_pri,
+    atmturb_lf_fused_t                *lf_sec)
+{
+    long   pad_size  = target->pup_size + 2 * target->guard_pix;
+    double offset_os = (double) target->guard_pix * (double) geom->oversample;
+
+    const atmturb_layer_geom_t *lg = &geom->layers[k];
+    atmturb_rolling_eval_t      rev;
+    atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
+
+    double dx     = atmturb_geom_get_layer_dx(lg, t);
+    double dy     = atmturb_geom_get_layer_dy(lg, t);
+    double wscale = (target->weight_scale > 0.0f) ? (double) target->weight_scale : 1.0;
+    double w_pri  = lg->weight * wscale;
+    double w_sec  = lg->weight_s * wscale;
+
+    double x = lg->x0 + dx - offset_os;
+    double y = lg->y0 + dy - offset_os;
+    atmturb_wfs_extrude_channel(&rev, master_size, x, y, geom, pad_size, w_pri, target->pha);
+
+    if (target->spha != NULL)
+    {
+        double xs = lg->xs0 + dx - offset_os;
+        double ys = lg->ys0 + dy - offset_os;
+        atmturb_wfs_extrude_channel(&rev, master_size, xs, ys, geom, pad_size,
+                                    w_sec, target->spha);
+        if (r->lowfreq)
+        {
+            if (lf_sec != NULL)
+            {
+                atmturb_lowfreq_params_t lp = {
+                    .lf         = &r->layers[k].lf_base,
+                    .custom_are = rev.are_eff,
+                    .custom_aim = rev.aim_eff,
+                    .x0         = xs,
+                    .y0         = ys,
+                    .weight     = (float) w_sec
+                };
+                atmturb_lowfreq_fuse(lf_sec, &lp);
+            }
+            else
+            {
+                atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
+                                                  xs, ys, pad_size, (long) geom->oversample,
+                                                  (float) w_sec, target->spha);
+            }
+        }
+    }
+
+    if (r->lowfreq)
+    {
+        if (lf_pri != NULL)
+        {
+            atmturb_lowfreq_params_t lp = {
+                .lf         = &r->layers[k].lf_base,
+                .custom_are = rev.are_eff,
+                .custom_aim = rev.aim_eff,
+                .x0         = x,
+                .y0         = y,
+                .weight     = (float) w_pri
+            };
+            atmturb_lowfreq_fuse(lf_pri, &lp);
+        }
+        else
+        {
+            atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
+                                              x, y, pad_size, (long) geom->oversample,
+                                              (float) w_pri, target->pha);
+        }
+    }
 }
 
 /**
@@ -96,56 +182,86 @@ void atmturb_wfs_render_layer_target(
     long                               master_size,
     const atmturb_wfs_render_target_t *target)
 {
-    long pup_size = target->pup_size;
-    long guard = target->guard_pix;
-    long pad_size = pup_size + 2 * guard;
-    double offset_os = (double) guard * (double) geom->oversample;
+    atmturb_wfs_render_layer_step(r, geom, k, t, time_step_s, master_size, target, NULL, NULL);
+}
 
-    const atmturb_layer_geom_t *lg = &geom->layers[k];
-    atmturb_rolling_eval_t rev;
-    atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
+/**
+ * atmturb_wfs_render_all_layers - Render all geometric layers with fused epochs & subharmonics
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @master_size: Master screen dimension.
+ * @target: Render target specifications and buffers.
+ */
+void atmturb_wfs_render_all_layers(
+    const atmturb_rolling_t           *r,
+    const atmturb_geom_t              *geom,
+    long                               t,
+    double                             time_step_s,
+    long                               master_size,
+    const atmturb_wfs_render_target_t *target)
+{
+    atmturb_lf_fused_t lf_pri = {0};
+    atmturb_lf_fused_t lf_sec = {0};
 
-    double dx = atmturb_geom_get_layer_dx(lg, t);
-    double dy = atmturb_geom_get_layer_dy(lg, t);
-
-    double wscale = (target->weight_scale > 0.0f) ? (double) target->weight_scale : 1.0;
-    double w_pri  = lg->weight * wscale;
-    double w_sec  = lg->weight_s * wscale;
-
-    double x = lg->x0 + dx - offset_os;
-    double y = lg->y0 + dy - offset_os;
-    atmturb_wfs_extrude_channel(rev.scrA, master_size, x, y, pad_size, geom,
-                                (float) (w_pri * (double) rev.wA), target->pha);
-    if (rev.wB > 0.0f && rev.scrB != NULL)
+    for (int k = 0; k < geom->nlayers; k++)
     {
-        atmturb_wfs_extrude_channel(rev.scrB, master_size, x, y, pad_size, geom,
-                                    (float) (w_pri * (double) rev.wB), target->pha);
+        atmturb_wfs_render_layer_step(r, geom, k, t, time_step_s, master_size,
+                                      target, &lf_pri, &lf_sec);
     }
 
-    if (target->spha != NULL)
+    if (r->lowfreq && geom->nlayers > 0)
     {
-        double xs = lg->xs0 + dx - offset_os;
-        double ys = lg->ys0 + dy - offset_os;
-        atmturb_wfs_extrude_channel(rev.scrA, master_size, xs, ys, pad_size, geom,
-                                    (float) (w_sec * (double) rev.wA), target->spha);
-        if (rev.wB > 0.0f && rev.scrB != NULL)
+        long pad_size = target->pup_size + 2 * target->guard_pix;
+        long os       = (long) geom->oversample;
+        atmturb_lowfreq_flush(&lf_pri, &r->layers[0].lf_base, pad_size, os, target->pha);
+        if (target->spha != NULL)
         {
-            atmturb_wfs_extrude_channel(rev.scrB, master_size, xs, ys, pad_size, geom,
-                                        (float) (w_sec * (double) rev.wB), target->spha);
-        }
-        if (r->lowfreq)
-        {
-            atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
-                                              xs, ys, pad_size, (long) geom->oversample,
-                                              (float) w_sec, target->spha);
+            atmturb_lowfreq_flush(&lf_sec, &r->layers[0].lf_base, pad_size, os, target->spha);
         }
     }
+}
 
-    if (r->lowfreq)
+/**
+ * atmturb_wfs_render_superlayer - Render all layers in a superlayer with fused subharmonics
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @sl: Superlayer descriptor (layer indices and fractional weights).
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @target: Render target specifications and buffers.
+ */
+void atmturb_wfs_render_superlayer(
+    const atmturb_rolling_t           *r,
+    const atmturb_geom_t              *geom,
+    const atmturb_superlayer_t        *sl,
+    long                               t,
+    double                             time_step_s,
+    const atmturb_wfs_render_target_t *target)
+{
+    atmturb_lf_fused_t          lf_pri = {0};
+    atmturb_lf_fused_t          lf_sec = {0};
+    atmturb_wfs_render_target_t sub_t  = *target;
+
+    for (int j = 0; j < sl->nlayers; j++)
     {
-        atmturb_lowfreq_accumulate_custom(&r->layers[k].lf_base, rev.are_eff, rev.aim_eff,
-                                          x, y, pad_size, (long) geom->oversample,
-                                          (float) w_pri, target->pha);
+        int k              = sl->layer_indices[j];
+        sub_t.weight_scale = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
+        atmturb_wfs_render_layer_step(r, geom, k, t, time_step_s, r->msize,
+                                      &sub_t, &lf_pri, &lf_sec);
+    }
+
+    if (r->lowfreq && sl->nlayers > 0)
+    {
+        int  k0       = sl->layer_indices[0];
+        long pad_size = target->pup_size + 2 * target->guard_pix;
+        long os       = (long) geom->oversample;
+        atmturb_lowfreq_flush(&lf_pri, &r->layers[k0].lf_base, pad_size, os, target->pha);
+        if (target->spha != NULL)
+        {
+            atmturb_lowfreq_flush(&lf_sec, &r->layers[k0].lf_base, pad_size, os, target->spha);
+        }
     }
 }
 
@@ -233,12 +349,38 @@ static void atmturb_wfs_render_geometric(
             }
         }
 
-        for (int k = 0; k < geom->nlayers; k++)
-        {
-            atmturb_wfs_render_layer(r, geom, k, t, time_step_s, master_size,
-                                     pup_size, pha_slice, spha_slice);
-        }
+        atmturb_wfs_render_target_t target = {
+            .pup_size     = pup_size,
+            .guard_pix    = 0,
+            .pha          = pha_slice,
+            .spha         = spha_slice,
+            .weight_scale = 1.0f
+        };
+        atmturb_wfs_render_all_layers(r, geom, t, time_step_s, master_size, &target);
     }
+}
+
+/**
+ * atmturb_wfs_pick_threads - Choose outer frame threads and inner FFTW threads
+ */
+static void atmturb_wfs_pick_threads(
+    long grid_size,
+    long nbframes,
+    int *out_nth,
+    int *out_fftw_nth)
+{
+    int max_t = 1;
+#ifdef _OPENMP
+    max_t = omp_get_max_threads();
+#endif
+    int cap   = (grid_size >= 256 && max_t > 16) ? 16 : max_t;
+    int nth   = (nbframes > 0 && nbframes < (long) cap) ? (int) nbframes : cap;
+    nth       = (nth < 1) ? 1 : nth;
+    int f_nth = (nbframes < 4) ? (max_t / nth) : 1;
+    f_nth     = (f_nth < 1) ? 1 : ((f_nth > 8) ? 8 : f_nth);
+
+    *out_nth      = nth;
+    *out_fftw_nth = f_nth;
 }
 
 /**
@@ -272,27 +414,9 @@ static int atmturb_wfs_render_diffractive(
         return -1;
     }
 
-    int max_threads = 1;
-#ifdef _OPENMP
-    max_threads = omp_get_max_threads();
-#endif
-    int cap_threads = (pup_size >= 256 && max_threads > 16) ? 16 : max_threads;
-    int nthreads    = (nbframes > 0 && nbframes < (long) cap_threads)
-                          ? (int) nbframes
-                          : cap_threads;
-    if (nthreads < 1)
-    {
-        nthreads = 1;
-    }
-    int fftw_nth = (nbframes < 4) ? (max_threads / nthreads) : 1;
-    if (fftw_nth < 1)
-    {
-        fftw_nth = 1;
-    }
-    if (fftw_nth > 8)
-    {
-        fftw_nth = 8;
-    }
+    int nthreads = 1;
+    int fftw_nth = 1;
+    atmturb_wfs_pick_threads(pup_size, nbframes, &nthreads, &fftw_nth);
 
     atmturb_fresnel_ctx_t *ctxs = (atmturb_fresnel_ctx_t *) calloc((size_t) nthreads,
                                                                    sizeof(atmturb_fresnel_ctx_t));
@@ -347,19 +471,6 @@ static int atmturb_wfs_render_diffractive(
     return 0;
 }
 
-
-
-/**
- * atmturb_wfs_render_frames - Dispatch rendering to diffractive or geometric engine
- * @r: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @prof: Active turbulence profile.
- * @params: Observation parameters container.
- * @master_size: Master screen dimension in pixels.
- * @pup_size: Output pupil dimension in pixels.
- * @nbframes: Number of simulation frames.
- * @imgs: Container of output 3D image handles.
- */
 /**
  * atmturb_wfs_render_rytov - Multi-threaded Rytov diffractive rendering of simulation time steps
  * @r: Rolling simulation context.
@@ -392,27 +503,9 @@ static int atmturb_wfs_render_rytov(
         return -1;
     }
 
-    int max_threads = 1;
-#ifdef _OPENMP
-    max_threads = omp_get_max_threads();
-#endif
-    int cap_threads = (plan.pad_size >= 256 && max_threads > 16) ? 16 : max_threads;
-    int nthreads    = (nbframes > 0 && nbframes < (long) cap_threads)
-                          ? (int) nbframes
-                          : cap_threads;
-    if (nthreads < 1)
-    {
-        nthreads = 1;
-    }
-    int fftw_nth = (nbframes < 4) ? (max_threads / nthreads) : 1;
-    if (fftw_nth < 1)
-    {
-        fftw_nth = 1;
-    }
-    if (fftw_nth > 8)
-    {
-        fftw_nth = 8;
-    }
+    int nthreads = 1;
+    int fftw_nth = 1;
+    atmturb_wfs_pick_threads(plan.pad_size, nbframes, &nthreads, &fftw_nth);
 
     atmturb_rytov_ctx_t *ctxs = (atmturb_rytov_ctx_t *) calloc((size_t) nthreads,
                                                                sizeof(atmturb_rytov_ctx_t));
@@ -493,7 +586,8 @@ void atmturb_wfs_render_frames(
     int gpu_forced  = atmturb_simd_is_gpu_forced();
     int use_gpu_dif = gpu_ok && (gpu_forced || pup_size >= 256 ||
                                  (pup_size >= 128 && nbframes >= 32));
-    int use_gpu_geo = gpu_ok && (gpu_forced || pup_size >= 512);
+    int use_gpu_geo = gpu_ok && (gpu_forced || pup_size >= 256 ||
+                                 (pup_size >= 128 && nbframes >= 64));
 #endif
 
     if (CONF_FRESNEL_PROPAGATION == 1)
@@ -531,7 +625,8 @@ void atmturb_wfs_render_frames(
 
 #ifdef HAVE_CUDA
     if (use_gpu_geo &&
-        atmturb_wfs_render_cuda(r, geom, master_size, pup_size, nbframes, imgs) == 0)
+        atmturb_wfs_render_cuda(r, geom, master_size, pup_size, nbframes,
+                                params->time_step_s, imgs) == 0)
     {
         return;
     }

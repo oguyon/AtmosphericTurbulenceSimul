@@ -19,6 +19,7 @@
 #include "milk_runnable.h"
 #include "atmturb_cuda.h"
 #include "atmturb_cuda_fresnel.h"
+#include "atmturb_cuda_geom_ext.h"
 #include "atmturb_cuda_rytov.h"
 #include "atmturb_geometry.h"
 #include "atmturb_lowfreq.h"
@@ -31,20 +32,9 @@
 #include "atmturb_wfs_render_cuda.h"
 
 /**
- * atmturb_wfs_render_cuda - Render geometric simulation frames on GPU
- * @r: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @master_size: Master screen dimension in pixels.
- * @pup_size: Output pupil dimension in pixels.
- * @nbframes: Number of simulation frames.
- * @imgs: Container of output 3D image handles.
- *
- * Flattens atmospheric layers into constant-memory parameters and launches geometric
- * extrusion kernel across all frames simultaneously.
- *
- * Return: 0 on success, -1 on invalid configuration or CUDA error.
+ * atmturb_wfs_render_cuda_fast - Fast constant-memory GPU geometric batch renderer
  */
-int atmturb_wfs_render_cuda(
+static int atmturb_wfs_render_cuda_fast(
     const atmturb_rolling_t    *r,
     const atmturb_geom_t       *geom,
     long                        master_size,
@@ -52,44 +42,24 @@ int atmturb_wfs_render_cuda(
     long                        nbframes,
     const atmturb_wfs_images_t *imgs)
 {
-    if (r == NULL || geom == NULL || r->lowfreq != 0 || CONF_ROLLING != 0 ||
-        geom->oversample != 1 || geom->interp != 0)
-    {
-        return -1;
-    }
-
-    double w0 = geom->layers[0].weight;
-    double scoeff0 = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
-
-    for (int k = 0; k < geom->nlayers; k++)
-    {
-        if (geom->layers[k].traj_x != NULL || geom->layers[k].traj_y != NULL ||
-            geom->layers[k].xs0 != geom->layers[k].x0 ||
-            geom->layers[k].ys0 != geom->layers[k].y0)
-        {
-            return -1;
-        }
-        double wk = geom->layers[k].weight;
-        if (wk > 0.0 && fabs(geom->layers[k].weight_s / wk - scoeff0) > 1e-4)
-        {
-            return -1;
-        }
-    }
-
-    int nl = geom->nlayers;
+    int    nl   = geom->nlayers;
     size_t m_sz = (size_t) nl * sizeof(float *);
     size_t d_sz = (size_t) nl * sizeof(double);
-    void *buf = malloc(m_sz + 5 * d_sz);
-    if (!buf)
+    void  *buf  = malloc(m_sz + 8 * d_sz);
+    if (buf == NULL)
     {
         return -1;
     }
+
     const float **masters = (const float **) buf;
-    double *vx  = (double *) ((char *) buf + m_sz);
-    double *vy  = vx + nl;
-    double *cn2 = vy + nl;
-    double *x0  = cn2 + nl;
-    double *y0  = x0 + nl;
+    double *vx    = (double *) ((char *) buf + m_sz);
+    double *vy    = vx + nl;
+    double *cn2   = vy + nl;
+    double *x0    = cn2 + nl;
+    double *y0    = x0 + nl;
+    double *xs0   = y0 + nl;
+    double *ys0   = xs0 + nl;
+    double *cn2_s = ys0 + nl;
 
     for (int k = 0; k < nl; k++)
     {
@@ -99,9 +69,13 @@ int atmturb_wfs_render_cuda(
         cn2[k]     = geom->layers[k].weight * geom->layers[k].weight;
         x0[k]      = geom->layers[k].x0;
         y0[k]      = geom->layers[k].y0;
+        xs0[k]     = geom->layers[k].xs0;
+        ys0[k]     = geom->layers[k].ys0;
+        cn2_s[k]   = geom->layers[k].weight_s * geom->layers[k].weight_s;
     }
 
-    double scoeff = scoeff0;
+    double w0     = geom->layers[0].weight;
+    double scoeff = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
     atmturb_cuda_sim_params_t cparams = {
         .nblayers  = nl,
         .msize     = master_size,
@@ -113,38 +87,78 @@ int atmturb_wfs_render_cuda(
         .vypix     = vy,
         .cn2       = cn2,
         .x0        = x0,
-        .y0        = y0
+        .y0        = y0,
+        .xs0       = xs0,
+        .ys0       = ys0,
+        .cn2_s     = cn2_s
     };
-    long total_pixels = nbframes * pup_size * pup_size;
-    float *amp_ptr  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[0] : NULL;
-    float *samp_ptr = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[0] : NULL;
-
-    if (amp_ptr != NULL || samp_ptr != NULL)
-    {
-        #pragma omp parallel for
-        for (long i = 0; i < total_pixels; i++)
-        {
-            if (amp_ptr != NULL)
-            {
-                amp_ptr[i] = 1.0f;
-            }
-            if (samp_ptr != NULL)
-            {
-                samp_ptr[i] = 1.0f;
-            }
-        }
-    }
-
     atmturb_cuda_sim_outputs_t outputs = {
         .pha  = &dcimg[imgs->ID_pha].array.F[0],
-        .amp  = NULL,
+        .amp  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[0] : NULL,
         .spha = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[0] : NULL,
-        .samp = NULL
+        .samp = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[0] : NULL
     };
 
     int ret = atmturb_wfs_render_frames_cuda(&cparams, &outputs);
     free(buf);
     return ret;
+}
+
+/**
+ * atmturb_wfs_render_cuda - Render geometric simulation frames on GPU
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @master_size: Master screen dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ * @nbframes: Number of simulation frames.
+ * @time_step_s: Simulation time step in seconds.
+ * @imgs: Container of output 3D image handles.
+ *
+ * Dispatches static linear-velocity layers to the constant-memory fast renderer and
+ * rolling, subharmonic, bicubic, oversampled, or custom-trajectory runs to the general
+ * batched GPU geometric engine.
+ *
+ * Return: 0 on success, -1 on invalid configuration or CUDA error.
+ */
+int atmturb_wfs_render_cuda(
+    const atmturb_rolling_t    *r,
+    const atmturb_geom_t       *geom,
+    long                        master_size,
+    long                        pup_size,
+    long                        nbframes,
+    double                      time_step_s,
+    const atmturb_wfs_images_t *imgs)
+{
+    if (r == NULL || geom == NULL || imgs == NULL || geom->nlayers <= 0 ||
+        nbframes <= 0 || master_size <= 0 || pup_size <= 0 || !atmturb_cuda_device_available())
+    {
+        return -1;
+    }
+
+    int can_fast = (r->lowfreq == 0 && r->rolling == 0 && CONF_ROLLING == 0 &&
+                    geom->oversample == 1 && geom->interp == 0 && geom->nlayers <= 64);
+    for (int k = 0; can_fast && k < geom->nlayers; k++)
+    {
+        if (geom->layers[k].traj_x != NULL || geom->layers[k].traj_y != NULL)
+        {
+            can_fast = 0;
+        }
+    }
+
+    if (can_fast &&
+        atmturb_wfs_render_cuda_fast(r, geom, master_size, pup_size, nbframes, imgs) == 0)
+    {
+        return 0;
+    }
+
+    float *pha_ptr  = &dcimg[imgs->ID_pha].array.F[0];
+    float *amp_ptr  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[0] : NULL;
+    float *spha_ptr = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[0] : NULL;
+    float *samp_ptr = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[0] : NULL;
+
+    return atmturb_cuda_geom_ext_render_batch(
+        r, geom, master_size, pup_size, nbframes, time_step_s,
+        pha_ptr, amp_ptr, spha_ptr, samp_ptr);
 }
 
 /**
@@ -363,7 +377,7 @@ static int atmturb_wfs_cuda_init_rytov_lf(
     int max_lf = 0;
     for (int m = 0; m < plan->nsuper; m++)
     {
-        int n_lf = plan->supers[m].nlayers * 24;
+        int n_lf = (plan->supers[m].nlayers > 0) ? ATMTURB_LOWFREQ_NMODES : 0;
         if (n_lf > max_lf)
         {
             max_lf = n_lf;
@@ -385,7 +399,7 @@ static int atmturb_wfs_cuda_init_rytov_lf(
         memset(lf, 0, lf_bytes);
         for (int m = 0; m < plan->nsuper; m++)
         {
-            super_nlf[m] = plan->supers[m].nlayers * 24;
+            super_nlf[m] = (plan->supers[m].nlayers > 0) ? ATMTURB_LOWFREQ_NMODES : 0;
         }
         *out_super_nlf = super_nlf;
         *out_lf_modes  = lf;

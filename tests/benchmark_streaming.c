@@ -299,7 +299,7 @@ static void bench_geom_streaming(
     double dt_omp = (get_time_sec() - t0) / (double) nframes;
 
     double dt_gpu = 0.0;
-    atmturb_cuda_geom_stream_t *gstream =
+    atmturb_wfs_cuda_geom_stream_t *gstream =
         atmturb_wfs_cuda_geom_stream_init(rsim, geom, BENCH_MSIZE, pup_size);
     if (gstream != NULL)
     {

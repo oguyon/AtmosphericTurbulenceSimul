@@ -181,31 +181,75 @@ static inline void atmturb_bilinear_row_impl(
 }
 
 /**
+ * atmturb_bilinear_span_os1_dual - Contiguous unit-stride fused dual-screen bilinear span
+ */
+static inline void atmturb_bilinear_span_os1_dual(
+    const atmturb_extrude_params_t *params,
+    long                            off_y0,
+    long                            off_y1,
+    float                 *restrict dst,
+    long                            len,
+    const float                     u[4])
+{
+    const float *restrict r0a = params->master + off_y0;
+    const float *restrict r1a = params->master + off_y1;
+    const float *restrict r0b = params->master_b + off_y0;
+    const float *restrict r1b = params->master_b + off_y1;
+    const float           wa  = params->weight;
+    const float           wb  = params->weight_b;
+    const float           u00 = u[0], u10 = u[1], u01 = u[2], u11 = u[3];
+
+    #pragma omp simd
+    for (long ii = 0; ii < len; ii++)
+    {
+        float va = u00 * r0a[ii] + u10 * r0a[ii + 1] + u01 * r1a[ii] + u11 * r1a[ii + 1];
+        float vb = u00 * r0b[ii] + u10 * r0b[ii + 1] + u01 * r1b[ii] + u11 * r1b[ii + 1];
+        dst[ii] += wa * va + wb * vb;
+    }
+}
+
+/**
  * atmturb_extrude_bilinear_rows - Render pupil row slice [j0, j1) for bilinear extrusion
  */
 static inline void atmturb_extrude_bilinear_rows(
     const atmturb_extrude_params_t *params,
     const long                      geom_i[4],
-    const float                     w[4],
+    const float                     u[4],
     long                            start_y,
     long                            j0,
     long                            j1)
 {
     const float *restrict master   = params->master;
+    const float *restrict master_b = params->master_b;
     float       *restrict out_pha  = params->out_pha;
     const long            msize    = geom_i[0];
+    const long            start_x  = geom_i[1];
     const long            pup_size = geom_i[2];
     const long            os       = geom_i[3];
+    const float           wa       = params->weight;
+    const float           wb_s     = params->weight_b;
+    const int             has_b    = (master_b != NULL && wb_s != 0.0f);
+    const float           w[4]     = {wa * u[0], wa * u[1], wa * u[2], wa * u[3]};
+    const float           wb[4]    = {wb_s * u[0], wb_s * u[1], wb_s * u[2], wb_s * u[3]};
 
     for (long jj = j0; jj < j1; jj++)
     {
-        long         iy0 = (start_y + jj * os) % msize;
-        long         iy1 = (iy0 + 1 == msize) ? 0 : (iy0 + 1);
-        const float *r0  = &master[iy0 * msize];
-        const float *r1  = &master[iy1 * msize];
-        float       *dst = &out_pha[jj * pup_size];
+        long   iy0 = (start_y + jj * os) % msize;
+        long   iy1 = (iy0 + 1 == msize) ? 0 : (iy0 + 1);
+        float *dst = &out_pha[jj * pup_size];
 
-        atmturb_bilinear_row_impl(r0, r1, dst, geom_i, w);
+        if (has_b && os == 1 && start_x + pup_size < msize)
+        {
+            atmturb_bilinear_span_os1_dual(params, iy0 * msize + start_x,
+                                           iy1 * msize + start_x, dst, pup_size, u);
+            continue;
+        }
+        atmturb_bilinear_row_impl(&master[iy0 * msize], &master[iy1 * msize], dst, geom_i, w);
+        if (has_b)
+        {
+            atmturb_bilinear_row_impl(&master_b[iy0 * msize], &master_b[iy1 * msize],
+                                      dst, geom_i, wb);
+        }
     }
 }
 
@@ -215,10 +259,9 @@ static inline void atmturb_extrude_bilinear_rows(
 static inline void atmturb_extrude_bilinear_impl(
     const atmturb_extrude_params_t *params)
 {
-    const long  msize    = params->msize;
-    const long  pup_size = params->pup_size;
-    const long  os       = (params->os > 0) ? params->os : 1;
-    const float weight   = params->weight;
+    const long msize    = params->msize;
+    const long pup_size = params->pup_size;
+    const long os       = (params->os > 0) ? params->os : 1;
 
     double rx = fmod(params->x0, (double) msize);
     if (rx < 0.0)
@@ -238,13 +281,10 @@ static inline void atmturb_extrude_bilinear_impl(
     start_x %= msize;
     start_y %= msize;
 
-    const float w[4] = {
-        weight * (1.0f - fx) * (1.0f - fy),
-        weight * fx * (1.0f - fy),
-        weight * (1.0f - fx) * fy,
-        weight * fx * fy
+    const float u[4] = {
+        (1.0f - fx) * (1.0f - fy), fx * (1.0f - fy), (1.0f - fx) * fy, fx * fy
     };
-    const long geom_i[4] = {msize, start_x, pup_size, os};
+    const long  geom_i[4] = {msize, start_x, pup_size, os};
 
 #ifdef _OPENMP
     if (pup_size >= 512 && !omp_in_parallel())
@@ -256,12 +296,12 @@ static inline void atmturb_extrude_bilinear_impl(
             int  nt  = omp_get_num_threads();
             long j0  = (pup_size * (long) tid) / (long) nt;
             long j1  = (pup_size * (long) (tid + 1)) / (long) nt;
-            atmturb_extrude_bilinear_rows(params, geom_i, w, start_y, j0, j1);
+            atmturb_extrude_bilinear_rows(params, geom_i, u, start_y, j0, j1);
         }
         return;
     }
 #endif
-    atmturb_extrude_bilinear_rows(params, geom_i, w, start_y, 0, pup_size);
+    atmturb_extrude_bilinear_rows(params, geom_i, u, start_y, 0, pup_size);
 }
 
 /**
@@ -398,22 +438,78 @@ static inline void atmturb_bicubic_row_impl(
 }
 
 /**
+ * atmturb_bicubic_dual_os1_fast - Blend two epoch row quads on L1 stack and convolve once
+ */
+static inline void atmturb_bicubic_dual_os1_fast(
+    const atmturb_extrude_params_t *params,
+    const long                      iy[4],
+    long                            msize,
+    long                            start_x,
+    const float                     wx_raw[4],
+    const float                     wy_raw[4],
+    float                 *restrict dst)
+{
+    const long            pup_size = params->pup_size;
+    const long            span     = pup_size + 3;
+    const float           wa       = params->weight;
+    const float           wb       = params->weight_b;
+    const float *restrict ma       = params->master;
+    const float *restrict mb       = params->master_b;
+    float                 blend[4][516];
+
+    for (int r = 0; r < 4; r++)
+    {
+        const float *restrict pa = &ma[iy[r] * msize + start_x - 1];
+        const float *restrict pb = &mb[iy[r] * msize + start_x - 1];
+        float       *restrict pd = blend[r];
+        #pragma omp simd
+        for (long k = 0; k < span; k++)
+        {
+            pd[k] = wa * pa[k] + wb * pb[k];
+        }
+    }
+
+    atmturb_bicubic_ctx_t bc = {
+        .r0 = blend[0],
+        .r1 = blend[1],
+        .r2 = blend[2],
+        .r3 = blend[3],
+        .wx = {wx_raw[0], wx_raw[1], wx_raw[2], wx_raw[3]},
+        .wy = {wy_raw[0], wy_raw[1], wy_raw[2], wy_raw[3]}
+    };
+    atmturb_bicubic_span_os1(&bc, 1, dst, pup_size);
+}
+
+/**
  * atmturb_extrude_bicubic_rows - Render pupil row slice [j0, j1) for Keys bicubic extrusion
  */
 static inline void atmturb_extrude_bicubic_rows(
     const atmturb_extrude_params_t *params,
     const long                      geom_i[4],
-    const float                     wx_w[4],
+    const float                     wx_raw[4],
     const float                     wy_raw[4],
     long                            start_y,
     long                            j0,
     long                            j1)
 {
     const float *restrict master   = params->master;
+    const float *restrict master_b = params->master_b;
     float       *restrict out_pha  = params->out_pha;
     const long            msize    = geom_i[0];
+    const long            start_x  = geom_i[1];
     const long            pup_size = geom_i[2];
     const long            os       = geom_i[3];
+    const float           wa       = params->weight;
+    const float           wb       = params->weight_b;
+    const int             has_b    = (master_b != NULL && wb != 0.0f);
+    const int             fast_b   = (has_b && os == 1 && pup_size <= 512 &&
+                                      start_x >= 1 && start_x + pup_size + 1 < msize);
+    const float           wxa[4]   = {
+        wa * wx_raw[0], wa * wx_raw[1], wa * wx_raw[2], wa * wx_raw[3]
+    };
+    const float           wxb[4]   = {
+        wb * wx_raw[0], wb * wx_raw[1], wb * wx_raw[2], wb * wx_raw[3]
+    };
 
     for (long jj = j0; jj < j1; jj++)
     {
@@ -421,16 +517,36 @@ static inline void atmturb_extrude_bicubic_rows(
         long iym1 = (iy0 == 0) ? (msize - 1) : (iy0 - 1);
         long iyp1 = (iy0 + 1 == msize) ? 0 : (iy0 + 1);
         long iyp2 = (iyp1 + 1 == msize) ? 0 : (iyp1 + 1);
+        float *dst = &out_pha[jj * pup_size];
+
+        if (fast_b)
+        {
+            const long iy[4] = {iym1, iy0, iyp1, iyp2};
+            atmturb_bicubic_dual_os1_fast(params, iy, msize, start_x, wx_raw, wy_raw, dst);
+            continue;
+        }
 
         atmturb_bicubic_ctx_t bc = {
             .r0 = &master[iym1 * msize],
             .r1 = &master[iy0 * msize],
             .r2 = &master[iyp1 * msize],
             .r3 = &master[iyp2 * msize],
-            .wx = {wx_w[0], wx_w[1], wx_w[2], wx_w[3]},
+            .wx = {wxa[0], wxa[1], wxa[2], wxa[3]},
             .wy = {wy_raw[0], wy_raw[1], wy_raw[2], wy_raw[3]}
         };
-        atmturb_bicubic_row_impl(&bc, &out_pha[jj * pup_size], geom_i);
+        atmturb_bicubic_row_impl(&bc, dst, geom_i);
+        if (has_b)
+        {
+            atmturb_bicubic_ctx_t bcb = {
+                .r0 = &master_b[iym1 * msize],
+                .r1 = &master_b[iy0 * msize],
+                .r2 = &master_b[iyp1 * msize],
+                .r3 = &master_b[iyp2 * msize],
+                .wx = {wxb[0], wxb[1], wxb[2], wxb[3]},
+                .wy = {wy_raw[0], wy_raw[1], wy_raw[2], wy_raw[3]}
+            };
+            atmturb_bicubic_row_impl(&bcb, dst, geom_i);
+        }
     }
 }
 
@@ -440,10 +556,9 @@ static inline void atmturb_extrude_bicubic_rows(
 static inline void atmturb_extrude_bicubic_impl(
     const atmturb_extrude_params_t *params)
 {
-    const long  msize    = params->msize;
-    const long  pup_size = params->pup_size;
-    const long  os       = (params->os > 0) ? params->os : 1;
-    const float weight   = params->weight;
+    const long msize    = params->msize;
+    const long pup_size = params->pup_size;
+    const long os       = (params->os > 0) ? params->os : 1;
 
     double rx = fmod(params->x0, (double) msize);
     if (rx < 0.0)
@@ -467,9 +582,6 @@ static inline void atmturb_extrude_bicubic_impl(
     float wy_raw[4];
     atmturb_keys_weights_impl(fx, wx_raw);
     atmturb_keys_weights_impl(fy, wy_raw);
-    const float wx_w[4] = {
-        weight * wx_raw[0], weight * wx_raw[1], weight * wx_raw[2], weight * wx_raw[3]
-    };
     const long geom_i[4] = {msize, start_x, pup_size, os};
 
 #ifdef _OPENMP
@@ -482,12 +594,12 @@ static inline void atmturb_extrude_bicubic_impl(
             int  nt  = omp_get_num_threads();
             long j0  = (pup_size * (long) tid) / (long) nt;
             long j1  = (pup_size * (long) (tid + 1)) / (long) nt;
-            atmturb_extrude_bicubic_rows(params, geom_i, wx_w, wy_raw, start_y, j0, j1);
+            atmturb_extrude_bicubic_rows(params, geom_i, wx_raw, wy_raw, start_y, j0, j1);
         }
         return;
     }
 #endif
-    atmturb_extrude_bicubic_rows(params, geom_i, wx_w, wy_raw, start_y, 0, pup_size);
+    atmturb_extrude_bicubic_rows(params, geom_i, wx_raw, wy_raw, start_y, 0, pup_size);
 }
 
 #endif // ATMTURB_SIMD_EXTRUDE_IMPL_H

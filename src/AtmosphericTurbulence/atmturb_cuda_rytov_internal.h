@@ -375,6 +375,20 @@ void atmturb_cuda_unpin_host_cubes(
     float *const ptrs[4],
     const int    pinned[4]);
 
+/**
+ * atmturb_cuda_rytov_render_batch - Multi-frame batched cuFFT Rytov 3D cube renderer
+ * @params: Rytov propagation parameters with nbframes >= 2.
+ *
+ * Return: 0 on success, -1 on CUDA or cuFFT failure.
+ */
+int atmturb_cuda_rytov_render_batch(
+    const atmturb_cuda_rytov_params_t *params);
+
+/**
+ * atmturb_cuda_rytov_batch_cleanup - Release persistent batched Rytov GPU plans and buffers
+ */
+void atmturb_cuda_rytov_batch_cleanup(void);
+
 #ifdef __cplusplus
 }
 #endif

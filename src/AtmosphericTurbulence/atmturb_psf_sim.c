@@ -451,9 +451,9 @@ static void atmturb_ao_run_open_loop_mt(
 
 #ifdef _OPENMP
     int nth = omp_get_max_threads();
-    if (nth > 8)
+    if (nth > 16)
     {
-        nth = 8;
+        nth = 16;
     }
     if (nth > 1 && req->nbframes >= 8 && req->psf_out != NULL)
     {
@@ -464,7 +464,7 @@ static void atmturb_ao_run_open_loop_mt(
             float *lpsf = (float *) calloc((size_t) n_pix, sizeof(float));
             if (atmturb_ao_psf_alloc_bufs(&teng) == 0 && lpsf != NULL)
             {
-                #pragma omp for schedule(static)
+                #pragma omp for schedule(dynamic, 2)
                 for (long t = 0; t < req->nbframes; t++)
                 {
                     const float *sl = (req->wf_data != NULL) ? &req->wf_data[t * ntot] : NULL;
@@ -510,15 +510,86 @@ static void atmturb_ao_run_open_loop_mt(
 }
 
 /**
+ * atmturb_ao_run_closed_loop_mt - Chunked controller rollout + parallel PSF accumulation
+ */
+static int atmturb_ao_run_closed_loop_mt(
+    const atmturb_ao_psf_engine_t *eng,
+    const atmturb_cuda_ao_req_t   *req,
+    atmturb_ao_controller_t       *ctrl,
+    float                          k_sci,
+    double                         dl_peak)
+{
+    const atmturb_ao_params_t *p         = req->params;
+    long                       ntot      = req->pup_size * req->pup_size;
+    size_t                     frame_b   = (size_t) ntot * sizeof(float);
+    long                       chunk_cap = (long) ((16ULL * 1024ULL * 1024ULL) / frame_b);
+    if (chunk_cap < 16)
+    {
+        chunk_cap = 16;
+    }
+    if (chunk_cap > req->nbframes)
+    {
+        chunk_cap = req->nbframes;
+    }
+
+    float *opd_chunk = (float *) malloc((size_t) chunk_cap * frame_b);
+    if (opd_chunk == NULL)
+    {
+        return -1;
+    }
+
+    float  opd_scale = (float) (p->lambda_ref_m / (2.0 * M_PI));
+    double s_first   = 0.0;
+    double s_last    = 0.0;
+
+    for (long t0 = 0; t0 < req->nbframes; t0 += chunk_cap)
+    {
+        long n_cur = req->nbframes - t0;
+        if (n_cur > chunk_cap)
+        {
+            n_cur = chunk_cap;
+        }
+        for (long c = 0; c < n_cur; c++)
+        {
+            const float *sl = (req->wf_data != NULL) ? &req->wf_data[(t0 + c) * ntot] : NULL;
+            atmturb_ao_controller_step(ctrl, p, sl, opd_scale, req->pupil_mask,
+                                       &opd_chunk[c * ntot]);
+        }
+
+        double                chunk_ep[2] = {0.0, 0.0};
+        atmturb_cuda_ao_req_t sub         = *req;
+        sub.wf_data                       = opd_chunk;
+        sub.nbframes                      = n_cur;
+        sub.s_endpoints                   = chunk_ep;
+        atmturb_ao_run_open_loop_mt(eng, &sub, k_sci, dl_peak);
+
+        if (t0 == 0)
+        {
+            s_first = chunk_ep[0];
+        }
+        if (t0 + n_cur == req->nbframes)
+        {
+            s_last = chunk_ep[1];
+        }
+    }
+
+    req->s_endpoints[0] = s_first;
+    req->s_endpoints[1] = s_last;
+    free(opd_chunk);
+    return 0;
+}
+
+/**
  * atmturb_ao_run_cpu - Execute open-loop or closed-loop AO PSF synthesis on CPU
  */
 static int atmturb_ao_run_cpu(
     const atmturb_cuda_ao_req_t *req)
 {
     const atmturb_ao_params_t *p        = req->params;
+    int                        use_mt   = (req->do_accum && req->nbframes >= 8);
     int                        fftw_nth = 1;
 #ifdef _OPENMP
-    if (!(p->loop_mode == 0 && req->do_accum && req->nbframes >= 8) && !omp_in_parallel())
+    if (!use_mt && !omp_in_parallel())
     {
         fftw_nth = omp_get_max_threads();
         if (fftw_nth > 8)
@@ -542,7 +613,7 @@ static int atmturb_ao_run_cpu(
     memset(&ctrl, 0, sizeof(ctrl));
     if (tmp_psf == NULL ||
         (p->loop_mode != 0 &&
-         ((opd_res = (float *) malloc(sizeof(float) * (size_t) ntot)) == NULL ||
+         ((!use_mt && (opd_res = (float *) malloc(sizeof(float) * (size_t) ntot)) == NULL) ||
           atmturb_ao_controller_init(&ctrl, ntot, p->loop_delay) != 0)))
     {
         free(tmp_psf);
@@ -555,10 +626,15 @@ static int atmturb_ao_run_cpu(
     float  k_sci   = (float) (2.0 * M_PI / p->lambda_sci_m);
     double dl_peak = atmturb_ao_render_psf(&eng, NULL, req->pupil_mask, req->pup_size,
                                            k_sci, tmp_psf, 0);
-    if (p->loop_mode == 0 && req->do_accum)
+    if (p->loop_mode == 0 && use_mt)
     {
         float open_scale = (float) (p->lambda_ref_m / p->lambda_sci_m);
         atmturb_ao_run_open_loop_mt(&eng, req, open_scale, dl_peak);
+    }
+    else if (p->loop_mode != 0 && use_mt &&
+             atmturb_ao_run_closed_loop_mt(&eng, req, &ctrl, k_sci, dl_peak) == 0)
+    {
+        /* Completed via chunked multi-threaded rollout */
     }
     else
     {

@@ -194,6 +194,23 @@ void atmturb_extrude_accumulate_scalar(
     {
         atmturb_extrude_accumulate_bilinear_scalar(params);
     }
+
+    if (params->master_b != NULL && params->weight_b != 0.0f)
+    {
+        atmturb_extrude_params_t pb = *params;
+        pb.master                   = params->master_b;
+        pb.weight                   = params->weight_b;
+        pb.master_b                 = NULL;
+        pb.weight_b                 = 0.0f;
+        if (pb.interp == ATMTURB_INTERP_BICUBIC)
+        {
+            atmturb_extrude_accumulate_bicubic_scalar(&pb);
+        }
+        else
+        {
+            atmturb_extrude_accumulate_bilinear_scalar(&pb);
+        }
+    }
 }
 
 /**

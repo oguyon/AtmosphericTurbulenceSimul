@@ -91,6 +91,8 @@ struct atmturb_cuda_fresnel_stream
     const float                   *d_masters;
 
     cudaStream_t                   stream;
+    cudaStream_t                   stream_d2h;
+    cudaEvent_t                    ev_comp[2];
     cudaEvent_t                    ev_done[2];
     cufftHandle                    plan_c2c;
     cufftHandle                    plan_batch2;
@@ -141,11 +143,22 @@ void atmturb_cuda_fresnel_stream_free(
 
     for (int s = 0; s < 2; s++)
     {
+        if (ctx->ev_comp[s] != 0)
+        {
+            cudaEventDestroy(ctx->ev_comp[s]);
+            ctx->ev_comp[s] = 0;
+        }
         if (ctx->ev_done[s] != 0)
         {
             cudaEventDestroy(ctx->ev_done[s]);
             ctx->ev_done[s] = 0;
         }
+    }
+    if (ctx->stream_d2h != 0)
+    {
+        cudaStreamSynchronize(ctx->stream_d2h);
+        cudaStreamDestroy(ctx->stream_d2h);
+        ctx->stream_d2h = 0;
     }
     if (ctx->stream != 0)
     {
@@ -299,10 +312,10 @@ static int atmturb_cuda_fresnel_init_lf(
     int max_lf_modes = 0;
     for (int m = 0; m < ctx->plan.nsuper; m++)
     {
-        int n_lf = ctx->plan.supers[m].nlayers * 24;
-        if (n_lf > max_lf_modes)
+        if (ctx->plan.supers[m].nlayers > 0)
         {
-            max_lf_modes = n_lf;
+            max_lf_modes = ATMTURB_LOWFREQ_NMODES;
+            break;
         }
     }
     ctx->max_lf_modes = max_lf_modes;
@@ -327,7 +340,8 @@ static int atmturb_cuda_fresnel_init_lf(
         }
         for (int m = 0; m < ctx->plan.nsuper; m++)
         {
-            ctx->super_nlf_modes[m] = ctx->plan.supers[m].nlayers * 24;
+            ctx->super_nlf_modes[m] = (ctx->plan.supers[m].nlayers > 0)
+                                          ? ATMTURB_LOWFREQ_NMODES : 0;
         }
     }
     return 0;
@@ -413,7 +427,8 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
         return NULL;
     }
 
-    if (cudaStreamCreate(&ctx->stream) != cudaSuccess)
+    if (cudaStreamCreateWithFlags(&ctx->stream, cudaStreamNonBlocking) != cudaSuccess ||
+        cudaStreamCreateWithFlags(&ctx->stream_d2h, cudaStreamNonBlocking) != cudaSuccess)
     {
         atmturb_cuda_fresnel_stream_free(ctx);
         return NULL;
@@ -421,7 +436,8 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
 
     for (int s = 0; s < 2; s++)
     {
-        if (cudaEventCreateWithFlags(&ctx->ev_done[s], cudaEventDisableTiming) != cudaSuccess)
+        if (cudaEventCreateWithFlags(&ctx->ev_comp[s], cudaEventDisableTiming) != cudaSuccess ||
+            cudaEventCreateWithFlags(&ctx->ev_done[s], cudaEventDisableTiming) != cudaSuccess)
         {
             atmturb_cuda_fresnel_stream_free(ctx);
             return NULL;
@@ -515,7 +531,9 @@ atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
 static void atmturb_cuda_fresnel_propagate_superlayer(
     atmturb_cuda_fresnel_stream_t *ctx,
     int                            m,
-    int                            do_batch2)
+    int                            do_batch2,
+    const float                   *d_src_pha,
+    const float                   *d_src_spha)
 {
     int need_prop = (fabs(ctx->plan.supers[m].step_dist_m) > 0.0) ? 1 : 0;
 
@@ -524,16 +542,16 @@ static void atmturb_cuda_fresnel_propagate_superlayer(
         if (m == 0)
         {
             atmturb_cuda_fresnel_init_modulate_launch(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
+                ctx->d_field_pri, d_src_pha, (int) ctx->npix, ctx->stream);
             atmturb_cuda_fresnel_init_modulate_launch(
-                ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix, ctx->stream);
+                ctx->d_field_sec, d_src_spha, (int) ctx->npix, ctx->stream);
         }
         else
         {
             atmturb_cuda_fresnel_modulate_launch(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
+                ctx->d_field_pri, d_src_pha, (int) ctx->npix, ctx->stream);
             atmturb_cuda_fresnel_modulate_launch(
-                ctx->d_field_sec, ctx->d_super_spha, (int) ctx->npix, ctx->stream);
+                ctx->d_field_sec, d_src_spha, (int) ctx->npix, ctx->stream);
         }
 
         if (!need_prop)
@@ -542,12 +560,10 @@ static void atmturb_cuda_fresnel_propagate_superlayer(
         }
 
         cufftExecC2C(ctx->plan_batch2, ctx->d_field_pri, ctx->d_field_pri, CUFFT_FORWARD);
-
         atmturb_cuda_fresnel_tf_mul_vec2_launch(
             ctx->d_field_pri, ctx->d_tf_pri[m], (int) ctx->npix, ctx->stream);
         atmturb_cuda_fresnel_tf_mul_vec2_launch(
             ctx->d_field_sec, ctx->d_tf_sec[m], (int) ctx->npix, ctx->stream);
-
         cufftExecC2C(ctx->plan_batch2, ctx->d_field_pri, ctx->d_field_pri, CUFFT_INVERSE);
     }
     else
@@ -555,12 +571,12 @@ static void atmturb_cuda_fresnel_propagate_superlayer(
         if (m == 0)
         {
             atmturb_cuda_fresnel_init_modulate_launch(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
+                ctx->d_field_pri, d_src_pha, (int) ctx->npix, ctx->stream);
         }
         else
         {
             atmturb_cuda_fresnel_modulate_launch(
-                ctx->d_field_pri, ctx->d_super_pha, (int) ctx->npix, ctx->stream);
+                ctx->d_field_pri, d_src_pha, (int) ctx->npix, ctx->stream);
         }
 
         if (!need_prop)
@@ -576,6 +592,38 @@ static void atmturb_cuda_fresnel_propagate_superlayer(
 }
 
 /**
+ * atmturb_cuda_fresnel_extrude_super - Extrude one superlayer in streaming mode
+ */
+static void atmturb_cuda_fresnel_extrude_super(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    int                            slot,
+    int                            m,
+    int                            direct_ovw,
+    int                            accum_only,
+    int                            has_sec_out)
+{
+    const atmturb_superlayer_t          *sl   = &ctx->plan.supers[m];
+    const atmturb_cuda_rytov_sublayer_t *d_sl =
+        ctx->d_sublayers[slot] + (size_t) (m * ctx->max_sublayers);
+    int n_lf = (ctx->lowfreq && ctx->super_nlf_modes != NULL && ctx->d_lf_modes[slot] != NULL)
+                   ? ctx->super_nlf_modes[m] : 0;
+    const atmturb_cuda_lowfreq_mode_t *d_lf =
+        (n_lf > 0) ? (ctx->d_lf_modes[slot] + (size_t) (m * ctx->max_lf_modes)) : NULL;
+    int sec_en = (ctx->has_sec && has_sec_out) ? 1 : 0;
+
+    float *dst_sp  = direct_ovw ? ctx->d_frame_pha[slot] : (accum_only ? NULL : ctx->d_super_pha);
+    float *dst_ssp = direct_ovw ? (sec_en ? ctx->d_frame_spha[slot] : NULL)
+                                : (accum_only ? NULL : ctx->d_super_spha);
+    float *dst_fp  = direct_ovw ? NULL : ctx->d_frame_pha[slot];
+    float *dst_fsp = (direct_ovw || !sec_en) ? NULL : ctx->d_frame_spha[slot];
+
+    atmturb_cuda_extrude_sl_launch(
+        ctx->interp, ctx->d_masters, (int) ctx->msize, (int) ctx->pup_size,
+        (int) ctx->pup_size, 0, 2 * sl->nlayers, sec_en, ctx->os, d_sl,
+        n_lf, d_lf, dst_sp, dst_ssp, dst_fp, dst_fsp, ctx->stream);
+}
+
+/**
  * atmturb_cuda_fresnel_step_ops - Enqueue GPU operations for one Fresnel propagation frame
  * @ctx: Persistent stream context.
  * @slot: Active double-buffer slot index (0 or 1).
@@ -588,57 +636,78 @@ static void atmturb_cuda_fresnel_step_ops(
     int                            has_amp,
     int                            has_sec_out)
 {
+    int    nsuper     = ctx->plan.nsuper;
+    int    trail_z0   = (nsuper > 0 && fabs(ctx->plan.supers[nsuper - 1].step_dist_m) <= 0.0);
+    int    n_prop     = trail_z0 ? (nsuper - 1) : nsuper;
     size_t npix_bytes = (size_t) ctx->npix * sizeof(float);
-    cudaMemsetAsync(ctx->d_frame_pha[slot], 0, npix_bytes, ctx->stream);
-    if (ctx->has_sec && has_sec_out)
+
+    if (n_prop <= 0)
     {
-        cudaMemsetAsync(ctx->d_frame_spha[slot], 0, npix_bytes, ctx->stream);
+        if (trail_z0)
+        {
+            atmturb_cuda_fresnel_extrude_super(ctx, slot, 0, 1, 0, has_sec_out);
+        }
+        else
+        {
+            cudaMemsetAsync(ctx->d_frame_pha[slot], 0, npix_bytes, ctx->stream);
+            if (ctx->has_sec && has_sec_out)
+            {
+                cudaMemsetAsync(ctx->d_frame_spha[slot], 0, npix_bytes, ctx->stream);
+            }
+        }
+        if (has_amp)
+        {
+            atmturb_cuda_fill_ones_launch(ctx->d_frame_amp[slot], (int) ctx->npix, ctx->stream);
+            if (ctx->has_sec && has_sec_out)
+            {
+                atmturb_cuda_fill_ones_launch(ctx->d_frame_samp[slot], (int) ctx->npix,
+                                              ctx->stream);
+            }
+        }
     }
-
-    for (int m = 0; m < ctx->plan.nsuper; m++)
+    else
     {
-        const atmturb_superlayer_t *sl = &ctx->plan.supers[m];
-        size_t base = (size_t) (m * ctx->max_sublayers);
-        const atmturb_cuda_rytov_sublayer_t *d_sl = ctx->d_sublayers[slot] + base;
-        int n_sub = 2 * sl->nlayers;
+        for (int m = 0; m < n_prop; m++)
+        {
+            atmturb_cuda_fresnel_extrude_super(ctx, slot, m, (m == 0), 0, has_sec_out);
+            int          do_batch2  = (ctx->has_sec && has_sec_out && ctx->d_tf_sec[m] != NULL);
+            const float *d_src_pha  = (m == 0) ? ctx->d_frame_pha[slot] : ctx->d_super_pha;
+            const float *d_src_spha = (m == 0) ? ctx->d_frame_spha[slot] : ctx->d_super_spha;
+            atmturb_cuda_fresnel_propagate_superlayer(ctx, m, do_batch2, d_src_pha, d_src_spha);
+        }
 
-        int n_lf = (ctx->lowfreq && ctx->super_nlf_modes != NULL && ctx->d_lf_modes[slot] != NULL)
-                       ? ctx->super_nlf_modes[m] : 0;
-        const atmturb_cuda_lowfreq_mode_t *d_lf = (n_lf > 0)
-                       ? ctx->d_lf_modes[slot] + (size_t) (m * ctx->max_lf_modes) : NULL;
-
-        atmturb_cuda_extrude_sl_launch(
-            ctx->interp, ctx->d_masters, (int) ctx->msize, (int) ctx->pup_size,
-            (int) ctx->pup_size, 0, n_sub, ctx->has_sec, ctx->os, d_sl,
-            n_lf, d_lf,
-            ctx->d_super_pha, ctx->d_super_spha, ctx->d_frame_pha[slot], ctx->d_frame_spha[slot],
-            ctx->stream);
-
-        int do_batch2 = (ctx->has_sec && has_sec_out && ctx->d_tf_sec[m] != NULL);
-        atmturb_cuda_fresnel_propagate_superlayer(ctx, m, do_batch2);
-    }
-
-    float *d_sum = (ctx->remove_piston) ? ctx->d_sum_buf[slot] : NULL;
-    if (d_sum != NULL)
-    {
-        cudaMemsetAsync(d_sum, 0, sizeof(float), ctx->stream);
-    }
-
-    atmturb_cuda_fresnel_extract_launch(
-        ctx->d_field_pri, ctx->d_frame_pha[slot], (has_amp) ? ctx->d_frame_amp[slot] : NULL,
-        d_sum, (int) ctx->npix, ctx->stream);
-
-    if (ctx->has_sec && has_sec_out)
-    {
+        float *d_sum = (ctx->remove_piston && !trail_z0) ? ctx->d_sum_buf[slot] : NULL;
+        if (d_sum != NULL)
+        {
+            cudaMemsetAsync(d_sum, 0, sizeof(float), ctx->stream);
+        }
         atmturb_cuda_fresnel_extract_launch(
-            ctx->d_field_sec, ctx->d_frame_spha[slot], (has_amp) ? ctx->d_frame_samp[slot] : NULL,
-            NULL, (int) ctx->npix, ctx->stream);
+            ctx->d_field_pri, ctx->d_frame_pha[slot], (has_amp) ? ctx->d_frame_amp[slot] : NULL,
+            d_sum, (int) ctx->npix, ctx->stream);
+        if (ctx->has_sec && has_sec_out)
+        {
+            atmturb_cuda_fresnel_extract_launch(
+                ctx->d_field_sec, ctx->d_frame_spha[slot],
+                (has_amp) ? ctx->d_frame_samp[slot] : NULL, NULL, (int) ctx->npix, ctx->stream);
+        }
+        if (trail_z0)
+        {
+            atmturb_cuda_fresnel_extrude_super(ctx, slot, nsuper - 1, 0, 1, has_sec_out);
+        }
     }
 
-    if (d_sum != NULL)
+    if (ctx->remove_piston)
     {
-        atmturb_cuda_piston_sub_launch(
-            ctx->d_frame_pha[slot], d_sum, (int) ctx->npix, ctx->stream);
+        if (!trail_z0 && n_prop > 0)
+        {
+            atmturb_cuda_piston_sub_launch(
+                ctx->d_frame_pha[slot], ctx->d_sum_buf[slot], (int) ctx->npix, ctx->stream);
+        }
+        else
+        {
+            atmturb_cuda_remove_piston_launch(
+                ctx->d_frame_pha[slot], ctx->d_sum_buf[slot], (int) ctx->npix, ctx->stream);
+        }
         if (ctx->has_sec && has_sec_out)
         {
             atmturb_cuda_remove_piston_launch(
@@ -744,26 +813,29 @@ int atmturb_cuda_fresnel_stream_render_launch(
         atmturb_cuda_fresnel_step_ops(ctx, s, has_amp, has_sec_out);
     }
 
+    cudaEventRecord(ctx->ev_comp[s], ctx->stream);
+    cudaStreamWaitEvent(ctx->stream_d2h, ctx->ev_comp[s], 0);
+
     size_t npix_bytes = (size_t) ctx->npix * sizeof(float);
     cudaMemcpyAsync(
-        pha, ctx->d_frame_pha[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
+        pha, ctx->d_frame_pha[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream_d2h);
     if (amp != NULL)
     {
         cudaMemcpyAsync(
-            amp, ctx->d_frame_amp[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
+            amp, ctx->d_frame_amp[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream_d2h);
     }
     if (ctx->has_sec && spha != NULL)
     {
         cudaMemcpyAsync(
-            spha, ctx->d_frame_spha[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
+            spha, ctx->d_frame_spha[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream_d2h);
     }
     if (ctx->has_sec && samp != NULL)
     {
         cudaMemcpyAsync(
-            samp, ctx->d_frame_samp[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream);
+            samp, ctx->d_frame_samp[s], npix_bytes, cudaMemcpyDeviceToHost, ctx->stream_d2h);
     }
 
-    cudaEventRecord(ctx->ev_done[s], ctx->stream);
+    cudaEventRecord(ctx->ev_done[s], ctx->stream_d2h);
     return 0;
 }
 

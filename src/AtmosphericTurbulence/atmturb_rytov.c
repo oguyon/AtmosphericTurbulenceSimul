@@ -613,70 +613,51 @@ void atmturb_rytov_render_step(
         }
     }
 
-    atmturb_wfs_render_target_t target;
-    target.pup_size     = pup_size;
-    target.guard_pix    = guard;
-    target.pha          = ctx->super_pha;
-    target.spha         = has_sec ? ctx->super_spha : NULL;
-    target.weight_scale = 1.0f;
-
+    (void) master_size;
     for (int m = 0; m < plan->nsuper; m++)
     {
+        const atmturb_superlayer_t *sl = &plan->supers[m];
+        if (sl->dist_m <= 0.0 && pha_slice != NULL)
+        {
+            atmturb_wfs_render_target_t zt = {
+                .pup_size     = pup_size,
+                .guard_pix    = 0,
+                .pha          = pha_slice,
+                .spha         = has_sec ? spha_slice : NULL,
+                .weight_scale = 1.0f
+            };
+            atmturb_wfs_render_superlayer(r, geom, sl, t, time_step_s, &zt);
+            continue;
+        }
+
+        int rot_sec    = (has_sec && plan->sec_shared &&
+                          plan->chrom_ramp != NULL && plan->chrom_ramp[m] != NULL);
+        int direct_sec = (rot_sec && guard == 0);
         memset(ctx->super_pha, 0, sizeof(float) * (size_t) pad_pixels);
-        if (has_sec)
+        if (has_sec && !direct_sec && (!rot_sec || spha_slice != NULL))
         {
             memset(ctx->super_spha, 0, sizeof(float) * (size_t) pad_pixels);
         }
 
-        const atmturb_superlayer_t *sl = &plan->supers[m];
-        for (int j = 0; j < sl->nlayers; j++)
-        {
-            int k = sl->layer_indices[j];
-            target.weight_scale = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
-            atmturb_wfs_render_layer_target(r, geom, k, t, time_step_s, master_size, &target);
-        }
+        float *sec_dst = !has_sec ? NULL
+                       : (direct_sec ? spha_slice
+                       : ((!rot_sec || spha_slice != NULL) ? ctx->super_spha : NULL));
+        atmturb_wfs_render_target_t target = {
+            .pup_size     = pup_size,
+            .guard_pix    = guard,
+            .pha          = ctx->super_pha,
+            .spha         = sec_dst,
+            .weight_scale = 1.0f
+        };
+        atmturb_wfs_render_superlayer(r, geom, sl, t, time_step_s, &target);
 
         atmturb_rytov_accumulate_geom(pha_slice, spha_slice, ctx->super_pha,
-                                      has_sec ? ctx->super_spha : NULL, pup_size, guard, pad_size);
+                                      (sec_dst == ctx->super_spha) ? ctx->super_spha : NULL,
+                                      pup_size, guard, pad_size);
 
         if (sl->dist_m > 0.0)
         {
-            if (plan->use_moisan)
-            {
-                atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_pha);
-            }
-            else
-            {
-                fftwf_execute_dft_r2c(ctx->plan_r2c, ctx->super_pha, ctx->spec);
-            }
-            atmturb_rytov_accumulate_filters(ctx->acc_dphi_pri, ctx->acc_chi_pri,
-                                             ctx->spec, plan->filter_a_pri[m],
-                                             plan->filter_b_pri[m], n_spec);
-
-            if (has_sec)
-            {
-                if (plan->sec_shared && plan->chrom_ramp != NULL && plan->chrom_ramp[m] != NULL)
-                {
-                    atmturb_rytov_accumulate_filters_rotated(ctx->acc_dphi_sec, ctx->acc_chi_sec,
-                                                             ctx->spec, plan->chrom_ramp[m],
-                                                             plan->filter_a_sec[m],
-                                                             plan->filter_b_sec[m], n_spec);
-                }
-                else
-                {
-                    if (plan->use_moisan)
-                    {
-                        atmturb_rytov_decompose_periodic(ctx, plan, ctx->super_spha);
-                    }
-                    else
-                    {
-                        fftwf_execute_dft_r2c(ctx->plan_r2c, ctx->super_spha, ctx->spec);
-                    }
-                    atmturb_rytov_accumulate_filters(ctx->acc_dphi_sec, ctx->acc_chi_sec,
-                                                     ctx->spec, plan->filter_a_sec[m],
-                                                     plan->filter_b_sec[m], n_spec);
-                }
-            }
+            atmturb_rytov_process_superlayer(ctx, plan, m, has_sec);
         }
     }
 

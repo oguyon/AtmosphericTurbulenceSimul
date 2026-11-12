@@ -29,15 +29,17 @@ typedef enum
 
 /**
  * struct atmturb_extrude_params_t - Parameter bundle for phase screen extrusion
- * @master: Pointer to master phase screen data.
+ * @master: Pointer to master phase screen data (primary / epoch A).
  * @msize: Master screen linear dimension in pixels.
  * @x0: Sub-pixel X coordinate offset in master pixels.
  * @y0: Sub-pixel Y coordinate offset in master pixels.
  * @pup_size: Linear dimension of the extracted pupil in pixels.
  * @os: Master grid oversampling factor (stride = os).
  * @interp: Interpolation scheme (0=bilinear, 1=Keys bicubic).
- * @weight: Layer Cn2 amplitude weight factor.
+ * @weight: Layer Cn2 amplitude weight factor for @master.
  * @out_pha: Output pupil phase array to accumulate into.
+ * @master_b: Optional secondary rolling epoch master screen (or NULL).
+ * @weight_b: Optional layer amplitude weight factor for @master_b.
  */
 typedef struct
 {
@@ -50,6 +52,8 @@ typedef struct
     int          interp;
     float        weight;
     float       *out_pha;
+    const float *master_b;
+    float        weight_b;
 } atmturb_extrude_params_t;
 
 struct atmturb_lowfreq_t;
@@ -67,7 +71,7 @@ struct atmturb_lowfreq_t;
  * @weight: Layer Cn2 amplitude weight factor.
  * @out_pha: Output pupil phase array to accumulate into.
  */
-typedef struct
+typedef struct atmturb_lowfreq_params_t
 {
     const struct atmturb_lowfreq_t *lf;
     int                             screen_idx;

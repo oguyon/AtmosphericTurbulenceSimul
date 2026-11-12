@@ -44,6 +44,9 @@ typedef struct
     const double       *cn2;
     const double       *x0;
     const double       *y0;
+    const double       *xs0;
+    const double       *ys0;
+    const double       *cn2_s;
 } atmturb_cuda_sim_params_t;
 
 /**
@@ -104,6 +107,30 @@ static inline int atmturb_cuda_geom_stream_render_step(
     (void) amp;
     (void) spha;
     (void) samp;
+    return -1;
+}
+
+static inline int atmturb_cuda_geom_stream_render_launch(
+    atmturb_cuda_geom_stream_t *ctx,
+    long                        t,
+    float                      *pha,
+    float                      *spha,
+    int                         slot)
+{
+    (void) ctx;
+    (void) t;
+    (void) pha;
+    (void) spha;
+    (void) slot;
+    return -1;
+}
+
+static inline int atmturb_cuda_geom_stream_render_wait(
+    atmturb_cuda_geom_stream_t *ctx,
+    int                         slot)
+{
+    (void) ctx;
+    (void) slot;
     return -1;
 }
 
@@ -249,6 +276,23 @@ int atmturb_cuda_geom_stream_render_step(
     float                      *amp,
     float                      *spha,
     float                      *samp);
+
+/**
+ * atmturb_cuda_geom_stream_render_launch - Asynchronously dispatch one geometric frame on GPU
+ */
+int atmturb_cuda_geom_stream_render_launch(
+    atmturb_cuda_geom_stream_t *ctx,
+    long                        t,
+    float                      *pha,
+    float                      *spha,
+    int                         slot);
+
+/**
+ * atmturb_cuda_geom_stream_render_wait - Synchronize on an in-flight geometric frame slot
+ */
+int atmturb_cuda_geom_stream_render_wait(
+    atmturb_cuda_geom_stream_t *ctx,
+    int                         slot);
 
 /**
  * atmturb_cuda_geom_stream_free - Release GPU geometric streaming context

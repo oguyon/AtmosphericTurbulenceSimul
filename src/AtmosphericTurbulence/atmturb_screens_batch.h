@@ -20,6 +20,21 @@ extern "C" {
 #endif
 
 /**
+ * atmturb_fill_spectrum_row_float - Populate one row of 2D single-precision von Karman spectrum
+ * @row_buf: Destination row pointer (`size` complex elements).
+ * @size: Grid linear dimension in pixels.
+ * @jj: Row index in `[0, size)`.
+ * @base_seed: Resolved PRNG base seed for the screen pair.
+ * @base_p: Precomputed spectral constants `[k0_sq, sqrt_pref, inv_two_km2]`.
+ */
+void atmturb_fill_spectrum_row_float(
+    fftwf_complex *row_buf,
+    long           size,
+    long           jj,
+    uint64_t       base_seed,
+    const float   *base_p);
+
+/**
  * atmturb_fill_spectrum_float_rows - Populate 2D single-precision von Karman Fourier spectrum
  * @buf: Destination FFTW single-precision complex spectrum buffer.
  * @spec: Screen generation specification.
@@ -31,10 +46,32 @@ void atmturb_fill_spectrum_float_rows(
     int                          use_omp);
 
 /**
+ * atmturb_fill_spectrum_row_double - Populate one row of 2D double-precision von Karman spectrum
+ * @row_buf: Destination row pointer (`size` double complex elements).
+ * @size: Grid linear dimension in pixels.
+ * @jj: Row index in `[0, size)`.
+ * @base_seed: Resolved PRNG base seed for the screen pair.
+ * @base_p: Precomputed spectral constants `[k0_sq, sqrt_pref, inv_two_km2]`.
+ */
+void atmturb_fill_spectrum_row_double(
+    fftw_complex *row_buf,
+    long          size,
+    long          jj,
+    uint64_t      base_seed,
+    const double *base_p);
+
+/**
  * atmturb_fftwf_plan_threads - Configure FFTW single-precision planner thread count
  * @req_nthreads: Requested thread count (>0 explicit, <=0 uses omp_get_max_threads()).
  */
 void atmturb_fftwf_plan_threads(
+    int req_nthreads);
+
+/**
+ * atmturb_fftw_plan_threads - Configure FFTW double-precision planner thread count
+ * @req_nthreads: Requested thread count (>0 explicit, <=0 uses omp_get_max_threads()).
+ */
+void atmturb_fftw_plan_threads(
     int req_nthreads);
 
 /**

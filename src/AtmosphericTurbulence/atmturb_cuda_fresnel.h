@@ -258,6 +258,11 @@ void atmturb_cuda_fresnel_stream_free(
 int atmturb_cuda_fresnel_render_batch(
     const atmturb_cuda_fresnel_batch_req_t *req);
 
+/**
+ * atmturb_cuda_fresnel_batch_cleanup - Release cached batched Fresnel cuFFT plans and buffers
+ */
+void atmturb_cuda_fresnel_batch_cleanup(void);
+
 #endif /* HAVE_CUDA */
 
 #ifdef __cplusplus

@@ -12,13 +12,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "milk_runnable.h"
 #include "atmturb_cuda.h"
+#include "atmturb_cuda_geom_ext.h"
 #include "atmturb_cuda_rytov.h"
 #include "atmturb_geometry.h"
 #include "atmturb_lowfreq.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
 #include "atmturb_rytov.h"
+#include "atmturb_simd.h"
 #include "atmturb_types.h"
 #include "atmturb_wfs_cuda_common.h"
 #include "atmturb_wfs_render.h"
@@ -88,7 +91,7 @@ static int atmturb_wfs_cuda_init_rytov_lf(
     int max_lf = 0;
     for (int m = 0; m < plan->nsuper; m++)
     {
-        int n_lf = plan->supers[m].nlayers * 24;
+        int n_lf = (plan->supers[m].nlayers > 0) ? ATMTURB_LOWFREQ_NMODES : 0;
         if (n_lf > max_lf)
         {
             max_lf = n_lf;
@@ -110,7 +113,7 @@ static int atmturb_wfs_cuda_init_rytov_lf(
         memset(lf, 0, lf_bytes);
         for (int m = 0; m < plan->nsuper; m++)
         {
-            super_nlf[m] = plan->supers[m].nlayers * 24;
+            super_nlf[m] = (plan->supers[m].nlayers > 0) ? ATMTURB_LOWFREQ_NMODES : 0;
         }
         *out_super_nlf = super_nlf;
         *out_lf_modes  = lf;
@@ -423,59 +426,45 @@ int atmturb_cuda_rytov_stream_render_step(
 }
 
 /**
- * atmturb_wfs_cuda_geom_stream_init - Initialize persistent GPU geometric streaming context
- * @r: Rolling simulation context.
- * @geom: Computed observing geometry.
- * @master_size: Master screen linear dimension in pixels.
- * @pup_size: Output pupil dimension in pixels.
- *
- * Return: Allocated stream context, or NULL on failure.
+ * struct atmturb_wfs_cuda_geom_stream - Unified fast/general GPU geometric stream wrapper
  */
-atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
+struct atmturb_wfs_cuda_geom_stream
+{
+    atmturb_cuda_geom_stream_t     *fast;
+    atmturb_cuda_geom_ext_stream_t *ext;
+    const atmturb_rolling_t        *r;
+    const atmturb_geom_t           *geom;
+    double                          default_dt;
+    long                            npix;
+};
+
+/**
+ * atmturb_wfs_cuda_geom_fast_init - Initialize constant-memory static geometric GPU stream
+ */
+static atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_fast_init(
     const atmturb_rolling_t *r,
     const atmturb_geom_t    *geom,
     long                     master_size,
     long                     pup_size)
 {
-    if (r == NULL || geom == NULL || !atmturb_cuda_device_available() ||
-        r->lowfreq != 0 || r->rolling != 0 ||
-        geom->oversample != 1 || geom->interp != 0)
-    {
-        return NULL;
-    }
-
-    double w0 = geom->layers[0].weight;
-    double scoeff = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
-
-    for (int k = 0; k < geom->nlayers; k++)
-    {
-        if (geom->layers[k].traj_x != NULL || geom->layers[k].traj_y != NULL ||
-            geom->layers[k].xs0 != geom->layers[k].x0 ||
-            geom->layers[k].ys0 != geom->layers[k].y0)
-        {
-            return NULL;
-        }
-        double wk = geom->layers[k].weight;
-        if (wk > 0.0 && fabs(geom->layers[k].weight_s / wk - scoeff) > 1e-4)
-        {
-            return NULL;
-        }
-    }
-
-    int nl = geom->nlayers;
+    int    nl   = geom->nlayers;
     size_t m_sz = (size_t) nl * sizeof(float *);
     size_t d_sz = (size_t) nl * sizeof(double);
-    void *buf = malloc(m_sz + 5 * d_sz);
-    if (!buf)
+    void  *buf  = malloc(m_sz + 8 * d_sz);
+    if (buf == NULL)
     {
         return NULL;
     }
+
     const float **masters = (const float **) buf;
-    double *vx  = (double *) ((char *) buf + m_sz);
-    double *vy  = vx + nl;
-    double *cn2 = vy + nl;
-    double *x0  = cn2 + nl;
-    double *y0  = x0 + nl;
+    double *vx    = (double *) ((char *) buf + m_sz);
+    double *vy    = vx + nl;
+    double *cn2   = vy + nl;
+    double *x0    = cn2 + nl;
+    double *y0    = x0 + nl;
+    double *xs0   = y0 + nl;
+    double *ys0   = xs0 + nl;
+    double *cn2_s = ys0 + nl;
 
     for (int k = 0; k < nl; k++)
     {
@@ -485,8 +474,13 @@ atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
         cn2[k]     = geom->layers[k].weight * geom->layers[k].weight;
         x0[k]      = geom->layers[k].x0;
         y0[k]      = geom->layers[k].y0;
+        xs0[k]     = geom->layers[k].xs0;
+        ys0[k]     = geom->layers[k].ys0;
+        cn2_s[k]   = geom->layers[k].weight_s * geom->layers[k].weight_s;
     }
 
+    double w0     = geom->layers[0].weight;
+    double scoeff = (w0 > 0.0) ? (geom->layers[0].weight_s / w0) : 1.0;
     atmturb_cuda_sim_params_t cparams = {
         .nblayers  = nl,
         .msize     = master_size,
@@ -498,7 +492,10 @@ atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
         .vypix     = vy,
         .cn2       = cn2,
         .x0        = x0,
-        .y0        = y0
+        .y0        = y0,
+        .xs0       = xs0,
+        .ys0       = ys0,
+        .cn2_s     = cn2_s
     };
 
     atmturb_cuda_geom_stream_t *ctx = atmturb_cuda_geom_stream_init(&cparams);
@@ -507,25 +504,129 @@ atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
 }
 
 /**
- * atmturb_wfs_cuda_geom_stream_render_step - Render one geometric stream frame on GPU
- * @ctx: Persistent stream context.
- * @t: Frame index.
- * @pha: Destination primary phase frame buffer.
- * @amp: Destination primary amplitude frame buffer (or NULL).
- * @spha: Destination secondary phase frame buffer (or NULL).
- * @samp: Destination secondary amplitude frame buffer (or NULL).
+ * atmturb_wfs_cuda_geom_stream_init - Initialize persistent GPU geometric streaming context
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @master_size: Master screen linear dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
  *
- * Return: 0 on success, -1 on failure.
+ * Return: Allocated stream context, or NULL on failure.
+ */
+atmturb_wfs_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
+    const atmturb_rolling_t *r,
+    const atmturb_geom_t    *geom,
+    long                     master_size,
+    long                     pup_size)
+{
+    if (r == NULL || geom == NULL || geom->nlayers <= 0 || !atmturb_cuda_device_available())
+    {
+        return NULL;
+    }
+
+    atmturb_wfs_cuda_geom_stream_t *w =
+        (atmturb_wfs_cuda_geom_stream_t *) calloc(1, sizeof(*w));
+    if (w == NULL)
+    {
+        return NULL;
+    }
+
+    w->r          = r;
+    w->geom       = geom;
+    w->npix       = pup_size * pup_size;
+    w->default_dt = (CONF_WFTIME_STEP > 0.0) ? (double) CONF_WFTIME_STEP : 0.001;
+
+    int can_fast = (r->lowfreq == 0 && r->rolling == 0 && CONF_ROLLING == 0 &&
+                    geom->oversample == 1 && geom->interp == 0 && geom->nlayers <= 64);
+    for (int k = 0; can_fast && k < geom->nlayers; k++)
+    {
+        if (geom->layers[k].traj_x != NULL || geom->layers[k].traj_y != NULL)
+        {
+            can_fast = 0;
+        }
+    }
+
+    if (can_fast)
+    {
+        w->fast = atmturb_wfs_cuda_geom_fast_init(r, geom, master_size, pup_size);
+    }
+    if (w->fast == NULL)
+    {
+        w->ext = atmturb_cuda_geom_ext_stream_init(r, geom, master_size, pup_size);
+    }
+    if (w->fast == NULL && w->ext == NULL)
+    {
+        free(w);
+        return NULL;
+    }
+    return w;
+}
+
+/**
+ * atmturb_wfs_cuda_geom_stream_render_launch - Enqueue GPU ops for geometric frame asynchronously
+ */
+int atmturb_wfs_cuda_geom_stream_render_launch(
+    atmturb_wfs_cuda_geom_stream_t *ctx,
+    long                            t,
+    double                          time_step_s,
+    float                          *pha,
+    float                          *spha,
+    int                             slot)
+{
+    if (ctx == NULL)
+    {
+        return -1;
+    }
+    if (ctx->fast != NULL)
+    {
+        return atmturb_cuda_geom_stream_render_launch(ctx->fast, t, pha, spha, slot);
+    }
+    return atmturb_cuda_geom_ext_stream_launch(
+        ctx->ext, ctx->r, ctx->geom, t, time_step_s, pha, spha, slot);
+}
+
+/**
+ * atmturb_wfs_cuda_geom_stream_render_wait - Wait for enqueued geometric frame on GPU
+ */
+int atmturb_wfs_cuda_geom_stream_render_wait(
+    atmturb_wfs_cuda_geom_stream_t *ctx,
+    int                             slot)
+{
+    if (ctx == NULL)
+    {
+        return -1;
+    }
+    if (ctx->fast != NULL)
+    {
+        return atmturb_cuda_geom_stream_render_wait(ctx->fast, slot);
+    }
+    return atmturb_cuda_geom_ext_stream_wait(ctx->ext, slot);
+}
+
+/**
+ * atmturb_wfs_cuda_geom_stream_render_step - Render one geometric stream frame on GPU
  */
 int atmturb_wfs_cuda_geom_stream_render_step(
-    atmturb_cuda_geom_stream_t *ctx,
-    long                        t,
-    float                      *pha,
-    float                      *amp,
-    float                      *spha,
-    float                      *samp)
+    atmturb_wfs_cuda_geom_stream_t *ctx,
+    long                            t,
+    float                          *pha,
+    float                          *amp,
+    float                          *spha,
+    float                          *samp)
 {
-    return atmturb_cuda_geom_stream_render_step(ctx, t, pha, amp, spha, samp);
+    if (ctx == NULL ||
+        atmturb_wfs_cuda_geom_stream_render_launch(ctx, t, ctx->default_dt, pha, spha, 0) != 0)
+    {
+        return -1;
+    }
+    if (amp != NULL)
+    {
+        atmturb_init_phase_amp(NULL, amp, ctx->npix);
+    }
+    if (samp != NULL)
+    {
+        atmturb_init_phase_amp(NULL, samp, ctx->npix);
+    }
+    return atmturb_wfs_cuda_geom_stream_render_wait(ctx, 0);
 }
 
 /**
@@ -533,9 +634,21 @@ int atmturb_wfs_cuda_geom_stream_render_step(
  * @ctx: Stream context to release.
  */
 void atmturb_wfs_cuda_geom_stream_free(
-    atmturb_cuda_geom_stream_t *ctx)
+    atmturb_wfs_cuda_geom_stream_t *ctx)
 {
-    atmturb_cuda_geom_stream_free(ctx);
+    if (ctx == NULL)
+    {
+        return;
+    }
+    if (ctx->fast != NULL)
+    {
+        atmturb_cuda_geom_stream_free(ctx->fast);
+    }
+    if (ctx->ext != NULL)
+    {
+        atmturb_cuda_geom_ext_stream_free(ctx->ext);
+    }
+    free(ctx);
 }
 
 #endif // HAVE_CUDA

@@ -115,4 +115,43 @@ void atmturb_lowfreq_accumulate_custom(
     float                    weight,
     float                   *out_pha);
 
+/**
+ * struct atmturb_lf_fused_t - Multi-layer fused subharmonic phasor accumulator
+ * @re: Accumulated real mode amplitudes at pupil origin (0, 0).
+ * @im: Accumulated imaginary mode amplitudes at pupil origin (0, 0).
+ * @active: Non-zero when at least one non-zero layer contribution was fused.
+ */
+typedef struct
+{
+    double re[ATMTURB_LOWFREQ_NMODES];
+    double im[ATMTURB_LOWFREQ_NMODES];
+    int    active;
+} atmturb_lf_fused_t;
+
+struct atmturb_lowfreq_params_t;
+
+/**
+ * atmturb_lowfreq_fuse - Fold one layer's subharmonic phasors into multi-layer accumulator
+ * @acc: In-out multi-layer phasor accumulator.
+ * @params: Layer subharmonic evaluation parameters.
+ */
+void atmturb_lowfreq_fuse(
+    atmturb_lf_fused_t                    *acc,
+    const struct atmturb_lowfreq_params_t *params);
+
+/**
+ * atmturb_lowfreq_flush - Evaluate fused multi-layer subharmonics onto pupil in a single pass
+ * @acc: Populated multi-layer phasor accumulator.
+ * @lf: Reference subharmonic wavevector geometry (kx, ky, nmodes).
+ * @pup_size: Linear dimension of pupil.
+ * @os: Oversampling factor (stride).
+ * @out_pha: Destination phase array (pup_size * pup_size floats).
+ */
+void atmturb_lowfreq_flush(
+    const atmturb_lf_fused_t *acc,
+    const atmturb_lowfreq_t  *lf,
+    long                      pup_size,
+    long                      os,
+    float                    *out_pha);
+
 #endif /* ATMTURB_LOWFREQ_H */

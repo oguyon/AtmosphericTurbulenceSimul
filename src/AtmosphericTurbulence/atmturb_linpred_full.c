@@ -7,6 +7,7 @@
  * @brief   Full-aperture linear predictor construction and evaluation for predictive control
  */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,7 +16,12 @@
 #include <omp.h>
 #endif
 
+#ifdef HAVE_OPENBLAS_LAPACKE
+#include <cblas.h>
+#endif
+
 #include "AtmosphericTurbulence.h"
+#include "atmturb_linpred_solve.h"
 #include "atmturb_types.h"
 
 /**
@@ -174,112 +180,6 @@ static void atmturb_linpred_populate_matrices(
 }
 
 /**
- * atmturb_linpred_multiply_ainv_c - Compute filter matrix Pfilt = matC^T * matA_inv^T
- * @a_inv:    Pseudo-inverse matrix [mvecsize x nbmvec].
- * @mat_c:    Target matrix [nbmvec x nbpix].
- * @filt_out: Destination predictor matrix [nbpix x mvecsize].
- * @nbpix:    Number of active pupil pixels.
- * @mvecsize: Measurement history vector length.
- * @nbmvec:   Number of training samples.
- */
-static void atmturb_linpred_multiply_ainv_c(
-    const float *restrict a_inv,
-    const float *restrict mat_c,
-    float       *restrict filt_out,
-    long                  nbpix,
-    long                  mvecsize,
-    long                  nbmvec)
-{
-    float *mat_c_t = (float *) malloc(sizeof(float) * (size_t) (nbpix * nbmvec));
-    if (mat_c_t != NULL)
-    {
-        #pragma omp parallel for schedule(static)
-        for (long p = 0; p < nbpix; p++)
-        {
-            float *c_dst = &mat_c_t[p * nbmvec];
-            for (long m = 0; m < nbmvec; m++)
-            {
-                c_dst[m] = mat_c[m * nbpix + p];
-            }
-        }
-
-        #pragma omp parallel for schedule(static)
-        for (long p0 = 0; p0 < nbpix; p0 += 4)
-        {
-            if (p0 + 4 <= nbpix)
-            {
-                const float *restrict c0 = &mat_c_t[(p0 + 0) * nbmvec];
-                const float *restrict c1 = &mat_c_t[(p0 + 1) * nbmvec];
-                const float *restrict c2 = &mat_c_t[(p0 + 2) * nbmvec];
-                const float *restrict c3 = &mat_c_t[(p0 + 3) * nbmvec];
-                float       *restrict f0 = &filt_out[(p0 + 0) * mvecsize];
-                float       *restrict f1 = &filt_out[(p0 + 1) * mvecsize];
-                float       *restrict f2 = &filt_out[(p0 + 2) * mvecsize];
-                float       *restrict f3 = &filt_out[(p0 + 3) * mvecsize];
-
-                for (long j = 0; j < mvecsize; j++)
-                {
-                    const float *restrict a_row = &a_inv[j * nbmvec];
-                    float                 s0    = 0.0f;
-                    float                 s1    = 0.0f;
-                    float                 s2    = 0.0f;
-                    float                 s3    = 0.0f;
-                    #pragma omp simd reduction(+ : s0, s1, s2, s3)
-                    for (long m = 0; m < nbmvec; m++)
-                    {
-                        float av = a_row[m];
-                        s0 += av * c0[m];
-                        s1 += av * c1[m];
-                        s2 += av * c2[m];
-                        s3 += av * c3[m];
-                    }
-                    f0[j] = s0;
-                    f1[j] = s1;
-                    f2[j] = s2;
-                    f3[j] = s3;
-                }
-            }
-            else
-            {
-                for (long p = p0; p < nbpix; p++)
-                {
-                    const float *restrict c_row = &mat_c_t[p * nbmvec];
-                    float       *restrict f_row = &filt_out[p * mvecsize];
-                    for (long j = 0; j < mvecsize; j++)
-                    {
-                        const float *restrict a_row = &a_inv[j * nbmvec];
-                        float                 sum   = 0.0f;
-                        #pragma omp simd reduction(+ : sum)
-                        for (long m = 0; m < nbmvec; m++)
-                        {
-                            sum += a_row[m] * c_row[m];
-                        }
-                        f_row[j] = sum;
-                    }
-                }
-            }
-        }
-        free(mat_c_t);
-        return;
-    }
-
-    #pragma omp parallel for schedule(static)
-    for (long p = 0; p < nbpix; p++)
-    {
-        for (long j = 0; j < mvecsize; j++)
-        {
-            const float *a_row = &a_inv[j * nbmvec];
-            double       sum   = 0.0;
-            for (long m = 0; m < nbmvec; m++)
-            {
-                sum += (double) a_row[m] * (double) mat_c[m * nbpix + p];
-            }
-            filt_out[p * mvecsize + j] = (float) sum;
-        }
-    }
-}
-
-/**
  * AtmosphericTurbulence_Build_LinPredictor_Full - Build full-aperture AR linear prediction matrix
  * @WFin_name:   Input wavefront cube name.
  * @WFmask_name: Pupil mask image name.
@@ -331,38 +231,52 @@ int AtmosphericTurbulence_Build_LinPredictor_Full(
     }
 
     float *piston = atmturb_compute_wavefront_piston(id_wfin, mask_idx, nbpix, nz, d.nxy);
-    if (piston == NULL)
+    float *mat_a  = (float *) malloc(sizeof(float) * (size_t) d.nbmvec * (size_t) d.mvecsize);
+    float *mat_c  = (float *) malloc(sizeof(float) * (size_t) d.nbmvec * (size_t) nbpix);
+    if (piston == NULL || mat_a == NULL || mat_c == NULL)
     {
+        free(piston);
+        free(mat_a);
+        free(mat_c);
         free(mask_idx);
         return -1;
     }
 
-    imageID id_mata = create_2Dimage_ID("matA", d.mvecsize, d.nbmvec);
-    imageID id_matc = create_2Dimage_ID("matC", nbpix, d.nbmvec);
     atmturb_linpred_populate_matrices(
-        dcimg[id_wfin].array.F, dcimg[id_mata].array.F, dcimg[id_matc].array.F,
-        mask_idx, piston, &d);
+        dcimg[id_wfin].array.F, mat_a, mat_c, mask_idx, piston, &d);
     free(piston);
-
-    double eps = (RegLambda > 0.0 && RegLambda > SVDeps) ? RegLambda : SVDeps;
-    linopt_compute_SVDpseudoInverse("matA", "matA_inv", eps, 10000, "matA_vt");
+    free(mask_idx);
 
     char filtname[200];
     snprintf(filtname, sizeof(filtname), "Pfilt_%04d_%04ld", PForder, (long) (PFlag + 0.5f));
-    create_2Dimage_ID(filtname, d.mvecsize, nbpix);
-    imageID id_filt = image_ID(filtname);
-    imageID id_ainv = image_ID("matA_inv");
+    imageID id_old = image_ID(filtname);
+    if (id_old >= 0)
+    {
+        delete_image_ID(filtname);
+    }
+    imageID id_filt = create_2Dimage_ID(filtname, d.mvecsize, nbpix);
+    if (id_filt < 0)
+    {
+        free(mat_a);
+        free(mat_c);
+        return -1;
+    }
 
-    atmturb_linpred_multiply_ainv_c(
-        dcimg[id_ainv].array.F, dcimg[id_matc].array.F, dcimg[id_filt].array.F,
-        nbpix, d.mvecsize, d.nbmvec);
+    double                    eps  = (RegLambda > 0.0 && RegLambda > SVDeps) ? RegLambda : SVDeps;
+    atmturb_linpred_problem_t prob = {
+        .mat_a    = mat_a,
+        .mat_c    = mat_c,
+        .filt_out = dcimg[id_filt].array.F,
+        .nbmvec   = d.nbmvec,
+        .mvecsize = d.mvecsize,
+        .nbpix    = nbpix,
+        .reg_eps  = (eps > 0.0) ? eps : 1e-3
+    };
+    int ret = atmturb_linpred_solve_normal(&prob);
 
-    delete_image_ID("matA");
-    delete_image_ID("matC");
-    delete_image_ID("matA_inv");
-    delete_image_ID("matA_vt");
-    free(mask_idx);
-    return 0;
+    free(mat_a);
+    free(mat_c);
+    return ret;
 }
 
 /**
@@ -505,6 +419,69 @@ static void atmturb_linpred_eval_tile16(
     }
 }
 
+#ifdef HAVE_OPENBLAS_LAPACKE
+/**
+ * atmturb_linpred_eval_blas - Evaluate full-aperture predictor across all frames via SGEMM
+ */
+static int atmturb_linpred_eval_blas(
+    const atmturb_linpred_apply_ctx_t *c,
+    long                               t_max)
+{
+    long n_eval = t_max - (long) c->pf_order + 1;
+    if (n_eval <= 0)
+    {
+        return 0;
+    }
+
+    float *hist = (float *) malloc(sizeof(float) * (size_t) n_eval * (size_t) c->mvecsize);
+    float *pred = (float *) malloc(sizeof(float) * (size_t) n_eval * (size_t) c->nbpix);
+    if (hist == NULL || pred == NULL)
+    {
+        free(hist);
+        free(pred);
+        return -1;
+    }
+
+    #pragma omp parallel for schedule(static)
+    for (long e = 0; e < n_eval; e++)
+    {
+        float *h_row = &hist[e * c->mvecsize];
+        for (int dt = 0; dt < c->pf_order; dt++)
+        {
+            const float *hslice = &c->wf_in[(e + (long) dt) * c->nxy];
+            float       *h_dst  = &h_row[(long) dt * c->nbpix];
+            for (long q = 0; q < c->nbpix; q++)
+            {
+                h_dst[q] = hslice[c->mask_idx[q]];
+            }
+        }
+    }
+
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
+                (int) n_eval, (int) c->nbpix, (int) c->mvecsize,
+                1.0f, hist, (int) c->mvecsize, c->filt, (int) c->mvecsize,
+                0.0f, pred, (int) c->nbpix);
+
+    #pragma omp parallel for schedule(static)
+    for (long e = 0; e < n_eval; e++)
+    {
+        long         t_base = ((long) c->pf_order + e - 1 + c->pf_lag) * c->nxy;
+        const float *p_row  = &pred[e * c->nbpix];
+        for (long p = 0; p < c->nbpix; p++)
+        {
+            long  toff       = t_base + c->mask_idx[p];
+            float pf         = p_row[p];
+            c->wf_outp[toff] = pf;
+            c->wf_outf[toff] = c->wf_in[toff] - pf;
+        }
+    }
+
+    free(hist);
+    free(pred);
+    return 0;
+}
+#endif
+
 /**
  * AtmosphericTurbulence_Apply_LinPredictor_Full - Evaluate linear prediction on series
  * @MODE:        0 for direct evaluation.
@@ -574,6 +551,15 @@ int AtmosphericTurbulence_Apply_LinPredictor_Full(
         .pf_order  = PForder,
         .pf_lag    = (long) PFlag
     };
+
+#ifdef HAVE_OPENBLAS_LAPACKE
+    if (atmturb_linpred_eval_blas(&ctx, t_max) == 0)
+    {
+        free(hist_pack);
+        free(mask_idx);
+        return 0;
+    }
+#endif
 
     for (long t0 = (long) PForder; t0 <= t_max; t0 += 16)
     {

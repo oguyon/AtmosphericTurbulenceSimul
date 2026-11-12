@@ -43,6 +43,8 @@ optics simulation with PSF synthesis.
   evaluation (`AtmosphericTurbulence_Build_LinPredictor_Full`).
 - `atmturb_linpred_pixel.c`: Pixel-level predictor training and shift-invariant 2D kernel
   extraction (`AtmosphericTurbulence_LinPredictor_filt_2DKernelExtract`).
+- `atmturb_linpred_solve.c` / `atmturb_linpred_solve.h`: Tikhonov-regularized normal-equation
+  Cholesky solver (`atmturb_linpred_solve_normal`) backed by OpenBLAS/LAPACKE and CUDA.
 - `atmturb_linpred_test.c`: Synthetic tip-tilt vibration test sequences and predictor verification
   (`AtmosphericTurbulence_mkTestTTseq`).
 - `atmturb_lowfreq.c` / `atmturb_lowfreq.h`: Analytic low-frequency subharmonic modes
@@ -82,6 +84,12 @@ optics simulation with PSF synthesis.
   Rytov quadratic phase filters, complex multiply-accumulate, and clamped fast-`expf` row assembly.
 - `atmturb_cuda.cu` / `atmturb_cuda.h`: CUDA GPU accelerated multi-layer wavefront extrusion,
   2D layered Morton texture caching, and spatial interpolation kernels.
+- `atmturb_cuda_dma_ring.cu` / `atmturb_cuda_dma_ring.h`: Persistent 2-slot pinned host DMA
+  ring overlapping asynchronous device-to-host copies with multi-frame GPU compute batches.
+- `atmturb_cuda_geom_ext.cu` / `atmturb_cuda_geom_ext.h`: General GPU geometric wavefront batch
+  and pipelined 2D stream engine supporting rolling screens, subharmonics, and Keys bicubic.
+- `atmturb_cuda_linpred.cu`: GPU `cuBLAS` + `cuSOLVER` regularized Cholesky normal-equation
+  solver for autoregressive linear predictors.
 - `atmturb_cuda_screens.cu` / `atmturb_cuda_screens.h`: Batched GPU `cuFFT` master screen
   synthesis with counter-addressed SplitMix64 spectrum generation directly into VRAM.
 - `atmturb_cuda_piston.cu` / `atmturb_cuda_piston.h`: CUDA GPU piston subtraction kernel.
@@ -90,9 +98,9 @@ optics simulation with PSF synthesis.
   propagation engine with CUDA Graph capture (2D streams) and multi-frame batched `cuFFT` (3D).
 - `atmturb_cuda_psf.cu` / `atmturb_cuda_psf.h`: CUDA/cuFFT open-loop batched and closed-loop
   L2-resident adaptive optics science PSF simulation engine.
-- `atmturb_cuda_rytov.cu`, `atmturb_cuda_rytov_extrude.cu`, `atmturb_cuda_rytov_filter.cu`,
-  `atmturb_cuda_rytov.h`, `atmturb_cuda_rytov_internal.h`: CUDA and cuFFT GPU acceleration for
-  Rytov wavefront synthesis, batched transforms, and CUDA Graph execution.
+- `atmturb_cuda_rytov.cu`, `atmturb_cuda_rytov_batch.cu`, `atmturb_cuda_rytov_extrude.cu`,
+  `atmturb_cuda_rytov_filter.cu`, `atmturb_cuda_rytov.h`, `atmturb_cuda_rytov_internal.h`:
+  CUDA and batched cuFFT GPU acceleration for Rytov wavefront synthesis and streaming.
 - `atmturb_simd.h`: Declarations for SIMD-accelerated extrusion, scaling, initialization, and
   ISA queries.
 - `atmturb_simd_extrude_impl.h`, `atmturb_simd_ops_impl.h`: Shared compiler-vectorized

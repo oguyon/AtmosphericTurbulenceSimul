@@ -21,8 +21,8 @@ extern "C" {
 
 #ifdef HAVE_CUDA
 
-typedef struct atmturb_cuda_rytov_stream atmturb_cuda_rytov_stream_t;
-typedef struct atmturb_cuda_geom_stream  atmturb_cuda_geom_stream_t;
+typedef struct atmturb_cuda_rytov_stream    atmturb_cuda_rytov_stream_t;
+typedef struct atmturb_wfs_cuda_geom_stream atmturb_wfs_cuda_geom_stream_t;
 
 /**
  * atmturb_wfs_render_cuda - Render geometric simulation frames on GPU
@@ -31,6 +31,7 @@ typedef struct atmturb_cuda_geom_stream  atmturb_cuda_geom_stream_t;
  * @master_size: Master screen dimension in pixels.
  * @pup_size: Output pupil dimension in pixels.
  * @nbframes: Number of simulation frames.
+ * @time_step_s: Simulation time step in seconds.
  * @imgs: Container of output 3D image handles.
  *
  * Return: 0 on success, -1 on failure.
@@ -41,6 +42,7 @@ int atmturb_wfs_render_cuda(
     long                        master_size,
     long                        pup_size,
     long                        nbframes,
+    double                      time_step_s,
     const atmturb_wfs_images_t *imgs);
 
 /**
@@ -187,11 +189,41 @@ void atmturb_cuda_rytov_stream_free(
  *
  * Return: Allocated stream context, or NULL on failure.
  */
-atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
+atmturb_wfs_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
     const atmturb_rolling_t *r,
     const atmturb_geom_t    *geom,
     long                     master_size,
     long                     pup_size);
+
+/**
+ * atmturb_wfs_cuda_geom_stream_render_launch - Enqueue GPU ops for geometric frame asynchronously
+ * @ctx: Persistent stream context.
+ * @t: Frame index.
+ * @time_step_s: Simulation time step in seconds.
+ * @pha: Destination primary phase frame buffer.
+ * @spha: Destination secondary phase frame buffer (or NULL).
+ * @slot: Double-buffer slot index (0 or 1).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_wfs_cuda_geom_stream_render_launch(
+    atmturb_wfs_cuda_geom_stream_t *ctx,
+    long                            t,
+    double                          time_step_s,
+    float                          *pha,
+    float                          *spha,
+    int                             slot);
+
+/**
+ * atmturb_wfs_cuda_geom_stream_render_wait - Wait for enqueued geometric frame on GPU
+ * @ctx: Persistent stream context.
+ * @slot: Double-buffer slot index (0 or 1).
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_wfs_cuda_geom_stream_render_wait(
+    atmturb_wfs_cuda_geom_stream_t *ctx,
+    int                             slot);
 
 /**
  * atmturb_wfs_cuda_geom_stream_render_step - Render one geometric stream frame on GPU
@@ -205,26 +237,26 @@ atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
  * Return: 0 on success, -1 on failure.
  */
 int atmturb_wfs_cuda_geom_stream_render_step(
-    atmturb_cuda_geom_stream_t *ctx,
-    long                        t,
-    float                      *pha,
-    float                      *amp,
-    float                      *spha,
-    float                      *samp);
+    atmturb_wfs_cuda_geom_stream_t *ctx,
+    long                            t,
+    float                          *pha,
+    float                          *amp,
+    float                          *spha,
+    float                          *samp);
 
 /**
  * atmturb_wfs_cuda_geom_stream_free - Free persistent GPU geometric streaming context
  * @ctx: Stream context to release.
  */
 void atmturb_wfs_cuda_geom_stream_free(
-    atmturb_cuda_geom_stream_t *ctx);
+    atmturb_wfs_cuda_geom_stream_t *ctx);
 
 #else /* !HAVE_CUDA */
 
 typedef void atmturb_cuda_rytov_stream_t;
-typedef void atmturb_cuda_geom_stream_t;
+typedef void atmturb_wfs_cuda_geom_stream_t;
 
-static inline atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
+static inline atmturb_wfs_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
     const atmturb_rolling_t *r,
     const atmturb_geom_t    *geom,
     long                     master_size,
@@ -237,13 +269,39 @@ static inline atmturb_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
     return NULL;
 }
 
+static inline int atmturb_wfs_cuda_geom_stream_render_launch(
+    atmturb_wfs_cuda_geom_stream_t *ctx,
+    long                            t,
+    double                          time_step_s,
+    float                          *pha,
+    float                          *spha,
+    int                             slot)
+{
+    (void) ctx;
+    (void) t;
+    (void) time_step_s;
+    (void) pha;
+    (void) spha;
+    (void) slot;
+    return -1;
+}
+
+static inline int atmturb_wfs_cuda_geom_stream_render_wait(
+    atmturb_wfs_cuda_geom_stream_t *ctx,
+    int                             slot)
+{
+    (void) ctx;
+    (void) slot;
+    return -1;
+}
+
 static inline int atmturb_wfs_cuda_geom_stream_render_step(
-    atmturb_cuda_geom_stream_t *ctx,
-    long                        t,
-    float                      *pha,
-    float                      *amp,
-    float                      *spha,
-    float                      *samp)
+    atmturb_wfs_cuda_geom_stream_t *ctx,
+    long                            t,
+    float                          *pha,
+    float                          *amp,
+    float                          *spha,
+    float                          *samp)
 {
     (void) ctx;
     (void) t;
@@ -255,7 +313,7 @@ static inline int atmturb_wfs_cuda_geom_stream_render_step(
 }
 
 static inline void atmturb_wfs_cuda_geom_stream_free(
-    atmturb_cuda_geom_stream_t *ctx)
+    atmturb_wfs_cuda_geom_stream_t *ctx)
 {
     (void) ctx;
 }
