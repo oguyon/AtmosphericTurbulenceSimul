@@ -698,7 +698,7 @@ static int atmturb_wfs_stream_init_engine(
             {
                 return -1;
             }
-            if (atmturb_fresnel_ctx_init(&eng->fctx, pup_size) != 0)
+            if (atmturb_fresnel_ctx_init(&eng->fctx, eng->fplan.pad_size) != 0)
             {
                 atmturb_fresnel_plan_free(&eng->fplan);
                 return -1;

@@ -129,11 +129,13 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_fresnel.c
     src/AtmosphericTurbulence/atmturb_fresnel_simd_scalar.c
     src/AtmosphericTurbulence/atmturb_fresnel_simd_avx2.c
+    src/AtmosphericTurbulence/atmturb_fresnel_simd_avx512.c
     src/AtmosphericTurbulence/atmturb_fresnel_simd_dispatch.c
     src/AtmosphericTurbulence/atmturb_rytov.c
     src/AtmosphericTurbulence/atmturb_rytov_kernels.c
     src/AtmosphericTurbulence/atmturb_rytov_simd_scalar.c
     src/AtmosphericTurbulence/atmturb_rytov_simd_avx2.c
+    src/AtmosphericTurbulence/atmturb_rytov_simd_avx512.c
     src/AtmosphericTurbulence/atmturb_rytov_simd_dispatch.c
     src/AtmosphericTurbulence/atmturb_lowfreq.c
     src/AtmosphericTurbulence/atmturb_rolling.c
@@ -189,14 +191,22 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     set_source_files_properties(
         src/AtmosphericTurbulence/atmturb_simd_avx2.c
         src/AtmosphericTurbulence/atmturb_simd_avx2_ops.c
-        src/AtmosphericTurbulence/atmturb_fresnel_simd_avx2.c
         PROPERTIES COMPILE_FLAGS "-mavx2 -mfma -fno-math-errno")
     set_source_files_properties(
+        src/AtmosphericTurbulence/atmturb_fresnel_simd_avx2.c
         src/AtmosphericTurbulence/atmturb_rytov_simd_avx2.c
         PROPERTIES COMPILE_FLAGS
         "-mavx2 -mfma -fno-math-errno -fno-trapping-math -fno-signed-zeros -ffinite-math-only")
     set_source_files_properties(src/AtmosphericTurbulence/atmturb_simd_avx512.c
         PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq -mavx512bw -mavx512vl -mfma -fno-math-errno")
+    set(_avx512_fast_flags
+        "-mavx512f -mavx512dq -mavx512bw -mavx512vl -mfma -fno-math-errno"
+        " -fno-trapping-math -fno-signed-zeros -ffinite-math-only")
+    string(JOIN "" _avx512_fast_flags ${_avx512_fast_flags})
+    set_source_files_properties(
+        src/AtmosphericTurbulence/atmturb_fresnel_simd_avx512.c
+        src/AtmosphericTurbulence/atmturb_rytov_simd_avx512.c
+        PROPERTIES COMPILE_FLAGS "${_avx512_fast_flags}")
 
     option(ATMTURB_HOST_AVX2 "Enable AVX2+FMA on host compute TUs when supported" ON)
     if(ATMTURB_HOST_AVX2 AND EXISTS "/proc/cpuinfo")
@@ -578,6 +588,7 @@ int main(int argc, char *argv[])
     add_executable(atmturb-validate-stats
         tests/atmturb_validate_stats.c
         tests/atmturb_validate_math.c
+        tests/atmturb_validate_simd.c
     )
     target_compile_definitions(atmturb-validate-stats PRIVATE MILK_NO_CLI)
     target_include_directories(atmturb-validate-stats PRIVATE

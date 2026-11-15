@@ -72,17 +72,37 @@ static void atmturb_rytov_simd_init_dispatch(void)
         {
             goto use_scalar;
         }
+        if ((strcasecmp(env_simd, "AVX512") == 0 || strcasecmp(env_simd, "AVX-512") == 0) &&
+            __builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512dq") &&
+            __builtin_cpu_supports("avx512vl"))
+        {
+            goto use_avx512;
+        }
         if (strcasecmp(env_simd, "AVX2") == 0 && __builtin_cpu_supports("avx2"))
         {
             goto use_avx2;
         }
     }
 
+    if (__builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512dq") &&
+        __builtin_cpu_supports("avx512vl"))
+    {
+        goto use_avx512;
+    }
     if (__builtin_cpu_supports("avx2"))
     {
         goto use_avx2;
     }
     goto use_scalar;
+
+use_avx512:
+    g_rytov_simd_ops.accumulate_filters         = atmturb_rytov_accumulate_filters_avx512;
+    g_rytov_simd_ops.accumulate_filters_rotated = atmturb_rytov_accumulate_filters_rotated_avx512;
+    g_rytov_simd_ops.decompose_row              = atmturb_rytov_decompose_row_avx512;
+    g_rytov_simd_ops.assemble_row               = atmturb_rytov_assemble_row_avx512;
+    g_rytov_simd_ops.isa_name                   = "AVX-512";
+    g_rytov_simd_initialized                    = 1;
+    return;
 
 use_avx2:
     g_rytov_simd_ops.accumulate_filters         = atmturb_rytov_accumulate_filters_avx2;

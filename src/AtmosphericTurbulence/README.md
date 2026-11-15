@@ -36,9 +36,9 @@ optics simulation with PSF synthesis.
 - `atmturb_psf_metrics.c`: Encircled energy aperture photometry, contrast extraction, and lucky
   imaging frame selection (`measure_wavefront_series`, `frame_select_PSF`).
 - `atmturb_psf_engine.c` / `atmturb_psf_engine.h`: Pruned 2-stage 1D FFTW3 Fourier optics engine
-  for Nyquist science PSF synthesis with L1-tiled cache-padded transposes.
+  for Nyquist science PSF synthesis with L1-tiled cache-padded transposes and optional amplitude.
 - `atmturb_psf_sim.c`: End-to-end closed-loop adaptive optics simulation with PID feedback,
-  latency modeling, and CPU/GPU PSF accumulation (`atmturb_ao_sim_run`).
+  latency modeling, scintillation amplitude, chromatic science channels, and CPU/GPU PSF synthesis.
 - `atmturb_linpred_full.c`: Full-aperture autoregressive linear prediction matrix building and
   evaluation (`AtmosphericTurbulence_Build_LinPredictor_Full`).
 - `atmturb_linpred_pixel.c`: Pixel-level predictor training and shift-invariant 2D kernel
@@ -64,24 +64,26 @@ optics simulation with PSF synthesis.
   propagation engines, and internal stream-state definitions.
 - `atmturb_wfs_stream_cuda.c`: CUDA accelerated real-time streaming engine with zero-copy and
   direct shared memory DMA transfers.
-- `atmturb_geometry.c` / `atmturb_geometry.h`: Chromatic atmospheric refraction ray bending,
-  dispersion offsets, and curved ray path length integration.
+- `atmturb_geometry.c` / `atmturb_geometry.h`: Concentric spherical-shell Bouguer atmospheric
+  refraction ray bending, chromatic dispersion offsets, and curved ray path length integration.
 - `atmturb_superlayer.c`, `atmturb_superlayer.h`, `atmturb_superlayer_internal.h`: Vertical
-  altitude binning, scintillation-weighted centroids, and super-layer reduction for multi-layer
-  diffractive propagation.
+  altitude binning, scintillation-weighted centroids, primary/secondary refracted step distances,
+  and super-layer reduction for multi-layer diffractive propagation.
 - `atmturb_superlayer_nodes.c`: Piecewise-linear hat interpolation node generation for
   2nd-order $O(\Delta z^2)$ distance convergence.
 - `atmturb_fresnel.c` / `atmturb_fresnel.h`: Multi-layer split-step Fresnel diffractive propagation
-  engine (`FRESNEL_PROPAGATION=1`).
-- `atmturb_fresnel_simd_scalar.c`, `atmturb_fresnel_simd_avx2.c`,
-  `atmturb_fresnel_simd_dispatch.c`, `atmturb_fresnel_simd.h`: Vectorized split-step Fresnel
-  phase modulation (`sincos256_ps`), transfer-function application, and unwrapped `atan2` kernels.
+  engine (`FRESNEL_PROPAGATION=1`) with separable 1D chirp factors and quartic absorbing guard rim.
+- `atmturb_fresnel_simd_impl.h`, `atmturb_fresnel_simd_scalar.c`, `atmturb_fresnel_simd_avx2.c`,
+  `atmturb_fresnel_simd_avx512.c`, `atmturb_fresnel_simd_dispatch.c`, `atmturb_fresnel_simd.h`:
+  Compiler-vectorized (`#pragma omp simd`) split-step Fresnel phase modulation, masked phasor
+  synthesis, von Karman spectrum strip, and unwrapped `atan2` extraction kernels.
 - `atmturb_rytov.c`, `atmturb_rytov_kernels.c`, `atmturb_rytov.h`, `atmturb_rytov_internal.h`:
   First-order Rytov Fourier-space propagation engine (`FRESNEL_PROPAGATION=2`) with Moisan
   periodic-plus-smooth decomposition.
-- `atmturb_rytov_simd_scalar.c`, `atmturb_rytov_simd_avx2.c`,
-  `atmturb_rytov_simd_dispatch.c`, `atmturb_rytov_simd.h`: Compiler-vectorized (`#pragma omp simd`)
-  Rytov quadratic phase filters, complex multiply-accumulate, and clamped fast-`expf` row assembly.
+- `atmturb_rytov_simd_impl.h`, `atmturb_rytov_simd_scalar.c`, `atmturb_rytov_simd_avx2.c`,
+  `atmturb_rytov_simd_avx512.c`, `atmturb_rytov_simd_dispatch.c`, `atmturb_rytov_simd.h`:
+  Compiler-vectorized (`#pragma omp simd`) Rytov quadratic phase filters, complex
+  multiply-accumulate, Moisan row decomposition, and clamped fast-`expf` row assembly.
 - `atmturb_cuda.cu` / `atmturb_cuda.h`: CUDA GPU accelerated multi-layer wavefront extrusion,
   2D layered Morton texture caching, and spatial interpolation kernels.
 - `atmturb_cuda_dma_ring.cu` / `atmturb_cuda_dma_ring.h`: Persistent 2-slot pinned host DMA
@@ -95,9 +97,10 @@ optics simulation with PSF synthesis.
 - `atmturb_cuda_piston.cu` / `atmturb_cuda_piston.h`: CUDA GPU piston subtraction kernel.
 - `atmturb_cuda_fresnel.cu`, `atmturb_cuda_fresnel_batch.cu`, `atmturb_cuda_fresnel_kernels.cu`,
   `atmturb_cuda_fresnel.h`, `atmturb_cuda_fresnel_kernels.h`: CUDA GPU split-step Fresnel
-  propagation engine with CUDA Graph capture (2D streams) and multi-frame batched `cuFFT` (3D).
+  propagation engine with separable 1D chirps, quartic guard sponge, CUDA Graph capture, and
+  multi-frame batched `cuFFT`.
 - `atmturb_cuda_psf.cu` / `atmturb_cuda_psf.h`: CUDA/cuFFT open-loop batched and closed-loop
-  L2-resident adaptive optics science PSF simulation engine.
+  L2-resident adaptive optics science PSF engine with amplitude and chromatic science support.
 - `atmturb_cuda_rytov.cu`, `atmturb_cuda_rytov_batch.cu`, `atmturb_cuda_rytov_extrude.cu`,
   `atmturb_cuda_rytov_filter.cu`, `atmturb_cuda_rytov.h`, `atmturb_cuda_rytov_internal.h`:
   CUDA and batched cuFFT GPU acceleration for Rytov wavefront synthesis and streaming.

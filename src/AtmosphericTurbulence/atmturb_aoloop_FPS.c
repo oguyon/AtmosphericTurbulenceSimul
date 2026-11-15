@@ -31,6 +31,9 @@ static double  param_teldiam                               = 8.0;
 static double  param_reflambda                             = 0.50;
 static double  param_pupil_scale                           = 0.0;
 static double  param_timestep                              = 0.001;
+static char    param_ampname[FUNCTION_PARAMETER_STRMAXLEN]  = "";
+static char    param_swfname[FUNCTION_PARAMETER_STRMAXLEN]  = "";
+static char    param_sampname[FUNCTION_PARAMETER_STRMAXLEN] = "";
 
 #define ATMTURB_AOLOOP_PARAMS(X)                                                   \
     X(".wfname", param_wfname, FPTYPE_FILENAME, 1,                                 \
@@ -67,7 +70,16 @@ static double  param_timestep                              = 0.001;
       "Pupil pixel scale in meters/pixel (0 = auto from teldiam/grid)")            \
     X(".time_step", &param_timestep, FPTYPE_FLOAT64, 1,                            \
       FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL,                                  \
-      "Simulation time step in seconds (default: 0.001)")
+      "Simulation time step in seconds (default: 0.001)")                          \
+    X(".ampname", param_ampname, FPTYPE_STRING, 1,                                 \
+      FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL,                                  \
+      "Optional input amplitude cube/stream name (empty = unit amplitude)")        \
+    X(".swfname", param_swfname, FPTYPE_STRING, 1,                                 \
+      FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL,                                  \
+      "Optional science phase cube/stream in science radians (empty = scale wf)")  \
+    X(".sampname", param_sampname, FPTYPE_STRING, 1,                               \
+      FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL,                                  \
+      "Optional science amplitude cube/stream name (empty = use ampname)")
 
 MILK_PARAMS_DEFINE(atmturb_aoloop, ATMTURB_AOLOOP_PARAMS);
 
@@ -90,6 +102,9 @@ static MILK_HOT errno_t atmturb_aoloop_exec(void)
     atmturb_ao_init_params(&p);
 
     p.in_wfname     = param_wfname;
+    p.in_ampname    = (param_ampname[0] != '\0') ? param_ampname : NULL;
+    p.in_swfname    = (param_swfname[0] != '\0') ? param_swfname : NULL;
+    p.in_sampname   = (param_sampname[0] != '\0') ? param_sampname : NULL;
     p.out_psfname   = param_psfname;
     p.out_fitsname  = (param_fitsout[0] != '\0') ? param_fitsout : NULL;
     p.loop_mode     = (int) param_loop_mode;

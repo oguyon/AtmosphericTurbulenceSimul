@@ -66,17 +66,38 @@ static void atmturb_fresnel_simd_init_dispatch(void)
         {
             goto use_scalar;
         }
+        if ((strcasecmp(env_simd, "AVX512") == 0 || strcasecmp(env_simd, "AVX-512") == 0) &&
+            __builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512dq") &&
+            __builtin_cpu_supports("avx512vl"))
+        {
+            goto use_avx512;
+        }
         if (strcasecmp(env_simd, "AVX2") == 0 && __builtin_cpu_supports("avx2"))
         {
             goto use_avx2;
         }
     }
 
+    if (__builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512dq") &&
+        __builtin_cpu_supports("avx512vl"))
+    {
+        goto use_avx512;
+    }
     if (__builtin_cpu_supports("avx2"))
     {
         goto use_avx2;
     }
     goto use_scalar;
+
+use_avx512:
+    g_fresnel_simd_ops.modulate_field      = atmturb_fresnel_modulate_field_avx512;
+    g_fresnel_simd_ops.init_modulate_field = atmturb_fresnel_init_modulate_field_avx512;
+    g_fresnel_simd_ops.extract_unwrapped   = atmturb_fresnel_extract_unwrapped_avx512;
+    g_fresnel_simd_ops.phasor_masked       = atmturb_fresnel_phasor_masked_avx512;
+    g_fresnel_simd_ops.spectrum_strip      = atmturb_fresnel_spectrum_strip_avx512;
+    g_fresnel_simd_ops.isa_name            = "AVX-512";
+    g_fresnel_simd_initialized             = 1;
+    return;
 
 use_avx2:
     g_fresnel_simd_ops.modulate_field      = atmturb_fresnel_modulate_field_avx2;

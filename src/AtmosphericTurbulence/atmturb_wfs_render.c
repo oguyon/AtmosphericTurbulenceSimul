@@ -416,7 +416,7 @@ static int atmturb_wfs_render_diffractive(
 
     int nthreads = 1;
     int fftw_nth = 1;
-    atmturb_wfs_pick_threads(pup_size, nbframes, &nthreads, &fftw_nth);
+    atmturb_wfs_pick_threads(plan.pad_size, nbframes, &nthreads, &fftw_nth);
 
     atmturb_fresnel_ctx_t *ctxs = (atmturb_fresnel_ctx_t *) calloc((size_t) nthreads,
                                                                    sizeof(atmturb_fresnel_ctx_t));
@@ -429,7 +429,7 @@ static int atmturb_wfs_render_diffractive(
     for (int tid = 0; tid < nthreads; tid++)
     {
         const atmturb_fresnel_ctx_t *src = (tid > 0) ? &ctxs[0] : NULL;
-        if (atmturb_fresnel_ctx_init_mt(&ctxs[tid], pup_size, fftw_nth, src) != 0)
+        if (atmturb_fresnel_ctx_init_mt(&ctxs[tid], plan.pad_size, fftw_nth, src) != 0)
         {
             for (int j = 0; j < tid; j++)
             {

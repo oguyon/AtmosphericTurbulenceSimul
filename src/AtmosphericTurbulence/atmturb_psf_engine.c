@@ -282,25 +282,39 @@ static float atmturb_ao_extract_pruned_psf(
 }
 
 /**
- * atmturb_ao_render_psf - Form instantaneous zero-padded centered PSF
+ * atmturb_ao_render_psf_amp - Form centered PSF with optional scintillation amplitude map
  */
-double atmturb_ao_render_psf(
+double atmturb_ao_render_psf_amp(
     const atmturb_ao_psf_engine_t *eng,
     const float                   *phase_in,
+    const float                   *amp_in,
     const float                   *pupil_mask,
-    long                           pup_size,
     float                          phase_scale,
     float                         *psf_buf,
     int                            accum)
 {
-    long           n_fft = eng->n_fft;
-    fftwf_complex *in_b  = (eng->plan_2d != NULL) ? eng->col_in : eng->row_in;
+    long           pup_size = eng->pup_size;
+    long           n_fft    = eng->n_fft;
+    fftwf_complex *in_b     = (eng->plan_2d != NULL) ? eng->col_in : eng->row_in;
+
     for (long j = 0; j < pup_size; j++)
     {
         long         pup_row = j * pup_size;
         const float *p_row   = (phase_in != NULL) ? &phase_in[pup_row] : NULL;
         atmturb_fresnel_simd_phasor_masked(&in_b[j * n_fft], p_row,
                                            &pupil_mask[pup_row], phase_scale, pup_size);
+        if (amp_in != NULL)
+        {
+            const float   *restrict a_row = &amp_in[pup_row];
+            fftwf_complex *restrict dst   = &in_b[j * n_fft];
+            #pragma omp simd
+            for (long i = 0; i < pup_size; i++)
+            {
+                float a    = a_row[i];
+                dst[i][0] *= a;
+                dst[i][1] *= a;
+            }
+        }
     }
 
     if (eng->plan_2d != NULL)
@@ -313,4 +327,20 @@ double atmturb_ao_render_psf(
     atmturb_ao_transpose_pruned(eng);
     fftwf_execute_dft(eng->plan_cols, eng->col_in, eng->col_out);
     return (double) atmturb_ao_extract_pruned_psf(eng, psf_buf, accum);
+}
+
+/**
+ * atmturb_ao_render_psf - Form instantaneous zero-padded centered PSF
+ */
+double atmturb_ao_render_psf(
+    const atmturb_ao_psf_engine_t *eng,
+    const float                   *phase_in,
+    const float                   *pupil_mask,
+    long                           pup_size,
+    float                          phase_scale,
+    float                         *psf_buf,
+    int                            accum)
+{
+    (void) pup_size;
+    return atmturb_ao_render_psf_amp(eng, phase_in, NULL, pupil_mask, phase_scale, psf_buf, accum);
 }

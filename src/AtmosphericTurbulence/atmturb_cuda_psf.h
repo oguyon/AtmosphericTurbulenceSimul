@@ -20,8 +20,12 @@ extern "C" {
  * struct atmturb_cuda_ao_req - GPU AO closed-loop / open-loop PSF simulation request
  * @params: Active AO controller and optical wavelength parameters.
  * @wf_data: Host 3D input phase cube (`nbframes * pup_size * pup_size` floats, or NULL for flat).
+ * @amp_data: Optional host science amplitude cube/map (or NULL for unit amplitude).
+ * @swf_data: Optional host chromatic science phase cube/map in science radians (or NULL).
  * @pupil_mask: Host 2D circular pupil mask (`pup_size * pup_size` floats).
  * @pup_size: Pupil linear dimension in pixels.
+ * @amp_stride: Frame stride in floats for @amp_data (`0` for 2D broadcast, `pup_size^2` for 3D).
+ * @swf_stride: Frame stride in floats for @swf_data (`0` for 2D broadcast, `pup_size^2` for 3D).
  * @n_fft: Zero-padded 2D FFT linear dimension (power of 2, >= 2 * pup_size).
  * @n_psf: Cropped output focal PSF dimension (`min(n_fft, 512)`).
  * @nbframes: Number of frames to simulate.
@@ -34,8 +38,12 @@ typedef struct
 {
     const atmturb_ao_params_t *params;
     const float               *wf_data;
+    const float               *amp_data;
+    const float               *swf_data;
     const float               *pupil_mask;
     long                       pup_size;
+    long                       amp_stride;
+    long                       swf_stride;
     long                       n_fft;
     long                       n_psf;
     long                       nbframes;

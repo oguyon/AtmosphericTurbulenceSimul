@@ -56,7 +56,10 @@ typedef struct
     atmturb_fresnel_plan_t         plan;
     long                           msize;
     long                           pup_size;
+    long                           guard_pix;
+    long                           pad_size;
     long                           npix;
+    long                           pad_npix;
     int                            batch_b;
     int                            batch_rem;
     int                            has_sec;
@@ -76,6 +79,7 @@ typedef struct
     cufftHandle                    plan_rem;
     cufftComplex                 **d_tf_pri;
     cufftComplex                 **d_tf_sec;
+    float                         *d_sponge_1d;
     atmturb_cuda_rytov_sublayer_t *h_sub[2];
     atmturb_cuda_rytov_sublayer_t *d_sub[2];
     atmturb_cuda_lowfreq_mode_t   *h_lf[2];
@@ -88,6 +92,20 @@ typedef struct
     float                         *d_frame_spha[2];
     float                         *d_frame_samp[2];
 } atmturb_fresnel_batch_ctx_t;
+
+typedef struct
+{
+    size_t raw_fbyt;
+    size_t fbytes;
+    size_t sup_fbytes;
+    size_t fld_bytes;
+    size_t tf_raw;
+    size_t tf_bytes;
+    size_t sp_raw;
+    size_t sp_bytes;
+    size_t sub_bytes;
+    size_t lf_bytes;
+} fresnel_batch_sizes_t;
 
 static inline size_t fb_align256(
     size_t n)
@@ -119,82 +137,6 @@ void atmturb_cuda_fresnel_batch_cleanup(void)
 }
 
 /**
- * atmturb_fresnel_tf_mul_batch_vec2_kernel - Multiply even-sized field batch by OTF via float4
- */
-__global__ static void atmturb_fresnel_tf_mul_batch_vec2_kernel(
-    float4       *d_field,
-    const float4 *d_tf,
-    int           npairs,
-    int           count)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int b = (int) blockIdx.y;
-    if (i >= npairs || b >= count)
-    {
-        return;
-    }
-
-    size_t idx = (size_t) b * (size_t) npairs + (size_t) i;
-    float4 f   = d_field[idx];
-    float4 t   = __ldg(&d_tf[i]);
-    float4 out;
-    out.x        = f.x * t.x - f.y * t.y;
-    out.y        = f.y * t.x + f.x * t.y;
-    out.z        = f.z * t.z - f.w * t.w;
-    out.w        = f.w * t.z + f.z * t.w;
-    d_field[idx] = out;
-}
-
-/**
- * atmturb_fresnel_tf_mul_batch_c2_kernel - Multiply odd-sized field batch by OTF via cufftComplex
- */
-__global__ static void atmturb_fresnel_tf_mul_batch_c2_kernel(
-    cufftComplex       *d_field,
-    const cufftComplex *d_tf,
-    int                 npix,
-    int                 count)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int b = (int) blockIdx.y;
-    if (i >= npix || b >= count)
-    {
-        return;
-    }
-
-    size_t       idx = (size_t) b * (size_t) npix + (size_t) i;
-    cufftComplex f   = d_field[idx];
-    cufftComplex t   = d_tf[i];
-    d_field[idx]     = make_cuFloatComplex(f.x * t.x - f.y * t.y, f.y * t.x + f.x * t.y);
-}
-
-/**
- * atmturb_fresnel_tf_mul_batch_launch - Dispatch batched OTF complex product across frames
- */
-static void atmturb_fresnel_tf_mul_batch_launch(
-    cufftComplex       *d_field,
-    const cufftComplex *d_tf,
-    int                 npix,
-    int                 count,
-    cudaStream_t        stream)
-{
-    if ((npix & 1) == 0)
-    {
-        int  npairs = npix >> 1;
-        dim3 b_2d(256, 1, 1);
-        dim3 g_2d((unsigned int) ((npairs + 255) / 256), (unsigned int) count, 1);
-        atmturb_fresnel_tf_mul_batch_vec2_kernel<<<g_2d, b_2d, 0, stream>>>(
-            (float4 *) d_field, (const float4 *) d_tf, npairs, count);
-    }
-    else
-    {
-        dim3 b_2d(256, 1, 1);
-        dim3 g_2d((unsigned int) ((npix + 255) / 256), (unsigned int) count, 1);
-        atmturb_fresnel_tf_mul_batch_c2_kernel<<<g_2d, b_2d, 0, stream>>>(
-            d_field, d_tf, npix, count);
-    }
-}
-
-/**
  * atmturb_fresnel_batch_ctx_free - Release per-call host descriptors while preserving GPU cache
  */
 static void atmturb_fresnel_batch_ctx_free(
@@ -217,12 +159,12 @@ static void atmturb_fresnel_batch_ctx_free(
 static int atmturb_fresnel_batch_ensure_plans(
     atmturb_fresnel_batch_ctx_t *c)
 {
-    int dims[2]  = {(int) c->pup_size, (int) c->pup_size};
-    int dist     = (int) c->npix;
+    int dims[2]  = {(int) c->pad_size, (int) c->pad_size};
+    int dist     = (int) c->pad_npix;
     int req_many = c->batch_b * c->n_ch;
     int req_rem  = c->batch_rem * c->n_ch;
 
-    if (s_fbat.plan_many == 0 || s_fbat.many_pup != (int) c->pup_size ||
+    if (s_fbat.plan_many == 0 || s_fbat.many_pup != (int) c->pad_size ||
         s_fbat.many_cnt != req_many)
     {
         if (s_fbat.plan_many != 0)
@@ -236,14 +178,14 @@ static int atmturb_fresnel_batch_ensure_plans(
         {
             return -1;
         }
-        s_fbat.many_pup = (int) c->pup_size;
+        s_fbat.many_pup = (int) c->pad_size;
         s_fbat.many_cnt = req_many;
     }
     c->plan_many = s_fbat.plan_many;
 
     if (req_rem > 0)
     {
-        if (s_fbat.plan_rem == 0 || s_fbat.rem_pup != (int) c->pup_size ||
+        if (s_fbat.plan_rem == 0 || s_fbat.rem_pup != (int) c->pad_size ||
             s_fbat.rem_cnt != req_rem)
         {
             if (s_fbat.plan_rem != 0)
@@ -257,7 +199,7 @@ static int atmturb_fresnel_batch_ensure_plans(
             {
                 return -1;
             }
-            s_fbat.rem_pup = (int) c->pup_size;
+            s_fbat.rem_pup = (int) c->pad_size;
             s_fbat.rem_cnt = req_rem;
         }
         c->plan_rem = s_fbat.plan_rem;
@@ -266,89 +208,114 @@ static int atmturb_fresnel_batch_ensure_plans(
 }
 
 /**
+ * atmturb_fresnel_batch_compute_sizes - Compute 256B-aligned workspace partition sizes
+ */
+static void atmturb_fresnel_batch_compute_sizes(
+    const atmturb_fresnel_batch_ctx_t *c,
+    fresnel_batch_sizes_t             *sz)
+{
+    size_t npix     = (size_t) c->npix;
+    size_t pad_npix = (size_t) c->pad_npix;
+    size_t pad_sz   = (size_t) c->pad_size;
+    size_t B        = (size_t) c->batch_b;
+
+    sz->raw_fbyt   = sizeof(float) * npix * B;
+    sz->fbytes     = fb_align256(sz->raw_fbyt);
+    sz->sup_fbytes = fb_align256(sizeof(float) * pad_npix * B);
+    sz->fld_bytes  = fb_align256(sizeof(cufftComplex) * pad_npix * B * (size_t) c->n_ch);
+    sz->tf_raw     = sizeof(cufftComplex) * pad_sz;
+    sz->tf_bytes   = fb_align256(sz->tf_raw);
+    sz->sp_raw     = (c->plan.sponge_1d != NULL) ? (sizeof(float) * pad_sz) : 0;
+    sz->sp_bytes   = fb_align256(sz->sp_raw);
+    sz->sub_bytes  = fb_align256(sizeof(atmturb_cuda_rytov_sublayer_t) *
+                                 (size_t) c->plan.nsuper * B * (size_t) c->max_sublayers);
+    sz->lf_bytes   = (c->lowfreq && c->max_lf_modes > 0)
+                         ? fb_align256(sizeof(atmturb_cuda_lowfreq_mode_t) *
+                                       (size_t) c->plan.nsuper * B * (size_t) c->max_lf_modes)
+                         : 0;
+}
+
+/**
  * atmturb_fresnel_batch_slice_workspace - Partition cached host and device arenas into slots
  */
 static void atmturb_fresnel_batch_slice_workspace(
     atmturb_fresnel_batch_ctx_t *c,
-    size_t                       fld_bytes,
-    size_t                       fbytes,
-    size_t                       sub_bytes,
-    size_t                       lf_bytes,
-    size_t                       tf_bytes)
+    const fresnel_batch_sizes_t *sz)
 {
     char *hp = s_fbat.h_buf;
     char *dp = s_fbat.d_buf;
 
-    c->d_fields = (cufftComplex *) dp;
-    dp         += fld_bytes;
-    c->d_super_pha = (float *) dp;
-    dp            += fbytes;
+    c->d_fields     = (cufftComplex *) dp;
+    dp             += sz->fld_bytes;
+    c->d_super_pha  = (float *) dp;
+    dp             += sz->sup_fbytes;
     c->d_super_spha = c->has_sec ? (float *) dp : NULL;
     if (c->has_sec)
     {
-        dp += fbytes;
+        dp += sz->sup_fbytes;
     }
+    c->d_sponge_1d = (sz->sp_bytes > 0) ? (float *) dp : NULL;
+    dp            += sz->sp_bytes;
 
     for (int s = 0; s < 2; s++)
     {
         c->h_sub[s] = (atmturb_cuda_rytov_sublayer_t *) hp;
-        hp         += sub_bytes;
-        c->h_lf[s]  = (lf_bytes > 0) ? (atmturb_cuda_lowfreq_mode_t *) hp : NULL;
-        hp         += lf_bytes;
+        hp         += sz->sub_bytes;
+        c->h_lf[s]  = (sz->lf_bytes > 0) ? (atmturb_cuda_lowfreq_mode_t *) hp : NULL;
+        hp         += sz->lf_bytes;
 
         c->d_sub[s] = (atmturb_cuda_rytov_sublayer_t *) dp;
-        dp         += sub_bytes;
-        c->d_lf[s]  = (lf_bytes > 0) ? (atmturb_cuda_lowfreq_mode_t *) dp : NULL;
-        dp         += lf_bytes;
+        dp         += sz->sub_bytes;
+        c->d_lf[s]  = (sz->lf_bytes > 0) ? (atmturb_cuda_lowfreq_mode_t *) dp : NULL;
+        dp         += sz->lf_bytes;
 
         c->d_frame_pha[s] = (float *) dp;
-        dp               += fbytes;
+        dp               += sz->fbytes;
         c->d_frame_amp[s] = c->has_amp ? (float *) dp : NULL;
-        if (c->has_amp) { dp += fbytes; }
+        if (c->has_amp)
+        {
+            dp += sz->fbytes;
+        }
         c->d_frame_spha[s] = c->has_sec ? (float *) dp : NULL;
-        if (c->has_sec) { dp += fbytes; }
+        if (c->has_sec)
+        {
+            dp += sz->fbytes;
+        }
         c->d_frame_samp[s] = (c->has_sec && c->has_amp) ? (float *) dp : NULL;
-        if (c->has_sec && c->has_amp) { dp += fbytes; }
+        if (c->has_sec && c->has_amp)
+        {
+            dp += sz->fbytes;
+        }
     }
 
     for (int m = 0; m < c->plan.nsuper; m++)
     {
         c->d_tf_pri[m] = (cufftComplex *) dp;
-        dp            += tf_bytes;
+        dp            += sz->tf_bytes;
         if (c->has_sec)
         {
             c->d_tf_sec[m] = (cufftComplex *) dp;
-            dp            += tf_bytes;
+            dp            += sz->tf_bytes;
         }
     }
 }
 
 /**
- * atmturb_fresnel_batch_alloc_buffers - Ensure cached device/pinned workspace and upload OTFs
+ * atmturb_fresnel_batch_alloc_buffers - Ensure cached device/pinned workspace and upload chirps
  */
 static int atmturb_fresnel_batch_alloc_buffers(
     atmturb_fresnel_batch_ctx_t *c)
 {
-    size_t npix      = (size_t) c->npix;
-    size_t B         = (size_t) c->batch_b;
-    size_t raw_fbyt  = sizeof(float) * npix * B;
-    size_t fbytes    = fb_align256(raw_fbyt);
-    size_t fld_bytes = fb_align256(sizeof(cufftComplex) * npix * B * (size_t) c->n_ch);
-    size_t tf_raw    = sizeof(cufftComplex) * npix;
-    size_t tf_bytes  = fb_align256(tf_raw);
-    size_t sub_bytes = fb_align256(sizeof(atmturb_cuda_rytov_sublayer_t) *
-                                   (size_t) c->plan.nsuper * B * (size_t) c->max_sublayers);
-    size_t lf_bytes  = (c->lowfreq && c->max_lf_modes > 0)
-                           ? fb_align256(sizeof(atmturb_cuda_lowfreq_mode_t) *
-                                         (size_t) c->plan.nsuper * B * (size_t) c->max_lf_modes)
-                           : 0;
-    int    n_out_ch  = (1 + c->has_amp) * c->n_ch;
-    size_t h_need    = 2 * (sub_bytes + lf_bytes);
-    size_t d_need    = fld_bytes + (size_t) c->n_ch * fbytes +
-                       2 * (sub_bytes + lf_bytes + (size_t) n_out_ch * fbytes) +
-                       (size_t) (c->plan.nsuper * c->n_ch) * tf_bytes;
+    fresnel_batch_sizes_t sz;
+    atmturb_fresnel_batch_compute_sizes(c, &sz);
 
-    if (atmturb_cuda_dma_ring_prepare(raw_fbyt) != 0)
+    int    n_out_ch = (1 + c->has_amp) * c->n_ch;
+    size_t h_need   = 2 * (sz.sub_bytes + sz.lf_bytes);
+    size_t d_need   = sz.fld_bytes + (size_t) c->n_ch * sz.sup_fbytes + sz.sp_bytes +
+                      2 * (sz.sub_bytes + sz.lf_bytes + (size_t) n_out_ch * sz.fbytes) +
+                      (size_t) (c->plan.nsuper * c->n_ch) * sz.tf_bytes;
+
+    if (atmturb_cuda_dma_ring_prepare(sz.raw_fbyt) != 0)
     {
         return -1;
     }
@@ -375,16 +342,21 @@ static int atmturb_fresnel_batch_alloc_buffers(
         s_fbat.d_cap = d_need;
     }
 
-    atmturb_fresnel_batch_slice_workspace(c, fld_bytes, fbytes, sub_bytes, lf_bytes, tf_bytes);
+    atmturb_fresnel_batch_slice_workspace(c, &sz);
+    if (sz.sp_raw > 0 && c->d_sponge_1d != NULL)
+    {
+        cudaMemcpyAsync(c->d_sponge_1d, c->plan.sponge_1d, sz.sp_raw,
+                        cudaMemcpyHostToDevice, c->stream);
+    }
     for (int m = 0; m < c->plan.nsuper; m++)
     {
         if (fabs(c->plan.supers[m].step_dist_m) > 0.0)
         {
-            cudaMemcpyAsync(c->d_tf_pri[m], c->plan.tf_pri[m], tf_raw,
+            cudaMemcpyAsync(c->d_tf_pri[m], c->plan.tf_pri[m], sz.tf_raw,
                             cudaMemcpyHostToDevice, c->stream);
             if (c->has_sec)
             {
-                cudaMemcpyAsync(c->d_tf_sec[m], c->plan.tf_sec[m], tf_raw,
+                cudaMemcpyAsync(c->d_tf_sec[m], c->plan.tf_sec[m], sz.tf_raw,
                                 cudaMemcpyHostToDevice, c->stream);
             }
         }
@@ -393,7 +365,7 @@ static int atmturb_fresnel_batch_alloc_buffers(
 }
 
 /**
- * atmturb_fresnel_batch_ctx_init - Initialize superlayer plan, OTFs, master cache, and buffers
+ * atmturb_fresnel_batch_ctx_init - Initialize superlayer plan, chirps, master cache, and buffers
  */
 static int atmturb_fresnel_batch_ctx_init(
     atmturb_fresnel_batch_ctx_t            *c,
@@ -410,10 +382,6 @@ static int atmturb_fresnel_batch_ctx_init(
     c->os       = (int) req->geom->oversample;
     c->lowfreq  = req->r->lowfreq;
 
-    int max_b    = (req->pup_size <= 256) ? 32 : ((req->pup_size <= 512) ? 16 : 8);
-    c->batch_b   = (req->nbframes < (long) max_b) ? (int) req->nbframes : max_b;
-    c->batch_rem = (int) (req->nbframes % (long) c->batch_b);
-
     double lam_s = c->has_sec ? req->params->lambda_s_m : 0.0;
     if (atmturb_fresnel_plan_init(&c->plan, req->prof, req->geom, req->pup_size,
                                   req->params->pupil_scale_m, req->params->lambda_ref_m,
@@ -421,6 +389,13 @@ static int atmturb_fresnel_batch_ctx_init(
     {
         return -1;
     }
+    c->guard_pix = c->plan.guard_pix;
+    c->pad_size  = c->plan.pad_size;
+    c->pad_npix  = c->pad_size * c->pad_size;
+
+    int max_b    = (c->pad_size <= 256) ? 32 : ((c->pad_size <= 512) ? 16 : 8);
+    c->batch_b   = (req->nbframes < (long) max_b) ? (int) req->nbframes : max_b;
+    c->batch_rem = (int) (req->nbframes % (long) c->batch_b);
 
     c->max_sublayers = 1;
     c->max_lf_modes  = c->lowfreq ? ATMTURB_LOWFREQ_NMODES : 0;
@@ -471,9 +446,10 @@ static void atmturb_fresnel_batch_pack_chunk(
     long                                    t0,
     int                                     count)
 {
-    int nsuper  = c->plan.nsuper;
-    int max_sub = c->max_sublayers;
-    int max_lf  = c->max_lf_modes;
+    int    nsuper    = c->plan.nsuper;
+    int    max_sub   = c->max_sublayers;
+    int    max_lf    = c->max_lf_modes;
+    double offset_os = (double) c->guard_pix * (double) req->geom->oversample;
 
 #ifdef _OPENMP
     #pragma omp parallel for if (count >= 4) schedule(static)
@@ -489,7 +465,7 @@ static void atmturb_fresnel_batch_pack_chunk(
         }
         atmturb_wfs_cuda_build_frame_sublayers(
             req->r, req->geom, nsuper, c->plan.supers, c->screen_offsets,
-            t0 + (long) b, req->params->time_step_s, 0.0, max_sub, sub_buf);
+            t0 + (long) b, req->params->time_step_s, offset_os, max_sub, sub_buf);
         for (int m = 0; m < nsuper; m++)
         {
             memcpy(&c->h_sub[slot][(size_t) (m * c->batch_b + b) * (size_t) max_sub],
@@ -511,7 +487,7 @@ static void atmturb_fresnel_batch_pack_chunk(
             }
             atmturb_wfs_cuda_build_frame_lf_modes(
                 req->r, req->geom, nsuper, c->plan.supers,
-                t0 + (long) b, req->params->time_step_s, 0.0, max_lf, lf_buf);
+                t0 + (long) b, req->params->time_step_s, offset_os, max_lf, lf_buf);
             for (int m = 0; m < nsuper; m++)
             {
                 memcpy(&c->h_lf[slot][(size_t) (m * c->batch_b + b) * (size_t) max_lf],
@@ -522,7 +498,7 @@ static void atmturb_fresnel_batch_pack_chunk(
                 free(lf_buf);
             }
         }
-    }
+    } // for (int b = 0; b < count; b++)
 }
 
 /**
@@ -544,9 +520,9 @@ static void atmturb_fresnel_batch_extrude_one(
         .interp_mode  = c->interp,
         .d_masters    = c->d_masters,
         .msize        = (int) c->msize,
-        .pad_size     = (int) c->pup_size,
+        .pad_size     = (int) c->pad_size,
         .pup_size     = (int) c->pup_size,
-        .guard        = 0,
+        .guard        = (int) c->guard_pix,
         .n_sub        = n_sub,
         .sub_stride   = c->max_sublayers,
         .has_sec      = c->has_sec,
@@ -575,47 +551,64 @@ static void atmturb_fresnel_batch_prop_supers(
     int                          slot,
     int                          n_prop,
     int                          count,
-    int                          tot_pix,
-    cufftComplex                *d_pri,
-    cufftComplex                *d_sec,
     cufftHandle                  fft_plan)
 {
+    int           pad_sz  = (int) c->pad_size;
+    cufftComplex *d_pri   = c->d_fields;
+    cufftComplex *d_sec   = c->has_sec ? (c->d_fields + (size_t) count * (size_t) c->pad_npix)
+                                       : NULL;
+
+    if (c->guard_pix > 0)
+    {
+        size_t chunk_fbyt = sizeof(float) * (size_t) count * (size_t) c->npix;
+        cudaMemsetAsync(c->d_frame_pha[slot], 0, chunk_fbyt, c->stream);
+        if (c->has_sec)
+        {
+            cudaMemsetAsync(c->d_frame_spha[slot], 0, chunk_fbyt, c->stream);
+        }
+    }
+
     for (int m = 0; m < n_prop; m++)
     {
-        atmturb_fresnel_batch_extrude_one(c, slot, m, count, (m == 0), 0);
+        int direct_ovw = (m == 0 && c->guard_pix == 0) ? 1 : 0;
+        atmturb_fresnel_batch_extrude_one(c, slot, m, count, direct_ovw, 0);
 
+        const float *src_p  = direct_ovw ? c->d_frame_pha[slot] : c->d_super_pha;
+        const float *src_sp = direct_ovw ? c->d_frame_spha[slot] : c->d_super_spha;
         if (m == 0)
         {
-            atmturb_cuda_fresnel_init_modulate_launch(d_pri, c->d_frame_pha[slot], tot_pix,
-                                                      c->stream);
+            atmturb_cuda_fresnel_init_modulate_launch(
+                d_pri, src_p, c->d_sponge_1d, pad_sz, count, c->stream);
             if (c->has_sec)
             {
-                atmturb_cuda_fresnel_init_modulate_launch(d_sec, c->d_frame_spha[slot], tot_pix,
-                                                          c->stream);
+                atmturb_cuda_fresnel_init_modulate_launch(
+                    d_sec, src_sp, c->d_sponge_1d, pad_sz, count, c->stream);
             }
         }
         else
         {
-            atmturb_cuda_fresnel_modulate_launch(d_pri, c->d_super_pha, tot_pix, c->stream);
+            atmturb_cuda_fresnel_modulate_launch(
+                d_pri, src_p, c->d_sponge_1d, pad_sz, count, c->stream);
             if (c->has_sec)
             {
-                atmturb_cuda_fresnel_modulate_launch(d_sec, c->d_super_spha, tot_pix, c->stream);
+                atmturb_cuda_fresnel_modulate_launch(
+                    d_sec, src_sp, c->d_sponge_1d, pad_sz, count, c->stream);
             }
         }
 
         if (fabs(c->plan.supers[m].step_dist_m) > 0.0)
         {
             cufftExecC2C(fft_plan, d_pri, d_pri, CUFFT_FORWARD);
-            atmturb_fresnel_tf_mul_batch_launch(d_pri, c->d_tf_pri[m], (int) c->npix, count,
-                                                c->stream);
+            atmturb_cuda_fresnel_tf1d_mul_launch(
+                d_pri, c->d_tf_pri[m], pad_sz, count, c->stream);
             if (c->has_sec)
             {
-                atmturb_fresnel_tf_mul_batch_launch(d_sec, c->d_tf_sec[m], (int) c->npix, count,
-                                                    c->stream);
+                atmturb_cuda_fresnel_tf1d_mul_launch(
+                    d_sec, c->d_tf_sec[m], pad_sz, count, c->stream);
             }
             cufftExecC2C(fft_plan, d_pri, d_pri, CUFFT_INVERSE);
         }
-    }
+    } // for (int m = 0; m < n_prop; m++)
 }
 
 /**
@@ -645,10 +638,11 @@ static int atmturb_fresnel_batch_run_chunk(
         cudaMemcpyAsync(c->d_lf[slot], c->h_lf[slot], lf_bytes, cudaMemcpyHostToDevice, c->stream);
     }
 
-    int           tot_pix        = count * (int) c->npix;
-    size_t        chunk_fbyt     = sizeof(float) * (size_t) tot_pix;
+    int           tot_pup        = count * (int) c->npix;
+    size_t        chunk_fbyt     = sizeof(float) * (size_t) tot_pup;
     cufftComplex *d_pri          = c->d_fields;
-    cufftComplex *d_sec          = c->has_sec ? (c->d_fields + (size_t) tot_pix) : NULL;
+    size_t        sec_off        = (size_t) count * (size_t) c->pad_npix;
+    cufftComplex *d_sec          = c->has_sec ? (c->d_fields + sec_off) : NULL;
     cufftHandle   fft_plan       = (count == c->batch_b) ? c->plan_many : c->plan_rem;
     int           has_trail_zero = (c->plan.nsuper > 0 &&
                                     fabs(c->plan.supers[c->plan.nsuper - 1].step_dist_m) <= 0.0);
@@ -656,7 +650,7 @@ static int atmturb_fresnel_batch_run_chunk(
 
     if (n_prop <= 0)
     {
-        if (has_trail_zero)
+        if (has_trail_zero && c->guard_pix == 0)
         {
             atmturb_fresnel_batch_extrude_one(c, slot, 0, count, 1, 0);
         }
@@ -667,27 +661,47 @@ static int atmturb_fresnel_batch_run_chunk(
             {
                 cudaMemsetAsync(c->d_frame_spha[slot], 0, chunk_fbyt, c->stream);
             }
+            if (has_trail_zero)
+            {
+                atmturb_fresnel_batch_extrude_one(c, slot, 0, count, 0, 1);
+            }
         }
         if (c->has_amp)
         {
-            atmturb_cuda_fill_ones_launch(c->d_frame_amp[slot], tot_pix, c->stream);
+            atmturb_cuda_fill_ones_launch(c->d_frame_amp[slot], tot_pup, c->stream);
             if (c->has_sec)
             {
-                atmturb_cuda_fill_ones_launch(c->d_frame_samp[slot], tot_pix, c->stream);
+                atmturb_cuda_fill_ones_launch(c->d_frame_samp[slot], tot_pup, c->stream);
             }
         }
     }
     else
     {
-        atmturb_fresnel_batch_prop_supers(c, slot, n_prop, count, tot_pix, d_pri, d_sec, fft_plan);
-        atmturb_cuda_fresnel_extract_launch(
-            d_pri, c->d_frame_pha[slot], c->has_amp ? c->d_frame_amp[slot] : NULL,
-            NULL, tot_pix, c->stream);
+        atmturb_fresnel_batch_prop_supers(c, slot, n_prop, count, fft_plan);
+        atmturb_cuda_fresnel_extract_args_t ext_pri = {
+            .d_field  = d_pri,
+            .d_pha    = c->d_frame_pha[slot],
+            .d_amp    = c->has_amp ? c->d_frame_amp[slot] : NULL,
+            .d_sum    = NULL,
+            .pad_size = (int) c->pad_size,
+            .pup_size = (int) c->pup_size,
+            .guard    = (int) c->guard_pix,
+            .count    = count
+        };
+        atmturb_cuda_fresnel_extract_launch(&ext_pri, c->stream);
         if (c->has_sec)
         {
-            atmturb_cuda_fresnel_extract_launch(
-                d_sec, c->d_frame_spha[slot], c->has_amp ? c->d_frame_samp[slot] : NULL,
-                NULL, tot_pix, c->stream);
+            atmturb_cuda_fresnel_extract_args_t ext_sec = {
+                .d_field  = d_sec,
+                .d_pha    = c->d_frame_spha[slot],
+                .d_amp    = c->has_amp ? c->d_frame_samp[slot] : NULL,
+                .d_sum    = NULL,
+                .pad_size = (int) c->pad_size,
+                .pup_size = (int) c->pup_size,
+                .guard    = (int) c->guard_pix,
+                .count    = count
+            };
+            atmturb_cuda_fresnel_extract_launch(&ext_sec, c->stream);
         }
         if (has_trail_zero)
         {

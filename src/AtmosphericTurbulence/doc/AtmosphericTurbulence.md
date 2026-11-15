@@ -11,15 +11,18 @@ Key physics and compute capabilities include:
 - **Phase Screen Synthesis**: Power-law Kolmogorov and von Karman Fourier phase screens with outer
   scale $L_0$, inner scale $l_0$, analytic Lane/Johansson-Gavel low-frequency subharmonics, and
   variance-preserving quadrature ($\cos\theta / \sin\theta$) rolling screen evolution (boiling).
-- **Chromatic Atmospheric Refraction**: Curved-ray path integration through 10000-layer standard or
-  site-measured $(P, T, \mathrm{RH})$ vertical profiles using Edlen/Sellmeier equations or HITRAN
-  Refractive Index & Absorption (RIA) tables.
+- **Chromatic Atmospheric Refraction**: Spherical-shell curved-ray path integration (Bouguer's
+  invariant) through 10000-layer standard or site-measured $(P, T, \mathrm{RH})$ vertical profiles
+  using Edlen/Sellmeier equations or HITRAN Refractive Index & Absorption (RIA) tables.
 - **Wavefront Propagation Modes (`FRESNEL_PROPAGATION`)**:
   - `0` (*Geometric*): Line-of-sight optical path difference integration (unit amplitude).
   - `1` (*Split-Step Fresnel*): Angular-spectrum diffractive propagation across discrete layers or
-    scintillation-weighted super-layers with $O(\Delta z^2)$ piecewise-linear hat nodes.
+    $C_n^2$ / $z^{5/6}$ scintillation-weighted super-layers using separable 1D Fresnel chirp
+    factors and optional padded guard bands (`fresnel_guard_pix`).
   - `2` (*First-Order Rytov*): Weak-scintillation Fourier quadratic-phase filtering ($\cos/\sin$
-    phase and log-amplitude kernels) with Moisan periodic-plus-smooth boundary decomposition.
+    phase and log-amplitude kernels) with $O(\Delta z^2)$ piecewise-linear hat-node altitude
+    interpolation (`rytov_zinterp`), guard bands, and Moisan periodic-plus-smooth boundary
+    decomposition.
 - **Hardware Acceleration**: Runtime-dispatched x86 SIMD (`AVX-512`, `AVX2+FMA`, scalar fallback),
   OpenMP multi-threading, and optional NVIDIA CUDA + cuFFT GPU pipelines with CUDA Graph capture
   and pinned-memory ImageStreamIO DMA.

@@ -143,6 +143,37 @@ void atmturb_fresnel_spectrum_strip_avx2(
     float                   fx0,
     const float   *restrict spec_p);
 
+/* AVX-512 implementations */
+void atmturb_fresnel_modulate_field_avx512(
+    fftwf_complex *restrict field,
+    const float   *restrict phase,
+    long                    npix);
+
+void atmturb_fresnel_init_modulate_field_avx512(
+    fftwf_complex *restrict field,
+    const float   *restrict phase,
+    long                    npix);
+
+void atmturb_fresnel_extract_unwrapped_avx512(
+    const fftwf_complex *restrict field,
+    float               *restrict pha,
+    float               *restrict amp,
+    long                          npix);
+
+void atmturb_fresnel_phasor_masked_avx512(
+    fftwf_complex *restrict field,
+    const float   *restrict opd,
+    const float   *restrict mask,
+    float                   scale,
+    long                    npix);
+
+void atmturb_fresnel_spectrum_strip_avx512(
+    fftwf_complex *restrict out,
+    const float   *restrict u1,
+    const float   *restrict u2,
+    float                   fx0,
+    const float   *restrict spec_p);
+
 #ifdef __cplusplus
 }
 #endif

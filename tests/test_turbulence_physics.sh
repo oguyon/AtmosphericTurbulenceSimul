@@ -1156,6 +1156,72 @@ sys.exit(0 if ok else 1)
 '
 }
 
+# T9t: Mode 1 split-step Fresnel guard band + quartic sponge suppresses wrap-around edge ripples
+scenario_T9t_mode1_guard_band() {
+    cat << 'EOF' > turbul.prof
+# alt(m) cn2 speed dir L0 l0
+ 500.0   0.4 10.0  0.0 50.0 0.01
+ 10000.0 0.6 20.0  0.5 50.0 0.01
+EOF
+
+    mkdir -p g0 g16 r16
+    write_conf g0/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=1 \
+        FRESNEL_GUARD_PIX=0 FRESNEL_REFRACT_PATH=1 LOWFREQ=1 \
+        SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 TURBULENCE_SEEING=0.2 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=42
+
+    write_conf g16/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=1 \
+        FRESNEL_GUARD_PIX=16 FRESNEL_REFRACT_PATH=1 LOWFREQ=1 \
+        SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 TURBULENCE_SEEING=0.2 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=42
+
+    write_conf r16/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_GUARD_PIX=16 FRESNEL_REFRACT_PATH=1 LOWFREQ=1 \
+        SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 TURBULENCE_SEEING=0.2 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=42
+
+    (cd g0 && cp ../turbul.prof . && run_mkwfs t9t_g0 1.65 0) || return 1
+    (cd g16 && cp ../turbul.prof . && run_mkwfs t9t_g16 1.65 0) || return 1
+    (cd r16 && cp ../turbul.prof . && run_mkwfs t9t_r16 1.65 0) || return 1
+
+    python3 -c '
+import sys
+import numpy as np
+from astropy.io import fits
+
+p0 = fits.getdata("g0/outarraypha.fits")
+a0 = fits.getdata("g0/outarrayamp.fits")
+p16 = fits.getdata("g16/outarraypha.fits")
+a16 = fits.getdata("g16/outarrayamp.fits")
+sp16 = fits.getdata("g16/outsarraypha.fits")
+sa16 = fits.getdata("g16/outsarrayamp.fits")
+ar16 = fits.getdata("r16/outarrayamp.fits")
+
+finite_ok = (np.all(np.isfinite(p16)) and np.all(np.isfinite(a16)) and
+             np.all(np.isfinite(sp16)) and np.all(np.isfinite(sa16)))
+
+mean_I_pri = float(np.mean(a16**2))
+mean_I_sec = float(np.mean(sa16**2))
+energy_ok = abs(mean_I_pri - 1.0) < 0.02 and abs(mean_I_sec - 1.0) < 0.02
+
+s = slice(8, -8)
+corr_p = float(np.corrcoef(p0[:, s, s].ravel(), p16[:, s, s].ravel())[0, 1])
+corr_a = float(np.corrcoef(a16[:, s, s].ravel(), ar16[:, s, s].ravel())[0, 1])
+
+bmask = np.ones(a16.shape[1:], dtype=bool)
+bmask[4:-4, 4:-4] = False
+edge_err_g0 = float(np.std((a0 - ar16)[:, bmask]))
+edge_err_g16 = float(np.std((a16 - ar16)[:, bmask]))
+
+ok = (finite_ok and energy_ok and corr_p > 0.98 and corr_a > 0.90 and
+      edge_err_g16 < edge_err_g0 * 0.80)
+msg = (f": corr_p={corr_p:.4f}, corr_a_rytov={corr_a:.4f}, "
+       f"edge_err {edge_err_g0:.4f}->{edge_err_g16:.4f}, mean_I={mean_I_pri:.4f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
 # T16a: Flat wavefront PSF produces normalized Strehl = 1.000 +- 1e-3 and centered peak
 scenario_T16a_zero_turb_strehl() {
     run_aoloop t16a "none" "PSFflat" "psf_flat.fits" 0 0.0 0.0 0 1.65 8.0 || return 1
@@ -1265,6 +1331,63 @@ sys.exit(0 if ok else 1)
 '
 }
 
+# T16d: AO PSF engine incorporates scintillation amplitude and chromatic science channels
+scenario_T16d_aoloop_scint_and_chromatic() {
+    cat << 'EOF' > turbul.prof
+# alt(m) cn2 speed dir L0 l0
+ 2000.0  0.5 10.0  0.0 50.0 0.01
+ 12000.0 0.5 22.0  0.4 50.0 0.01
+EOF
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 FRESNEL_GUARD_PIX=16 \
+        MAKE_SWAVEFRONT=1 SLAMBDA=1.65 TURBULENCE_REF_WAVEL=0.5 \
+        SITE_ALT=2000.0 ZENITH_ANGLE=0.7853981634 TURBULENCE_SEEING=0.7 \
+        TIME_SPAN=0.10 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=77
+    run_mkwfs t16d_wfs 1.65 0 || return 1
+
+    "$MKAOLOOP" -n "${FPS_PREFIX}_t16d_sc" exec "none" "PSFsc" "psf_sc.fits" \
+        0 0.0 0.0 0 1.65 1.92 0.50 0.03 0.01 "outarrayamp.fits" > aoloop_sc.log 2>&1 || return 1
+    "$MKAOLOOP" -n "${FPS_PREFIX}_t16d_ach" exec "outarraypha.fits" "PSFach" "psf_ach.fits" \
+        1 0.5 0.001 1 1.65 1.92 0.50 0.03 0.01 > aoloop_ach.log 2>&1 || return 1
+    "$MKAOLOOP" -n "${FPS_PREFIX}_t16d_chr" exec "outarraypha.fits" "PSFchr" "psf_chr.fits" \
+        1 0.5 0.001 1 1.65 1.92 0.50 0.03 0.01 "" "outsarraypha.fits" "outsarrayamp.fits" \
+        > aoloop_chr.log 2>&1 || return 1
+
+    python3 -c '
+import re, sys
+import numpy as np
+from astropy.io import fits
+
+def get_strehl(fname):
+    with open(fname) as f:
+        m = re.search(r"Strehl = ([0-9.]+)", f.read())
+    return float(m.group(1)) if m else None
+
+s_sc = get_strehl("aoloop_sc.log")
+s_ach = get_strehl("aoloop_ach.log")
+s_chr = get_strehl("aoloop_chr.log")
+if None in (s_sc, s_ach, s_chr):
+    print("FAIL: could not parse Strehl ratios from aoloop logs")
+    sys.exit(1)
+
+amp = fits.getdata("outarrayamp.fits")
+psf_chr = fits.getdata("psf_chr.fits")
+n = amp.shape[-1]
+yy, xx = np.ogrid[:n, :n]
+c = 0.5 * (n - 1.0)
+mask = ((xx - c) ** 2 + (yy - c) ** 2) <= (0.5 * n) ** 2
+npup = float(np.sum(mask))
+s_sc_theo = float(np.mean([(np.sum(frame[mask]) / npup) ** 2 for frame in amp]))
+
+scint_ok = (abs(s_sc - s_sc_theo) < 5e-3) and (s_sc < 0.999)
+chrom_ok = np.all(np.isfinite(psf_chr)) and (0.05 < s_chr < s_ach)
+ok = scint_ok and chrom_ok
+msg = (f": s_sc={s_sc:.4f} (theo {s_sc_theo:.4f}), "
+       f"s_chr={s_chr:.4f} < s_ach={s_ach:.4f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
 # ----------------------------------------------------------------------------------------------
 # Runner
 # ----------------------------------------------------------------------------------------------
@@ -1301,6 +1424,7 @@ SCENARIOS=(
     "T9q_refracted_path_length:pass"
     "T9r_scintillation_centroid:pass"
     "T9s_edge_normalization_stability:pass"
+    "T9t_mode1_guard_band:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
     "T10c_cuda_rytov_parity:pass"
@@ -1312,6 +1436,7 @@ SCENARIOS=(
     "T16a_zero_turb_strehl:pass"
     "T16b_open_loop_seeing:pass"
     "T16c_closed_loop_strehl:pass"
+    "T16d_aoloop_scint_and_chromatic:pass"
 )
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

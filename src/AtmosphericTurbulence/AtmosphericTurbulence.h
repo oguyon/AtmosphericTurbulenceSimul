@@ -466,6 +466,8 @@ int AtmosphericTurbulence_WFprocess(void);
  * @Kd: Derivative gain for PID (default: 0.0).
  * @time_step_s: Simulation time step in seconds (default: 0.001).
  * @save_psfcube: 1 to save full 3D PSF cube, 0 for cumulative 2D PSF only.
+ * @in_swfname: Optional chromatic science phase cube/stream in science radians (NULL = scale wf).
+ * @in_sampname: Optional chromatic science amplitude cube/stream (NULL = use @in_ampname).
  */
 typedef struct
 {
@@ -488,6 +490,8 @@ typedef struct
     double      Kd;
     double      time_step_s;
     int         save_psfcube;
+    const char *in_swfname;
+    const char *in_sampname;
 } atmturb_ao_params_t;
 
 /**

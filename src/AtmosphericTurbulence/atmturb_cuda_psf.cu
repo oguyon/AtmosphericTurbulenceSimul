@@ -22,6 +22,7 @@
 typedef struct
 {
     const float  *d_wf;
+    const float  *d_amp;
     const float  *d_mask;
     cufftComplex *d_in_grid;
     int           pup_size;
@@ -29,6 +30,8 @@ typedef struct
     int           off_x;
     int           off_y;
     int           count;
+    int           wf_bcast;
+    int           amp_bcast;
     float         phase_scale;
 } atmturb_ao_open_embed_kargs_t;
 
@@ -52,6 +55,8 @@ typedef struct
 typedef struct
 {
     const float  *d_wf_slice;
+    const float  *d_swf_slice;
+    const float  *d_amp_slice;
     const float  *d_mask;
     const float  *d_read_slot;
     float        *d_write_slot;
@@ -121,12 +126,18 @@ __global__ static void atmturb_cuda_ao_open_embed_kernel(
     size_t ntot = (size_t) a.pup_size * (size_t) a.pup_size;
     size_t nf2  = (size_t) a.n_fft * (size_t) a.n_fft;
     float  m    = a.d_mask[idx];
-    float  re   = m;
-    float  im   = 0.0f;
+    if (a.d_amp != NULL)
+    {
+        size_t a_off = a.amp_bcast ? idx : ((size_t) b * ntot + idx);
+        m *= a.d_amp[a_off];
+    }
+    float re = m;
+    float im = 0.0f;
 
     if (a.d_wf != NULL)
     {
-        float ph = a.d_wf[(size_t) b * ntot + idx] * a.phase_scale;
+        size_t p_off = a.wf_bcast ? idx : ((size_t) b * ntot + idx);
+        float  ph    = a.d_wf[p_off] * a.phase_scale;
         sincosf(ph, &im, &re);
         re *= m;
         im *= m;
@@ -169,20 +180,23 @@ __global__ static void atmturb_cuda_ao_ctrl_embed_kernel(
     }
     else if (a.loop_mode == 2)
     {
-        float pint  = a.d_pint[idx];
-        float perr  = a.d_perr[idx];
-        float der   = (e - perr) * a.kd_dt;
-        float pi    = a.keep * pint + e * a.dt;
+        float pint    = a.d_pint[idx];
+        float perr    = a.d_perr[idx];
+        float der     = (e - perr) * a.kd_dt;
+        float pi      = a.keep * pint + e * a.dt;
         a.d_pint[idx] = pi;
         a.d_dm[idx]   = a.kp * e + a.ki * pi + der;
         a.d_perr[idx] = e;
     }
 
-    float re = 0.0f;
-    float im = 0.0f;
-    sincosf(res * a.k_sci, &im, &re);
-    size_t dst_idx = (size_t) (a.off_y + y) * (size_t) a.n_fft + (size_t) (a.off_x + x);
-    a.d_in_grid[dst_idx] = make_cuFloatComplex(re * m, im * m);
+    float amp    = (a.d_amp_slice != NULL) ? (m * a.d_amp_slice[idx]) : m;
+    float ph_sci = (a.d_swf_slice != NULL) ? (a.d_swf_slice[idx] - dm_cur * a.k_sci)
+                                           : (res * a.k_sci);
+    float re     = 0.0f;
+    float im     = 0.0f;
+    sincosf(ph_sci, &im, &re);
+    size_t dst_idx       = (size_t) (a.off_y + y) * (size_t) a.n_fft + (size_t) (a.off_x + x);
+    a.d_in_grid[dst_idx] = make_cuFloatComplex(re * amp, im * amp);
 }
 
 /**
@@ -191,9 +205,9 @@ __global__ static void atmturb_cuda_ao_ctrl_embed_kernel(
 __global__ static void atmturb_cuda_ao_accum_kernel(
     atmturb_ao_accum_kargs_t a)
 {
-    int lane_idx = (int) (blockIdx.x * blockDim.x + threadIdx.x);
-    int vj       = (int) (blockIdx.y * blockDim.y + threadIdx.y);
-    bool valid   = (lane_idx < a.n_psf && vj < a.n_psf);
+    int  lane_idx = (int) (blockIdx.x * blockDim.x + threadIdx.x);
+    int  vj       = (int) (blockIdx.y * blockDim.y + threadIdx.y);
+    bool valid    = (lane_idx < a.n_psf && vj < a.n_psf);
 
     int    half_fft = a.n_fft >> 1;
     int    u_start  = (a.n_fft - a.n_psf) >> 1;
@@ -214,8 +228,8 @@ __global__ static void atmturb_cuda_ao_accum_kernel(
         {
             cufftComplex z = a.d_out_grid[(size_t) b * nf2 + fft_idx];
             val            = (z.x * z.x + z.y * z.y) * a.norm;
-            sum += val;
-            last_val = val;
+            sum           += val;
+            last_val       = val;
         }
         if (b == a.idx_peak0)
         {
@@ -318,6 +332,57 @@ static int atmturb_cuda_psf_ensure_plans(
 }
 
 /**
+ * atmturb_cuda_ao_alloc_opt - Allocate optional chunked or broadcast 2D device buffer
+ */
+static int atmturb_cuda_ao_alloc_opt(
+    const float *h_src,
+    long         stride,
+    size_t       chunk_len,
+    size_t       ntot,
+    float      **d_out)
+{
+    *d_out = NULL;
+    if (h_src == NULL)
+    {
+        return 0;
+    }
+    size_t n_frames = (stride == 0) ? 1U : chunk_len;
+    if (cudaMalloc((void **) d_out, sizeof(float) * n_frames * ntot) != cudaSuccess)
+    {
+        return -1;
+    }
+    if (stride == 0 &&
+        cudaMemcpyAsync(*d_out, h_src, sizeof(float) * ntot,
+                        cudaMemcpyHostToDevice, s_psf_stream) != cudaSuccess)
+    {
+        cudaFree(*d_out);
+        *d_out = NULL;
+        return -1;
+    }
+    return 0;
+}
+
+/**
+ * atmturb_cuda_ao_upload_chunk - Copy frame chunk when optional buffer is 3D (`stride > 0`)
+ */
+static int atmturb_cuda_ao_upload_chunk(
+    float       *d_dst,
+    const float *h_src,
+    long         stride,
+    long         t0,
+    long         clen,
+    size_t       ntot)
+{
+    if (d_dst == NULL || h_src == NULL || stride == 0)
+    {
+        return 0;
+    }
+    return (cudaMemcpyAsync(d_dst, h_src + (size_t) t0 * ntot,
+                            sizeof(float) * (size_t) clen * ntot,
+                            cudaMemcpyHostToDevice, s_psf_stream) == cudaSuccess) ? 0 : -1;
+}
+
+/**
  * atmturb_cuda_ao_run_open - Execute batched open-loop AO PSF accumulation on GPU
  */
 static int atmturb_cuda_ao_run_open(
@@ -329,59 +394,72 @@ static int atmturb_cuda_ao_run_open(
     float                       *d_peaks,
     int                          batch)
 {
-    size_t ntot       = (size_t) req->pup_size * (size_t) req->pup_size;
-    float *d_wf_batch = NULL;
-    if (req->wf_data != NULL &&
-        cudaMalloc((void **) &d_wf_batch, sizeof(float) * (size_t) batch * ntot) != cudaSuccess)
+    size_t       ntot       = (size_t) req->pup_size * (size_t) req->pup_size;
+    const float *h_pha      = (req->swf_data != NULL) ? req->swf_data : req->wf_data;
+    long         pha_stride = (req->swf_data != NULL) ? req->swf_stride : (long) ntot;
+    float       *d_wf_batch = NULL;
+    float       *d_amp_b    = NULL;
+    int          ret        = -1;
+
+    if (atmturb_cuda_ao_alloc_opt(h_pha, pha_stride, (size_t) batch, ntot, &d_wf_batch) != 0 ||
+        atmturb_cuda_ao_alloc_opt(req->amp_data, req->amp_stride, (size_t) batch, ntot,
+                                  &d_amp_b) != 0)
     {
-        return -1;
+        goto cleanup;
     }
 
-    float open_scale = (float) (req->params->lambda_ref_m / req->params->lambda_sci_m);
-    float norm       = 1.0f / ((float) req->n_fft * (float) req->n_fft);
-    int   off        = (int) ((req->n_fft - req->pup_size) / 2);
-    dim3  blk(32, 8);
-    dim3  grd_psf(((unsigned int) req->n_psf + 31U) / 32U, ((unsigned int) req->n_psf + 7U) / 8U);
-
-    for (long t0 = 0; t0 < req->nbframes; t0 += batch)
     {
-        int count = (t0 + batch <= req->nbframes) ? batch : (int) (req->nbframes - t0);
-        if (d_wf_batch != NULL &&
-            cudaMemcpyAsync(d_wf_batch, req->wf_data + (size_t) t0 * ntot,
-                            sizeof(float) * (size_t) count * ntot,
-                            cudaMemcpyHostToDevice, s_psf_stream) != cudaSuccess)
+        float open_scale = (req->swf_data != NULL)
+                               ? 1.0f
+                               : (float) (req->params->lambda_ref_m / req->params->lambda_sci_m);
+        float norm       = 1.0f / ((float) req->n_fft * (float) req->n_fft);
+        int   off        = (int) ((req->n_fft - req->pup_size) / 2);
+        dim3  blk(32, 8);
+        dim3  grd_psf(((unsigned int) req->n_psf + 31U) / 32U,
+                      ((unsigned int) req->n_psf + 7U) / 8U);
+
+        for (long t0 = 0; t0 < req->nbframes; t0 += batch)
         {
-            cudaFree(d_wf_batch);
-            return -1;
+            int count = (t0 + batch <= req->nbframes) ? batch : (int) (req->nbframes - t0);
+            if (atmturb_cuda_ao_upload_chunk(d_wf_batch, h_pha, pha_stride,
+                                             t0, count, ntot) != 0 ||
+                atmturb_cuda_ao_upload_chunk(d_amp_b, req->amp_data, req->amp_stride,
+                                             t0, count, ntot) != 0)
+            {
+                goto cleanup;
+            }
+
+            dim3 grd_pup(((unsigned int) req->pup_size + 31U) / 32U,
+                         ((unsigned int) req->pup_size + 7U) / 8U, (unsigned int) count);
+            atmturb_ao_open_embed_kargs_t ek = {
+                d_wf_batch, d_amp_b, d_mask, d_in_grid, (int) req->pup_size, (int) req->n_fft,
+                off, off, count, (pha_stride == 0) ? 1 : 0, (req->amp_stride == 0) ? 1 : 0,
+                open_scale
+            };
+            atmturb_cuda_ao_open_embed_kernel<<<grd_pup, blk, 0, s_psf_stream>>>(ek);
+
+            cufftHandle plan = (batch > 1) ? s_psf_plan_b : s_psf_plan_1;
+            if (cufftExecC2C(plan, d_in_grid, d_out_grid, CUFFT_FORWARD) != CUFFT_SUCCESS)
+            {
+                goto cleanup;
+            }
+
+            int idx0 = (t0 == 0) ? 0 : -1;
+            int idx1 = (req->nbframes > 1 && (req->nbframes - 1) >= t0 &&
+                        (req->nbframes - 1) < t0 + count) ? (int) (req->nbframes - 1 - t0) : -1;
+            atmturb_ao_accum_kargs_t ak = {
+                d_out_grid, d_psf, d_peaks, (int) req->n_fft, (int) req->n_psf, count,
+                req->do_accum, 1, idx0, 1, idx1, 2, norm
+            };
+            atmturb_cuda_ao_accum_kernel<<<grd_psf, blk, 0, s_psf_stream>>>(ak);
         }
-
-        dim3 grd_pup(((unsigned int) req->pup_size + 31U) / 32U,
-                     ((unsigned int) req->pup_size + 7U) / 8U, (unsigned int) count);
-        atmturb_ao_open_embed_kargs_t ek = {
-            d_wf_batch, d_mask, d_in_grid, (int) req->pup_size, (int) req->n_fft,
-            off, off, count, open_scale
-        };
-        atmturb_cuda_ao_open_embed_kernel<<<grd_pup, blk, 0, s_psf_stream>>>(ek);
-
-        cufftHandle plan = (batch > 1) ? s_psf_plan_b : s_psf_plan_1;
-        if (cufftExecC2C(plan, d_in_grid, d_out_grid, CUFFT_FORWARD) != CUFFT_SUCCESS)
-        {
-            cudaFree(d_wf_batch);
-            return -1;
-        }
-
-        int idx0 = (t0 == 0) ? 0 : -1;
-        int idx1 = (req->nbframes > 1 && (req->nbframes - 1) >= t0 &&
-                    (req->nbframes - 1) < t0 + count) ? (int) (req->nbframes - 1 - t0) : -1;
-        atmturb_ao_accum_kargs_t ak = {
-            d_out_grid, d_psf, d_peaks, (int) req->n_fft, (int) req->n_psf, count,
-            req->do_accum, 1, idx0, 1, idx1, 2, norm
-        };
-        atmturb_cuda_ao_accum_kernel<<<grd_psf, blk, 0, s_psf_stream>>>(ak);
     }
+    ret = 0;
 
+cleanup:
     cudaFree(d_wf_batch);
-    return 0;
+    cudaFree(d_amp_b);
+    return ret;
 }
 
 /**
@@ -397,8 +475,9 @@ static int atmturb_cuda_ao_run_closed(
 {
     const atmturb_ao_params_t *p     = req->params;
     size_t                     ntot  = (size_t) req->pup_size * (size_t) req->pup_size;
-    int                        delay = (p->loop_delay < 0) ? 0 :
-                                       ((p->loop_delay > 3) ? 3 : p->loop_delay);
+    int                        delay = (p->loop_delay < 0) ? 0
+                                                           : ((p->loop_delay > 3) ? 3
+                                                                                  : p->loop_delay);
     int                        depth = delay + 1;
     long                       wchk  = (req->nbframes < ATMTURB_AO_CUDA_WF_CHUNK)
                                            ? req->nbframes : ATMTURB_AO_CUDA_WF_CHUNK;
@@ -406,76 +485,92 @@ static int atmturb_cuda_ao_run_closed(
     size_t state_floats = (size_t) (3 + depth) * ntot;
     float *d_state      = NULL;
     float *d_wf_chunk   = NULL;
+    float *d_swf_chunk  = NULL;
+    float *d_amp_chunk  = NULL;
+    int    ret          = -1;
+
     if (cudaMalloc((void **) &d_state, sizeof(float) * state_floats) != cudaSuccess ||
         cudaMemsetAsync(d_state, 0, sizeof(float) * state_floats, s_psf_stream) != cudaSuccess ||
-        (req->wf_data != NULL &&
-         cudaMalloc((void **) &d_wf_chunk, sizeof(float) * (size_t) wchk * ntot) != cudaSuccess))
+        atmturb_cuda_ao_alloc_opt(req->wf_data, (long) ntot, (size_t) wchk, ntot,
+                                  &d_wf_chunk) != 0 ||
+        atmturb_cuda_ao_alloc_opt(req->swf_data, req->swf_stride, (size_t) wchk, ntot,
+                                  &d_swf_chunk) != 0 ||
+        atmturb_cuda_ao_alloc_opt(req->amp_data, req->amp_stride, (size_t) wchk, ntot,
+                                  &d_amp_chunk) != 0)
     {
-        cudaFree(d_state);
-        cudaFree(d_wf_chunk);
-        return -1;
+        goto cleanup;
     }
 
-    float dt   = (p->time_step_s > 0.0) ? (float) p->time_step_s : 0.001f;
-    float norm = 1.0f / ((float) req->n_fft * (float) req->n_fft);
-    int   off  = (int) ((req->n_fft - req->pup_size) / 2);
-    int   head = 0;
-    dim3  blk(32, 8);
-    dim3  grd_pup(((unsigned int) req->pup_size + 31U) / 32U,
-                  ((unsigned int) req->pup_size + 7U) / 8U);
-    dim3  grd_psf(((unsigned int) req->n_psf + 31U) / 32U, ((unsigned int) req->n_psf + 7U) / 8U);
-
-    atmturb_ao_ctrl_kargs_t ck = {
-        NULL, d_mask, NULL, NULL, d_state, d_state + ntot, d_state + 2 * ntot, d_in_grid,
-        (int) req->pup_size, (int) req->n_fft, off, off, p->loop_mode, delay,
-        (float) (p->lambda_ref_m / (2.0 * M_PI)), (float) (2.0 * M_PI / p->lambda_sci_m),
-        1.0f - (float) p->leak, (float) p->gain, (float) p->Kp, (float) p->Ki,
-        (float) p->Kd / dt, dt
-    };
-
-    for (long t0 = 0; t0 < req->nbframes; t0 += wchk)
     {
-        long clen = (t0 + wchk <= req->nbframes) ? wchk : (req->nbframes - t0);
-        if (d_wf_chunk != NULL &&
-            cudaMemcpyAsync(d_wf_chunk, req->wf_data + (size_t) t0 * ntot,
-                            sizeof(float) * (size_t) clen * ntot,
-                            cudaMemcpyHostToDevice, s_psf_stream) != cudaSuccess)
-        {
-            cudaFree(d_state);
-            cudaFree(d_wf_chunk);
-            return -1;
-        }
+        float dt   = (p->time_step_s > 0.0) ? (float) p->time_step_s : 0.001f;
+        float norm = 1.0f / ((float) req->n_fft * (float) req->n_fft);
+        int   off  = (int) ((req->n_fft - req->pup_size) / 2);
+        int   head = 0;
+        dim3  blk(32, 8);
+        dim3  grd_pup(((unsigned int) req->pup_size + 31U) / 32U,
+                      ((unsigned int) req->pup_size + 7U) / 8U);
+        dim3  grd_psf(((unsigned int) req->n_psf + 31U) / 32U,
+                      ((unsigned int) req->n_psf + 7U) / 8U);
 
-        for (long c = 0; c < clen; c++)
-        {
-            long t         = t0 + c;
-            int  read_idx  = (head - delay + depth) % depth;
-            ck.d_wf_slice  = (d_wf_chunk != NULL) ? (d_wf_chunk + (size_t) c * ntot) : NULL;
-            ck.d_read_slot = d_state + (size_t) (3 + read_idx) * ntot;
-            ck.d_write_slot = d_state + (size_t) (3 + head) * ntot;
-            head           = (head + 1) % depth;
+        atmturb_ao_ctrl_kargs_t ck = {
+            NULL, NULL, NULL, d_mask, NULL, NULL, d_state, d_state + ntot, d_state + 2 * ntot,
+            d_in_grid, (int) req->pup_size, (int) req->n_fft, off, off, p->loop_mode, delay,
+            (float) (p->lambda_ref_m / (2.0 * M_PI)), (float) (2.0 * M_PI / p->lambda_sci_m),
+            1.0f - (float) p->leak, (float) p->gain, (float) p->Kp, (float) p->Ki,
+            (float) p->Kd / dt, dt
+        };
 
-            atmturb_cuda_ao_ctrl_embed_kernel<<<grd_pup, blk, 0, s_psf_stream>>>(ck);
-            if (cufftExecC2C(s_psf_plan_1, d_in_grid, d_out_grid, CUFFT_FORWARD) != CUFFT_SUCCESS)
+        for (long t0 = 0; t0 < req->nbframes; t0 += wchk)
+        {
+            long clen = (t0 + wchk <= req->nbframes) ? wchk : (req->nbframes - t0);
+            if (atmturb_cuda_ao_upload_chunk(d_wf_chunk, req->wf_data, (long) ntot,
+                                             t0, clen, ntot) != 0 ||
+                atmturb_cuda_ao_upload_chunk(d_swf_chunk, req->swf_data, req->swf_stride,
+                                             t0, clen, ntot) != 0 ||
+                atmturb_cuda_ao_upload_chunk(d_amp_chunk, req->amp_data, req->amp_stride,
+                                             t0, clen, ntot) != 0)
             {
-                cudaFree(d_state);
-                cudaFree(d_wf_chunk);
-                return -1;
+                goto cleanup;
             }
 
-            int idx0 = (t == 0) ? 0 : -1;
-            int idx1 = (req->nbframes > 1 && t == req->nbframes - 1) ? 0 : -1;
-            atmturb_ao_accum_kargs_t ak = {
-                d_out_grid, d_psf, d_peaks, (int) req->n_fft, (int) req->n_psf, 1,
-                req->do_accum, 1, idx0, 1, idx1, 2, norm
-            };
-            atmturb_cuda_ao_accum_kernel<<<grd_psf, blk, 0, s_psf_stream>>>(ak);
+            for (long c = 0; c < clen; c++)
+            {
+                long   t       = t0 + c;
+                int    r_idx   = (head - delay + depth) % depth;
+                size_t swf_off = (req->swf_stride == 0) ? 0U : ((size_t) c * ntot);
+                size_t amp_off = (req->amp_stride == 0) ? 0U : ((size_t) c * ntot);
+                ck.d_wf_slice   = (d_wf_chunk != NULL) ? (d_wf_chunk + (size_t) c * ntot) : NULL;
+                ck.d_swf_slice  = (d_swf_chunk != NULL) ? (d_swf_chunk + swf_off) : NULL;
+                ck.d_amp_slice  = (d_amp_chunk != NULL) ? (d_amp_chunk + amp_off) : NULL;
+                ck.d_read_slot  = d_state + (size_t) (3 + r_idx) * ntot;
+                ck.d_write_slot = d_state + (size_t) (3 + head) * ntot;
+                head            = (head + 1) % depth;
+
+                atmturb_cuda_ao_ctrl_embed_kernel<<<grd_pup, blk, 0, s_psf_stream>>>(ck);
+                if (cufftExecC2C(s_psf_plan_1, d_in_grid, d_out_grid,
+                                 CUFFT_FORWARD) != CUFFT_SUCCESS)
+                {
+                    goto cleanup;
+                }
+
+                int idx0 = (t == 0) ? 0 : -1;
+                int idx1 = (req->nbframes > 1 && t == req->nbframes - 1) ? 0 : -1;
+                atmturb_ao_accum_kargs_t ak = {
+                    d_out_grid, d_psf, d_peaks, (int) req->n_fft, (int) req->n_psf, 1,
+                    req->do_accum, 1, idx0, 1, idx1, 2, norm
+                };
+                atmturb_cuda_ao_accum_kernel<<<grd_psf, blk, 0, s_psf_stream>>>(ak);
+            }
         }
     }
+    ret = 0;
 
+cleanup:
     cudaFree(d_state);
     cudaFree(d_wf_chunk);
-    return 0;
+    cudaFree(d_swf_chunk);
+    cudaFree(d_amp_chunk);
+    return ret;
 }
 
 /**
@@ -538,14 +633,15 @@ int atmturb_cuda_ao_sim_run(
     }
 
     {
-        int  off  = (int) ((req->n_fft - req->pup_size) / 2);
+        int  off = (int) ((req->n_fft - req->pup_size) / 2);
         dim3 blk(32, 8);
         dim3 grd_pup(((unsigned int) req->pup_size + 31U) / 32U,
                      ((unsigned int) req->pup_size + 7U) / 8U, 1U);
         dim3 grd_psf(((unsigned int) req->n_psf + 31U) / 32U,
                      ((unsigned int) req->n_psf + 7U) / 8U);
         atmturb_ao_open_embed_kargs_t dl_ek = {
-            NULL, d_mask, d_in_grid, (int) req->pup_size, (int) req->n_fft, off, off, 1, 0.0f
+            NULL, NULL, d_mask, d_in_grid, (int) req->pup_size, (int) req->n_fft,
+            off, off, 1, 0, 0, 0.0f
         };
         atmturb_ao_accum_kargs_t dl_ak = {
             d_out_grid, d_psf, d_peaks, (int) req->n_fft, (int) req->n_psf, 1, 0, 0, 0, 0, -1, 0,
@@ -590,10 +686,10 @@ int atmturb_cuda_ao_sim_run(
         }
         if (req->s_endpoints != NULL)
         {
-            double s0         = (dl_peak > 0.0) ? ((double) h_peaks[1] / dl_peak) : 0.0;
-            double s1         = (req->nbframes == 1)
-                                    ? s0
-                                    : ((dl_peak > 0.0) ? ((double) h_peaks[2] / dl_peak) : 0.0);
+            double s0           = (dl_peak > 0.0) ? ((double) h_peaks[1] / dl_peak) : 0.0;
+            double s1           = (req->nbframes == 1)
+                                      ? s0
+                                      : ((dl_peak > 0.0) ? ((double) h_peaks[2] / dl_peak) : 0.0);
             req->s_endpoints[0] = s0;
             req->s_endpoints[1] = s1;
         }

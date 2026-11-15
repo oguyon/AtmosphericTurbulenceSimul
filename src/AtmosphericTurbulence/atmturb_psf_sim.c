@@ -205,45 +205,35 @@ static void atmturb_ao_controller_free(
 }
 
 /**
- * atmturb_ao_controller_step - Update DM and compute residual OPD for current frame
+ * atmturb_ao_controller_step - Update DM and compute science residual for current frame
  * @ctrl: Active controller state.
  * @params: Simulation parameters.
- * @wf_slice: Input phase slice in reference radians [ntot], or NULL for zero input.
- * @opd_scale: Scale converting reference radians to OPD in meters.
+ * @wf_slice: Input WFS phase slice in reference radians [ntot], or NULL for zero input.
+ * @swf_slice: Optional science phase slice in science radians [ntot], or NULL to scale WFS OPD.
  * @pupil_mask: Circular pupil mask [ntot].
- * @opd_res_out: Output residual optical path difference in meters [ntot].
+ * @sci_res_out: Output science residual (science radians if @swf_slice != NULL, else OPD [m]).
  */
 static void atmturb_ao_controller_step(
     atmturb_ao_controller_t   *ctrl,
     const atmturb_ao_params_t *params,
     const float               *wf_slice,
-    float                      opd_scale,
+    const float               *swf_slice,
     const float               *pupil_mask,
-    float                     *opd_res_out)
+    float                     *sci_res_out)
 {
-    long               ntot = ctrl->ntot;
-    float *restrict    slot = ctrl->delay_ring[ctrl->head];
-    const float *const dm_r = ctrl->dm_opd;
+    long               ntot      = ctrl->ntot;
+    float              opd_scale = (float) (params->lambda_ref_m / (2.0 * M_PI));
+    float              k_sci     = (float) (2.0 * M_PI / params->lambda_sci_m);
+    float *restrict    slot      = ctrl->delay_ring[ctrl->head];
+    const float *const dm_r      = ctrl->dm_opd;
 
-    if (wf_slice != NULL)
+    #pragma omp simd
+    for (long i = 0; i < ntot; i++)
     {
-        #pragma omp simd
-        for (long i = 0; i < ntot; i++)
-        {
-            float res      = wf_slice[i] * opd_scale - dm_r[i];
-            slot[i]        = res * pupil_mask[i];
-            opd_res_out[i] = res;
-        }
-    }
-    else
-    {
-        #pragma omp simd
-        for (long i = 0; i < ntot; i++)
-        {
-            float res      = -dm_r[i];
-            slot[i]        = res * pupil_mask[i];
-            opd_res_out[i] = res;
-        }
+        float wf_v     = (wf_slice != NULL) ? wf_slice[i] : 0.0f;
+        float res      = wf_v * opd_scale - dm_r[i];
+        slot[i]        = res * pupil_mask[i];
+        sci_res_out[i] = (swf_slice != NULL) ? (swf_slice[i] - dm_r[i] * k_sci) : res;
     }
 
     int          read_idx    = (ctrl->head - ctrl->delay + ctrl->depth) % ctrl->depth;
@@ -438,6 +428,47 @@ static int atmturb_ao_save_fits(
 }
 
 /**
+ * atmturb_ao_opt_wf_load - Load and validate optional amplitude or chromatic phase cube/map
+ */
+static int atmturb_ao_opt_wf_load(
+    const char      *name,
+    long            *io_pup_size,
+    long            *io_req_frames,
+    atmturb_ao_wf_t *out,
+    long            *out_stride)
+{
+    memset(out, 0, sizeof(*out));
+    *out_stride = 0;
+    if (name == NULL || name[0] == '\0' || strcmp(name, "none") == 0)
+    {
+        return 0;
+    }
+    if (atmturb_ao_wf_load(name, *io_pup_size, out) != 0 || out->data == NULL)
+    {
+        atmturb_ao_wf_free(out);
+        return -1;
+    }
+    if (*io_pup_size <= 0)
+    {
+        *io_pup_size = out->pup_size;
+    }
+    if (*io_req_frames <= 0)
+    {
+        *io_req_frames = out->nbframes;
+    }
+    if (out->pup_size != *io_pup_size || (out->nbframes != 1 && out->nbframes < *io_req_frames))
+    {
+        printf("ERROR: channel '%s' size (%ldx%ldx%ld) incompatible with (%ldx%ldx%ld)\n",
+               name, out->pup_size, out->pup_size, out->nbframes,
+               *io_pup_size, *io_pup_size, *io_req_frames);
+        atmturb_ao_wf_free(out);
+        return -1;
+    }
+    *out_stride = (out->nbframes == 1) ? 0 : (*io_pup_size * *io_pup_size);
+    return 0;
+}
+
+/**
  * atmturb_ao_run_open_loop_mt - Parallel open-loop PSF accumulation across frames
  */
 static void atmturb_ao_run_open_loop_mt(
@@ -446,8 +477,11 @@ static void atmturb_ao_run_open_loop_mt(
     float                          phase_scale,
     double                         dl_peak)
 {
-    long n_pix = base_eng->n_psf * base_eng->n_psf;
-    long ntot  = req->pup_size * req->pup_size;
+    long         n_pix      = base_eng->n_psf * base_eng->n_psf;
+    long         ntot       = req->pup_size * req->pup_size;
+    const float *pha_src    = (req->swf_data != NULL) ? req->swf_data : req->wf_data;
+    long         pha_stride = (req->swf_data != NULL) ? req->swf_stride : ntot;
+    float        p_scale    = (req->swf_data != NULL) ? 1.0f : phase_scale;
 
 #ifdef _OPENMP
     int nth = omp_get_max_threads();
@@ -467,10 +501,13 @@ static void atmturb_ao_run_open_loop_mt(
                 #pragma omp for schedule(dynamic, 2)
                 for (long t = 0; t < req->nbframes; t++)
                 {
-                    const float *sl = (req->wf_data != NULL) ? &req->wf_data[t * ntot] : NULL;
-                    double       sp = atmturb_ao_render_psf(&teng, sl, req->pupil_mask,
-                                                            req->pup_size, phase_scale, lpsf, 1);
-                    double       sr = (dl_peak > 0.0) ? (sp / dl_peak) : 0.0;
+                    const float *sl  = (pha_src != NULL) ? &pha_src[t * pha_stride] : NULL;
+                    const float *asl = (req->amp_data != NULL)
+                                           ? &req->amp_data[t * req->amp_stride]
+                                           : NULL;
+                    double       sp  = atmturb_ao_render_psf_amp(&teng, sl, asl, req->pupil_mask,
+                                                                 p_scale, lpsf, 1);
+                    double       sr  = (dl_peak > 0.0) ? (sp / dl_peak) : 0.0;
                     if (t == 0)
                     {
                         req->s_endpoints[0] = sr;
@@ -494,10 +531,11 @@ static void atmturb_ao_run_open_loop_mt(
 
     for (long t = 0; t < req->nbframes; t++)
     {
-        const float *sl = (req->wf_data != NULL) ? &req->wf_data[t * ntot] : NULL;
-        double       sp = atmturb_ao_render_psf(base_eng, sl, req->pupil_mask, req->pup_size,
-                                                phase_scale, req->psf_out, 1);
-        double       sr = (dl_peak > 0.0) ? (sp / dl_peak) : 0.0;
+        const float *sl  = (pha_src != NULL) ? &pha_src[t * pha_stride] : NULL;
+        const float *asl = (req->amp_data != NULL) ? &req->amp_data[t * req->amp_stride] : NULL;
+        double       sp  = atmturb_ao_render_psf_amp(base_eng, sl, asl, req->pupil_mask,
+                                                     p_scale, req->psf_out, 1);
+        double       sr  = (dl_peak > 0.0) ? (sp / dl_peak) : 0.0;
         if (t == 0)
         {
             req->s_endpoints[0] = sr;
@@ -538,9 +576,9 @@ static int atmturb_ao_run_closed_loop_mt(
         return -1;
     }
 
-    float  opd_scale = (float) (p->lambda_ref_m / (2.0 * M_PI));
-    double s_first   = 0.0;
-    double s_last    = 0.0;
+    float  chunk_scale = (req->swf_data != NULL) ? 1.0f : k_sci;
+    double s_first     = 0.0;
+    double s_last      = 0.0;
 
     for (long t0 = 0; t0 < req->nbframes; t0 += chunk_cap)
     {
@@ -551,17 +589,23 @@ static int atmturb_ao_run_closed_loop_mt(
         }
         for (long c = 0; c < n_cur; c++)
         {
-            const float *sl = (req->wf_data != NULL) ? &req->wf_data[(t0 + c) * ntot] : NULL;
-            atmturb_ao_controller_step(ctrl, p, sl, opd_scale, req->pupil_mask,
-                                       &opd_chunk[c * ntot]);
+            long         t  = t0 + c;
+            const float *sl = (req->wf_data != NULL) ? &req->wf_data[t * ntot] : NULL;
+            const float *sw = (req->swf_data != NULL) ? &req->swf_data[t * req->swf_stride] : NULL;
+            atmturb_ao_controller_step(ctrl, p, sl, sw, req->pupil_mask, &opd_chunk[c * ntot]);
         }
 
         double                chunk_ep[2] = {0.0, 0.0};
         atmturb_cuda_ao_req_t sub         = *req;
         sub.wf_data                       = opd_chunk;
+        sub.swf_data                      = NULL;
+        sub.swf_stride                    = 0;
+        sub.amp_data                      = (req->amp_data != NULL)
+                                                ? (req->amp_data + t0 * req->amp_stride)
+                                                : NULL;
         sub.nbframes                      = n_cur;
         sub.s_endpoints                   = chunk_ep;
-        atmturb_ao_run_open_loop_mt(eng, &sub, k_sci, dl_peak);
+        atmturb_ao_run_open_loop_mt(eng, &sub, chunk_scale, dl_peak);
 
         if (t0 == 0)
         {
@@ -638,22 +682,30 @@ static int atmturb_ao_run_cpu(
     }
     else
     {
-        float opd_scale = (float) (p->lambda_ref_m / (2.0 * M_PI));
+        float open_scale = (float) (p->lambda_ref_m / p->lambda_sci_m);
+        float cl_scale   = (req->swf_data != NULL) ? 1.0f : k_sci;
         for (long t = 0; t < req->nbframes; t++)
         {
             const float *slice = (req->wf_data != NULL) ? &req->wf_data[t * ntot] : NULL;
+            const float *sw    = (req->swf_data != NULL)
+                                     ? &req->swf_data[t * req->swf_stride]
+                                     : NULL;
+            const float *asl   = (req->amp_data != NULL)
+                                     ? &req->amp_data[t * req->amp_stride]
+                                     : NULL;
             double       sp    = 0.0;
             if (p->loop_mode == 0)
             {
-                sp = atmturb_ao_render_psf(&eng, slice, req->pupil_mask, req->pup_size,
-                                           (float) (p->lambda_ref_m / p->lambda_sci_m),
-                                           req->psf_out, req->do_accum);
+                const float *psl = (req->swf_data != NULL) ? sw : slice;
+                float        psc = (req->swf_data != NULL) ? 1.0f : open_scale;
+                sp               = atmturb_ao_render_psf_amp(&eng, psl, asl, req->pupil_mask,
+                                                             psc, req->psf_out, req->do_accum);
             }
             else
             {
-                atmturb_ao_controller_step(&ctrl, p, slice, opd_scale, req->pupil_mask, opd_res);
-                sp = atmturb_ao_render_psf(&eng, opd_res, req->pupil_mask, req->pup_size,
-                                           k_sci, req->psf_out, req->do_accum);
+                atmturb_ao_controller_step(&ctrl, p, slice, sw, req->pupil_mask, opd_res);
+                sp = atmturb_ao_render_psf_amp(&eng, opd_res, asl, req->pupil_mask,
+                                               cl_scale, req->psf_out, req->do_accum);
             }
             double sr = (dl_peak > 0.0) ? (sp / dl_peak) : 0.0;
             if (t == 0)
@@ -696,16 +748,43 @@ int atmturb_ao_sim_run(
         atmturb_ao_init_params(&p);
     }
 
-    atmturb_ao_wf_t wf;
+    atmturb_ao_wf_t wf, amp_wf, swf, samp_wf;
+    memset(&amp_wf, 0, sizeof(amp_wf));
+    memset(&swf, 0, sizeof(swf));
+    memset(&samp_wf, 0, sizeof(samp_wf));
     if (atmturb_ao_wf_load(p.in_wfname, p.pup_size, &wf) != 0)
     {
         return -1;
     }
 
-    long pup_size = wf.pup_size;
-    long nbframes = (p.nbframes > 0 && p.nbframes < wf.nbframes) ? p.nbframes : wf.nbframes;
-    long ntot     = pup_size * pup_size;
-    long n_fft    = 256;
+    long pup_size = (wf.data != NULL) ? wf.pup_size : p.pup_size;
+    long nbframes = (wf.data != NULL)
+                        ? ((p.nbframes > 0 && p.nbframes < wf.nbframes) ? p.nbframes : wf.nbframes)
+                        : p.nbframes;
+    long amp_str  = 0;
+    long swf_str  = 0;
+    long samp_str = 0;
+    if (atmturb_ao_opt_wf_load(p.in_ampname, &pup_size, &nbframes, &amp_wf, &amp_str) != 0 ||
+        atmturb_ao_opt_wf_load(p.in_swfname, &pup_size, &nbframes, &swf, &swf_str) != 0 ||
+        atmturb_ao_opt_wf_load(p.in_sampname, &pup_size, &nbframes, &samp_wf, &samp_str) != 0)
+    {
+        atmturb_ao_wf_free(&samp_wf);
+        atmturb_ao_wf_free(&swf);
+        atmturb_ao_wf_free(&amp_wf);
+        atmturb_ao_wf_free(&wf);
+        return -1;
+    }
+    if (pup_size <= 0)
+    {
+        pup_size = wf.pup_size;
+    }
+    if (nbframes <= 0)
+    {
+        nbframes = wf.nbframes;
+    }
+    long ntot = pup_size * pup_size;
+
+    long n_fft = 256;
     while (n_fft < 2 * pup_size)
     {
         n_fft *= 2;
@@ -719,59 +798,56 @@ int atmturb_ao_sim_run(
 
     float *pupil_mask = (float *) malloc(sizeof(float) * (size_t) ntot);
     float *fallback   = NULL;
+    int    ret        = -1;
     if (pupil_mask == NULL)
     {
-        atmturb_ao_wf_free(&wf);
-        return -1;
+        goto cleanup;
     }
     atmturb_ao_init_pupil_mask(pup_size, p.tel_diam_m, p.pupil_scale_m, pupil_mask);
 
-    delete_image_ID(p.out_psfname);
-    imageID id_psf   = create_2Dimage_ID(p.out_psfname, n_psf, n_psf);
-    int     do_accum = (id_psf >= 0) ? 1 : 0;
-    float  *psf_out  = (id_psf >= 0) ? dcimg[id_psf].array.F : NULL;
-    if (psf_out == NULL)
     {
-        fallback = (float *) calloc((size_t) (n_psf * n_psf), sizeof(float));
-        psf_out  = fallback;
+        delete_image_ID(p.out_psfname);
+        imageID id_psf   = create_2Dimage_ID(p.out_psfname, n_psf, n_psf);
+        int     do_accum = (id_psf >= 0) ? 1 : 0;
+        float  *psf_out  = (id_psf >= 0) ? dcimg[id_psf].array.F : NULL;
         if (psf_out == NULL)
         {
-            free(pupil_mask);
-            atmturb_ao_wf_free(&wf);
-            return -1;
+            fallback = (float *) calloc((size_t) (n_psf * n_psf), sizeof(float));
+            psf_out  = fallback;
+            if (psf_out == NULL)
+            {
+                goto cleanup;
+            }
         }
-    }
 
-    double                dl_peak        = 0.0;
-    double                s_endpoints[2] = {0.0, 0.0};
-    atmturb_cuda_ao_req_t creq           = {
-        .params      = &p,
-        .wf_data     = wf.data,
-        .pupil_mask  = pupil_mask,
-        .pup_size    = pup_size,
-        .n_fft       = n_fft,
-        .n_psf       = n_psf,
-        .nbframes    = nbframes,
-        .do_accum    = do_accum,
-        .psf_out     = psf_out,
-        .dl_peak_out = &dl_peak,
-        .s_endpoints = s_endpoints
-    };
-    int ran_gpu = (atmturb_simd_is_gpu() && (nbframes >= 4 || atmturb_simd_is_gpu_forced()) &&
-                   p.save_psfcube == 0 && p.in_ampname == NULL &&
-                   atmturb_cuda_ao_sim_run(&creq) == 0);
-    if (!ran_gpu && atmturb_ao_run_cpu(&creq) != 0)
-    {
-        free(fallback);
-        free(pupil_mask);
-        atmturb_ao_wf_free(&wf);
-        return -1;
-    }
+        double                dl_peak        = 0.0;
+        double                s_endpoints[2] = {0.0, 0.0};
+        atmturb_cuda_ao_req_t creq           = {
+            .params      = &p,
+            .wf_data     = wf.data,
+            .amp_data    = (samp_wf.data != NULL) ? samp_wf.data : amp_wf.data,
+            .swf_data    = swf.data,
+            .pupil_mask  = pupil_mask,
+            .pup_size    = pup_size,
+            .amp_stride  = (samp_wf.data != NULL) ? samp_str : amp_str,
+            .swf_stride  = swf_str,
+            .n_fft       = n_fft,
+            .n_psf       = n_psf,
+            .nbframes    = nbframes,
+            .do_accum    = do_accum,
+            .psf_out     = psf_out,
+            .dl_peak_out = &dl_peak,
+            .s_endpoints = s_endpoints
+        };
+        int ran_gpu = (atmturb_simd_is_gpu() && (nbframes >= 4 || atmturb_simd_is_gpu_forced()) &&
+                       p.save_psfcube == 0 && atmturb_cuda_ao_sim_run(&creq) == 0);
+        if (!ran_gpu && atmturb_ao_run_cpu(&creq) != 0)
+        {
+            goto cleanup;
+        }
 
-    float max_cumul_f = 0.0f;
-    if (id_psf >= 0)
-    {
-        const float *restrict psf_r = dcimg[id_psf].array.F;
+        float               max_cumul_f = 0.0f;
+        const float *const  psf_r       = psf_out;
         #pragma omp simd reduction(max:max_cumul_f)
         for (long i = 0; i < n_psf * n_psf; i++)
         {
@@ -780,29 +856,31 @@ int atmturb_ao_sim_run(
                 max_cumul_f = psf_r[i];
             }
         }
+
+        double d_denom = do_accum ? ((double) nbframes * dl_peak) : dl_peak;
+        double s_cumul = (d_denom > 0.0) ? ((double) max_cumul_f / d_denom) : 0.0;
+        if (p.out_fitsname != NULL && p.out_fitsname[0] != '\0')
+        {
+            atmturb_ao_save_fits(p.out_fitsname, psf_out, n_psf, n_psf);
+        }
+        if (results != NULL)
+        {
+            results->strehl_cumul = s_cumul;
+            results->strehl_first = s_endpoints[0];
+            results->strehl_last  = s_endpoints[1];
+            results->dl_peak      = dl_peak;
+        }
     }
+    ret = 0;
 
-    double s_cumul = (dl_peak > 0.0 && nbframes > 0)
-                         ? ((double) max_cumul_f / ((double) nbframes * dl_peak))
-                         : 0.0;
-
-    if (p.out_fitsname != NULL && p.out_fitsname[0] != '\0')
-    {
-        atmturb_ao_save_fits(p.out_fitsname, psf_out, n_psf, n_psf);
-    }
-
-    if (results != NULL)
-    {
-        results->strehl_cumul = s_cumul;
-        results->strehl_first = s_endpoints[0];
-        results->strehl_last  = s_endpoints[1];
-        results->dl_peak      = dl_peak;
-    }
-
+cleanup:
     free(fallback);
     free(pupil_mask);
+    atmturb_ao_wf_free(&samp_wf);
+    atmturb_ao_wf_free(&swf);
+    atmturb_ao_wf_free(&amp_wf);
     atmturb_ao_wf_free(&wf);
-    return 0;
+    return ret;
 }
 
 /**

@@ -227,7 +227,9 @@ static int atmturb_superlayer_populate_bins(
                 supers[s].layer_indices[j] = k;
                 double w  = prof->layers[k].cn2_frac;
                 double d  = geom->layers[k].dist_m;
-                double ds = (geom->layers[k].path_s_m > 0.0) ? geom->layers[k].path_s_m : d;
+                double ds = (CONF_FRESNEL_REFRACT_PATH == 1 && geom->layers[k].path_s_m > 0.0)
+                                ? geom->layers[k].path_s_m
+                                : d;
                 sum_w        += w;
                 sum_wd       += w * d;
                 sum_wds      += w * ds;
@@ -261,10 +263,13 @@ static int atmturb_superlayer_populate_bins(
 
     for (int m = 0; m < s - 1; m++)
     {
-        double step = supers[m].dist_m - supers[m + 1].dist_m;
-        supers[m].step_dist_m = (step > 0.0) ? step : 0.0;
+        double step   = supers[m].dist_m - supers[m + 1].dist_m;
+        double step_s = supers[m].dist_s_m - supers[m + 1].dist_s_m;
+        supers[m].step_dist_m   = (step > 0.0) ? step : 0.0;
+        supers[m].step_dist_s_m = (step_s > 0.0) ? step_s : 0.0;
     }
-    supers[s - 1].step_dist_m = (supers[s - 1].dist_m > 0.0) ? supers[s - 1].dist_m : 0.0;
+    supers[s - 1].step_dist_m   = (supers[s - 1].dist_m > 0.0) ? supers[s - 1].dist_m : 0.0;
+    supers[s - 1].step_dist_s_m = (supers[s - 1].dist_s_m > 0.0) ? supers[s - 1].dist_s_m : 0.0;
 
     return s;
 }

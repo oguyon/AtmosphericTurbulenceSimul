@@ -105,6 +105,27 @@ double atmturb_ao_render_psf(
     float                         *psf_buf,
     int                            accum);
 
+/**
+ * atmturb_ao_render_psf_amp - Form centered PSF with optional scintillation amplitude map
+ * @eng: Initialized PSF engine (`eng->pup_size` defines pupil dimension).
+ * @phase_in: Input OPD or phase array [pup_size * pup_size], or NULL for flat wavefront.
+ * @amp_in: Optional pupil electric-field amplitude [pup_size * pup_size], or NULL for 1.0.
+ * @pupil_mask: Circular pupil mask [pup_size * pup_size].
+ * @phase_scale: Multiplicative factor converting @phase_in to science radians.
+ * @psf_buf: Destination or accumulation 2D PSF buffer [n_psf * n_psf].
+ * @accum: Non-zero to add into @psf_buf, 0 to overwrite @psf_buf.
+ *
+ * Return: Peak pixel intensity of the instantaneous PSF slice.
+ */
+double atmturb_ao_render_psf_amp(
+    const atmturb_ao_psf_engine_t *eng,
+    const float                   *phase_in,
+    const float                   *amp_in,
+    const float                   *pupil_mask,
+    float                          phase_scale,
+    float                         *psf_buf,
+    int                            accum);
+
 #ifdef __cplusplus
 }
 #endif
