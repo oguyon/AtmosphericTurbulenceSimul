@@ -45,6 +45,8 @@ typedef struct
     double                    t_dec_s;
 } atmturb_rolling_layer_t;
 
+struct atmturb_boiling_t;
+
 /**
  * struct atmturb_rolling_t - Top-level rolling screen context for all simulation layers
  * @nlayers: Number of simulation layers.
@@ -52,14 +54,16 @@ typedef struct
  * @rolling: Flag indicating if rolling cross-fading is enabled (0 or 1).
  * @lowfreq: Flag indicating if analytic low-frequency modes are enabled (0 or 1).
  * @layers: Array of per-layer rolling context (nlayers elements).
+ * @boil: Optional co-moving Fourier AR(1)/AR(2) boiling context (NULL when disabled).
  */
 typedef struct
 {
-    int                      nlayers;
-    long                     msize;
-    int                      rolling;
-    int                      lowfreq;
-    atmturb_rolling_layer_t *layers;
+    int                       nlayers;
+    long                      msize;
+    int                       rolling;
+    int                       lowfreq;
+    atmturb_rolling_layer_t  *layers;
+    struct atmturb_boiling_t *boil;
 } atmturb_rolling_t;
 
 /**
@@ -129,5 +133,42 @@ void atmturb_rolling_get_frame(
     long                     t,
     double                   time_step_s,
     atmturb_rolling_eval_t  *out);
+
+/**
+ * atmturb_rolling_advance - Advance active Fourier boiling state up to frame target_t
+ * @r: Rolling simulation context.
+ * @target_t: Target frame index to ensure materialized.
+ * @gpu_only: Non-zero to skip D2H screen copies when streaming exclusively on GPU.
+ *
+ * Return: 0 on success (or no-op when boiling disabled), -1 on failure.
+ */
+int atmturb_rolling_advance(
+    atmturb_rolling_t *r,
+    long               target_t,
+    int                gpu_only);
+
+/**
+ * atmturb_rolling_next_window - Advance and compute next collision-free 3D cube frame window
+ * @r: Rolling simulation context.
+ * @t0: Inclusive window start frame index.
+ * @nbframes: Total cube frame count.
+ * @out_t1: Exclusive window end frame index.
+ *
+ * Return: 1 when [t0, *out_t1) is ready to render, 0 when t0 >= nbframes.
+ */
+int atmturb_rolling_next_window(
+    atmturb_rolling_t *r,
+    long               t0,
+    long               nbframes,
+    long              *out_t1);
+
+/**
+ * atmturb_rolling_is_windowed - Query whether 3D cube rendering requires multi-window stepping
+ * @r: Rolling simulation context.
+ *
+ * Return: Non-zero if boiling pool is smaller than cube keyframes, 0 otherwise.
+ */
+int atmturb_rolling_is_windowed(
+    const atmturb_rolling_t *r);
 
 #endif /* ATMTURB_ROLLING_H */

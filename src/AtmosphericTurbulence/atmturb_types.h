@@ -110,6 +110,8 @@ extern int   CONF_INTERP;        // Sub-pixel kernel (0=bilinear, 1=Keys bicubic
 extern int   CONF_LOWFREQ;       // Enable 24-mode Johansson-Gavel subharmonics (0/1)
 extern int   CONF_ROLLING;       // Enable multi-epoch rolling screen cross-fade (0/1)
 extern float CONF_BOIL_TIME;     // Maximum rolling screen epoch duration [s] (0=auto)
+extern int   CONF_BOIL_MODE;     // Fourier boiling mode (0=off, 1=AR1, 2=AR2; <0 exact step)
+extern float CONF_BOIL_SIGMA;    // Global layer velocity dispersion for boiling [m/s] (0=auto)
 
 /* Diffractive propagation (Fresnel & Rytov) configuration */
 extern int   CONF_FRESNEL_PROPAGATION;     // 0=geometric, 1=Fresnel split-step, 2=Rytov

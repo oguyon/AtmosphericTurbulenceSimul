@@ -67,6 +67,8 @@ int CONF_INTERP = 1;
 int CONF_LOWFREQ = 1;
 int CONF_ROLLING = 1;
 float CONF_BOIL_TIME = 0.0f;
+int CONF_BOIL_MODE = 0;
+float CONF_BOIL_SIGMA = 0.0f;
 
 int CONF_FRESNEL_PROPAGATION = 0;
 int CONF_WAVEFRONT_AMPLITUDE = 0;
@@ -430,6 +432,8 @@ static void atmturb_read_conf_screen(void)
     CONF_LOWFREQ       = atmturb_read_conf_int(CONFFILE, "LOWFREQ", CONF_LOWFREQ);
     CONF_ROLLING       = atmturb_read_conf_int(CONFFILE, "ROLLING", CONF_ROLLING);
     CONF_BOIL_TIME     = atmturb_read_conf_float(CONFFILE, "BOIL_TIME", CONF_BOIL_TIME);
+    CONF_BOIL_MODE     = atmturb_read_conf_int(CONFFILE, "BOIL_MODE", CONF_BOIL_MODE);
+    CONF_BOIL_SIGMA    = atmturb_read_conf_float(CONFFILE, "BOIL_SIGMA", CONF_BOIL_SIGMA);
 }
 
 /**
@@ -575,6 +579,8 @@ static int atmturb_write_default_config(const char *fname)
     fprintf(fp, "LOWFREQ                   1\n");
     fprintf(fp, "ROLLING                   1\n");
     fprintf(fp, "BOIL_TIME                 0.0\n");
+    fprintf(fp, "BOIL_MODE                 0\n");
+    fprintf(fp, "BOIL_SIGMA                0.0\n");
     fprintf(fp, "WAVEFRONT_AMPLITUDE       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION_BIN   100.0\n");

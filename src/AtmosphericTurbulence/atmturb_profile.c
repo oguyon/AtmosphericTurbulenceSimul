@@ -71,6 +71,7 @@ int atmturb_profile_init_default(
         prof->layers[k].l0_m = 0.0;
         prof->layers[k].sigma_wind_mps = 0.0;
         prof->layers[k].L_wind_m = 500.0;
+        prof->layers[k].sigma_boil_mps = -1.0;
     }
 
     return 0;
@@ -106,10 +107,10 @@ static int atmturb_profile_parse_layer(
     atmturb_layer_t *layer)
 {
     double alt = 0.0, cn2 = 0.0, spd = 0.0, dir = 0.0;
-    double L0 = -1.0, l0 = 0.0, sigma_w = 0.0, L_w = 500.0;
+    double L0 = -1.0, l0 = 0.0, sigma_w = 0.0, L_w = 500.0, sigma_b = -1.0;
 
-    int nf = sscanf(line, "%lf %lf %lf %lf %lf %lf %lf %lf",
-                    &alt, &cn2, &spd, &dir, &L0, &l0, &sigma_w, &L_w);
+    int nf = sscanf(line, "%lf %lf %lf %lf %lf %lf %lf %lf %lf",
+                    &alt, &cn2, &spd, &dir, &L0, &l0, &sigma_w, &L_w, &sigma_b);
     if (nf < 4)
     {
         printf("ERROR: profile line %ld: expected at least 4 fields, got %d\n", lineno, nf);
@@ -129,6 +130,7 @@ static int atmturb_profile_parse_layer(
     layer->l0_m = l0;
     layer->sigma_wind_mps = sigma_w;
     layer->L_wind_m = L_w;
+    layer->sigma_boil_mps = sigma_b;
 
     return 0;
 }

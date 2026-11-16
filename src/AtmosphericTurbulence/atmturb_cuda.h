@@ -178,6 +178,19 @@ static inline unsigned long long atmturb_cuda_get_master_tex(void)
     return 0ULL;
 }
 
+static inline int atmturb_cuda_update_master_slice(
+    long         msize,
+    int          vram_slot,
+    const float *d_src,
+    void        *stream_ptr)
+{
+    (void) msize;
+    (void) vram_slot;
+    (void) d_src;
+    (void) stream_ptr;
+    return -1;
+}
+
 #else
 
 typedef struct atmturb_cuda_geom_stream atmturb_cuda_geom_stream_t;
@@ -243,6 +256,21 @@ int atmturb_cuda_commit_master_cache(
     long                msize,
     long                nblayers,
     const float *const *h_masters);
+
+/**
+ * atmturb_cuda_update_master_slice - Update one 2D layer slice in VRAM cache and 2D texture
+ * @msize: Master screen dimension in pixels.
+ * @vram_slot: Slice index in the cached master screen stack.
+ * @d_src: Source device float buffer (msize * msize elements).
+ * @stream_ptr: Optional cudaStream_t pointer (NULL for default stream).
+ *
+ * Return: 0 on success, -1 on bounds or CUDA copy error.
+ */
+int atmturb_cuda_update_master_slice(
+    long         msize,
+    int          vram_slot,
+    const float *d_src,
+    void        *stream_ptr);
 
 /**
  * atmturb_cuda_cleanup - Release persistent GPU buffers and context

@@ -51,6 +51,12 @@ optics simulation with PSF synthesis.
   synthesis (Lane et al.) correcting Fourier tilt under-representation.
 - `atmturb_rolling.c` / `atmturb_rolling.h`: Rolling cross-faded buffer memory management
   for seamless continuous phase screen evolution.
+- `atmturb_boiling.c`, `atmturb_boiling_kernels.c`, `atmturb_boiling.h`: Co-moving Fourier
+  AR(1) and critically damped AR(2) scale-dependent eddy boiling ($\gamma_k(f)=2\pi\sigma_k f$)
+  with adaptive Nyquist sub-stepping, correlated variance-preserving blending, and frame-rate
+  24-mode subharmonic boiling (`BOIL_MODE=1,2`).
+- `atmturb_cuda_boiling.cu` / `atmturb_cuda_boiling.h`: CUDA/cuFFT half-spectrum AR(1)/AR(2)
+  synthesis and in-place 2D layered texture slice updates in VRAM.
 - `atmturb_wfs_sim.c`: Multi-layer extruded wavefront time-series simulation engine
   (`make_AtmosphericTurbulence_wavefront_series`).
 - `atmturb_wfs_render.c` / `atmturb_wfs_render.h`: High-performance frame rendering orchestrator

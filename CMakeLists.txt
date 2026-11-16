@@ -139,6 +139,8 @@ set(SOURCEFILES
     src/AtmosphericTurbulence/atmturb_rytov_simd_dispatch.c
     src/AtmosphericTurbulence/atmturb_lowfreq.c
     src/AtmosphericTurbulence/atmturb_rolling.c
+    src/AtmosphericTurbulence/atmturb_boiling.c
+    src/AtmosphericTurbulence/atmturb_boiling_kernels.c
     src/AtmosphericTurbulence/atmturb_simd_scalar.c
     src/AtmosphericTurbulence/atmturb_simd_avx2.c
     src/AtmosphericTurbulence/atmturb_simd_avx2_ops.c
@@ -172,6 +174,8 @@ set(INCLUDEFILES
     src/AtmosphericTurbulence/atmturb_rytov_simd.h
     src/AtmosphericTurbulence/atmturb_lowfreq.h
     src/AtmosphericTurbulence/atmturb_rolling.h
+    src/AtmosphericTurbulence/atmturb_boiling.h
+    src/AtmosphericTurbulence/atmturb_cuda_boiling.h
     src/AtmosphericTurbulence/atmturb_simd.h
     src/AtmosphericTurbulence/atmturb_wfs_render.h
     src/AtmosphericTurbulence/atmturb_wfs_render_cuda.h
@@ -221,6 +225,8 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
                 src/AtmosphericTurbulence/atmturb_rytov.c
                 src/AtmosphericTurbulence/atmturb_rytov_kernels.c
                 src/AtmosphericTurbulence/atmturb_lowfreq.c
+                src/AtmosphericTurbulence/atmturb_boiling.c
+                src/AtmosphericTurbulence/atmturb_boiling_kernels.c
                 src/AtmosphericTurbulence/atmturb_wfs_render.c
                 src/AtmosphericTurbulence/atmturb_linpred_full.c
                 src/AtmosphericTurbulence/atmturb_linpred_pixel.c
@@ -253,6 +259,7 @@ if(HAVE_CUDA OR USE_CUDA)
                 src/AtmosphericTurbulence/atmturb_cuda_geom_ext.cu
                 src/AtmosphericTurbulence/atmturb_cuda_linpred.cu
                 src/AtmosphericTurbulence/atmturb_cuda_screens.cu
+                src/AtmosphericTurbulence/atmturb_cuda_boiling.cu
                 src/AtmosphericTurbulence/atmturb_cuda_piston.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov.cu
                 src/AtmosphericTurbulence/atmturb_cuda_rytov_batch.cu

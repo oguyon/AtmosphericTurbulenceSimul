@@ -319,44 +319,49 @@ static void atmturb_wfs_render_geometric(
 {
     long frame_pixels = pup_size * pup_size;
 
-    #pragma omp parallel for schedule(dynamic, 2)
-    for (long t = 0; t < nbframes; t++)
+    for (long t0 = 0, t1 = 0;
+         atmturb_rolling_next_window((atmturb_rolling_t *) r, t0, nbframes, &t1);
+         t0 = t1)
     {
-        long slice = t * frame_pixels;
-        float *pha_slice  = &dcimg[imgs->ID_pha].array.F[slice];
-        float *amp_slice  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[slice] : NULL;
-        float *spha_slice = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[slice] : NULL;
-        float *samp_slice = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[slice] : NULL;
+        #pragma omp parallel for schedule(dynamic, 2)
+        for (long t = t0; t < t1; t++)
+        {
+            long slice = t * frame_pixels;
+            float *pha_slice  = &dcimg[imgs->ID_pha].array.F[slice];
+            float *amp_slice  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[slice] : NULL;
+            float *spha_slice = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[slice] : NULL;
+            float *samp_slice = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[slice] : NULL;
 
-        if (amp_slice != NULL)
-        {
-            atmturb_init_phase_amp(pha_slice, amp_slice, frame_pixels);
-        }
-        else
-        {
-            memset(pha_slice, 0, sizeof(float) * (size_t) frame_pixels);
-        }
-
-        if (spha_slice != NULL)
-        {
-            if (samp_slice != NULL)
+            if (amp_slice != NULL)
             {
-                atmturb_init_phase_amp(spha_slice, samp_slice, frame_pixels);
+                atmturb_init_phase_amp(pha_slice, amp_slice, frame_pixels);
             }
             else
             {
-                memset(spha_slice, 0, sizeof(float) * (size_t) frame_pixels);
+                memset(pha_slice, 0, sizeof(float) * (size_t) frame_pixels);
             }
-        }
 
-        atmturb_wfs_render_target_t target = {
-            .pup_size     = pup_size,
-            .guard_pix    = 0,
-            .pha          = pha_slice,
-            .spha         = spha_slice,
-            .weight_scale = 1.0f
-        };
-        atmturb_wfs_render_all_layers(r, geom, t, time_step_s, master_size, &target);
+            if (spha_slice != NULL)
+            {
+                if (samp_slice != NULL)
+                {
+                    atmturb_init_phase_amp(spha_slice, samp_slice, frame_pixels);
+                }
+                else
+                {
+                    memset(spha_slice, 0, sizeof(float) * (size_t) frame_pixels);
+                }
+            }
+
+            atmturb_wfs_render_target_t target = {
+                .pup_size     = pup_size,
+                .guard_pix    = 0,
+                .pha          = pha_slice,
+                .spha         = spha_slice,
+                .weight_scale = 1.0f
+            };
+            atmturb_wfs_render_all_layers(r, geom, t, time_step_s, master_size, &target);
+        }
     }
 }
 
@@ -443,22 +448,26 @@ static int atmturb_wfs_render_diffractive(
 
     long frame_pixels = pup_size * pup_size;
 
-    #pragma omp parallel for num_threads(nthreads) schedule(dynamic, 2)
-    for (long t = 0; t < nbframes; t++)
+    for (long t0 = 0, t1 = 0;
+         atmturb_rolling_next_window((atmturb_rolling_t *) r, t0, nbframes, &t1);
+         t0 = t1)
     {
-        int tid = 0;
+        #pragma omp parallel for num_threads(nthreads) schedule(dynamic, 2)
+        for (long t = t0; t < t1; t++)
+        {
+            int tid = 0;
 #ifdef _OPENMP
-        tid = omp_get_thread_num();
+            tid = omp_get_thread_num();
 #endif
-        long slice = t * frame_pixels;
-        float *pha_slice  = &dcimg[imgs->ID_pha].array.F[slice];
-        float *amp_slice  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[slice] : NULL;
-        float *spha_slice = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[slice] : NULL;
-        float *samp_slice = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[slice] : NULL;
+            long   slice = t * frame_pixels;
+            float *pha_s = &dcimg[imgs->ID_pha].array.F[slice];
+            float *amp_s = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[slice] : NULL;
+            float *sph_s = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[slice] : NULL;
+            float *sam_s = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[slice] : NULL;
 
-        atmturb_fresnel_render_step(&ctxs[tid], &plan, r, geom, t, params->time_step_s,
-                                    master_size, pup_size, pha_slice, amp_slice,
-                                    spha_slice, samp_slice);
+            atmturb_fresnel_render_step(&ctxs[tid], &plan, r, geom, t, params->time_step_s,
+                                        master_size, pup_size, pha_s, amp_s, sph_s, sam_s);
+        }
     }
 
     for (int tid = 0; tid < nthreads; tid++)
@@ -532,22 +541,26 @@ static int atmturb_wfs_render_rytov(
 
     long frame_pixels = pup_size * pup_size;
 
-    #pragma omp parallel for num_threads(nthreads) schedule(dynamic, 2)
-    for (long t = 0; t < nbframes; t++)
+    for (long t0 = 0, t1 = 0;
+         atmturb_rolling_next_window((atmturb_rolling_t *) r, t0, nbframes, &t1);
+         t0 = t1)
     {
-        int tid = 0;
+        #pragma omp parallel for num_threads(nthreads) schedule(dynamic, 2)
+        for (long t = t0; t < t1; t++)
+        {
+            int tid = 0;
 #ifdef _OPENMP
-        tid = omp_get_thread_num();
+            tid = omp_get_thread_num();
 #endif
-        long   slice      = t * frame_pixels;
-        float *pha_slice  = &dcimg[imgs->ID_pha].array.F[slice];
-        float *amp_slice  = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[slice] : NULL;
-        float *spha_slice = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[slice] : NULL;
-        float *samp_slice = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[slice] : NULL;
+            long   slice = t * frame_pixels;
+            float *pha_s = &dcimg[imgs->ID_pha].array.F[slice];
+            float *amp_s = (imgs->ID_amp >= 0) ? &dcimg[imgs->ID_amp].array.F[slice] : NULL;
+            float *sph_s = (imgs->ID_spha >= 0) ? &dcimg[imgs->ID_spha].array.F[slice] : NULL;
+            float *sam_s = (imgs->ID_samp >= 0) ? &dcimg[imgs->ID_samp].array.F[slice] : NULL;
 
-        atmturb_rytov_render_step(&ctxs[tid], &plan, r, geom, t, params->time_step_s,
-                                  master_size, pup_size, pha_slice, amp_slice,
-                                  spha_slice, samp_slice);
+            atmturb_rytov_render_step(&ctxs[tid], &plan, r, geom, t, params->time_step_s,
+                                      master_size, pup_size, pha_s, amp_s, sph_s, sam_s);
+        }
     }
 
     for (int tid = 0; tid < nthreads; tid++)

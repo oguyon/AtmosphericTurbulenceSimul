@@ -11,8 +11,9 @@ Key features include:
 - **Hardware Acceleration**: Highly optimized AVX2 and AVX-512 SIMD vectorization, multi-threaded
   OpenMP, and NVIDIA CUDA / cuFFT GPU acceleration with CUDA Graph stream capture.
 - **Physical Fidelity**: Kolmogorov and von Karman statistics, Hufnagel-Valley $C_n^2$ profiles,
-  3D turbulent wind velocity fields, analytic low-frequency subharmonics (Lane et al.), and
-  Moisan periodic-plus-smooth decomposition eliminating boundary edge artifacts.
+  3D turbulent wind velocity fields, co-moving Fourier AR(1)/AR(2) scale-dependent eddy boiling,
+  analytic low-frequency subharmonics (Lane et al.), and Moisan periodic-plus-smooth decomposition
+  eliminating boundary edge artifacts.
 - **Real-Time Streaming**: Frame-by-frame 2D shared memory streaming via ImageStreamIO with
   sub-millisecond latency, zero-copy GPU DMA, and decoupled simulation physics timing.
 - **Adaptive Optics & Metrics**: Integrated closed-loop simulation (leaky integrator, PID) with
@@ -191,6 +192,8 @@ Key runtime parameters (configurable via `milk-fps-set` or command line options)
 | `.lowfreq` | `INT32` | `1` | Analytic low-frequency subharmonics (`0` = off, `1` = on) |
 | `.rolling` | `INT32` | `1` | Rolling cross-faded screens (`0` = off, `1` = on) |
 | `.boil_time` | `FLOAT32` | `0.0` | Maximum epoch duration for cross-fade [s] (`0` = auto) |
+| `.boil_mode` | `INT32` | `0` | Fourier boiling (`0` = off, `1` = AR(1), `2` = AR(2)) |
+| `.boil_sigma` | `FLOAT32` | `0.0` | Boiling velocity dispersion [m/s] (`0` = per-layer/auto) |
 | `.out_phase` | `STREAMNAME`| `outarraypha`| Output phase stream name |
 | `.out_ampl` | `STREAMNAME`| `outarrayamp`| Output amplitude stream name |
 | `.conffile` | `FILENAME`| `WFsim.conf` | Optional simulation configuration file |
@@ -373,6 +376,8 @@ INTERP                          1   # Interpolation: 0 = bilinear, 1 = Keys bicu
 LOWFREQ                         1   # 1: Enable analytic low-frequency subharmonics
 ROLLING                         1   # 1: Enable rolling cross-faded screens
 BOIL_TIME                0.000000   # Maximum epoch duration for cross-fade [s]
+BOIL_MODE                       0   # Fourier boiling: 0 off, 1 AR(1), 2 AR(2) (<0 exact step)
+BOIL_SIGMA               0.000000   # Global boiling velocity dispersion [m/s] (0 = auto)
 
 # --- TEMPORAL EVOLUTION ---
 WFTIME_STEP              0.001000   # Simulation time step [seconds] (1 ms = 1 kHz)

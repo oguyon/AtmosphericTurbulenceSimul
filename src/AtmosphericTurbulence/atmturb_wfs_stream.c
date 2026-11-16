@@ -360,6 +360,7 @@ static inline int atmturb_wfs_stream_pipeline_launch_frame(
     long                        t,
     int                         buf_idx)
 {
+    (void) atmturb_rolling_advance((atmturb_rolling_t *) rsim, t, 1);
     float *pha_dst  = st->dma_pha[buf_idx];
     float *amp_dst  = (st->id_amp >= 0) ? st->dma_amp[buf_idx] : NULL;
     float *spha_dst = (st->id_spha >= 0) ? st->dma_spha[buf_idx] : NULL;
@@ -564,6 +565,7 @@ static long atmturb_wfs_stream_loop(
             break;
         }
 
+        (void) atmturb_rolling_advance((atmturb_rolling_t *) rsim, t, st->is_cuda);
         if (atmturb_wfs_stream_render_step(rsim, geom, st, t, params->time_step_s,
                                            CONF_MASTER_SIZE, pup_size) == 0)
         {

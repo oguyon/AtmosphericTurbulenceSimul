@@ -294,6 +294,38 @@ static void atmturb_init_layer_turbulent_wind(
 }
 
 /**
+ * atmturb_resolve_layer_boil - Resolve effective velocity dispersion for layer boiling
+ * @layer: Layer physical specification from profile.
+ * @params: Observing simulation parameters.
+ *
+ * Return: Effective boiling velocity dispersion [m/s] (0.0 if boiling is disabled).
+ */
+static double atmturb_resolve_layer_boil(
+    const atmturb_layer_t      *layer,
+    const atmturb_obs_params_t *params)
+{
+    int abs_mode = (params->boil_mode < 0) ? -params->boil_mode : params->boil_mode;
+    if (abs_mode != 1 && abs_mode != 2)
+    {
+        return 0.0;
+    }
+    if (layer->sigma_boil_mps >= 0.0)
+    {
+        return layer->sigma_boil_mps;
+    }
+    if (params->boil_sigma_mps > 0.0)
+    {
+        return params->boil_sigma_mps;
+    }
+    if (layer->sigma_wind_mps > 0.0)
+    {
+        return layer->sigma_wind_mps;
+    }
+    double v_shear = 0.15 * fabs(layer->speed_mps);
+    return (v_shear > 0.5) ? v_shear : 0.5;
+}
+
+/**
  * atmturb_geometry_compute - Derive all layer geometric parameters and scales
  * @prof: Active turbulence profile.
  * @params: Observing conditions and simulation parameters.
@@ -319,6 +351,8 @@ int atmturb_geometry_compute(
     geom->lowfreq = (params->lowfreq != 0) ? 1 : 0;
     geom->rolling = (params->rolling != 0) ? 1 : 0;
     geom->boil_time_s = (params->boil_time_s > 0.0) ? params->boil_time_s : 0.0;
+    geom->boil_mode = params->boil_mode;
+    geom->boil_sigma_mps = params->boil_sigma_mps;
     geom->dx_master_m = params->pupil_scale_m / (double) os;
 
     geom->cos_z = cos(params->zenith_rad);
@@ -411,7 +445,8 @@ int atmturb_geometry_compute(
         {
             t_dec = params->boil_time_s;
         }
-        lg->t_dec_s = t_dec;
+        lg->t_dec_s        = t_dec;
+        lg->sigma_boil_mps = atmturb_resolve_layer_boil(layer, params);
 
         atmturb_init_layer_turbulent_wind(layer, params, geom, k, base_seed, lg);
     }

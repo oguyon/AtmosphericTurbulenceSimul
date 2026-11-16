@@ -57,6 +57,8 @@ static int32_t param_interp                               = 1;
 static int32_t param_lowfreq                              = 1;
 static int32_t param_rolling                              = 1;
 static float   param_boil_time                            = 0.0f;
+static int32_t param_boil_mode                            = 0;
+static float   param_boil_sigma                           = 0.0f;
 static char    param_out_phase[FUNCTION_PARAMETER_STRMAXLEN] = "outarraypha";
 static char    param_out_ampl[FUNCTION_PARAMETER_STRMAXLEN]  = "outarrayamp";
 static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
@@ -130,6 +132,10 @@ static char    param_conffile[FUNCTION_PARAMETER_STRMAXLEN]  = "WFsim.conf";
       "Rolling cross-faded phase screens (0=off, 1=on)")                           \
     X(".boil_time", &param_boil_time, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,     \
       "Maximum epoch duration for screen cross-fade [s] (0=auto)")                 \
+    X(".boil_mode", &param_boil_mode, FPTYPE_INT32, 0, FPFLAG_DEFAULT_INPUT,       \
+      "Fourier boiling mode (0=off, 1=AR1, 2=AR2; <0 forces exact 1-frame step)")  \
+    X(".boil_sigma", &param_boil_sigma, FPTYPE_FLOAT32, 0, FPFLAG_DEFAULT_INPUT,   \
+      "Global boiling velocity dispersion [m/s] (0=per-layer/auto)")               \
     X(".out_phase", param_out_phase, FPTYPE_STREAMNAME, 0, FPFLAG_DEFAULT_INPUT,   \
       "Output phase stream name")                                                  \
     X(".out_ampl", param_out_ampl, FPTYPE_STREAMNAME, 0, FPFLAG_DEFAULT_INPUT,     \
@@ -182,6 +188,8 @@ static void atmturb_mkwfs_sync_to_conf(void)
     CONF_LOWFREQ           = (int) param_lowfreq;
     CONF_ROLLING           = (int) param_rolling;
     CONF_BOIL_TIME         = param_boil_time;
+    CONF_BOIL_MODE         = (int) param_boil_mode;
+    CONF_BOIL_SIGMA        = param_boil_sigma;
 
     if (param_prof_file[0] != '\0')
     {
@@ -236,6 +244,8 @@ static void atmturb_mkwfs_sync_from_conf(void)
     param_lowfreq              = (int32_t) CONF_LOWFREQ;
     param_rolling              = (int32_t) CONF_ROLLING;
     param_boil_time            = CONF_BOIL_TIME;
+    param_boil_mode            = (int32_t) CONF_BOIL_MODE;
+    param_boil_sigma           = CONF_BOIL_SIGMA;
 
     if (CONF_TURBULENCE_PROF_FILE[0] != '\0')
     {

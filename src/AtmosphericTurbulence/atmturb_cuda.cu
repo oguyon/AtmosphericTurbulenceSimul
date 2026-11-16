@@ -388,6 +388,39 @@ int atmturb_cuda_commit_master_cache(
     return 0;
 }
 
+int atmturb_cuda_update_master_slice(
+    long         msize,
+    int          vram_slot,
+    const float *d_src,
+    void        *stream_ptr)
+{
+    size_t np    = (size_t) msize * (size_t) msize;
+    size_t bytes = sizeof(float) * np;
+    if (s_d_m == NULL || d_src == NULL || msize <= 0 || vram_slot < 0 ||
+        (size_t) (vram_slot + 1) * bytes > s_cached_mbytes)
+    {
+        return -1;
+    }
+    cudaStream_t st = (cudaStream_t) stream_ptr;
+    if (cudaMemcpyAsync(s_d_m + (size_t) vram_slot * np, d_src, bytes,
+                        cudaMemcpyDeviceToDevice, st) != cudaSuccess)
+    {
+        return -1;
+    }
+    if (s_master_array != NULL)
+    {
+        cudaMemcpy3DParms cp = {};
+        cp.srcPtr   = make_cudaPitchedPtr((void *) d_src, sizeof(float) * (size_t) msize,
+                                          (size_t) msize, (size_t) msize);
+        cp.dstArray = s_master_array;
+        cp.dstPos   = make_cudaPos(0, 0, (size_t) vram_slot);
+        cp.extent   = make_cudaExtent((size_t) msize, (size_t) msize, 1);
+        cp.kind     = cudaMemcpyDeviceToDevice;
+        return (cudaMemcpy3DAsync(&cp, st) == cudaSuccess) ? 0 : -1;
+    }
+    return 0;
+}
+
 /**
  * atmturb_cuda_sync_device_masters - Upload and cache master screens in GPU device memory
  * @msize: Master screen dimension in pixels.

@@ -130,13 +130,15 @@ int atmturb_wfs_render_cuda(
     const atmturb_wfs_images_t *imgs)
 {
     if (r == NULL || geom == NULL || imgs == NULL || geom->nlayers <= 0 ||
-        nbframes <= 0 || master_size <= 0 || pup_size <= 0 || !atmturb_cuda_device_available())
+        nbframes <= 0 || master_size <= 0 || pup_size <= 0 ||
+        atmturb_rolling_is_windowed(r) || !atmturb_cuda_device_available())
     {
         return -1;
     }
 
-    int can_fast = (r->lowfreq == 0 && r->rolling == 0 && CONF_ROLLING == 0 &&
-                    geom->oversample == 1 && geom->interp == 0 && geom->nlayers <= 64);
+    int can_fast = (r->boil == NULL && r->lowfreq == 0 && r->rolling == 0 &&
+                    CONF_ROLLING == 0 && geom->oversample == 1 &&
+                    geom->interp == 0 && geom->nlayers <= 64);
     for (int k = 0; can_fast && k < geom->nlayers; k++)
     {
         if (geom->layers[k].traj_x != NULL || geom->layers[k].traj_y != NULL)
@@ -190,7 +192,7 @@ int atmturb_wfs_render_fresnel_cuda(
         return -1;
     }
 
-    if (nbframes >= 2)
+    if (nbframes >= 2 && !atmturb_rolling_is_windowed(r))
     {
         atmturb_cuda_fresnel_batch_req_t req = {
             .r           = r,
@@ -242,7 +244,8 @@ int atmturb_wfs_render_fresnel_cuda(
     {
         int    slot = (int) (t & 1);
         size_t off  = (size_t) (t * frame_pix);
-        if (t >= 2 && atmturb_cuda_fresnel_stream_render_wait(ctx, slot) != 0)
+        if ((t >= 2 && atmturb_cuda_fresnel_stream_render_wait(ctx, slot) != 0) ||
+            atmturb_rolling_advance((atmturb_rolling_t *) r, t, 1) != 0)
         {
             ret = -1;
             break;
@@ -544,7 +547,8 @@ int atmturb_wfs_render_rytov_cuda(
     const atmturb_wfs_images_t *imgs)
 {
     if (r == NULL || geom == NULL || prof == NULL || params == NULL || imgs == NULL ||
-        nbframes <= 0 || master_size <= 0 || pup_size <= 0 || !atmturb_cuda_device_available())
+        nbframes <= 0 || master_size <= 0 || pup_size <= 0 ||
+        atmturb_rolling_is_windowed(r) || !atmturb_cuda_device_available())
     {
         return -1;
     }

@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "AtmosphericTurbulence.h"
+#include "atmturb_boiling.h"
 #include "atmturb_geometry.h"
 #include "atmturb_lowfreq.h"
 #include "atmturb_profile.h"
@@ -286,6 +287,18 @@ int atmturb_rolling_init(
         return -1;
     }
 
+    int abs_boil = (geom->boil_mode < 0) ? -geom->boil_mode : geom->boil_mode;
+    if (abs_boil == 1 || abs_boil == 2)
+    {
+        int rc = atmturb_boiling_init(r, prof, geom, msize, nbframes,
+                                      time_step_s, precision, seed);
+        if (rc != 0)
+        {
+            atmturb_rolling_free(r);
+        }
+        return rc;
+    }
+
     int max_pairs     = 0;
     int total_screens = 0;
     for (int k = 0; k < r->nlayers; k++)
@@ -365,7 +378,16 @@ int atmturb_rolling_init(
 void atmturb_rolling_free(
     atmturb_rolling_t *r)
 {
-    if (r == NULL || r->layers == NULL)
+    if (r == NULL)
+    {
+        return;
+    }
+    if (r->boil != NULL)
+    {
+        atmturb_boiling_free(r->boil);
+        r->boil = NULL;
+    }
+    if (r->layers == NULL)
     {
         return;
     }
@@ -396,6 +418,12 @@ void atmturb_rolling_get_frame(
     double                   time_step_s,
     atmturb_rolling_eval_t  *out)
 {
+    if (r->boil != NULL)
+    {
+        atmturb_boiling_get_frame(r, layer_idx, t, out);
+        return;
+    }
+
     const atmturb_rolling_layer_t *rl = &r->layers[layer_idx];
     if (!r->rolling || rl->nscreens <= 1)
     {
@@ -452,4 +480,40 @@ void atmturb_rolling_get_frame(
             out->aim_eff[m] = wA * aim0[m] + wB * aim1[m];
         }
     }
+}
+
+/**
+ * atmturb_rolling_advance - Advance active Fourier boiling state up to frame target_t
+ */
+int atmturb_rolling_advance(
+    atmturb_rolling_t *r,
+    long               target_t,
+    int                gpu_only)
+{
+    if (r == NULL || r->boil == NULL)
+    {
+        return 0;
+    }
+    return atmturb_boiling_advance(r, target_t, gpu_only);
+}
+
+/**
+ * atmturb_rolling_next_window - Advance and compute next collision-free 3D cube frame window
+ */
+int atmturb_rolling_next_window(
+    atmturb_rolling_t *r,
+    long               t0,
+    long               nbframes,
+    long              *out_t1)
+{
+    return atmturb_boiling_next_window(r, t0, nbframes, out_t1);
+}
+
+/**
+ * atmturb_rolling_is_windowed - Query whether 3D cube rendering requires multi-window stepping
+ */
+int atmturb_rolling_is_windowed(
+    const atmturb_rolling_t *r)
+{
+    return (r != NULL && r->boil != NULL && r->boil->windowed) ? 1 : 0;
 }

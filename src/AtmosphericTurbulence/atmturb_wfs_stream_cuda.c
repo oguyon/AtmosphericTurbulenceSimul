@@ -535,8 +535,9 @@ atmturb_wfs_cuda_geom_stream_t *atmturb_wfs_cuda_geom_stream_init(
     w->npix       = pup_size * pup_size;
     w->default_dt = (CONF_WFTIME_STEP > 0.0) ? (double) CONF_WFTIME_STEP : 0.001;
 
-    int can_fast = (r->lowfreq == 0 && r->rolling == 0 && CONF_ROLLING == 0 &&
-                    geom->oversample == 1 && geom->interp == 0 && geom->nlayers <= 64);
+    int can_fast = (r->boil == NULL && r->lowfreq == 0 && r->rolling == 0 &&
+                    CONF_ROLLING == 0 && geom->oversample == 1 &&
+                    geom->interp == 0 && geom->nlayers <= 64);
     for (int k = 0; can_fast && k < geom->nlayers; k++)
     {
         if (geom->layers[k].traj_x != NULL || geom->layers[k].traj_y != NULL)
