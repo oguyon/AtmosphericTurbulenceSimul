@@ -7,6 +7,8 @@
  * @brief   Shared helper implementations for CUDA wavefront rendering and streaming
  */
 
+#ifdef HAVE_CUDA
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -264,3 +266,9 @@ void atmturb_wfs_cuda_build_frame_lf_modes(
         }
     }
 }
+
+#else
+
+typedef int atmturb_wfs_cuda_common_iso_c_dummy;
+
+#endif /* HAVE_CUDA */

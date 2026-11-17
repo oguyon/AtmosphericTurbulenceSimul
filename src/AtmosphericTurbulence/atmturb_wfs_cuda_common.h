@@ -10,6 +10,8 @@
 #ifndef ATMTURB_WFS_CUDA_COMMON_H
 #define ATMTURB_WFS_CUDA_COMMON_H
 
+#ifdef HAVE_CUDA
+
 #include "atmturb_cuda_rytov.h"
 #include "atmturb_cuda_rytov_internal.h"
 #include "atmturb_geometry.h"
@@ -95,5 +97,7 @@ void atmturb_wfs_cuda_build_frame_lf_modes(
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* HAVE_CUDA */
 
 #endif /* ATMTURB_WFS_CUDA_COMMON_H */
