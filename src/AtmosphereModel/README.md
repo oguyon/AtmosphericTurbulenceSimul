@@ -12,8 +12,8 @@ optical ray bending.
 
 ## Components
 
-- `AtmosphereModel.c` / `AtmosphereModel.h`: Public API orchestrator, global atmospheric state
-  allocation, and milk CLI command registration.
+- `AtmosphereModel.c` / `AtmosphereModel.h`: Public API orchestrator and global atmospheric
+  state allocation.
 - `atmmod_types.h`: Internal data structures, shared atmospheric parameters, and helper prototypes.
 - `atmmod_ria_table.c`: File parser and memory loader for Refractive Index and Absorption (RIA)
   species tables.
@@ -34,7 +34,7 @@ optical ray bending.
 - `AtmosphereModel.h`:
   - `int init_AtmosphereModel(void)`
   - `double AirMixture_N(...)`
-  - `float AtmosphereModel_stdAtmModel_N(float alt, float lambdaum, int mode)`
+  - `float AtmosphereModel_stdAtmModel_N(float alt, float lambda, int mode)`
   - `double AtmosphereModel_H2O_Saturation(double T)`
   - `int AtmosphereModel_save_stdAtmModel(const char *fname)`
   - `int AtmosphereModel_build_stdAtmModel(const char *fname)`
@@ -46,7 +46,6 @@ optical ray bending.
 
 ## Dependencies
 
-- `CLIcore` (command parsing and configuration parameter extraction)
 - `OpticsMaterials` (material dispersion and refractive index lookups)
 - Vendored `nrlmsise-00.20131225` (empirical density and temperature model)
 - C Standard Library (`math.h`, `stdio.h`, `stdlib.h`, `string.h`)

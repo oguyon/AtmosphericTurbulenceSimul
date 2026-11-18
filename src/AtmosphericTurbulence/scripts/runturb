@@ -521,7 +521,7 @@ printf "\n\n" >> $conffilename
 if [ "$execmode" = "standalone" ]; then
     $execname exec ${slambdaum} ${PRECISION}
 elif [ "$execmode" = "cli" ]; then
-    echo "atmturb.mkwfs ${slambdaum} ${PRECISION}; exitCLI" | $execname
+    $execname -c "atmturb.mkwfs ${slambdaum} ${PRECISION}"
 else
     $execname << EOF
 #mkatmospheremodel $conffilename

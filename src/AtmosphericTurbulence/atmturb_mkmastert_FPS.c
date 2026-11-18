@@ -4,80 +4,61 @@
 
 /**
  * @file    atmturb_mkmastert_FPS.c
- * @brief   FPS V2 compute unit for master phase screens generation
+ * @brief   MILK_RUNNABLE FPS compute unit for master phase screens generation
+ *
+ * Exposes `atmturb.mkmastert` and `milk-fpsexec-atmturb-mkmastert`. Synthesizes an
+ * independent pair of 2D Kolmogorov / von Karman master phase screens via complex
+ * Hermitian FFTW filtering normalized to r0 = 6.88^(3/5) pixels.
  */
 
-#ifdef MILK_NO_CLI
-#    include "CLIcore_standalone.h"
-#else
-#    include "CLIcore.h"
-#endif
-#include "fps.h"
+#include <stdio.h>
+
+#include "milk_runnable.h"
 #include "COREMOD_iofits/COREMOD_iofits.h"
-#include "COREMOD_memory/COREMOD_memory.h"
 #include "AtmosphericTurbulence/AtmosphericTurbulence.h"
 #include "atmturb_mkmastert_FPS.h"
 
-/* ================================================================
- * 1.  FPS COMPONENT IDENTITY
- * ============================================================= */
+static int32_t param_size                                    = 2048;
+static float   param_outerscale                              = 100.0f;
+static float   param_innerscale                              = 1.0f;
+static int32_t param_precision                               = 0;
+static char    param_screen0[FUNCTION_PARAMETER_STRMAXLEN]   = "turbm00_p0";
+static char    param_screen1[FUNCTION_PARAMETER_STRMAXLEN]   = "turbm00_p1";
+static int64_t param_seed                                    = 1;
+static char    param_fitsout0[FUNCTION_PARAMETER_STRMAXLEN]  = "";
+static char    param_fitsout1[FUNCTION_PARAMETER_STRMAXLEN]  = "";
 
-static FPS_APP_INFO FPS_app_info = {
-    .fps_name         = "atmturb_mkmastert",
-    .cmdkey           = "mkmastert",
-    .description      = "Generate master Kolmogorov/von Karman turbulence screens",
-    .description_long = "Generates a pair of normalized master phase screens in Fourier domain "
-                        "with outer and inner scale cutoff filtering."
-};
-
-/* ================================================================
- * 2.  LOCAL PARAMETER VARIABLES
- * ============================================================= */
-
-static int32_t param_size       = 2048;
-static float   param_outerscale = 100.0f;
-static float   param_innerscale = 1.0f;
-static int32_t param_precision  = 0;
-static char    param_screen0[FUNCTION_PARAMETER_STRMAXLEN] = "turbm00_p0";
-static char    param_screen1[FUNCTION_PARAMETER_STRMAXLEN] = "turbm00_p1";
-static int64_t param_seed       = 1;
-static char    param_fitsout0[FUNCTION_PARAMETER_STRMAXLEN] = "";
-static char    param_fitsout1[FUNCTION_PARAMETER_STRMAXLEN] = "";
-
-/* ================================================================
- * 3.  UNIFIED PARAMETER TABLE (X-Macro)
- * ============================================================= */
-
-#define FPS_PARAMS(X)                                                          \
-    X(".size", &param_size, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,             \
-      "Screen grid dimension [pixels]")                                        \
-    X(".outerscale", &param_outerscale, FPTYPE_FLOAT32, 1,                     \
-      FPFLAG_DEFAULT_INPUT, "Outer scale in grid units [pixels]")              \
-    X(".innerscale", &param_innerscale, FPTYPE_FLOAT32, 1,                     \
-      FPFLAG_DEFAULT_INPUT, "Inner scale in grid units [pixels]")              \
-    X(".precision", &param_precision, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,   \
-      "Precision (0=single, 1=double)")                                        \
-    X(".screen0", &param_screen0, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,  \
-      "Output screen 0 image name")                                            \
-    X(".screen1", &param_screen1, FPTYPE_STREAMNAME, 1, FPFLAG_DEFAULT_INPUT,  \
-      "Output screen 1 image name")                                            \
-    X(".seed", &param_seed, FPTYPE_INT64, 1, FPFLAG_DEFAULT_INPUT,             \
-      "RNG seed (0 = time-based)")                                             \
-    X(".fitsout0", &param_fitsout0, FPTYPE_STRING, 1, FPFLAG_DEFAULT_INPUT,    \
-      "Optional FITS output file for screen 0 (empty = do not save)")          \
-    X(".fitsout1", &param_fitsout1, FPTYPE_STRING, 1, FPFLAG_DEFAULT_INPUT,    \
+#define ATMTURB_MKMASTERT_PARAMS(X)                                                \
+    X(".size", &param_size, FPTYPE_INT32, 1, FPFLAG_DEFAULT_INPUT,                 \
+      "Screen grid dimension [pixels]")                                            \
+    X(".outerscale", &param_outerscale, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,   \
+      "Outer scale in grid units [pixels]")                                        \
+    X(".innerscale", &param_innerscale, FPTYPE_FLOAT32, 1, FPFLAG_DEFAULT_INPUT,   \
+      "Inner scale in grid units [pixels]")                                        \
+    X(".precision", &param_precision, FPTYPE_INT32, 1,                             \
+      FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL,                                  \
+      "Precision (0=single, 1=double)")                                            \
+    X(".screen0", param_screen0, FPTYPE_STREAMNAME, 1,                             \
+      FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL, "Output screen 0 image name")    \
+    X(".screen1", param_screen1, FPTYPE_STREAMNAME, 1,                             \
+      FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL, "Output screen 1 image name")    \
+    X(".seed", &param_seed, FPTYPE_INT64, 1,                                       \
+      FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL, "RNG seed (0 = time-based)")     \
+    X(".fitsout0", param_fitsout0, FPTYPE_STRING, 1,                               \
+      FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL,                                  \
+      "Optional FITS output file for screen 0 (empty = do not save)")              \
+    X(".fitsout1", param_fitsout1, FPTYPE_STRING, 1,                               \
+      FPFLAG_DEFAULT_INPUT | FPFLAG_CLI_OPTIONAL,                                  \
       "Optional FITS output file for screen 1 (empty = do not save)")
 
-/* ================================================================
- * 4.  COMPUTATION LOGIC
- * ============================================================= */
+MILK_PARAMS_DEFINE(atmturb_mkmastert, ATMTURB_MKMASTERT_PARAMS);
 
 /**
- * fpsexec - Execute master phase screen generation
+ * atmturb_mkmastert_exec - Execute master phase screen generation
  *
- * Return: RETURN_SUCCESS on success, error code otherwise.
+ * Return: RETURN_SUCCESS on success, RETURN_FAILURE otherwise.
  */
-static MILK_HOT errno_t fpsexec(void)
+static MILK_HOT errno_t atmturb_mkmastert_exec(void)
 {
     printf("[milkatmturb] Outputs:\n");
     printf("[milkatmturb]   - stream: \"%s\" (2D SHM, %ldx%ld float32)\n",
@@ -118,63 +99,39 @@ static MILK_HOT errno_t fpsexec(void)
     return RETURN_SUCCESS;
 }
 
-/* ================================================================
- * 5.  BINDINGS, FARG, AND CLI DATA
- * ============================================================= */
-
-FPS_V2_SECTION5(FPS_PARAMS)
-
-/* ================================================================
- * 6.  COMPUTE WRAPPER
- * ============================================================= */
-
 /**
- * compute_function - Orchestrator wrapper for processinfo tracing
+ * atmturb_mkmastert_compute - Execute master screen synthesis within procinfo loop
+ * @self: Pointer to this MILK_RUNNABLE descriptor.
  *
  * Return: RETURN_SUCCESS on completion, or error code on failure.
  */
-static MILK_HOT errno_t __attribute__((unused)) compute_function(void)
+static MILK_HOT errno_t atmturb_mkmastert_compute(
+    const MILK_RUNNABLE *self)
 {
     DEBUG_TRACE_FSTART();
-
     errno_t ret = RETURN_SUCCESS;
 
-    INSERT_STD_PROCINFO_COMPUTEFUNC_START
-    ret = fpsexec();
-    INSERT_STD_PROCINFO_COMPUTEFUNC_END
+    MILK_PROCINFO_INIT(self)
+    MILK_PROCINFO_LOOPSTART(self)
+    ret = atmturb_mkmastert_exec();
+    MILK_PROCINFO_END(self)
 
     DEBUG_TRACE_FEXIT();
     return ret;
 }
 
-/* ================================================================
- * 7.  MILK MODULE REGISTRATION
- * ============================================================= */
+const MILK_RUNNABLE runnable_atmturb_mkmastert = {
+    .kind = MILK_RUNNABLE_FPS,
+    .app  = {
+        .fps_name         = "atmturb_mkmastert",
+        .cmdkey           = "mkmastert",
+        .description      = "Generate master Kolmogorov/von Karman turbulence screens",
+        .description_long = "Generates a pair of normalized master phase screens in Fourier "
+                            "domain with outer and inner scale cutoff filtering."
+    },
+    .srcfile = __FILE__,
+    MILK_PARAMS_REF(atmturb_mkmastert),
+    .compute = atmturb_mkmastert_compute,
+};
 
-#if !defined(FPS_STANDALONE) && !defined(MILK_NO_CLI)
-static errno_t CLIfunction(void)
-{
-    return safe_fps_generic_CLIfunction(&FPS_app_info, farg, &CLIcmddata, my_bindings,
-                                        nb_bindings, compute_function);
-}
-
-/**
- * CLIADDCMD_milkatmturb__atmturb_mkmastert_FPS - Register command with CLI
- *
- * Return: RETURN_SUCCESS on success.
- */
-errno_t CLIADDCMD_milkatmturb__atmturb_mkmastert_FPS(void)
-{
-    safe_fps_fill_farg_examples(farg, my_bindings, nb_bindings);
-    INSERT_STD_CLIREGISTERFUNC
-    return RETURN_SUCCESS;
-}
-#endif
-
-/* ================================================================
- * 8.  STANDALONE ENTRY POINT
- * ============================================================= */
-
-#ifdef FPS_STANDALONE
-FPS_MAIN_STANDALONE_V2(FPS_app_info, FPS_PARAMS, compute_function)
-#endif
+EXPORT_FPSEXEC(milk, "atmturb-mkmastert", runnable_atmturb_mkmastert);

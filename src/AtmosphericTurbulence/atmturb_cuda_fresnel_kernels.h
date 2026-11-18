@@ -18,69 +18,85 @@ extern "C" {
 #endif
 
 /**
+ * struct atmturb_cuda_fresnel_extract_args_t - Parameters for Fresnel pupil extraction kernel
+ * @d_field: Input propagated complex electric field (`count * pad_size * pad_size`).
+ * @d_pha: Input geometric pupil phase and output unwrapped phase (`count * pup_size * pup_size`).
+ * @d_amp: Destination pupil amplitude array (or NULL if disabled).
+ * @d_sum: Optional device scalar accumulator for piston sum reduction (or NULL).
+ * @pad_size: Linear dimension of padded propagation grid in pixels.
+ * @pup_size: Linear dimension of output pupil grid in pixels.
+ * @guard: Guard band margin around pupil in pixels (`0` when unpadded).
+ * @count: Number of batched frames (`1` for streaming).
+ */
+typedef struct
+{
+    const cufftComplex *d_field;
+    float              *d_pha;
+    float              *d_amp;
+    float              *d_sum;
+    int                 pad_size;
+    int                 pup_size;
+    int                 guard;
+    int                 count;
+} atmturb_cuda_fresnel_extract_args_t;
+
+/**
  * atmturb_cuda_fresnel_init_modulate_launch - Initialize complex field from initial phase screen
- * @d_field: Destination complex electric field array.
- * @d_super_pha: Source phase screen on padded grid.
- * @npix: Total number of grid pixels.
+ * @d_field: Destination complex electric field array (`count * pad_size * pad_size`).
+ * @d_super_pha: Source phase screen on padded grid (`count * pad_size * pad_size`).
+ * @d_sponge_1d: Optional 1D rim absorber window (`pad_size` floats, or NULL).
+ * @pad_size: Linear dimension of padded propagation grid.
+ * @count: Number of batched frames.
  * @stream: CUDA execution stream.
- *
- * Initializes unit-amplitude electric field E(x, y) = exp(i * phi(x, y)) on the simulation grid.
  */
 void atmturb_cuda_fresnel_init_modulate_launch(
     cufftComplex *d_field,
     const float  *d_super_pha,
-    int           npix,
+    const float  *d_sponge_1d,
+    int           pad_size,
+    int           count,
     cudaStream_t  stream);
 
 /**
  * atmturb_cuda_fresnel_modulate_launch - Modulate propagating complex field by superlayer phase
- * @d_field: In-place complex electric field array.
- * @d_super_pha: Superlayer phase screen to apply.
- * @npix: Total number of grid pixels.
+ * @d_field: In-place complex electric field array (`count * pad_size * pad_size`).
+ * @d_super_pha: Superlayer phase screen to apply (`count * pad_size * pad_size`).
+ * @d_sponge_1d: Optional 1D rim absorber window (`pad_size` floats, or NULL).
+ * @pad_size: Linear dimension of padded propagation grid.
+ * @count: Number of batched frames.
  * @stream: CUDA execution stream.
- *
- * Applies thin phase screen modulation E(x, y) <- E(x, y) * exp(i * phi(x, y)).
  */
 void atmturb_cuda_fresnel_modulate_launch(
     cufftComplex *d_field,
     const float  *d_super_pha,
-    int           npix,
+    const float  *d_sponge_1d,
+    int           pad_size,
+    int           count,
     cudaStream_t  stream);
 
 /**
- * atmturb_cuda_fresnel_tf_mul_vec2_launch - Vectorized optical transfer function multiplication
- * @d_field: Complex spatial frequency field array (modified in place).
- * @d_tf: Complex Fresnel optical transfer function array.
- * @npix: Total number of complex elements (must be even).
+ * atmturb_cuda_fresnel_tf1d_mul_launch - Multiply Fourier field by separable 1D Fresnel chirp
+ * @d_field: Complex spatial frequency field array (`count * pad_size * pad_size`, in place).
+ * @d_tf1d: 1D complex Fresnel chirp factor (`pad_size` elements).
+ * @pad_size: Linear dimension of padded propagation grid.
+ * @count: Number of batched frames.
  * @stream: CUDA execution stream.
- *
- * Multiplies Fourier-transformed optical field by Fresnel diffractive propagation kernel H(u, v)
- * using 128-bit vector float4 transactions.
  */
-void atmturb_cuda_fresnel_tf_mul_vec2_launch(
+void atmturb_cuda_fresnel_tf1d_mul_launch(
     cufftComplex       *d_field,
-    const cufftComplex *d_tf,
-    int                 npix,
+    const cufftComplex *d_tf1d,
+    int                 pad_size,
+    int                 count,
     cudaStream_t        stream);
 
 /**
- * atmturb_cuda_fresnel_extract_launch - Extract amplitude, unwrapped phase, and piston sum
- * @d_field: Input propagated complex electric field.
- * @d_pha: Input geometric phase and output total unwrapped phase.
- * @d_amp: Destination amplitude array (or NULL if disabled).
- * @d_sum: Optional device memory pointer for parallel piston sum reduction (or NULL).
- * @npix: Total number of grid pixels.
+ * atmturb_cuda_fresnel_extract_launch - Extract pupil amplitude, unwrapped phase, and piston sum
+ * @args: Extraction descriptor with device pointers and grid dimensions.
  * @stream: CUDA execution stream.
- *
- * Extracts amplitude |E| and unwraps diffractive phase using geometric reference phase.
  */
 void atmturb_cuda_fresnel_extract_launch(
-    const cufftComplex *d_field,
-    float              *d_pha,
-    float              *d_amp,
-    float              *d_sum,
-    int                 npix,
-    cudaStream_t        stream);
+    const atmturb_cuda_fresnel_extract_args_t *args,
+    cudaStream_t                               stream);
 
 #ifdef __cplusplus
 }

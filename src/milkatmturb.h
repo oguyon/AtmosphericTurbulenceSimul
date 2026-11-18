@@ -4,7 +4,12 @@
 
 /**
  * @file    milkatmturb.h
- * @brief   Atmospheric Turbulence Simulation module for milk
+ * @brief   Umbrella public header for the milkatmturb plugin
+ *
+ * Exposes C23/C11 portability macros together with the public APIs of
+ * AtmosphereModel (refractivity and ray tracing), AtmosphericTurbulence
+ * (phase synthesis, propagation, streaming, and AO metrics), OpticsMaterials,
+ * and WFpropagate.
  */
 
 #ifndef _MILK_ATMTURB_H

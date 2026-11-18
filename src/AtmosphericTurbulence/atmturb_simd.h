@@ -29,15 +29,17 @@ typedef enum
 
 /**
  * struct atmturb_extrude_params_t - Parameter bundle for phase screen extrusion
- * @master: Pointer to master phase screen data.
+ * @master: Pointer to master phase screen data (primary / epoch A).
  * @msize: Master screen linear dimension in pixels.
  * @x0: Sub-pixel X coordinate offset in master pixels.
  * @y0: Sub-pixel Y coordinate offset in master pixels.
  * @pup_size: Linear dimension of the extracted pupil in pixels.
  * @os: Master grid oversampling factor (stride = os).
  * @interp: Interpolation scheme (0=bilinear, 1=Keys bicubic).
- * @weight: Layer Cn2 amplitude weight factor.
+ * @weight: Layer Cn2 amplitude weight factor for @master.
  * @out_pha: Output pupil phase array to accumulate into.
+ * @master_b: Optional secondary rolling epoch master screen (or NULL).
+ * @weight_b: Optional layer amplitude weight factor for @master_b.
  */
 typedef struct
 {
@@ -50,6 +52,8 @@ typedef struct
     int          interp;
     float        weight;
     float       *out_pha;
+    const float *master_b;
+    float        weight_b;
 } atmturb_extrude_params_t;
 
 struct atmturb_lowfreq_t;
@@ -67,7 +71,7 @@ struct atmturb_lowfreq_t;
  * @weight: Layer Cn2 amplitude weight factor.
  * @out_pha: Output pupil phase array to accumulate into.
  */
-typedef struct
+typedef struct atmturb_lowfreq_params_t
 {
     const struct atmturb_lowfreq_t *lf;
     int                             screen_idx;
@@ -150,9 +154,9 @@ void atmturb_complex_mul_array(
  * @npix: Total number of pixels.
  */
 void atmturb_remove_piston_stream(
-    float       *restrict dst,
-    const float *restrict src,
-    long                  npix);
+    float       *dst,
+    const float *src,
+    long         npix);
 
 /**
  * atmturb_simd_active_isa - Query name of active vectorized ISA implementation
@@ -162,11 +166,25 @@ void atmturb_remove_piston_stream(
 const char *atmturb_simd_active_isa(void);
 
 /**
+ * atmturb_simd_cpu_isa - Query name of bound host CPU SIMD ISA implementation
+ *
+ * Return: String name of host CPU ISA ("AVX-512", "AVX2", or "Scalar").
+ */
+const char *atmturb_simd_cpu_isa(void);
+
+/**
  * atmturb_simd_is_gpu - Query if CUDA GPU execution is active
  *
  * Return: 1 if GPU mode is selected, 0 otherwise.
  */
 int atmturb_simd_is_gpu(void);
+
+/**
+ * atmturb_simd_is_gpu_forced - Query if CUDA GPU was explicitly requested via ATMTURB_SIMD
+ *
+ * Return: 1 if ATMTURB_SIMD=CUDA or GPU was explicitly set, 0 if auto-detected.
+ */
+int atmturb_simd_is_gpu_forced(void);
 
 /* Scalar reference implementations */
 void atmturb_extrude_accumulate_scalar(
@@ -196,9 +214,9 @@ void atmturb_complex_mul_array_scalar(
     const float *src2,
     long         n_complex);
 void atmturb_remove_piston_stream_scalar(
-    float       *restrict dst,
-    const float *restrict src,
-    long                  npix);
+    float       *dst,
+    const float *src,
+    long         npix);
 
 /* AVX2 implementations */
 void atmturb_extrude_accumulate_avx2(
@@ -228,9 +246,9 @@ void atmturb_complex_mul_array_avx2(
     const float *src2,
     long         n_complex);
 void atmturb_remove_piston_stream_avx2(
-    float       *restrict dst,
-    const float *restrict src,
-    long                  npix);
+    float       *dst,
+    const float *src,
+    long         npix);
 
 /* AVX-512 implementations */
 void atmturb_extrude_accumulate_avx512(
@@ -260,9 +278,9 @@ void atmturb_complex_mul_array_avx512(
     const float *src2,
     long         n_complex);
 void atmturb_remove_piston_stream_avx512(
-    float       *restrict dst,
-    const float *restrict src,
-    long                  npix);
+    float       *dst,
+    const float *src,
+    long         npix);
 
 #ifdef __cplusplus
 }

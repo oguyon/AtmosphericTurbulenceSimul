@@ -299,7 +299,7 @@ static void bench_geom_streaming(
     double dt_omp = (get_time_sec() - t0) / (double) nframes;
 
     double dt_gpu = 0.0;
-    atmturb_cuda_geom_stream_t *gstream =
+    atmturb_wfs_cuda_geom_stream_t *gstream =
         atmturb_wfs_cuda_geom_stream_init(rsim, geom, BENCH_MSIZE, pup_size);
     if (gstream != NULL)
     {
@@ -449,7 +449,7 @@ static void bench_fresnel_streaming(
     if (atmturb_fresnel_plan_init(&fplan, prof, geom, pup_size, params->pupil_scale_m,
                                   params->lambda_ref_m, params->lambda_s_m, z_bin) == 0)
     {
-        atmturb_fresnel_ctx_init(&fctx, pup_size);
+        atmturb_fresnel_ctx_init(&fctx, fplan.pad_size);
         atmturb_fresnel_render_step(&fctx, &fplan, rsim, geom, 0, 0.001,
                                     BENCH_MSIZE, pup_size, pha, amp, NULL, NULL);
 

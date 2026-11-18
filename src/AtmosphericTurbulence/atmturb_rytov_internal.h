@@ -44,7 +44,7 @@ void atmturb_rytov_assemble_output(
 void atmturb_rytov_decompose_periodic(
     atmturb_rytov_ctx_t        *ctx,
     const atmturb_rytov_plan_t *plan,
-    const float                *phi);
+    float                      *phi);
 
 /**
  * atmturb_rytov_accumulate_filters - Multiply spectrum by filters and accumulate
@@ -83,6 +83,19 @@ void atmturb_rytov_accumulate_filters_rotated(
     long                          ntot);
 
 /**
+ * atmturb_rytov_process_superlayer - Fused R2C, Moisan, and L1-resident filter accumulation
+ * @ctx: Thread execution context.
+ * @plan: Propagation plan.
+ * @m: Super-layer index.
+ * @has_sec: Non-zero when secondary polychromatic channel is active.
+ */
+void atmturb_rytov_process_superlayer(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    int                         m,
+    int                         has_sec);
+
+/**
  * atmturb_rytov_init_tables - Build Poisson solver lookup tables
  * @plan: Propagation plan to populate.
  *
@@ -103,16 +116,6 @@ int atmturb_rytov_build_layer_filters(
     atmturb_rytov_plan_t *plan,
     int                   m,
     size_t                npix);
-
-/**
- * atmturb_rytov_wisdom_load - Import pre-computed FFTW wisdom from disk
- */
-void atmturb_rytov_wisdom_load(void);
-
-/**
- * atmturb_rytov_wisdom_save - Export updated FFTW wisdom to disk
- */
-void atmturb_rytov_wisdom_save(void);
 
 #ifdef __cplusplus
 }

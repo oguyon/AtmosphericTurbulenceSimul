@@ -18,6 +18,8 @@
 #include "atmturb_geometry.h"
 #include "atmturb_types.h"
 
+#define ATMTURB_EARTH_RADIUS_M 6371000.0
+
 /**
  * atmturb_geometry_free - Release geometry layer array
  * @geom: Pointer to geometry structure.
@@ -45,12 +47,16 @@ void atmturb_geometry_free(
 }
 
 /**
- * atmturb_refraction_ray_shift_path - Compute refraction shift and curved ray path length
+ * atmturb_refraction_ray_shift_path - Compute spherical-shell refraction shift and ray path length
  * @h_layer: Layer altitude above sea level [m].
  * @h_site: Telescope site altitude above sea level [m].
  * @zenith_angle: Apparent zenith angle [rad].
  * @lambda_m: Optical wavelength [m].
  * @path_len_out: Output pointer for curved ray path length in meters (or NULL).
+ *
+ * Traces a ray upward through concentric spherical shells (Bouguer's invariant)
+ * from @h_site to @h_layer, returning lateral arc deflection at @h_layer relative
+ * to an unrefracted geometric ray.
  *
  * Return: Lateral deflection in meters relative to an unrefracted straight ray.
  */
@@ -61,30 +67,31 @@ double atmturb_refraction_ray_shift_path(
     double  lambda_m,
     double *path_len_out)
 {
-    double cos_z0 = cos(zenith_angle);
-    double straight_dist = (zenith_angle <= 1e-6)
-                               ? (h_layer - h_site)
-                               : ((cos_z0 > 1e-9) ? (h_layer - h_site) / cos_z0 : 0.0);
-    if (straight_dist < 0.0)
-    {
-        straight_dist = 0.0;
-    }
-
-    if (zenith_angle <= 1e-6 || h_layer <= h_site)
+    if (h_layer <= h_site)
     {
         if (path_len_out != NULL)
         {
-            *path_len_out = straight_dist;
+            *path_len_out = 0.0;
         }
         return 0.0;
     }
 
-    double sin_z0 = sin(zenith_angle);
-    double tan_z0 = tan(zenith_angle);
-    double h_curr = h_site;
-    double shift = 0.0;
-    double path_len = 0.0;
-    const double step = 10.0;
+    if (zenith_angle <= 1e-6)
+    {
+        if (path_len_out != NULL)
+        {
+            *path_len_out = h_layer - h_site;
+        }
+        return 0.0;
+    }
+
+    const double r_site  = ATMTURB_EARTH_RADIUS_M + h_site;
+    const double r_layer = ATMTURB_EARTH_RADIUS_M + h_layer;
+    const double sin_z0  = sin(zenith_angle);
+    const double step    = 10.0;
+    double h_curr        = h_site;
+    double dtheta        = 0.0;
+    double path_len      = 0.0;
 
     while (h_curr < h_layer)
     {
@@ -93,26 +100,36 @@ double atmturb_refraction_ray_shift_path(
         {
             next_h = h_layer;
         }
-        double dh = next_h - h_curr;
-        double h_mid = 0.5 * (h_curr + next_h);
-        double N = (double) AtmosphereModel_stdAtmModel_N((float) h_mid, (float) lambda_m, 0);
-        double sin_z = sin_z0 / (1.0 + N);
-        if (sin_z > 0.9999)
+        double dh     = next_h - h_curr;
+        double h_mid  = 0.5 * (h_curr + next_h);
+        double r_mid  = ATMTURB_EARTH_RADIUS_M + h_mid;
+        double sin_zg = (r_site / r_mid) * sin_z0;
+        if (sin_zg > 0.999999)
         {
-            sin_z = 0.9999;
+            sin_zg = 0.999999;
+        }
+        double cos_zg = sqrt(1.0 - sin_zg * sin_zg);
+        double tan_zg = sin_zg / cos_zg;
+
+        double N     = (double) AtmosphereModel_stdAtmModel_N((float) h_mid, (float) lambda_m, 0);
+        double sin_z = sin_zg / (1.0 + N);
+        if (sin_z > 0.999999)
+        {
+            sin_z = 0.999999;
         }
         double cos_z = sqrt(1.0 - sin_z * sin_z);
-        double tan_z = (cos_z > 1e-9) ? (sin_z / cos_z) : tan_z0;
-        shift += (tan_z - tan_z0) * dh;
-        path_len += (cos_z > 1e-9) ? (dh / cos_z) : (dh / cos_z0);
-        h_curr = next_h;
-    }
+        double tan_z = sin_z / cos_z;
+
+        dtheta   += ((tan_z - tan_zg) / r_mid) * dh;
+        path_len += dh / cos_z;
+        h_curr    = next_h;
+    } // while (h_curr < h_layer)
 
     if (path_len_out != NULL)
     {
         *path_len_out = path_len;
     }
-    return shift;
+    return r_layer * dtheta;
 }
 
 /**
@@ -277,6 +294,38 @@ static void atmturb_init_layer_turbulent_wind(
 }
 
 /**
+ * atmturb_resolve_layer_boil - Resolve effective velocity dispersion for layer boiling
+ * @layer: Layer physical specification from profile.
+ * @params: Observing simulation parameters.
+ *
+ * Return: Effective boiling velocity dispersion [m/s] (0.0 if boiling is disabled).
+ */
+static double atmturb_resolve_layer_boil(
+    const atmturb_layer_t      *layer,
+    const atmturb_obs_params_t *params)
+{
+    int abs_mode = (params->boil_mode < 0) ? -params->boil_mode : params->boil_mode;
+    if (abs_mode != 1 && abs_mode != 2)
+    {
+        return 0.0;
+    }
+    if (layer->sigma_boil_mps >= 0.0)
+    {
+        return layer->sigma_boil_mps;
+    }
+    if (params->boil_sigma_mps > 0.0)
+    {
+        return params->boil_sigma_mps;
+    }
+    if (layer->sigma_wind_mps > 0.0)
+    {
+        return layer->sigma_wind_mps;
+    }
+    double v_shear = 0.15 * fabs(layer->speed_mps);
+    return (v_shear > 0.5) ? v_shear : 0.5;
+}
+
+/**
  * atmturb_geometry_compute - Derive all layer geometric parameters and scales
  * @prof: Active turbulence profile.
  * @params: Observing conditions and simulation parameters.
@@ -302,6 +351,8 @@ int atmturb_geometry_compute(
     geom->lowfreq = (params->lowfreq != 0) ? 1 : 0;
     geom->rolling = (params->rolling != 0) ? 1 : 0;
     geom->boil_time_s = (params->boil_time_s > 0.0) ? params->boil_time_s : 0.0;
+    geom->boil_mode = params->boil_mode;
+    geom->boil_sigma_mps = params->boil_sigma_mps;
     geom->dx_master_m = params->pupil_scale_m / (double) os;
 
     geom->cos_z = cos(params->zenith_rad);
@@ -394,7 +445,8 @@ int atmturb_geometry_compute(
         {
             t_dec = params->boil_time_s;
         }
-        lg->t_dec_s = t_dec;
+        lg->t_dec_s        = t_dec;
+        lg->sigma_boil_mps = atmturb_resolve_layer_boil(layer, params);
 
         atmturb_init_layer_turbulent_wind(layer, params, geom, k, base_seed, lg);
     }

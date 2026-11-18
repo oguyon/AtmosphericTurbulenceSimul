@@ -51,6 +51,36 @@ void atmturb_fresnel_simd_extract_unwrapped(
     float               *restrict amp,
     long                          npix);
 
+/**
+ * atmturb_fresnel_simd_phasor_masked - Synthesize masked pupil complex field m * exp(i * scale * x)
+ * @field: Output complex field array (npix elements, interleaved re/im).
+ * @opd: Input phase or OPD array (NULL for unmodulated flat wavefront).
+ * @mask: Real aperture transmission mask array.
+ * @scale: Multiplicative scale converting @opd to radians.
+ * @npix: Number of contiguous pixels to populate.
+ */
+void atmturb_fresnel_simd_phasor_masked(
+    fftwf_complex *restrict field,
+    const float   *restrict opd,
+    const float   *restrict mask,
+    float                   scale,
+    long                    npix);
+
+/**
+ * atmturb_fresnel_simd_spectrum_strip - Synthesize 8 von Karman Fourier modes for r2 >= 256
+ * @out: Output complex spectrum strip (8 elements).
+ * @u1: Uniform (0, 1) Box-Muller radial samples (8 floats).
+ * @u2: Uniform [0, 1) Box-Muller angular samples (8 floats).
+ * @fx0: Starting X spatial frequency index (lanes use fx0 + 0..7).
+ * @spec_p: 4-float parameter tuple {fy2, k0_sq, sqrt_pref, inv_two_km2}.
+ */
+void atmturb_fresnel_simd_spectrum_strip(
+    fftwf_complex *restrict out,
+    const float   *restrict u1,
+    const float   *restrict u2,
+    float                   fx0,
+    const float   *restrict spec_p);
+
 /* Scalar reference implementations */
 void atmturb_fresnel_modulate_field_scalar(
     fftwf_complex *restrict field,
@@ -68,6 +98,20 @@ void atmturb_fresnel_extract_unwrapped_scalar(
     float               *restrict amp,
     long                          npix);
 
+void atmturb_fresnel_phasor_masked_scalar(
+    fftwf_complex *restrict field,
+    const float   *restrict opd,
+    const float   *restrict mask,
+    float                   scale,
+    long                    npix);
+
+void atmturb_fresnel_spectrum_strip_scalar(
+    fftwf_complex *restrict out,
+    const float   *restrict u1,
+    const float   *restrict u2,
+    float                   fx0,
+    const float   *restrict spec_p);
+
 /* AVX2 implementations */
 void atmturb_fresnel_modulate_field_avx2(
     fftwf_complex *restrict field,
@@ -84,6 +128,51 @@ void atmturb_fresnel_extract_unwrapped_avx2(
     float               *restrict pha,
     float               *restrict amp,
     long                          npix);
+
+void atmturb_fresnel_phasor_masked_avx2(
+    fftwf_complex *restrict field,
+    const float   *restrict opd,
+    const float   *restrict mask,
+    float                   scale,
+    long                    npix);
+
+void atmturb_fresnel_spectrum_strip_avx2(
+    fftwf_complex *restrict out,
+    const float   *restrict u1,
+    const float   *restrict u2,
+    float                   fx0,
+    const float   *restrict spec_p);
+
+/* AVX-512 implementations */
+void atmturb_fresnel_modulate_field_avx512(
+    fftwf_complex *restrict field,
+    const float   *restrict phase,
+    long                    npix);
+
+void atmturb_fresnel_init_modulate_field_avx512(
+    fftwf_complex *restrict field,
+    const float   *restrict phase,
+    long                    npix);
+
+void atmturb_fresnel_extract_unwrapped_avx512(
+    const fftwf_complex *restrict field,
+    float               *restrict pha,
+    float               *restrict amp,
+    long                          npix);
+
+void atmturb_fresnel_phasor_masked_avx512(
+    fftwf_complex *restrict field,
+    const float   *restrict opd,
+    const float   *restrict mask,
+    float                   scale,
+    long                    npix);
+
+void atmturb_fresnel_spectrum_strip_avx512(
+    fftwf_complex *restrict out,
+    const float   *restrict u1,
+    const float   *restrict u2,
+    float                   fx0,
+    const float   *restrict spec_p);
 
 #ifdef __cplusplus
 }

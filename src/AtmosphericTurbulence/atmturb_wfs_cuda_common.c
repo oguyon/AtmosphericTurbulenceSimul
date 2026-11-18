@@ -7,6 +7,8 @@
  * @brief   Shared helper implementations for CUDA wavefront rendering and streaming
  */
 
+#ifdef HAVE_CUDA
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -188,65 +190,85 @@ void atmturb_wfs_cuda_build_frame_lf_modes(
     int                          max_lf_modes,
     atmturb_cuda_lowfreq_mode_t *lf_modes)
 {
-    if (r->lowfreq == 0 || lf_modes == NULL)
+    if (r->lowfreq == 0 || lf_modes == NULL || max_lf_modes <= 0)
     {
         return;
     }
 
     for (int m = 0; m < nsuper; m++)
     {
-        const atmturb_superlayer_t *sl = &supers[m];
-        size_t base = (size_t) (m * max_lf_modes);
-        int mode_idx = 0;
+        const atmturb_superlayer_t *sl   = &supers[m];
+        size_t                      base = (size_t) (m * max_lf_modes);
+        if (sl->nlayers <= 0)
+        {
+            continue;
+        }
+
+        double are_p[ATMTURB_LOWFREQ_NMODES] = {0};
+        double aim_p[ATMTURB_LOWFREQ_NMODES] = {0};
+        double are_s[ATMTURB_LOWFREQ_NMODES] = {0};
+        double aim_s[ATMTURB_LOWFREQ_NMODES] = {0};
+        int    nmodes                        = 0;
 
         for (int j = 0; j < sl->nlayers; j++)
         {
-            int k = sl->layer_indices[j];
+            int                         k  = sl->layer_indices[j];
             float ws = (sl->layer_weights != NULL) ? sl->layer_weights[j] : 1.0f;
-            atmturb_rolling_eval_t rev;
+            const atmturb_layer_geom_t *lg = &geom->layers[k];
+            atmturb_rolling_eval_t      rev;
             atmturb_rolling_get_frame(r, k, t, time_step_s, &rev);
 
-            const atmturb_layer_geom_t *lg = &geom->layers[k];
-            double dx = atmturb_geom_get_layer_dx(lg, t);
-            double dy = atmturb_geom_get_layer_dy(lg, t);
-
-            double x  = lg->x0 + dx - offset_os;
-            double y  = lg->y0 + dy - offset_os;
-            double xs = lg->xs0 + dx - offset_os;
-            double ys = lg->ys0 + dy - offset_os;
-
+            double dx    = atmturb_geom_get_layer_dx(lg, t);
+            double dy    = atmturb_geom_get_layer_dy(lg, t);
+            double x     = lg->x0 + dx - offset_os;
+            double y     = lg->y0 + dy - offset_os;
+            double xs    = lg->xs0 + dx - offset_os;
+            double ys    = lg->ys0 + dy - offset_os;
             double w_pri = lg->weight * (double) ws;
             double w_sec = lg->weight_s * (double) ws;
+
             const atmturb_lowfreq_t *lf_base = &r->layers[k].lf_base;
+            nmodes = (lf_base->nmodes <= max_lf_modes) ? lf_base->nmodes : max_lf_modes;
 
-            for (int lm = 0; lm < lf_base->nmodes; lm++)
+            for (int lm = 0; lm < nmodes; lm++)
             {
-                float kx = lf_base->kx[lm];
-                float ky = lf_base->ky[lm];
-                float are = rev.are_eff[lm];
-                float aim = rev.aim_eff[lm];
+                double kx     = (double) lf_base->kx[lm];
+                double ky     = (double) lf_base->ky[lm];
+                double are    = (double) rev.are_eff[lm];
+                double aim    = (double) rev.aim_eff[lm];
+                double th_pri = kx * x + ky * y;
+                double th_sec = kx * xs + ky * ys;
+                double cp     = cos(th_pri);
+                double sp     = sin(th_pri);
+                double cs     = (th_sec == th_pri) ? cp : cos(th_sec);
+                double ss     = (th_sec == th_pri) ? sp : sin(th_sec);
 
-                atmturb_cuda_lowfreq_mode_t *out = &lf_modes[base + mode_idx++];
-                double th_pri = fmod((double) kx * x + (double) ky * y, 2.0 * M_PI);
-                if (th_pri < 0.0)
-                {
-                    th_pri += 2.0 * M_PI;
-                }
-                double th_sec = fmod((double) kx * xs + (double) ky * ys, 2.0 * M_PI);
-                if (th_sec < 0.0)
-                {
-                    th_sec += 2.0 * M_PI;
-                }
-
-                out->are_pri = (float) (w_pri * (double) are);
-                out->aim_pri = (float) (w_pri * (double) aim);
-                out->are_sec = (float) (w_sec * (double) are);
-                out->aim_sec = (float) (w_sec * (double) aim);
-                out->th0_pri = (float) th_pri;
-                out->th0_sec = (float) th_sec;
-                out->dkx     = (float) ((double) kx * (double) geom->oversample);
-                out->dky     = (float) ((double) ky * (double) geom->oversample);
+                are_p[lm] += w_pri * (are * cp - aim * sp);
+                aim_p[lm] += w_pri * (are * sp + aim * cp);
+                are_s[lm] += w_sec * (are * cs - aim * ss);
+                aim_s[lm] += w_sec * (are * ss + aim * cs);
             }
+        }
+
+        const atmturb_lowfreq_t *lf0 = &r->layers[sl->layer_indices[0]].lf_base;
+        double                   os  = (double) geom->oversample;
+        for (int lm = 0; lm < nmodes; lm++)
+        {
+            atmturb_cuda_lowfreq_mode_t *out = &lf_modes[base + (size_t) lm];
+            out->are_pri = (float) are_p[lm];
+            out->aim_pri = (float) aim_p[lm];
+            out->are_sec = (float) are_s[lm];
+            out->aim_sec = (float) aim_s[lm];
+            out->th0_pri = 0.0f;
+            out->th0_sec = 0.0f;
+            out->dkx     = (float) ((double) lf0->kx[lm] * os);
+            out->dky     = (float) ((double) lf0->ky[lm] * os);
         }
     }
 }
+
+#else
+
+typedef int atmturb_wfs_cuda_common_iso_c_dummy;
+
+#endif /* HAVE_CUDA */

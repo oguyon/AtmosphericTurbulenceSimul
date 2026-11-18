@@ -7,6 +7,9 @@
  * @brief   Scalar fallback implementations for Rytov diffractive kernels
  */
 
+#include <math.h>
+#include <stddef.h>
+
 #include "atmturb_rytov_simd.h"
 
 /**
@@ -116,4 +119,51 @@ void atmturb_rytov_decompose_row_scalar(
         spec_row[i][0] += v_re * linv;
         spec_row[i][1] += v_im * linv;
     }
+}
+
+/**
+ * atmturb_rytov_assemble_row_scalar - Scalar reference row phase/amplitude assembly
+ * @pha_row: Destination/in-out phase row (or NULL).
+ * @amp_row: Destination amplitude row (or NULL).
+ * @dphi_row: Source diffractive phase correction row.
+ * @chi_row: Source log-amplitude row.
+ * @len: Number of contiguous pixels in row span.
+ *
+ * Return: Sum of squared amplitudes across the row span.
+ */
+double atmturb_rytov_assemble_row_scalar(
+    float       *restrict pha_row,
+    float       *restrict amp_row,
+    const float *restrict dphi_row,
+    const float *restrict chi_row,
+    long                  len)
+{
+    double sum_i = 0.0;
+
+    if (pha_row != NULL)
+    {
+        for (long x = 0; x < len; x++)
+        {
+            pha_row[x] += dphi_row[x];
+        }
+    }
+    if (amp_row != NULL)
+    {
+        for (long x = 0; x < len; x++)
+        {
+            float c = chi_row[x];
+            if (c > 3.0f)
+            {
+                c = 3.0f;
+            }
+            else if (c < -3.0f)
+            {
+                c = -3.0f;
+            }
+            float a    = expf(c);
+            amp_row[x] = a;
+            sum_i += (double) (a * a);
+        }
+    }
+    return sum_i;
 }

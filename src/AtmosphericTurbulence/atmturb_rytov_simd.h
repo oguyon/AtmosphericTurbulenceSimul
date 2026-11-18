@@ -75,6 +75,23 @@ void atmturb_rytov_simd_decompose_row(
     float                         b_im,
     long                          n_half);
 
+/**
+ * atmturb_rytov_simd_assemble_row - Add diffractive phase and evaluate Rytov amplitude row
+ * @pha_row: Destination/in-out phase row (or NULL).
+ * @amp_row: Destination amplitude row (or NULL).
+ * @dphi_row: Source diffractive phase correction row.
+ * @chi_row: Source log-amplitude row.
+ * @len: Number of contiguous pixels in row span.
+ *
+ * Return: Sum of squared amplitudes across the row span.
+ */
+double atmturb_rytov_simd_assemble_row(
+    float       *restrict pha_row,
+    float       *restrict amp_row,
+    const float *restrict dphi_row,
+    const float *restrict chi_row,
+    long                  len);
+
 /* Scalar reference implementations */
 void atmturb_rytov_accumulate_filters_scalar(
     fftwf_complex *restrict       acc_dphi,
@@ -104,6 +121,13 @@ void atmturb_rytov_decompose_row_scalar(
     float                         b_im,
     long                          n_half);
 
+double atmturb_rytov_assemble_row_scalar(
+    float       *restrict pha_row,
+    float       *restrict amp_row,
+    const float *restrict dphi_row,
+    const float *restrict chi_row,
+    long                  len);
+
 /* AVX2 implementations */
 void atmturb_rytov_accumulate_filters_avx2(
     fftwf_complex *restrict       acc_dphi,
@@ -132,6 +156,49 @@ void atmturb_rytov_decompose_row_avx2(
     float                         b_re,
     float                         b_im,
     long                          n_half);
+
+double atmturb_rytov_assemble_row_avx2(
+    float       *restrict pha_row,
+    float       *restrict amp_row,
+    const float *restrict dphi_row,
+    const float *restrict chi_row,
+    long                  len);
+
+/* AVX-512 implementations */
+void atmturb_rytov_accumulate_filters_avx512(
+    fftwf_complex *restrict       acc_dphi,
+    fftwf_complex *restrict       acc_chi,
+    const fftwf_complex *restrict spec,
+    const float *restrict         filt_a,
+    const float *restrict         filt_b,
+    long                          ntot);
+
+void atmturb_rytov_accumulate_filters_rotated_avx512(
+    fftwf_complex *restrict       acc_dphi,
+    fftwf_complex *restrict       acc_chi,
+    const fftwf_complex *restrict spec,
+    const fftwf_complex *restrict ramp,
+    const float *restrict         filt_a,
+    const float *restrict         filt_b,
+    long                          ntot);
+
+void atmturb_rytov_decompose_row_avx512(
+    fftwf_complex *restrict       spec_row,
+    const fftwf_complex *restrict hat_a,
+    const fftwf_complex *restrict exp_x,
+    const float *restrict         laplace_inv_row,
+    float                         ey_re,
+    float                         ey_im,
+    float                         b_re,
+    float                         b_im,
+    long                          n_half);
+
+double atmturb_rytov_assemble_row_avx512(
+    float       *restrict pha_row,
+    float       *restrict amp_row,
+    const float *restrict dphi_row,
+    const float *restrict chi_row,
+    long                  len);
 
 #ifdef __cplusplus
 }

@@ -10,11 +10,13 @@
 #include <cuda_runtime.h>
 #include <math.h>
 
+#include "atmturb_cuda.h"
 #include "atmturb_cuda_rytov_internal.h"
 
 /**
  * atmturb_cuda_sample_screen - Bilinear interpolation sample from toroidal master screen
  * @d_masters: Array of device pointers to master phase screens.
+ * @master_tex: 2D layered hardware texture object (or 0 for linear memory fallback).
  * @msize: Master screen dimension in pixels.
  * @is_pow2: 1 if msize is a power of 2, 0 otherwise.
  * @mask: Bitmask for power-of-2 wrapping (msize - 1).
@@ -27,13 +29,14 @@
  * Return: Interpolated phase value in radians.
  */
 __device__ static inline float atmturb_cuda_sample_screen(
-    const float *d_masters,
-    int          msize,
-    int          is_pow2,
-    int          mask,
-    int          k,
-    float        cur_x,
-    float        cur_y)
+    const float        *d_masters,
+    cudaTextureObject_t master_tex,
+    int                 msize,
+    int                 is_pow2,
+    int                 mask,
+    int                 k,
+    float               cur_x,
+    float               cur_y)
 {
     int ix = __float2int_rd(cur_x);
     int iy = __float2int_rd(cur_y);
@@ -58,12 +61,27 @@ __device__ static inline float atmturb_cuda_sample_screen(
         iy1 = (iy0 + 1 == msize) ? 0 : (iy0 + 1);
     }
 
-    size_t msize_sq = (size_t) msize * (size_t) msize;
-    const float *screen = d_masters + (size_t) k * msize_sq;
-    float v00 = __ldg(&screen[iy0 * msize + ix0]);
-    float v10 = __ldg(&screen[iy0 * msize + ix1]);
-    float v01 = __ldg(&screen[iy1 * msize + ix0]);
-    float v11 = __ldg(&screen[iy1 * msize + ix1]);
+    float v00, v10, v01, v11;
+    if (master_tex != 0)
+    {
+        float tx0 = (float) ix0 + 0.5f;
+        float tx1 = (float) ix1 + 0.5f;
+        float ty0 = (float) iy0 + 0.5f;
+        float ty1 = (float) iy1 + 0.5f;
+        v00 = tex2DLayered<float>(master_tex, tx0, ty0, k);
+        v10 = tex2DLayered<float>(master_tex, tx1, ty0, k);
+        v01 = tex2DLayered<float>(master_tex, tx0, ty1, k);
+        v11 = tex2DLayered<float>(master_tex, tx1, ty1, k);
+    }
+    else
+    {
+        size_t msize_sq = (size_t) msize * (size_t) msize;
+        const float *screen = d_masters + (size_t) k * msize_sq;
+        v00 = __ldg(&screen[iy0 * msize + ix0]);
+        v10 = __ldg(&screen[iy0 * msize + ix1]);
+        v01 = __ldg(&screen[iy1 * msize + ix0]);
+        v11 = __ldg(&screen[iy1 * msize + ix1]);
+    }
 
     float top = v00 + fx * (v10 - v00);
     float bot = v01 + fx * (v11 - v01);
@@ -73,6 +91,7 @@ __device__ static inline float atmturb_cuda_sample_screen(
 /**
  * atmturb_cuda_sample_screen_bicubic - Keys bicubic interpolation from toroidal master screen
  * @d_masters: Array of device pointers to master phase screens.
+ * @master_tex: 2D layered hardware texture object (or 0 for linear memory fallback).
  * @msize: Master screen dimension in pixels.
  * @is_pow2: 1 if msize is a power of 2, 0 otherwise.
  * @mask: Bitmask for power-of-2 wrapping (msize - 1).
@@ -85,13 +104,14 @@ __device__ static inline float atmturb_cuda_sample_screen(
  * Return: Interpolated phase value in radians.
  */
 __device__ static inline float atmturb_cuda_sample_screen_bicubic(
-    const float *d_masters,
-    int          msize,
-    int          is_pow2,
-    int          mask,
-    int          k,
-    float        cur_x,
-    float        cur_y)
+    const float        *d_masters,
+    cudaTextureObject_t master_tex,
+    int                 msize,
+    int                 is_pow2,
+    int                 mask,
+    int                 k,
+    float               cur_x,
+    float               cur_y)
 {
     int ix = __float2int_rd(cur_x);
     int iy = __float2int_rd(cur_y);
@@ -135,6 +155,28 @@ __device__ static inline float atmturb_cuda_sample_screen_bicubic(
         iy1 = iy       % msize; if (iy1 < 0) iy1 += msize;
         iy2 = (iy + 1) % msize; if (iy2 < 0) iy2 += msize;
         iy3 = (iy + 2) % msize; if (iy3 < 0) iy3 += msize;
+    }
+
+    if (master_tex != 0)
+    {
+        float tx0   = (float) ix0 + 0.5f;
+        float tx1   = (float) ix1 + 0.5f;
+        float tx2   = (float) ix2 + 0.5f;
+        float tx3   = (float) ix3 + 0.5f;
+        float ty[4] = {(float) iy0 + 0.5f, (float) iy1 + 0.5f,
+                       (float) iy2 + 0.5f, (float) iy3 + 0.5f};
+        float wy[4] = {wy0, wy1, wy2, wy3};
+        float sum   = 0.0f;
+        #pragma unroll
+        for (int r = 0; r < 4; r++)
+        {
+            float hr = wx0 * tex2DLayered<float>(master_tex, tx0, ty[r], k) +
+                       wx1 * tex2DLayered<float>(master_tex, tx1, ty[r], k) +
+                       wx2 * tex2DLayered<float>(master_tex, tx2, ty[r], k) +
+                       wx3 * tex2DLayered<float>(master_tex, tx3, ty[r], k);
+            sum += wy[r] * hr;
+        }
+        return sum;
     }
 
     size_t msize_sq = (size_t) msize * (size_t) msize;
@@ -262,65 +304,51 @@ __device__ static inline void atmturb_cuda_accumulate_lowfreq_shared(
 
 /**
  * atmturb_cuda_extrude_sl_kernel - Device kernel extruding sublayers onto padded grid
- * @d_masters: Array of device pointers to master phase screens.
- * @msize: Master phase screen linear dimension in pixels.
- * @pad_size: Linear dimension of padded simulation grid in pixels.
- * @pup_size: Linear dimension of synthesized pupil in pixels.
- * @guard: Guard band margin in pixels surrounding pupil.
- * @n_sub: Number of active sublayers in current superlayer.
- * @has_sec: 1 if secondary wavelength is enabled, 0 otherwise.
- * @os: Master screen oversampling factor (1 or 2).
- * @d_sublayers: Array of device sublayer coordinates and interpolation weights.
- * @n_lf_modes: Number of active low-frequency subharmonic modes.
- * @d_lf_modes: Array of device subharmonic mode parameters.
- * @d_super_pha: Destination superlayer primary phase array.
- * @d_super_spha: Destination superlayer secondary phase array.
- * @d_frame_pha: Cumulative pupil primary phase array.
- * @d_frame_spha: Cumulative pupil secondary phase array.
+ * @args: Extrusion parameters, strides, and device pointers.
+ * @master_tex: 2D layered hardware texture object (or 0 for linear memory fallback).
  */
 template <int interp_mode>
 __global__ static void atmturb_cuda_extrude_sl_kernel(
-    const float                         *d_masters,
-    int                                  msize,
-    int                                  pad_size,
-    int                                  pup_size,
-    int                                  guard,
-    int                                  n_sub,
-    int                                  has_sec,
-    int                                  os,
-    const atmturb_cuda_rytov_sublayer_t *d_sublayers,
-    int                                  n_lf_modes,
-    const atmturb_cuda_lowfreq_mode_t   *d_lf_modes,
-    float                               *d_super_pha,
-    float                               *d_super_spha,
-    float                               *d_frame_pha,
-    float                               *d_frame_spha)
+    atmturb_cuda_extrude_batch_args_t args,
+    cudaTextureObject_t               master_tex)
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    int valid = (i < pad_size && j < pad_size);
+    int pupil_only = (args.d_super_pha == NULL && args.d_super_spha == NULL);
+    int gx         = blockIdx.x * blockDim.x + threadIdx.x;
+    int gy         = blockIdx.y * blockDim.y + threadIdx.y;
+    int b          = (int) blockIdx.z;
+    int i          = pupil_only ? (gx + args.guard) : gx;
+    int j          = pupil_only ? (gy + args.guard) : gy;
+    int grid_lim   = pupil_only ? (args.guard + args.pup_size) : args.pad_size;
+    int valid      = (i < grid_lim && j < grid_lim);
 
-    int is_pow2 = ((msize & (msize - 1)) == 0);
-    int mask    = msize - 1;
+    int is_pow2 = ((args.msize & (args.msize - 1)) == 0);
+    int mask    = args.msize - 1;
+
+    const atmturb_cuda_rytov_sublayer_t *sl_b =
+        args.d_sublayers + (size_t) b * (size_t) args.sub_stride;
+    const atmturb_cuda_lowfreq_mode_t *lf_b =
+        (args.d_lf_modes != NULL) ? (args.d_lf_modes + (size_t) b * (size_t) args.lf_stride) : NULL;
 
     float p_val  = 0.0f;
     float sp_val = 0.0f;
 
     if (valid)
     {
-        for (int l = 0; l < n_sub; l++)
+        for (int l = 0; l < args.n_sub; l++)
         {
-            atmturb_cuda_rytov_sublayer_t info = d_sublayers[l];
-            float cur_x = info.x + (float) (i * os);
-            float cur_y = info.y + (float) (j * os);
+            atmturb_cuda_rytov_sublayer_t info = sl_b[l];
+            float cur_x = info.x + (float) (i * args.os);
+            float cur_y = info.y + (float) (j * args.os);
 
-            if (has_sec && info.w_sec != 0.0f && info.xs == info.x && info.ys == info.y)
+            if (args.has_sec && info.w_sec != 0.0f && info.xs == info.x && info.ys == info.y)
             {
                 float samp = (interp_mode == 1)
                     ? atmturb_cuda_sample_screen_bicubic(
-                        d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y)
+                        args.d_masters, master_tex, args.msize, is_pow2, mask,
+                        info.k, cur_x, cur_y)
                     : atmturb_cuda_sample_screen(
-                        d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
+                        args.d_masters, master_tex, args.msize, is_pow2, mask,
+                        info.k, cur_x, cur_y);
                 if (info.w_pri != 0.0f)
                 {
                     p_val += info.w_pri * samp;
@@ -331,40 +359,36 @@ __global__ static void atmturb_cuda_extrude_sl_kernel(
             {
                 if (info.w_pri != 0.0f)
                 {
-                    if (interp_mode == 1)
-                    {
-                        p_val += info.w_pri * atmturb_cuda_sample_screen_bicubic(
-                            d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
-                    }
-                    else
-                    {
-                        p_val += info.w_pri * atmturb_cuda_sample_screen(
-                            d_masters, msize, is_pow2, mask, info.k, cur_x, cur_y);
-                    }
+                    float samp = (interp_mode == 1)
+                        ? atmturb_cuda_sample_screen_bicubic(
+                            args.d_masters, master_tex, args.msize, is_pow2, mask,
+                            info.k, cur_x, cur_y)
+                        : atmturb_cuda_sample_screen(
+                            args.d_masters, master_tex, args.msize, is_pow2, mask,
+                            info.k, cur_x, cur_y);
+                    p_val += info.w_pri * samp;
                 }
-                if (has_sec && info.w_sec != 0.0f)
+                if (args.has_sec && info.w_sec != 0.0f)
                 {
-                    float cur_xs = info.xs + (float) (i * os);
-                    float cur_ys = info.ys + (float) (j * os);
-                    if (interp_mode == 1)
-                    {
-                        sp_val += info.w_sec * atmturb_cuda_sample_screen_bicubic(
-                            d_masters, msize, is_pow2, mask, info.k, cur_xs, cur_ys);
-                    }
-                    else
-                    {
-                        sp_val += info.w_sec * atmturb_cuda_sample_screen(
-                            d_masters, msize, is_pow2, mask, info.k, cur_xs, cur_ys);
-                    }
+                    float cur_xs = info.xs + (float) (i * args.os);
+                    float cur_ys = info.ys + (float) (j * args.os);
+                    float samp_s = (interp_mode == 1)
+                        ? atmturb_cuda_sample_screen_bicubic(
+                            args.d_masters, master_tex, args.msize, is_pow2, mask,
+                            info.k, cur_xs, cur_ys)
+                        : atmturb_cuda_sample_screen(
+                            args.d_masters, master_tex, args.msize, is_pow2, mask,
+                            info.k, cur_xs, cur_ys);
+                    sp_val += info.w_sec * samp_s;
                 }
             }
         }
     }
 
-    if (n_lf_modes > 0 && d_lf_modes != NULL)
+    if (args.n_lf_modes > 0 && lf_b != NULL)
     {
         atmturb_cuda_accumulate_lowfreq_shared(
-            n_lf_modes, has_sec, d_lf_modes, i, j, pad_size, &p_val, &sp_val);
+            args.n_lf_modes, args.has_sec, lf_b, i, j, grid_lim, &p_val, &sp_val);
     }
 
     if (!valid)
@@ -372,21 +396,63 @@ __global__ static void atmturb_cuda_extrude_sl_kernel(
         return;
     }
 
-    int pad_idx = j * pad_size + i;
-    d_super_pha[pad_idx] = p_val;
-    if (has_sec)
+    size_t pad_sq  = (size_t) args.pad_size * (size_t) args.pad_size;
+    size_t pad_idx = (size_t) b * pad_sq + (size_t) j * (size_t) args.pad_size + (size_t) i;
+    if (args.d_super_pha != NULL)
     {
-        d_super_spha[pad_idx] = sp_val;
+        args.d_super_pha[pad_idx] = p_val;
+    }
+    if (args.has_sec && args.d_super_spha != NULL)
+    {
+        args.d_super_spha[pad_idx] = sp_val;
     }
 
-    if (i >= guard && i < guard + pup_size && j >= guard && j < guard + pup_size)
+    if (i >= args.guard && i < args.guard + args.pup_size &&
+        j >= args.guard && j < args.guard + args.pup_size)
     {
-        int pup_idx = (j - guard) * pup_size + (i - guard);
-        d_frame_pha[pup_idx] += p_val;
-        if (has_sec)
+        size_t pup_sq  = (size_t) args.pup_size * (size_t) args.pup_size;
+        size_t pup_idx = (size_t) b * pup_sq +
+                         (size_t) (j - args.guard) * (size_t) args.pup_size +
+                         (size_t) (i - args.guard);
+        if (args.d_frame_pha != NULL)
         {
-            d_frame_spha[pup_idx] += sp_val;
+            args.d_frame_pha[pup_idx] += p_val;
         }
+        if (args.has_sec && args.d_frame_spha != NULL)
+        {
+            args.d_frame_spha[pup_idx] += sp_val;
+        }
+    }
+}
+
+/**
+ * atmturb_cuda_extrude_sl_batch_launch - Launch multi-frame batched superlayer extrusion
+ * @args: Parameter container with device pointers, strides, and batch count.
+ * @stream: CUDA execution stream.
+ */
+void atmturb_cuda_extrude_sl_batch_launch(
+    const atmturb_cuda_extrude_batch_args_t *args,
+    cudaStream_t                             stream)
+{
+    if (args == NULL || args->batch_count <= 0)
+    {
+        return;
+    }
+
+    cudaTextureObject_t master_tex = (cudaTextureObject_t) atmturb_cuda_get_master_tex();
+    int grid_dim = (args->d_super_pha == NULL && args->d_super_spha == NULL)
+                       ? args->pup_size : args->pad_size;
+    dim3 b_ext(16, 16, 1);
+    dim3 g_ext(((int) grid_dim + b_ext.x - 1) / b_ext.x,
+               ((int) grid_dim + b_ext.y - 1) / b_ext.y,
+               (unsigned int) args->batch_count);
+    if (args->interp_mode == 1)
+    {
+        atmturb_cuda_extrude_sl_kernel<1><<<g_ext, b_ext, 0, stream>>>(*args, master_tex);
+    }
+    else
+    {
+        atmturb_cuda_extrude_sl_kernel<0><<<g_ext, b_ext, 0, stream>>>(*args, master_tex);
     }
 }
 
@@ -429,23 +495,27 @@ void atmturb_cuda_extrude_sl_launch(
     float                               *d_frame_spha,
     cudaStream_t                         stream)
 {
-    dim3 b_ext(16, 16);
-    dim3 g_ext(((int) pad_size + b_ext.x - 1) / b_ext.x,
-               ((int) pad_size + b_ext.y - 1) / b_ext.y);
-    if (interp_mode == 1)
-    {
-        atmturb_cuda_extrude_sl_kernel<1><<<g_ext, b_ext, 0, stream>>>(
-            d_masters, msize, pad_size, pup_size, guard, n_sub, has_sec, os,
-            d_sublayers, n_lf_modes, d_lf_modes, d_super_pha, d_super_spha,
-            d_frame_pha, d_frame_spha);
-    }
-    else
-    {
-        atmturb_cuda_extrude_sl_kernel<0><<<g_ext, b_ext, 0, stream>>>(
-            d_masters, msize, pad_size, pup_size, guard, n_sub, has_sec, os,
-            d_sublayers, n_lf_modes, d_lf_modes, d_super_pha, d_super_spha,
-            d_frame_pha, d_frame_spha);
-    }
+    atmturb_cuda_extrude_batch_args_t args;
+    args.interp_mode  = interp_mode;
+    args.d_masters    = d_masters;
+    args.msize        = msize;
+    args.pad_size     = pad_size;
+    args.pup_size     = pup_size;
+    args.guard        = guard;
+    args.n_sub        = n_sub;
+    args.sub_stride   = n_sub;
+    args.has_sec      = has_sec;
+    args.os           = os;
+    args.batch_count  = 1;
+    args.d_sublayers  = d_sublayers;
+    args.n_lf_modes   = n_lf_modes;
+    args.lf_stride    = n_lf_modes;
+    args.d_lf_modes   = d_lf_modes;
+    args.d_super_pha  = d_super_pha;
+    args.d_super_spha = d_super_spha;
+    args.d_frame_pha  = d_frame_pha;
+    args.d_frame_spha = d_frame_spha;
+    atmturb_cuda_extrude_sl_batch_launch(&args, stream);
 }
 
 /**

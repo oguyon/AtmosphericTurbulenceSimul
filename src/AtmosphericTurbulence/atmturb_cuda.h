@@ -44,6 +44,9 @@ typedef struct
     const double       *cn2;
     const double       *x0;
     const double       *y0;
+    const double       *xs0;
+    const double       *ys0;
+    const double       *cn2_s;
 } atmturb_cuda_sim_params_t;
 
 /**
@@ -107,6 +110,30 @@ static inline int atmturb_cuda_geom_stream_render_step(
     return -1;
 }
 
+static inline int atmturb_cuda_geom_stream_render_launch(
+    atmturb_cuda_geom_stream_t *ctx,
+    long                        t,
+    float                      *pha,
+    float                      *spha,
+    int                         slot)
+{
+    (void) ctx;
+    (void) t;
+    (void) pha;
+    (void) spha;
+    (void) slot;
+    return -1;
+}
+
+static inline int atmturb_cuda_geom_stream_render_wait(
+    atmturb_cuda_geom_stream_t *ctx,
+    int                         slot)
+{
+    (void) ctx;
+    (void) slot;
+    return -1;
+}
+
 static inline void atmturb_cuda_geom_stream_free(
     atmturb_cuda_geom_stream_t *ctx)
 {
@@ -146,6 +173,24 @@ static inline void atmturb_cuda_host_free(
     free(ptr);
 }
 
+static inline unsigned long long atmturb_cuda_get_master_tex(void)
+{
+    return 0ULL;
+}
+
+static inline int atmturb_cuda_update_master_slice(
+    long         msize,
+    int          vram_slot,
+    const float *d_src,
+    void        *stream_ptr)
+{
+    (void) msize;
+    (void) vram_slot;
+    (void) d_src;
+    (void) stream_ptr;
+    return -1;
+}
+
 #else
 
 typedef struct atmturb_cuda_geom_stream atmturb_cuda_geom_stream_t;
@@ -182,6 +227,52 @@ float *atmturb_cuda_sync_device_masters(
     const float *const *h_masters);
 
 /**
+ * atmturb_cuda_get_master_tex - Query cached 2D layered texture object for master screens
+ *
+ * Return: Active cudaTextureObject_t cast to unsigned long long, or 0 if unavailable.
+ */
+unsigned long long atmturb_cuda_get_master_tex(void);
+
+/**
+ * atmturb_cuda_alloc_master_cache - Allocate linear device master screen cache for GPU synthesis
+ * @msize: Master screen dimension in pixels.
+ * @nblayers: Total number of master screens across layers.
+ *
+ * Return: Device buffer pointer, or NULL on allocation failure.
+ */
+float *atmturb_cuda_alloc_master_cache(
+    long msize,
+    long nblayers);
+
+/**
+ * atmturb_cuda_commit_master_cache - Bind GPU-synthesized master screens and build 2D texture
+ * @msize: Master screen dimension in pixels.
+ * @nblayers: Total number of master screens across layers.
+ * @h_masters: Host pointer tags matching dcimg screen buffers for cache-hit tracking.
+ *
+ * Return: 0 on success, -1 on failure.
+ */
+int atmturb_cuda_commit_master_cache(
+    long                msize,
+    long                nblayers,
+    const float *const *h_masters);
+
+/**
+ * atmturb_cuda_update_master_slice - Update one 2D layer slice in VRAM cache and 2D texture
+ * @msize: Master screen dimension in pixels.
+ * @vram_slot: Slice index in the cached master screen stack.
+ * @d_src: Source device float buffer (msize * msize elements).
+ * @stream_ptr: Optional cudaStream_t pointer (NULL for default stream).
+ *
+ * Return: 0 on success, -1 on bounds or CUDA copy error.
+ */
+int atmturb_cuda_update_master_slice(
+    long         msize,
+    int          vram_slot,
+    const float *d_src,
+    void        *stream_ptr);
+
+/**
  * atmturb_cuda_cleanup - Release persistent GPU buffers and context
  */
 void atmturb_cuda_cleanup(void);
@@ -213,6 +304,23 @@ int atmturb_cuda_geom_stream_render_step(
     float                      *amp,
     float                      *spha,
     float                      *samp);
+
+/**
+ * atmturb_cuda_geom_stream_render_launch - Asynchronously dispatch one geometric frame on GPU
+ */
+int atmturb_cuda_geom_stream_render_launch(
+    atmturb_cuda_geom_stream_t *ctx,
+    long                        t,
+    float                      *pha,
+    float                      *spha,
+    int                         slot);
+
+/**
+ * atmturb_cuda_geom_stream_render_wait - Synchronize on an in-flight geometric frame slot
+ */
+int atmturb_cuda_geom_stream_render_wait(
+    atmturb_cuda_geom_stream_t *ctx,
+    int                         slot);
 
 /**
  * atmturb_cuda_geom_stream_free - Release GPU geometric streaming context

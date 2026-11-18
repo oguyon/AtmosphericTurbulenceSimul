@@ -21,6 +21,60 @@ extern "C" {
 #endif
 
 /**
+ * struct atmturb_cuda_extrude_batch_args - Parameters for batched superlayer extrusion
+ * @interp_mode: Interpolation scheme (0=bilinear, 1=Keys bicubic).
+ * @d_masters: Device master phase screens buffer (fallback when texture unavailable).
+ * @msize: Master phase screen linear dimension in pixels.
+ * @pad_size: Linear dimension of padded simulation grid in pixels.
+ * @pup_size: Linear dimension of synthesized pupil in pixels.
+ * @guard: Guard band margin in pixels surrounding pupil.
+ * @n_sub: Number of active sublayers in current superlayer.
+ * @sub_stride: Stride in sublayer structs between consecutive frames in batch.
+ * @has_sec: 1 if secondary wavelength is enabled, 0 otherwise.
+ * @os: Master screen oversampling factor (1 or 2).
+ * @batch_count: Number of frames extruded simultaneously along gridDim.z.
+ * @d_sublayers: Device sublayer coordinates and weights across batch.
+ * @n_lf_modes: Number of active low-frequency subharmonic modes.
+ * @lf_stride: Stride in mode structs between consecutive frames in batch.
+ * @d_lf_modes: Device subharmonic mode parameters across batch (or NULL).
+ * @d_super_pha: Destination superlayer primary phase batch buffer.
+ * @d_super_spha: Destination superlayer secondary phase batch buffer (or NULL).
+ * @d_frame_pha: Cumulative pupil primary phase batch buffer (or NULL).
+ * @d_frame_spha: Cumulative pupil secondary phase batch buffer (or NULL).
+ */
+typedef struct
+{
+    int                                  interp_mode;
+    const float                         *d_masters;
+    int                                  msize;
+    int                                  pad_size;
+    int                                  pup_size;
+    int                                  guard;
+    int                                  n_sub;
+    int                                  sub_stride;
+    int                                  has_sec;
+    int                                  os;
+    int                                  batch_count;
+    const atmturb_cuda_rytov_sublayer_t *d_sublayers;
+    int                                  n_lf_modes;
+    int                                  lf_stride;
+    const atmturb_cuda_lowfreq_mode_t   *d_lf_modes;
+    float                               *d_super_pha;
+    float                               *d_super_spha;
+    float                               *d_frame_pha;
+    float                               *d_frame_spha;
+} atmturb_cuda_extrude_batch_args_t;
+
+/**
+ * atmturb_cuda_extrude_sl_batch_launch - Launch multi-frame batched superlayer extrusion
+ * @args: Parameter container with device pointers, strides, and batch count.
+ * @stream: CUDA execution stream.
+ */
+void atmturb_cuda_extrude_sl_batch_launch(
+    const atmturb_cuda_extrude_batch_args_t *args,
+    cudaStream_t                             stream);
+
+/**
  * atmturb_cuda_extrude_sl_launch - Launch superlayer phase screen extrusion and subharmonics
  * @interp_mode: Interpolation scheme (0=bilinear, 1=Keys bicubic).
  * @d_masters: Array of device pointers to master phase screens.
@@ -289,6 +343,51 @@ void atmturb_cuda_normalize_launch(
     int          npix,
     const float *d_sum_I,
     cudaStream_t stream);
+
+/**
+ * atmturb_cuda_fill_ones_launch - Fill device amplitude buffer with unit 1.0f values
+ * @d_arr: Destination device float array.
+ * @npix: Number of pixels to set to 1.0f.
+ * @stream: CUDA execution stream.
+ */
+void atmturb_cuda_fill_ones_launch(
+    float       *d_arr,
+    int          npix,
+    cudaStream_t stream);
+
+/**
+ * atmturb_cuda_pin_host_cubes - Page-lock up to 4 host output cubes for async D2H DMA
+ * @ptrs: 4-element array of host pointers (entries may be NULL).
+ * @nbytes: Size in bytes of each non-NULL cube.
+ * @pinned: Output 4-element flag array recording successful registrations.
+ */
+void atmturb_cuda_pin_host_cubes(
+    float *const ptrs[4],
+    size_t       nbytes,
+    int          pinned[4]);
+
+/**
+ * atmturb_cuda_unpin_host_cubes - Unpin host output cubes registered by atmturb_cuda_pin_host_cubes
+ * @ptrs: 4-element array of host pointers.
+ * @pinned: 4-element flag array from atmturb_cuda_pin_host_cubes().
+ */
+void atmturb_cuda_unpin_host_cubes(
+    float *const ptrs[4],
+    const int    pinned[4]);
+
+/**
+ * atmturb_cuda_rytov_render_batch - Multi-frame batched cuFFT Rytov 3D cube renderer
+ * @params: Rytov propagation parameters with nbframes >= 2.
+ *
+ * Return: 0 on success, -1 on CUDA or cuFFT failure.
+ */
+int atmturb_cuda_rytov_render_batch(
+    const atmturb_cuda_rytov_params_t *params);
+
+/**
+ * atmturb_cuda_rytov_batch_cleanup - Release persistent batched Rytov GPU plans and buffers
+ */
+void atmturb_cuda_rytov_batch_cleanup(void);
 
 #ifdef __cplusplus
 }

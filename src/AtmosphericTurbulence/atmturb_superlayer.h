@@ -25,6 +25,7 @@ extern "C" {
  * @dist_m: Line-of-sight centroid distance from telescope pupil [meters].
  * @dist_s_m: Secondary wavelength centroid distance from telescope pupil [meters].
  * @step_dist_m: Propagation distance to the next super-layer or ground [meters].
+ * @step_dist_s_m: Secondary wavelength propagation distance to next super-layer or ground [meters].
  * @chrom_dx_px: Weighted chromatic offset along pupil X [pixels].
  * @chrom_dy_px: Weighted chromatic offset along pupil Y [pixels].
  * @chrom_spread_px: Maximum chromatic offset deviation within bin [pixels].
@@ -39,6 +40,7 @@ typedef struct
     double  dist_m;
     double  dist_s_m;
     double  step_dist_m;
+    double  step_dist_s_m;
     double  chrom_dx_px;
     double  chrom_dy_px;
     double  chrom_spread_px;

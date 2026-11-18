@@ -22,6 +22,7 @@
  * @l0_m: Turbulence inner scale in meters (<= 0 for disabled).
  * @sigma_wind_mps: Wind speed turbulence standard deviation [m/s].
  * @L_wind_m: Wind turbulence outer scale [m].
+ * @sigma_boil_mps: Co-moving eddy velocity dispersion [m/s] (< 0 inherits global BOIL_SIGMA).
  */
 typedef struct
 {
@@ -33,6 +34,7 @@ typedef struct
     double l0_m;
     double sigma_wind_mps;
     double L_wind_m;
+    double sigma_boil_mps;
 } atmturb_layer_t;
 
 /**

@@ -133,6 +133,7 @@ void atmmod_reset_precomp_indices(void)
     lliprecompO = -1;
     lliprecompN = -1;
     lliprecompH = -1;
+    atmmod_invalidate_mixture_cache();
 }
 
 /**
@@ -218,17 +219,22 @@ int ATMOSPHEREMODEL_loadRIA(
 
 /**
  * atmmod_load_species_ria - Load RIA table for a single chemical species
- * @name: Species name (e.g. "N2", "O2").
- * @path: File path to table.
- * @init_flag: Pointer to species initialization flag.
- * @nbpts_out: Pointer to store number of points.
- * @lambda_out: Pointer to store allocated wavelength array.
- * @ri_out: Pointer to store allocated refractive index array.
- * @abs_out: Pointer to store allocated absorption array.
+ * @name:       Species name (e.g. "N2", "O2").
+ * @path:       File path to table.
+ * @init_flag:  Pointer to species initialization flag.
+ * @nbpts_out:  Pointer to store number of points.
+ * @lambda_out: Pointer to store allocated wavelength array [m].
+ * @ri_out:     Pointer to store allocated refractive index array.
+ * @abs_out:    Pointer to store allocated absorption array [m^-1].
  */
-void atmmod_load_species_ria(const char *name, const char *path, int *init_flag,
-                             long *nbpts_out, double **lambda_out, double **ri_out,
-                             double **abs_out)
+void atmmod_load_species_ria(
+    const char *name,
+    const char *path,
+    int        *init_flag,
+    long       *nbpts_out,
+    double    **lambda_out,
+    double    **ri_out,
+    double    **abs_out)
 {
     printf("Reading Refractive Index and Abs for %s\n", name);
     *init_flag = 0;
@@ -256,6 +262,7 @@ void atmmod_load_species_ria(const char *name, const char *path, int *init_flag,
         if (ATMOSPHEREMODEL_loadRIA(pathbuf, *lambda_out, *ri_out, *abs_out) == 0)
         {
             *init_flag = 1;
+            atmmod_invalidate_mixture_cache();
         }
         else
         {

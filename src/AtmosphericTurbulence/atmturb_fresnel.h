@@ -24,23 +24,31 @@ extern "C" {
  * struct atmturb_fresnel_plan_t - Precomputed diffractive propagation plan
  * @nsuper: Number of super-layers.
  * @supers: Array of super-layer definitions.
- * @grid_size: Linear dimension of 2D grid in pixels.
+ * @grid_size: Linear dimension of output pupil grid in pixels.
+ * @guard_pix: Guard band margin around pupil in pixels (0 for unpadded).
+ * @pad_size: Linear dimension of padded propagation grid (`grid_size + 2 * guard_pix`).
+ * @sponge_width: Outer absorbing rim width in pixels (0 when disabled).
  * @pixscale_m: Grid physical pixel size [m/pixel].
  * @lambda_ref_m: Primary reference wavelength [m].
  * @lambda_s_m: Secondary observing wavelength [m].
- * @tf_pri: Array of nsuper precomputed transfer functions for primary wavelength.
- * @tf_sec: Array of nsuper precomputed transfer functions for secondary wavelength.
+ * @tf_pri: Array of nsuper 1D separable Fresnel chirp vectors (`pad_size` elements) for primary.
+ * @tf_sec: Array of nsuper 1D separable Fresnel chirp vectors (`pad_size` elements) for secondary.
+ * @sponge_1d: Optional 1D separable super-Gaussian rim window (`pad_size` floats, or NULL).
  */
 typedef struct
 {
     int                   nsuper;
     atmturb_superlayer_t *supers;
     long                  grid_size;
+    long                  guard_pix;
+    long                  pad_size;
+    long                  sponge_width;
     double                pixscale_m;
     double                lambda_ref_m;
     double                lambda_s_m;
     fftwf_complex       **tf_pri;
     fftwf_complex       **tf_sec;
+    float                *sponge_1d;
 } atmturb_fresnel_plan_t;
 
 /**
@@ -51,6 +59,7 @@ typedef struct
  * @field_sec: Working complex array for secondary optical field.
  * @super_pha: Scratchpad for super-layer primary phase screen.
  * @super_spha: Scratchpad for super-layer secondary phase screen.
+ * @owns_plans: Non-zero when this context owns and destroys its FFTW plans.
  */
 typedef struct
 {
@@ -60,6 +69,7 @@ typedef struct
     fftwf_complex          *field_sec;
     float                  *super_pha;
     float                  *super_spha;
+    int                     owns_plans;
 } atmturb_fresnel_ctx_t;
 
 /**
@@ -102,6 +112,21 @@ void atmturb_fresnel_plan_free(
 int atmturb_fresnel_ctx_init(
     atmturb_fresnel_ctx_t *ctx,
     long                   pup_size);
+
+/**
+ * atmturb_fresnel_ctx_init_mt - Initialize Fresnel context with explicit threading/shared plans
+ * @ctx: Thread context structure to initialize.
+ * @pup_size: Linear dimension of wavefront in pixels.
+ * @fftw_nthreads: Explicit FFTW thread count (>0), or 0 for automatic sizing.
+ * @shared_src: Optional donor context whose FFTW plans are reused read-only (or NULL).
+ *
+ * Return: 0 on success, -1 on allocation failure.
+ */
+int atmturb_fresnel_ctx_init_mt(
+    atmturb_fresnel_ctx_t       *ctx,
+    long                         pup_size,
+    int                          fftw_nthreads,
+    const atmturb_fresnel_ctx_t *shared_src);
 
 /**
  * atmturb_fresnel_ctx_free - Release resources held by thread context

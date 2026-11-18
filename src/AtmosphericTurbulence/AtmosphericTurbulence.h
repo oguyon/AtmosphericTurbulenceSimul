@@ -4,7 +4,13 @@
 
 /**
  * @file    AtmosphericTurbulence.h
- * @brief   Atmospheric turbulence simulation public interface
+ * @brief   Atmospheric turbulence simulation public interface (Level 2)
+ *
+ * Provides Kolmogorov and von Karman Fourier phase screen synthesis, turbulent
+ * wind trajectory generation, multi-layer geometric and diffractive (Fresnel
+ * split-step and Rytov) wavefront rendering, real-time 2D ImageStreamIO shared
+ * memory streaming, Hufnagel-Valley Cn2 profile generation, closed-loop AO PSF
+ * simulation, and autoregressive linear wavefront prediction.
  */
 
 #ifndef ATMOSPHERETURBULENCE_H
@@ -460,6 +466,8 @@ int AtmosphericTurbulence_WFprocess(void);
  * @Kd: Derivative gain for PID (default: 0.0).
  * @time_step_s: Simulation time step in seconds (default: 0.001).
  * @save_psfcube: 1 to save full 3D PSF cube, 0 for cumulative 2D PSF only.
+ * @in_swfname: Optional chromatic science phase cube/stream in science radians (NULL = scale wf).
+ * @in_sampname: Optional chromatic science amplitude cube/stream (NULL = use @in_ampname).
  */
 typedef struct
 {
@@ -482,6 +490,8 @@ typedef struct
     double      Kd;
     double      time_step_s;
     int         save_psfcube;
+    const char *in_swfname;
+    const char *in_sampname;
 } atmturb_ao_params_t;
 
 /**

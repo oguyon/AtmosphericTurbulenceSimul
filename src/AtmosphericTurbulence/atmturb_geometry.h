@@ -29,6 +29,7 @@
  * @d_chrom_x: Differential chromatic refraction shift in x [master pixels].
  * @d_chrom_y: Differential chromatic refraction shift in y [master pixels].
  * @t_dec_s: Rolling screen epoch duration [seconds].
+ * @sigma_boil_mps: Resolved co-moving boiling velocity dispersion [m/s].
  * @traj_x: Cumulative x offset table in master pixels [nbframes] (or NULL).
  * @traj_y: Cumulative y offset table in master pixels [nbframes] (or NULL).
  * @nbframes: Number of precomputed trajectory frames.
@@ -49,6 +50,7 @@ typedef struct
     double  d_chrom_x;
     double  d_chrom_y;
     double  t_dec_s;
+    double  sigma_boil_mps;
     double *traj_x;
     double *traj_y;
     long    nbframes;
@@ -66,6 +68,11 @@ typedef struct
  * @ez_y: Unit vector toward zenith in pupil frame (y component).
  * @oversample: Master grid oversampling factor.
  * @interp: Interpolation scheme (0=bilinear, 1=Keys bicubic).
+ * @lowfreq: Analytic low-order subharmonic mode flag (0=off, 1=on).
+ * @rolling: Multi-epoch rolling cross-fade flag (0=off, 1=on).
+ * @boil_time_s: Maximum rolling epoch duration [seconds] (0 for auto).
+ * @boil_mode: Fourier boiling mode (0=off, 1=AR1, 2=AR2; <0 forces exact frame step).
+ * @boil_sigma_mps: Global boiling velocity dispersion [m/s] (0 for auto).
  * @nlayers: Number of layers.
  * @layers: Array of per-layer geometric properties.
  */
@@ -84,6 +91,8 @@ typedef struct
     int                  lowfreq;
     int                  rolling;
     double               boil_time_s;
+    int                  boil_mode;
+    double               boil_sigma_mps;
     int                  nlayers;
     atmturb_layer_geom_t *layers;
 } atmturb_geom_t;
@@ -102,6 +111,8 @@ typedef struct
  * @lowfreq: Enable analytic low-order subharmonic modes (0 or 1).
  * @rolling: Enable rolling cross-faded screens (0 or 1).
  * @boil_time_s: Maximum epoch duration [seconds] (0 for auto).
+ * @boil_mode: Fourier boiling mode (0=off, 1=AR1, 2=AR2; <0 forces exact frame step).
+ * @boil_sigma_mps: Global boiling velocity dispersion [m/s] (0 for auto).
  * @master_size: Linear dimension of master screen [pixels].
  * @nbframes: Number of simulation frames.
  * @time_step_s: Time step between frames [seconds].
@@ -123,6 +134,8 @@ typedef struct
     int      lowfreq;
     int      rolling;
     double   boil_time_s;
+    int      boil_mode;
+    double   boil_sigma_mps;
     long     master_size;
     long     nbframes;
     double   time_step_s;

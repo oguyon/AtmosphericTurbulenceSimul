@@ -22,10 +22,86 @@
 #include "atmturb_rytov.h"
 #include "atmturb_rytov_internal.h"
 #include "atmturb_rytov_simd.h"
+#include "atmturb_simd.h"
 
 #ifndef M_PI
 #    define M_PI 3.14159265358979323846
 #endif
+
+/**
+ * atmturb_rytov_assemble_pixel - Evaluate one clamped boundary pixel for Rytov output
+ */
+static inline double atmturb_rytov_assemble_pixel(
+    float       *pha,
+    float       *amp,
+    const float *dphi,
+    const float *chi,
+    long         dst_idx,
+    long         src_idx)
+{
+    if (pha != NULL)
+    {
+        pha[dst_idx] += dphi[src_idx];
+    }
+    if (amp == NULL)
+    {
+        return 0.0;
+    }
+    float c = chi[src_idx];
+    c = (c < -3.0f) ? -3.0f : ((c > 3.0f) ? 3.0f : c);
+    float a      = expf(c);
+    amp[dst_idx] = a;
+    return (double) (a * a);
+}
+
+/**
+ * atmturb_rytov_assemble_one_row - Assemble one pupil row with seam-peeled SIMD interior
+ */
+static inline double atmturb_rytov_assemble_one_row(
+    long         y,
+    long         pup_size,
+    long         guard_pix,
+    long         pad_size,
+    float       *pha,
+    float       *amp,
+    const float *dphi,
+    const float *chi)
+{
+    long max_clamp = (pup_size > 2) ? (pup_size - 2) : 0;
+    long sy        = (guard_pix == 0 && (y == 0 || y == pup_size - 1))
+                         ? ((y == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
+                         : y;
+    long src_row   = (sy + guard_pix) * pad_size + guard_pix;
+    long dst_row   = y * pup_size;
+
+    if (guard_pix > 0)
+    {
+        return atmturb_rytov_simd_assemble_row(
+            (pha != NULL) ? &pha[dst_row] : NULL,
+            (amp != NULL) ? &amp[dst_row] : NULL,
+            &dphi[src_row], &chi[src_row], pup_size);
+    }
+
+    if (pup_size <= 2)
+    {
+        double s = 0.0;
+        for (long x = 0; x < pup_size; x++)
+        {
+            long sx = (x == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp;
+            s += atmturb_rytov_assemble_pixel(pha, amp, dphi, chi, dst_row + x, src_row + sx);
+        }
+        return s;
+    }
+
+    double sum_i = atmturb_rytov_assemble_pixel(pha, amp, dphi, chi, dst_row, src_row + 1);
+    sum_i += atmturb_rytov_simd_assemble_row(
+        (pha != NULL) ? &pha[dst_row + 1] : NULL,
+        (amp != NULL) ? &amp[dst_row + 1] : NULL,
+        &dphi[src_row + 1], &chi[src_row + 1], pup_size - 2);
+    sum_i += atmturb_rytov_assemble_pixel(
+        pha, amp, dphi, chi, dst_row + pup_size - 1, src_row + pup_size - 2);
+    return sum_i;
+}
 
 /**
  * atmturb_rytov_assemble_output - Add diffractive phase and normalize amplitude
@@ -46,62 +122,110 @@ void atmturb_rytov_assemble_output(
     const float *dphi,
     const float *chi)
 {
-    long npix = pup_size * pup_size;
+    long   npix  = pup_size * pup_size;
     double sum_i = 0.0;
-    long max_clamp = (pup_size > 2) ? (pup_size - 2) : 0;
 
 #ifdef _OPENMP
-    #pragma omp parallel for if(!omp_in_parallel() && pup_size >= 128) \
-        reduction(+:sum_i) schedule(static)
-#endif
-    for (long y = 0; y < pup_size; y++)
+    if (pup_size >= 512 && !omp_in_parallel())
     {
-        long sy = (guard_pix == 0 && (y == 0 || y == pup_size - 1))
-                      ? ((y == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
-                      : y;
-        long src_row = (sy + guard_pix) * pad_size + guard_pix;
-        long dst_row = y * pup_size;
-
-        for (long x = 0; x < pup_size; x++)
+        int max_t = omp_get_max_threads();
+        int nth   = (max_t > 8) ? 8 : max_t;
+        #pragma omp parallel for num_threads(nth) reduction(+ : sum_i) schedule(static)
+        for (long y = 0; y < pup_size; y++)
         {
-            long sx = (guard_pix == 0 && (x == 0 || x == pup_size - 1))
-                          ? ((x == 0) ? ((pup_size > 1) ? 1 : 0) : max_clamp)
-                          : x;
-            long src_idx = src_row + sx;
-            long dst_idx = dst_row + x;
-
-            if (pha != NULL)
-            {
-                pha[dst_idx] += dphi[src_idx];
-            }
-            if (amp != NULL)
-            {
-                float c = chi[src_idx];
-                if (c > 3.0f)
-                {
-                    c = 3.0f;
-                }
-                else if (c < -3.0f)
-                {
-                    c = -3.0f;
-                }
-                float a = expf(c);
-                amp[dst_idx] = a;
-                sum_i += (double) (a * a);
-            }
+            sum_i += atmturb_rytov_assemble_one_row(y, pup_size, guard_pix, pad_size,
+                                                    pha, amp, dphi, chi);
+        }
+    }
+    else
+#endif
+    {
+        for (long y = 0; y < pup_size; y++)
+        {
+            sum_i += atmturb_rytov_assemble_one_row(y, pup_size, guard_pix, pad_size,
+                                                    pha, amp, dphi, chi);
         }
     }
 
     if (amp != NULL)
     {
         float norm = (sum_i > 0.0) ? (float) (1.0 / sqrt(sum_i / (double) npix)) : 1.0f;
-#ifdef _OPENMP
-        #pragma omp parallel for if(!omp_in_parallel() && npix >= 65536) schedule(static)
-#endif
-        for (long i = 0; i < npix; i++)
-        {
-            amp[i] *= norm;
-        }
+        atmturb_scale_float_array(amp, amp, norm, npix);
+    }
+}
+
+/**
+ * atmturb_rytov_prepare_moisan_bounds - Compute 1D boundary difference spectra for Moisan
+ */
+static void atmturb_rytov_prepare_moisan_bounds(
+    atmturb_rytov_ctx_t *ctx,
+    long                 n,
+    const float         *phi)
+{
+    float       *restrict ba    = ctx->bound_a;
+    float       *restrict bb    = ctx->bound_b;
+    const float *restrict r_top = phi;
+    const float *restrict r_bot = &phi[(n - 1) * n];
+
+    #pragma omp simd
+    for (long x = 0; x < n; x++)
+    {
+        ba[x] = r_top[x] - r_bot[x];
+    }
+    for (long y = 0; y < n; y++)
+    {
+        bb[y] = phi[y * n] - phi[y * n + (n - 1)];
+    }
+
+    fftwf_execute_dft_r2c(ctx->plan_1d_a, ctx->bound_a, ctx->hat_a);
+    fftwf_execute_dft_r2c(ctx->plan_1d_b, ctx->bound_b, ctx->hat_b);
+}
+
+/**
+ * atmturb_rytov_decompose_one_row - Apply Moisan harmonic subtraction on spectrum row @j
+ */
+static inline void atmturb_rytov_decompose_one_row(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    long                        n,
+    long                        n_half,
+    long                        j)
+{
+    float b_re;
+    float b_im;
+    if (j <= n / 2)
+    {
+        b_re = ctx->hat_b[j][0];
+        b_im = ctx->hat_b[j][1];
+    }
+    else
+    {
+        long j_sym = n - j;
+        b_re       =  ctx->hat_b[j_sym][0];
+        b_im       = -ctx->hat_b[j_sym][1];
+    }
+
+    long row_idx = j * n_half;
+    atmturb_rytov_simd_decompose_row(&ctx->spec[row_idx], ctx->hat_a,
+                                     plan->exp_x, &plan->laplace_inv[row_idx],
+                                     plan->exp_y[j][0], plan->exp_y[j][1],
+                                     b_re, b_im, n_half);
+}
+
+/**
+ * atmturb_rytov_decompose_rows - Apply Moisan harmonic subtraction over row range [j0, j1)
+ */
+static inline void atmturb_rytov_decompose_rows(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    long                        n,
+    long                        n_half,
+    long                        j0,
+    long                        j1)
+{
+    for (long j = j0; j < j1; j++)
+    {
+        atmturb_rytov_decompose_one_row(ctx, plan, n, n_half, j);
     }
 }
 
@@ -109,55 +233,133 @@ void atmturb_rytov_assemble_output(
  * atmturb_rytov_decompose_periodic - Subtract harmonic smooth component from 2D spectrum
  * @ctx: Thread execution context.
  * @plan: Propagation plan.
- * @phi: Input 2D real phase screen.
+ * @phi: Input 2D real phase screen (32/64-byte FFTW-aligned).
  */
 void atmturb_rytov_decompose_periodic(
     atmturb_rytov_ctx_t        *ctx,
     const atmturb_rytov_plan_t *plan,
-    const float                *phi)
+    float                      *phi)
 {
-    long n    = plan->grid_size;
+    long n      = plan->grid_size;
     long n_half = n / 2 + 1;
-
-    for (long x = 0; x < n; x++)
-    {
-        ctx->bound_a[x] = phi[0 * n + x] - phi[(n - 1) * n + x];
-    }
-    for (long y = 0; y < n; y++)
-    {
-        ctx->bound_b[y] = phi[y * n + 0] - phi[y * n + (n - 1)];
-    }
-
-    memcpy(ctx->real_in, phi, sizeof(float) * (size_t) (n * n));
-    fftwf_execute(ctx->plan_1d_a);
-    fftwf_execute(ctx->plan_1d_b);
-    fftwf_execute(ctx->plan_r2c);
+    atmturb_rytov_prepare_moisan_bounds(ctx, n, phi);
+    fftwf_execute_dft_r2c(ctx->plan_r2c, phi, ctx->spec);
 
 #ifdef _OPENMP
-    #pragma omp parallel for if(!omp_in_parallel() && n >= 128) schedule(static)
-#endif
-    for (long j = 0; j < n; j++)
+    if (n >= 512 && !omp_in_parallel())
     {
-        float b_re, b_im;
-        if (j <= n / 2)
+        int max_t = omp_get_max_threads();
+        int nth   = (max_t > 8) ? 8 : max_t;
+        #pragma omp parallel num_threads(nth)
         {
-            b_re = ctx->hat_b[j][0];
-            b_im = ctx->hat_b[j][1];
+            int  tid = omp_get_thread_num();
+            int  nt  = omp_get_num_threads();
+            long j0  = (n * (long) tid) / (long) nt;
+            long j1  = (n * (long) (tid + 1)) / (long) nt;
+            atmturb_rytov_decompose_rows(ctx, plan, n, n_half, j0, j1);
         }
-        else
-        {
-            long j_sym = n - j;
-            b_re =  ctx->hat_b[j_sym][0];
-            b_im = -ctx->hat_b[j_sym][1];
-        }
+        return;
+    }
+#endif
+    atmturb_rytov_decompose_rows(ctx, plan, n, n_half, 0, n);
+}
 
-        float ey_re = plan->exp_y[j][0];
-        float ey_im = plan->exp_y[j][1];
+/**
+ * atmturb_rytov_fused_rows - Fused row-wise L1-resident Moisan + Rytov filter accumulation
+ */
+static void atmturb_rytov_fused_rows(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    int                         m,
+    int                         rot_sec,
+    int                         sec_only,
+    long                        j0,
+    long                        j1)
+{
+    long                  n      = plan->grid_size;
+    long                  n_half = n / 2 + 1;
+    fftwf_complex        *d_acc  = sec_only ? ctx->acc_dphi_sec : ctx->acc_dphi_pri;
+    fftwf_complex        *c_acc  = sec_only ? ctx->acc_chi_sec  : ctx->acc_chi_pri;
+    const float          *fa     = sec_only ? plan->filter_a_sec[m] : plan->filter_a_pri[m];
+    const float          *fb     = sec_only ? plan->filter_b_sec[m] : plan->filter_b_pri[m];
+    const fftwf_complex  *ramp   = rot_sec ? plan->chrom_ramp[m] : NULL;
+
+    for (long j = j0; j < j1; j++)
+    {
         long row_idx = j * n_half;
+        if (plan->use_moisan)
+        {
+            atmturb_rytov_decompose_one_row(ctx, plan, n, n_half, j);
+        }
+        atmturb_rytov_simd_accumulate_filters(
+            &d_acc[row_idx], &c_acc[row_idx], &ctx->spec[row_idx],
+            &fa[row_idx], &fb[row_idx], n_half);
+        if (rot_sec)
+        {
+            atmturb_rytov_simd_accumulate_filters_rotated(
+                &ctx->acc_dphi_sec[row_idx], &ctx->acc_chi_sec[row_idx], &ctx->spec[row_idx],
+                &ramp[row_idx], &plan->filter_a_sec[m][row_idx],
+                &plan->filter_b_sec[m][row_idx], n_half);
+        }
+    }
+}
 
-        atmturb_rytov_simd_decompose_row(&ctx->spec[row_idx], ctx->hat_a,
-                                         plan->exp_x, &plan->laplace_inv[row_idx],
-                                         ey_re, ey_im, b_re, b_im, n_half);
+/**
+ * atmturb_rytov_run_fused_channel - Execute R2C FFT and fused row filter pass for one channel
+ */
+static void atmturb_rytov_run_fused_channel(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    float                      *phi,
+    int                         m,
+    int                         rot_sec,
+    int                         sec_only)
+{
+    long n = plan->grid_size;
+    if (plan->use_moisan)
+    {
+        atmturb_rytov_prepare_moisan_bounds(ctx, n, phi);
+    }
+    fftwf_execute_dft_r2c(ctx->plan_r2c, phi, ctx->spec);
+
+#ifdef _OPENMP
+    if (n >= 512 && !omp_in_parallel())
+    {
+        int max_t = omp_get_max_threads();
+        int nth   = (max_t > 8) ? 8 : max_t;
+        #pragma omp parallel num_threads(nth)
+        {
+            int  tid = omp_get_thread_num();
+            int  nt  = omp_get_num_threads();
+            long j0  = (n * (long) tid) / (long) nt;
+            long j1  = (n * (long) (tid + 1)) / (long) nt;
+            atmturb_rytov_fused_rows(ctx, plan, m, rot_sec, sec_only, j0, j1);
+        }
+        return;
+    }
+#endif
+    atmturb_rytov_fused_rows(ctx, plan, m, rot_sec, sec_only, 0, n);
+}
+
+/**
+ * atmturb_rytov_process_superlayer - Fused R2C, Moisan, and L1-resident filter accumulation
+ * @ctx: Thread execution context.
+ * @plan: Propagation plan.
+ * @m: Super-layer index.
+ * @has_sec: Non-zero when secondary polychromatic channel is active.
+ */
+void atmturb_rytov_process_superlayer(
+    atmturb_rytov_ctx_t        *ctx,
+    const atmturb_rytov_plan_t *plan,
+    int                         m,
+    int                         has_sec)
+{
+    int rot_sec = (has_sec && plan->sec_shared &&
+                   plan->chrom_ramp != NULL && plan->chrom_ramp[m] != NULL);
+    atmturb_rytov_run_fused_channel(ctx, plan, ctx->super_pha, m, rot_sec, 0);
+    if (has_sec && !rot_sec)
+    {
+        atmturb_rytov_run_fused_channel(ctx, plan, ctx->super_spha, m, 0, 1);
     }
 }
 
@@ -344,67 +546,4 @@ int atmturb_rytov_build_layer_filters(
         }
     }
     return 0;
-}
-
-/**
- * atmturb_rytov_get_wisdom_path - Determine persistent FFTW wisdom file path
- * @path: Output string buffer.
- * @maxlen: Size of output buffer in bytes.
- *
- * Return: 0 on success.
- */
-static int atmturb_rytov_get_wisdom_path(
-    char  *path,
-    size_t maxlen)
-{
-    const char *env_path = getenv("ATMTURB_FFTW_WISDOM");
-    if (env_path != NULL && env_path[0] != '\0')
-    {
-        snprintf(path, maxlen, "%s", env_path);
-        return 0;
-    }
-
-    const char *home = getenv("HOME");
-    if (home != NULL && home[0] != '\0')
-    {
-        char milk_dir[512];
-        snprintf(milk_dir, sizeof(milk_dir), "%s/.milk", home);
-        mkdir(milk_dir, 0755);
-        snprintf(path, maxlen, "%s/.milk/atmturb_fftw_wisdom.txt", home);
-        return 0;
-    }
-
-    snprintf(path, maxlen, ".atmturb_fftw_wisdom.txt");
-    return 0;
-}
-
-/**
- * atmturb_rytov_wisdom_load - Import pre-computed FFTW wisdom from disk
- */
-void atmturb_rytov_wisdom_load(void)
-{
-    static int s_loaded = 0;
-    if (s_loaded != 0)
-    {
-        return;
-    }
-    s_loaded = 1;
-
-    char path[512];
-    if (atmturb_rytov_get_wisdom_path(path, sizeof(path)) == 0)
-    {
-        fftwf_import_wisdom_from_filename(path);
-    }
-}
-
-/**
- * atmturb_rytov_wisdom_save - Export updated FFTW wisdom to disk
- */
-void atmturb_rytov_wisdom_save(void)
-{
-    char path[512];
-    if (atmturb_rytov_get_wisdom_path(path, sizeof(path)) == 0)
-    {
-        fftwf_export_wisdom_to_filename(path);
-    }
 }

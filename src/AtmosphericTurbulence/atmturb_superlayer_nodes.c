@@ -14,6 +14,7 @@
 #include "atmturb_profile.h"
 #include "atmturb_superlayer.h"
 #include "atmturb_superlayer_internal.h"
+#include "atmturb_types.h"
 
 /**
  * atmturb_superlayer_count_nodes - Count total distance nodes across all layer clusters
@@ -152,7 +153,8 @@ static int atmturb_superlayer_populate_single_node(
 {
     sl->nlayers       = count;
     sl->dist_m        = geom->layers[order[idx_start]].dist_m;
-    sl->dist_s_m      = (geom->layers[order[idx_start]].path_s_m > 0.0)
+    sl->dist_s_m      = (CONF_FRESNEL_REFRACT_PATH == 1 &&
+                         geom->layers[order[idx_start]].path_s_m > 0.0)
                             ? geom->layers[order[idx_start]].path_s_m
                             : sl->dist_m;
     sl->layer_indices = (int *) malloc(sizeof(int) * (size_t) count);
@@ -234,12 +236,16 @@ static int atmturb_superlayer_init_node(
         return -1;
     }
 
-    int idx = 0;
-    double sum_w = 0.0;
+    int    idx         = 0;
+    double sum_w       = 0.0;
+    double sum_w_ratio = 0.0;
     for (int l = 0; l < count; l++)
     {
         int k = order[idx_start + l];
-        double d = geom->layers[k].dist_m;
+        double d  = geom->layers[k].dist_m;
+        double ds = (CONF_FRESNEL_REFRACT_PATH == 1 && geom->layers[k].path_s_m > 0.0)
+                        ? geom->layers[k].path_s_m
+                        : d;
         double w = atmturb_superlayer_calc_weight(d, z_top, dz, n_int, node_idx);
         if (w > 1e-6)
         {
@@ -249,9 +255,16 @@ static int atmturb_superlayer_init_node(
             }
             sl->layer_indices[idx] = k;
             sl->layer_weights[idx] = (float) w;
-            sum_w += w * prof->layers[k].cn2_frac;
+            double wc = w * prof->layers[k].cn2_frac;
+            sum_w       += wc;
+            sum_w_ratio += wc * ((d > 0.0) ? (ds / d) : 1.0);
             idx++;
         }
+    } // for (int l = 0; l < count; l++)
+
+    if (sum_w > 0.0)
+    {
+        sl->dist_s_m = node_dist * (sum_w_ratio / sum_w);
     }
 
     atmturb_superlayer_calc_chromatic(sl, prof, geom, sum_w);
@@ -369,12 +382,15 @@ int atmturb_superlayer_populate_nodes(
 
     for (int m = 0; m < s - 1; m++)
     {
-        double step = supers[m].dist_m - supers[m + 1].dist_m;
-        supers[m].step_dist_m = (step > 0.0) ? step : 0.0;
+        double step   = supers[m].dist_m - supers[m + 1].dist_m;
+        double step_s = supers[m].dist_s_m - supers[m + 1].dist_s_m;
+        supers[m].step_dist_m   = (step > 0.0) ? step : 0.0;
+        supers[m].step_dist_s_m = (step_s > 0.0) ? step_s : 0.0;
     }
     if (s > 0)
     {
-        supers[s - 1].step_dist_m = (supers[s - 1].dist_m > 0.0) ? supers[s - 1].dist_m : 0.0;
+        supers[s - 1].step_dist_m   = (supers[s - 1].dist_m > 0.0) ? supers[s - 1].dist_m : 0.0;
+        supers[s - 1].step_dist_s_m = (supers[s - 1].dist_s_m > 0.0) ? supers[s - 1].dist_s_m : 0.0;
     }
 
     return s;

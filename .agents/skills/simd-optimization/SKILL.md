@@ -9,48 +9,55 @@ description: Methodology for writing, auditing, and benchmarking SIMD compute ke
 `milkatmturb` performs high-resolution atmospheric turbulence synthesis and wavefront propagation.
 Hot compute loops must saturate CPU vector execution pipelines and cache bandwidth.
 
-This skill documents the SIMD architecture in `milkatmturb`, identifying where explicit intrinsics
-are essential for maximum throughput and how kernels are organized across ISAs.
+This skill documents the SIMD methodology in `milkatmturb`: **rely on compiler auto-vectorization
+(`#pragma omp simd`) first, and introduce explicit SIMD intrinsics ONLY when proven necessary**.
 
 ---
 
-## 1. High-Value SIMD Opportunities in milkatmturb
+## 1. Core Rule: Auto-Vectorization First, Intrinsics Last
 
-1. **Bilinear Phase Screen Extrusion (`atmturb_extrude_accumulate`):**
-   * *Mechanism:* Bilinear interpolation weights ($w_{00}, w_{01}, w_{10}, w_{11}$) broadcast
-     across vector registers, computing 8 or 16 pupil pixels concurrently from master screens.
-   * *Files:* `src/AtmosphericTurbulence/atmturb_simd_avx2.c`, `atmturb_simd_avx512.c`.
-2. **Float Array Scaling (`atmturb_scale_float_array`):**
-   * *Mechanism:* Scalar multiplier broadcast into vector register, executing 8 or 16 multiplies
-     per cycle.
-   * *Files:* `atmturb_simd_avx2.c`, `atmturb_simd_avx512.c`.
-3. **Phase & Amplitude Initialization (`atmturb_init_phase_amp`):**
-   * *Mechanism:* Vector zeroing for phase and vector unit fill for amplitude arrays.
-   * *Files:* `atmturb_simd_avx2.c`, `atmturb_simd_avx512.c`.
-4. **Fresnel Propagation Kernel Products:**
-   * *Mechanism:* Complex multiplication of pupil fields by quadratic Fresnel phase factors.
-   * *Files:* `src/WFpropagate/wfprop_fresnel.c`.
+1. **Pure-C `#pragma omp simd` First:**
+   - Express hot loops in branchless C using `restrict` pointers, matching index/bound integer
+     types, unit-stride access, and inline branchless polynomial approximations where `<math.h>`
+     calls would inhibit vectorization (see `atmturb_rytov_fast_exp_clamped` in
+     `src/AtmosphericTurbulence/atmturb_rytov_simd_avx2.c`).
+2. **Per-ISA Target Instantiation (`*_impl.h`):**
+   - Place shared `#pragma omp simd` C implementations in an internal `*_impl.h` header (such as
+     `atmturb_simd_extrude_impl.h` and `atmturb_simd_ops_impl.h`) and include it from thin
+     `_avx2.c` and `_avx512.c` translation units compiled with target-specific flags.
+3. **Strict Gate for Explicit Intrinsics (`<immintrin.h>`):**
+   - **Never** write `_mm256_*` or `_mm512_*` intrinsics if GCC/Clang already vectorizes the C
+     loop cleanly.
+   - Use explicit intrinsics **only** after verifying via `-fopt-info-vec-missed` (or Clang
+     `-Rpass-missed=loop-vectorize`), assembly inspection (`objdump -d`), and `benchmark_perf`
+     that the compiler cannot generate efficient vector instructions and intrinsics provide a
+     measurable speedup.
 
 ---
 
 ## 2. Architecture & File Layout
 
-Explicit SIMD in `milkatmturb` follows the ISA Strategy Separation pattern:
-- **`atmturb_simd.h`**: Public API declarations and function prototypes.
-- **`atmturb_simd_scalar.c`**: Portable C scalar fallback (always compiled).
-- **`atmturb_simd_avx2.c`**: AVX2 + FMA vectorized implementation (compiled with `-mavx2 -mfma`).
-- **`atmturb_simd_avx512.c`**: AVX-512 implementation (compiled with `-mavx512f -mavx512dq -mfma`).
-- **`atmturb_simd_dispatch.c`**: Runtime CPU feature detection via `__builtin_cpu_supports` and
-  function pointer binding.
+Multi-ISA dispatch in `milkatmturb` follows the ISA Strategy Separation pattern:
+- **`atmturb_*_simd.h`**: Public API declarations and function prototypes.
+- **`atmturb_*_simd_impl.h`**: Shared pure-C `#pragma omp simd` kernel templates (preferred).
+- **`atmturb_*_simd_scalar.c`**: Portable C scalar fallback (always compiled without AVX flags).
+- **`atmturb_*_simd_avx2.c`**: Target TU compiled with `-mavx2 -mfma -fno-math-errno`.
+- **`atmturb_*_simd_avx512.c`**: Target TU compiled with `-mavx512f -mavx512dq -mavx512bw
+  -mavx512vl -mfma -fno-math-errno`.
+- **`atmturb_*_simd_dispatch.c`**: Runtime CPU feature detection via `__builtin_cpu_supports`
+  and function pointer binding (honoring `ATMTURB_SIMD=SCALAR|AVX2|AVX512`).
 
 ---
 
-## 3. Kernel Guidelines
+## 3. Verification & Kernel Guidelines
 
-- **Latency Hiding:** Modern x86 FMA units require multiple independent accumulators to prevent
-  pipeline stalls. Unroll reduction loops with 4 to 8 accumulators.
-- **Unaligned Memory Loads:** Use `_mm256_loadu_ps` and `_mm512_loadu_ps` unless allocations
-  are explicitly aligned to 32 or 64 bytes with `posix_memalign()`.
-- **Mandatory Scalar Fallback:** Every handwritten SIMD function must have a matching scalar
-  implementation to guarantee portability on non-x86 hardware.
-- **Benchmark Verification:** Validate vectorized speedups against `benchmark_perf.c` in `tests/`.
+- **Verify Compiler Output First:** Inspect `-fopt-info-vec-optimized` / `-fopt-info-vec-missed`
+  before reaching for `<immintrin.h>`. Often removing a branch, splitting a toroidal wrap seam,
+  or adding `restrict` unlocks clean compiler `vfmaddps` codegen without intrinsics.
+- **Latency Hiding:** Expose independent accumulators or `#pragma omp simd reduction(...)` in
+  reduction loops to saturate FMA execution ports.
+- **Unaligned Memory Loads (if intrinsics are required):** Use `_mm256_loadu_ps` and
+  `_mm512_loadu_ps` unless allocations are explicitly aligned via `aligned_alloc()`.
+- **Mandatory Scalar Fallback:** Every dispatched kernel must have a matching scalar
+  implementation in `_scalar.c` to guarantee portability across all architectures.
+- **Benchmark Verification:** Validate vectorized speedups against `benchmark_perf` in `tests/`.

@@ -4,14 +4,20 @@
 
 /**
  * @file    atmturb_mkmastert_FPS.h
- * @brief   FPS V2 compute unit header for master phase screens generation
+ * @brief   MILK_RUNNABLE FPS compute unit header for master phase screens generation
  */
 
 #ifndef ATMTURB_MKMASTERT_FPS_H
 #define ATMTURB_MKMASTERT_FPS_H
 
-#include "CLIcore.h"
+#include "milk_runnable.h"
 
-errno_t CLIADDCMD_milkatmturb__atmturb_mkmastert_FPS(void);
+/**
+ * runnable_atmturb_mkmastert - FPS runnable descriptor for master phase screens
+ *
+ * Exposes CLI command `atmturb.mkmastert` and standalone executable
+ * `milk-fpsexec-atmturb-mkmastert` for Fourier synthesis of von Karman screens.
+ */
+extern const MILK_RUNNABLE runnable_atmturb_mkmastert;
 
 #endif // ATMTURB_MKMASTERT_FPS_H

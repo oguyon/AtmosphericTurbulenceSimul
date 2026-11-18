@@ -155,6 +155,8 @@ void atmturb_wfs_init_obs_params(
     params->lowfreq         = CONF_LOWFREQ;
     params->rolling         = CONF_ROLLING;
     params->boil_time_s     = (double) CONF_BOIL_TIME;
+    params->boil_mode       = CONF_BOIL_MODE;
+    params->boil_sigma_mps  = (double) CONF_BOIL_SIGMA;
     params->master_size     = CONF_MASTER_SIZE;
     long nbframes           = (long) (CONF_TIME_SPAN / CONF_WFTIME_STEP + 0.5);
     params->nbframes        = (nbframes < 1) ? 1 : nbframes;

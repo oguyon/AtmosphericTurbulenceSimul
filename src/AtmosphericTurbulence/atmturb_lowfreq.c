@@ -5,8 +5,14 @@
 /**
  * @file    atmturb_lowfreq.c
  * @brief   Analytic Johansson-Gavel subharmonic low-order mode synthesis
+ *
+ * Implements the 3-level (24-mode) nested subharmonic Fourier compensation of
+ * Lane, Glindemann & Dainty (1992) and Johansson & Gavel (1994) to restore
+ * tip-tilt and low spatial-frequency power missing from periodic FFT phase
+ * screens at scales larger than the master grid dimension.
  */
 
+#define _GNU_SOURCE
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -18,12 +24,12 @@
 
 /**
  * atmturb_lowfreq_init_kvec - Calculate spatial frequency wavevectors for one mode
- * @lf: Target low-order modes container.
- * @idx: Mode index (0..23).
- * @p: Subharmonic level (1..3).
- * @nx: Integer harmonic offset along X (-1..1).
- * @ny: Integer harmonic offset along Y (-1..1).
- * @msize: Master screen linear dimension.
+ * @lf:    Target low-order modes container.
+ * @idx:   Mode index (0..23).
+ * @p:     Subharmonic shell level (1..3, spacing 1 / (3^p * msize)).
+ * @nx:    Integer harmonic offset along X (-1..1).
+ * @ny:    Integer harmonic offset along Y (-1..1).
+ * @msize: Master screen linear dimension [pixels].
  */
 static void atmturb_lowfreq_init_kvec(
     atmturb_lowfreq_t *lf,
@@ -41,6 +47,13 @@ static void atmturb_lowfreq_init_kvec(
 
 /**
  * atmturb_lowfreq_draw_amplitudes - Draw random complex Gaussian amplitudes for 24 modes
+ * @are:    Output real mode amplitudes (ATMTURB_LOWFREQ_NMODES floats).
+ * @aim:    Output imaginary mode amplitudes (ATMTURB_LOWFREQ_NMODES floats).
+ * @msize:  Master screen linear dimension [pixels].
+ * @r0_pix: Fried parameter in master pixels (<= 0 defaults to 6.88^0.6).
+ * @L0_pix: Outer scale in master pixels (<= 0 for infinite Kolmogorov outer scale).
+ * @l0_pix: Inner scale in master pixels (<= 0 for zero inner-scale damping).
+ * @seed:   PRNG seed (0 selects clock-derived seed).
  */
 void atmturb_lowfreq_draw_amplitudes(
     float    *are,
@@ -91,6 +104,12 @@ void atmturb_lowfreq_draw_amplitudes(
 
 /**
  * atmturb_lowfreq_init - Initialize 24 subharmonic Fourier modes for a screen pair
+ * @lf:     Output low-order modes container to populate.
+ * @msize:  Master screen linear dimension [pixels].
+ * @r0_pix: Fried parameter in master pixels.
+ * @L0_pix: Outer scale in master pixels (<= 0 for infinite).
+ * @l0_pix: Inner scale in master pixels (<= 0 for none).
+ * @seed:   Base PRNG seed for independent channel A and B draws.
  */
 void atmturb_lowfreq_init(
     atmturb_lowfreq_t *lf,
@@ -125,6 +144,15 @@ void atmturb_lowfreq_init(
 
 /**
  * atmturb_lowfreq_accumulate_custom - Evaluate and accumulate modes with custom amplitudes
+ * @lf:       Subharmonic wavevector geometry container (kx, ky, nmodes).
+ * @are:      Custom real mode amplitudes (ATMTURB_LOWFREQ_NMODES floats).
+ * @aim:      Custom imaginary mode amplitudes (ATMTURB_LOWFREQ_NMODES floats).
+ * @x0:       Continuous sub-pixel X origin on master grid [master pixels].
+ * @y0:       Continuous sub-pixel Y origin on master grid [master pixels].
+ * @pup_size: Synthesized pupil grid linear dimension [pixels].
+ * @os:       Master screen oversampling stride [master pixels / pupil pixel].
+ * @weight:   Layer Cn2 amplitude scaling weight.
+ * @out_pha:  In-out pupil phase buffer (pup_size * pup_size floats) to accumulate into.
  */
 void atmturb_lowfreq_accumulate_custom(
     const atmturb_lowfreq_t *lf,
@@ -158,6 +186,14 @@ void atmturb_lowfreq_accumulate_custom(
 
 /**
  * atmturb_lowfreq_accumulate - Analytically evaluate and accumulate low-order modes
+ * @lf:         Initialized subharmonic modes container.
+ * @screen_idx: Channel selector (0 for screen A / p0, 1 for screen B / p1).
+ * @x0:         Continuous sub-pixel X origin on master grid [master pixels].
+ * @y0:         Continuous sub-pixel Y origin on master grid [master pixels].
+ * @pup_size:   Synthesized pupil grid linear dimension [pixels].
+ * @os:         Master screen oversampling stride [master pixels / pupil pixel].
+ * @weight:     Layer Cn2 amplitude scaling weight.
+ * @out_pha:    In-out pupil phase buffer (pup_size * pup_size floats) to accumulate into.
  */
 void atmturb_lowfreq_accumulate(
     const atmturb_lowfreq_t *lf,
@@ -176,4 +212,78 @@ void atmturb_lowfreq_accumulate(
     const float *are = (screen_idx == 1) ? lf->bre : lf->are;
     const float *aim = (screen_idx == 1) ? lf->bim : lf->aim;
     atmturb_lowfreq_accumulate_custom(lf, are, aim, x0, y0, pup_size, os, weight, out_pha);
+}
+
+/**
+ * atmturb_lowfreq_fuse - Fold one layer's subharmonic phasors into multi-layer accumulator
+ * @acc:    In-out multi-layer phasor accumulator (must be zero-initialized before first layer).
+ * @params: Layer subharmonic evaluation parameters (lf, custom_are/aim, x0, y0, weight).
+ */
+void atmturb_lowfreq_fuse(
+    atmturb_lf_fused_t             *acc,
+    const atmturb_lowfreq_params_t *params)
+{
+    if (acc == NULL || params == NULL || params->lf == NULL || params->weight == 0.0f)
+    {
+        return;
+    }
+
+    const atmturb_lowfreq_t *lf  = params->lf;
+    const float             *are = params->custom_are;
+    const float             *aim = params->custom_aim;
+    if (are == NULL || aim == NULL)
+    {
+        are = (params->screen_idx == 1) ? lf->bre : lf->are;
+        aim = (params->screen_idx == 1) ? lf->bim : lf->aim;
+    }
+
+    int nm = lf->nmodes;
+    if (nm > ATMTURB_LOWFREQ_NMODES)
+    {
+        nm = ATMTURB_LOWFREQ_NMODES;
+    }
+    const double w = (double) params->weight;
+
+    for (int m = 0; m < nm; m++)
+    {
+        double th = params->x0 * (double) lf->kx[m] + params->y0 * (double) lf->ky[m];
+        double s0, c0;
+        sincos(th, &s0, &c0);
+        double ar = (double) are[m];
+        double ai = (double) aim[m];
+        acc->re[m] += w * (ar * c0 - ai * s0);
+        acc->im[m] += w * (ar * s0 + ai * c0);
+    }
+    acc->active = 1;
+}
+
+/**
+ * atmturb_lowfreq_flush - Evaluate fused multi-layer subharmonics onto pupil in a single pass
+ * @acc:      Populated multi-layer phasor accumulator.
+ * @lf:       Reference subharmonic wavevector geometry (kx, ky, nmodes).
+ * @pup_size: Synthesized pupil grid linear dimension [pixels].
+ * @os:       Master screen oversampling stride [master pixels / pupil pixel].
+ * @out_pha:  In-out pupil phase buffer (pup_size * pup_size floats) to accumulate into.
+ */
+void atmturb_lowfreq_flush(
+    const atmturb_lf_fused_t *acc,
+    const atmturb_lowfreq_t  *lf,
+    long                      pup_size,
+    long                      os,
+    float                    *out_pha)
+{
+    if (acc == NULL || !acc->active || lf == NULL || lf->nmodes <= 0 || out_pha == NULL)
+    {
+        return;
+    }
+
+    float are_f[ATMTURB_LOWFREQ_NMODES];
+    float aim_f[ATMTURB_LOWFREQ_NMODES];
+    for (int m = 0; m < ATMTURB_LOWFREQ_NMODES; m++)
+    {
+        are_f[m] = (float) acc->re[m];
+        aim_f[m] = (float) acc->im[m];
+    }
+
+    atmturb_lowfreq_accumulate_custom(lf, are_f, aim_f, 0.0, 0.0, pup_size, os, 1.0f, out_pha);
 }

@@ -4,14 +4,16 @@
 
 /**
  * @file    AtmosphereModel.c
- * @brief   Atmospheric model module lifecycle, state allocation, and CLI registration
+ * @brief   Atmospheric model module lifecycle and global state definitions
+ *
+ * Defines observatory site parameters and allocates the 10000-bin (0..100 km,
+ * 10 m spacing) vertical chemical density and thermodynamic profile buffers.
  */
 
-#include "CLIcore.h"
+#include <stdlib.h>
+
 #include "AtmosphereModel.h"
 #include "atmmod_types.h"
-
-extern DATA data;
 
 // Site and atmospheric configuration parameters
 float ZenithAngle = 0.0f;

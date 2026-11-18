@@ -67,6 +67,8 @@ int CONF_INTERP = 1;
 int CONF_LOWFREQ = 1;
 int CONF_ROLLING = 1;
 float CONF_BOIL_TIME = 0.0f;
+int CONF_BOIL_MODE = 0;
+float CONF_BOIL_SIGMA = 0.0f;
 
 int CONF_FRESNEL_PROPAGATION = 0;
 int CONF_WAVEFRONT_AMPLITUDE = 0;
@@ -228,6 +230,14 @@ static int atmturb_read_conf_str(
     return found;
 }
 
+/**
+ * atmturb_read_conf_long - Parse signed long integer keyword with default fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed signed long value, or @default_val.
+ */
 static long atmturb_read_conf_long(
     const char *conffile,
     const char *key,
@@ -246,6 +256,14 @@ static long atmturb_read_conf_long(
     return default_val;
 }
 
+/**
+ * atmturb_read_conf_int - Parse 32-bit signed integer keyword with default fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed integer value, or @default_val.
+ */
 static int atmturb_read_conf_int(
     const char *conffile,
     const char *key,
@@ -254,6 +272,14 @@ static int atmturb_read_conf_int(
     return (int) atmturb_read_conf_long(conffile, key, (long) default_val);
 }
 
+/**
+ * atmturb_read_conf_double - Parse double-precision keyword with default fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed double value, or @default_val.
+ */
 static double atmturb_read_conf_double(
     const char *conffile,
     const char *key,
@@ -272,6 +298,14 @@ static double atmturb_read_conf_double(
     return default_val;
 }
 
+/**
+ * atmturb_read_conf_float - Parse single-precision keyword with default fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed float value, or @default_val.
+ */
 static float atmturb_read_conf_float(
     const char *conffile,
     const char *key,
@@ -280,6 +314,14 @@ static float atmturb_read_conf_float(
     return (float) atmturb_read_conf_double(conffile, key, (double) default_val);
 }
 
+/**
+ * atmturb_read_conf_uint64 - Parse unsigned 64-bit integer keyword with fallback
+ * @conffile:    Path to configuration file.
+ * @key:         Parameter keyword to look up.
+ * @default_val: Fallback value when @key is absent or invalid.
+ *
+ * Return: Parsed uint64_t value, or @default_val.
+ */
 static uint64_t atmturb_read_conf_uint64(
     const char *conffile,
     const char *key,
@@ -390,6 +432,8 @@ static void atmturb_read_conf_screen(void)
     CONF_LOWFREQ       = atmturb_read_conf_int(CONFFILE, "LOWFREQ", CONF_LOWFREQ);
     CONF_ROLLING       = atmturb_read_conf_int(CONFFILE, "ROLLING", CONF_ROLLING);
     CONF_BOIL_TIME     = atmturb_read_conf_float(CONFFILE, "BOIL_TIME", CONF_BOIL_TIME);
+    CONF_BOIL_MODE     = atmturb_read_conf_int(CONFFILE, "BOIL_MODE", CONF_BOIL_MODE);
+    CONF_BOIL_SIGMA    = atmturb_read_conf_float(CONFFILE, "BOIL_SIGMA", CONF_BOIL_SIGMA);
 }
 
 /**
@@ -535,6 +579,8 @@ static int atmturb_write_default_config(const char *fname)
     fprintf(fp, "LOWFREQ                   1\n");
     fprintf(fp, "ROLLING                   1\n");
     fprintf(fp, "BOIL_TIME                 0.0\n");
+    fprintf(fp, "BOIL_MODE                 0\n");
+    fprintf(fp, "BOIL_SIGMA                0.0\n");
     fprintf(fp, "WAVEFRONT_AMPLITUDE       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION       0\n");
     fprintf(fp, "FRESNEL_PROPAGATION_BIN   100.0\n");

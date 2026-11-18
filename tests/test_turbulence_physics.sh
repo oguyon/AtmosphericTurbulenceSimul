@@ -15,7 +15,12 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-export LD_LIBRARY_PATH="$REPO_ROOT/_build:${LD_LIBRARY_PATH:-}"
+MILK_INSTALL_DIR="/home/oguyon/src-frameworkdev/milk/_install/milk-1.03.00"
+if [[ -d "$MILK_INSTALL_DIR" ]]; then
+    export LD_LIBRARY_PATH="$REPO_ROOT/_build:$MILK_INSTALL_DIR/lib:${LD_LIBRARY_PATH:-}"
+else
+    export LD_LIBRARY_PATH="$REPO_ROOT/_build:${LD_LIBRARY_PATH:-}"
+fi
 MILK_SHM_DIR="${MILK_SHM_DIR:-$([ -d /milk/shm-fdev ] && echo /milk/shm-fdev || echo /milk/shm)}"
 export MILK_SHM_DIR
 FPS_PREFIX="tphys$$"
@@ -24,9 +29,9 @@ find_executable() {
     local name="$1"
     local candidates=(
         "$REPO_ROOT/_build/$name"
+        "$MILK_INSTALL_DIR/bin/$name"
         "$REPO_ROOT/../../_build/plugins/milkatmturb/$name"
         "$REPO_ROOT/../_build/plugins/milkatmturb/$name"
-        "/home/oguyon/src/milk-framework-dev/_build/plugins/milkatmturb/$name"
         "$(command -v "$name" 2>/dev/null || true)"
     )
     for c in "${candidates[@]}"; do
@@ -56,7 +61,7 @@ MKAOLOOP=$(find_executable milk-fpsexec-atmturb-aoloop) \
 TEST_TMPDIR="$(mktemp -d /tmp/test_turb_physics_XXXXXX)"
 cleanup() {
     rm -rf "$TEST_TMPDIR"
-    rm -f "$MILK_SHM_DIR/${FPS_PREFIX}"_*.fps.shm
+    rm -rf "$MILK_SHM_DIR/${FPS_PREFIX}"_*.fps.shm "$MILK_SHM_DIR/${FPS_PREFIX}"_*.fps.d
 }
 trap cleanup EXIT
 
@@ -81,7 +86,7 @@ write_conf() {
         [SKIP_EXISTING]=0 [WF_RAW_SIZE]=128 [MASTER_SIZE]=1024
         [MASTER_OVERSAMPLE]=2 [INTERP]=1
         [WAVEFRONT_AMPLITUDE]=0 [FRESNEL_PROPAGATION]=0 [FRESNEL_PROPAGATION_BIN]=1000.0
-        [LOWFREQ]=0 [ROLLING]=0 [FRESNEL_GUARD_PIX]=0
+        [LOWFREQ]=0 [ROLLING]=0 [BOIL_MODE]=0 [BOIL_SIGMA]=0.0 [FRESNEL_GUARD_PIX]=0
         [FRESNEL_REFRACT_PATH]=0 [FRESNEL_SCINT_WEIGHT]=0
     )
     local arg
@@ -1151,6 +1156,72 @@ sys.exit(0 if ok else 1)
 '
 }
 
+# T9t: Mode 1 split-step Fresnel guard band + quartic sponge suppresses wrap-around edge ripples
+scenario_T9t_mode1_guard_band() {
+    cat << 'EOF' > turbul.prof
+# alt(m) cn2 speed dir L0 l0
+ 500.0   0.4 10.0  0.0 50.0 0.01
+ 10000.0 0.6 20.0  0.5 50.0 0.01
+EOF
+
+    mkdir -p g0 g16 r16
+    write_conf g0/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=1 \
+        FRESNEL_GUARD_PIX=0 FRESNEL_REFRACT_PATH=1 LOWFREQ=1 \
+        SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 TURBULENCE_SEEING=0.2 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=42
+
+    write_conf g16/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=1 \
+        FRESNEL_GUARD_PIX=16 FRESNEL_REFRACT_PATH=1 LOWFREQ=1 \
+        SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 TURBULENCE_SEEING=0.2 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=42
+
+    write_conf r16/WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 \
+        FRESNEL_GUARD_PIX=16 FRESNEL_REFRACT_PATH=1 LOWFREQ=1 \
+        SITE_ALT=500.0 ZENITH_ANGLE=0.5235987756 TURBULENCE_SEEING=0.2 \
+        TIME_SPAN=0.05 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=42
+
+    (cd g0 && cp ../turbul.prof . && run_mkwfs t9t_g0 1.65 0) || return 1
+    (cd g16 && cp ../turbul.prof . && run_mkwfs t9t_g16 1.65 0) || return 1
+    (cd r16 && cp ../turbul.prof . && run_mkwfs t9t_r16 1.65 0) || return 1
+
+    python3 -c '
+import sys
+import numpy as np
+from astropy.io import fits
+
+p0 = fits.getdata("g0/outarraypha.fits")
+a0 = fits.getdata("g0/outarrayamp.fits")
+p16 = fits.getdata("g16/outarraypha.fits")
+a16 = fits.getdata("g16/outarrayamp.fits")
+sp16 = fits.getdata("g16/outsarraypha.fits")
+sa16 = fits.getdata("g16/outsarrayamp.fits")
+ar16 = fits.getdata("r16/outarrayamp.fits")
+
+finite_ok = (np.all(np.isfinite(p16)) and np.all(np.isfinite(a16)) and
+             np.all(np.isfinite(sp16)) and np.all(np.isfinite(sa16)))
+
+mean_I_pri = float(np.mean(a16**2))
+mean_I_sec = float(np.mean(sa16**2))
+energy_ok = abs(mean_I_pri - 1.0) < 0.02 and abs(mean_I_sec - 1.0) < 0.02
+
+s = slice(8, -8)
+corr_p = float(np.corrcoef(p0[:, s, s].ravel(), p16[:, s, s].ravel())[0, 1])
+corr_a = float(np.corrcoef(a16[:, s, s].ravel(), ar16[:, s, s].ravel())[0, 1])
+
+bmask = np.ones(a16.shape[1:], dtype=bool)
+bmask[4:-4, 4:-4] = False
+edge_err_g0 = float(np.std((a0 - ar16)[:, bmask]))
+edge_err_g16 = float(np.std((a16 - ar16)[:, bmask]))
+
+ok = (finite_ok and energy_ok and corr_p > 0.98 and corr_a > 0.90 and
+      edge_err_g16 < edge_err_g0 * 0.80)
+msg = (f": corr_p={corr_p:.4f}, corr_a_rytov={corr_a:.4f}, "
+       f"edge_err {edge_err_g0:.4f}->{edge_err_g16:.4f}, mean_I={mean_I_pri:.4f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
 # T16a: Flat wavefront PSF produces normalized Strehl = 1.000 +- 1e-3 and centered peak
 scenario_T16a_zero_turb_strehl() {
     run_aoloop t16a "none" "PSFflat" "psf_flat.fits" 0 0.0 0.0 0 1.65 8.0 || return 1
@@ -1260,6 +1331,251 @@ sys.exit(0 if ok else 1)
 '
 }
 
+# T16d: AO PSF engine incorporates scintillation amplitude and chromatic science channels
+scenario_T16d_aoloop_scint_and_chromatic() {
+    cat << 'EOF' > turbul.prof
+# alt(m) cn2 speed dir L0 l0
+ 2000.0  0.5 10.0  0.0 50.0 0.01
+ 12000.0 0.5 22.0  0.4 50.0 0.01
+EOF
+    write_conf WFsim.conf WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 FRESNEL_GUARD_PIX=16 \
+        MAKE_SWAVEFRONT=1 SLAMBDA=1.65 TURBULENCE_REF_WAVEL=0.5 \
+        SITE_ALT=2000.0 ZENITH_ANGLE=0.7853981634 TURBULENCE_SEEING=0.7 \
+        TIME_SPAN=0.10 WFTIME_STEP=0.01 WFsize=64 PUPIL_SCALE=0.03 SEED=77
+    run_mkwfs t16d_wfs 1.65 0 || return 1
+
+    "$MKAOLOOP" -n "${FPS_PREFIX}_t16d_sc" exec "none" "PSFsc" "psf_sc.fits" \
+        0 0.0 0.0 0 1.65 1.92 0.50 0.03 0.01 "outarrayamp.fits" > aoloop_sc.log 2>&1 || return 1
+    "$MKAOLOOP" -n "${FPS_PREFIX}_t16d_ach" exec "outarraypha.fits" "PSFach" "psf_ach.fits" \
+        1 0.5 0.001 1 1.65 1.92 0.50 0.03 0.01 > aoloop_ach.log 2>&1 || return 1
+    "$MKAOLOOP" -n "${FPS_PREFIX}_t16d_chr" exec "outarraypha.fits" "PSFchr" "psf_chr.fits" \
+        1 0.5 0.001 1 1.65 1.92 0.50 0.03 0.01 "" "outsarraypha.fits" "outsarrayamp.fits" \
+        > aoloop_chr.log 2>&1 || return 1
+
+    python3 -c '
+import re, sys
+import numpy as np
+from astropy.io import fits
+
+def get_strehl(fname):
+    with open(fname) as f:
+        m = re.search(r"Strehl = ([0-9.]+)", f.read())
+    return float(m.group(1)) if m else None
+
+s_sc = get_strehl("aoloop_sc.log")
+s_ach = get_strehl("aoloop_ach.log")
+s_chr = get_strehl("aoloop_chr.log")
+if None in (s_sc, s_ach, s_chr):
+    print("FAIL: could not parse Strehl ratios from aoloop logs")
+    sys.exit(1)
+
+amp = fits.getdata("outarrayamp.fits")
+psf_chr = fits.getdata("psf_chr.fits")
+n = amp.shape[-1]
+yy, xx = np.ogrid[:n, :n]
+c = 0.5 * (n - 1.0)
+mask = ((xx - c) ** 2 + (yy - c) ** 2) <= (0.5 * n) ** 2
+npup = float(np.sum(mask))
+s_sc_theo = float(np.mean([(np.sum(frame[mask]) / npup) ** 2 for frame in amp]))
+
+scint_ok = (abs(s_sc - s_sc_theo) < 5e-3) and (s_sc < 0.999)
+chrom_ok = np.all(np.isfinite(psf_chr)) and (0.05 < s_chr < s_ach)
+ok = scint_ok and chrom_ok
+msg = (f": s_sc={s_sc:.4f} (theo {s_sc_theo:.4f}), "
+       f"s_chr={s_chr:.4f} < s_ach={s_ach:.4f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T17a: AR(1)/AR(2) spatial stationarity, k_sub>1 variance preservation, and 3D cube windowing
+scenario_T17a_boiling_spatial_stationarity() {
+    mkdir -p m1 m2
+    (cd m1 && one_layer_profile 4200 1.0 4.0 0.3 10000 0.0 && \
+        write_conf WFsim.conf WFsize=128 WF_RAW_SIZE=128 MASTER_SIZE=512 MASTER_OVERSAMPLE=1 \
+            PUPIL_SCALE=0.02 WFTIME_STEP=0.001 TIME_SPAN=0.045 BOIL_MODE=1 BOIL_SIGMA=0.15 \
+            MAKE_SWAVEFRONT=0 SEED=77 && \
+        run_mkwfs t17a_m1 1.65 0) || return 1
+    "${VALIDATE[@]}" sf m1/outarraypha.fits --reference discrete --seeing 0.6 --lam 0.5e-6 \
+        --L0 10000 --master-size 512 --oversample 1 --pixscale 0.02 --lag-min 2 --lag-max 8 \
+        --tol 0.12 --subtract-piston || return 1
+
+    (cd m2 && one_layer_profile 4200 1.0 3.0 0.5 100.0 0.0 && \
+        write_conf WFsim.conf WFsize=256 WF_RAW_SIZE=256 MASTER_SIZE=512 MASTER_OVERSAMPLE=1 \
+            PUPIL_SCALE=0.02 WFTIME_STEP=0.005 TIME_SPAN=0.40 BOIL_MODE=2 BOIL_SIGMA=0.80 \
+            MAKE_SWAVEFRONT=0 SEED=4 && \
+        run_mkwfs t17a_m2 1.65 0) || return 1
+    "${VALIDATE[@]}" sf m2/outarraypha.fits --reference discrete --seeing 0.6 --lam 0.5e-6 \
+        --L0 100.0 --master-size 512 --oversample 1 --pixscale 0.02 --lag-min 2 --lag-max 8 \
+        --tol 0.12 --subtract-piston || return 1
+
+    python3 -c '
+import sys
+import numpy as np
+from astropy.io import fits
+
+c1 = fits.getdata("m1/outarraypha.fits")
+c2 = fits.getdata("m2/outarraypha.fits")
+v1 = np.var(c1 - np.mean(c1, axis=(1, 2), keepdims=True), axis=(1, 2))
+v2 = np.var(c2 - np.mean(c2, axis=(1, 2), keepdims=True), axis=(1, 2))
+
+# In m1, eta_f ~ 0.033 -> k_sub = 3: compare midpoint frames (t%3 != 0) vs keyframes (t%3 == 0)
+kf_mask = (np.arange(len(v1)) % 3) == 0
+mid_ratio = float(np.mean(v1[~kf_mask]) / np.mean(v1[kf_mask]))
+
+# In m2, 80 keyframes on MASTER_SIZE=512 (pcap=64) crosses window boundary at t=63->64
+stat_ratio = float(np.mean(v2[40:]) / np.mean(v2[:40]))
+d2 = np.std(np.diff(c2 - np.mean(c2, axis=(1, 2), keepdims=True), axis=0), axis=(1, 2))
+seam_ratio = float(d2[63] / np.median(d2))
+
+ok = (0.92 <= mid_ratio <= 1.08) and (0.82 <= stat_ratio <= 1.18) and (seam_ratio < 1.5)
+msg = f": mid_var_ratio={mid_ratio:.4f}, win_stat={stat_ratio:.4f}, win_seam={seam_ratio:.4f}"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T17b: Fourier mode-resolved scale-dependent decay tau(f) ~ 1/f and AR(2) vs AR(1) short-lag shape
+scenario_T17b_boiling_scale_dependent_tau() {
+    mkdir -p ar1 ar2
+    (cd ar1 && one_layer_profile 4200 1.0 0.0 0.0 100.0 0.0 && \
+        write_conf WFsim.conf WFsize=128 WF_RAW_SIZE=128 MASTER_SIZE=128 MASTER_OVERSAMPLE=1 \
+            INTERP=0 PUPIL_SCALE=0.04 WFTIME_STEP=0.01 TIME_SPAN=2.40 BOIL_MODE=-1 \
+            BOIL_SIGMA=1.0 LOWFREQ=0 MAKE_SWAVEFRONT=0 SEED=101 && \
+        run_mkwfs t17b_ar1 1.65 0) || return 1
+
+    (cd ar2 && one_layer_profile 4200 1.0 0.0 0.0 100.0 0.0 && \
+        write_conf WFsim.conf WFsize=128 WF_RAW_SIZE=128 MASTER_SIZE=128 MASTER_OVERSAMPLE=1 \
+            INTERP=0 PUPIL_SCALE=0.04 WFTIME_STEP=0.01 TIME_SPAN=2.40 BOIL_MODE=-2 \
+            BOIL_SIGMA=1.0 LOWFREQ=0 MAKE_SWAVEFRONT=0 SEED=101 && \
+        run_mkwfs t17b_ar2 1.65 0) || return 1
+
+    python3 -c '
+import sys
+import numpy as np
+from astropy.io import fits
+
+dt = 0.01
+L = 128 * 0.04
+sigma_b = 1.0
+
+def shell_acf(cube, k_lo, k_hi, lag):
+    spec = np.fft.rfft2(cube, axes=(1, 2))
+    ky = np.fft.fftfreq(128, d=1.0 / 128.0)[:, None]
+    kx = np.arange(65)[None, :]
+    kr = np.hypot(kx, ky)
+    mask = (kr >= k_lo) & (kr <= k_hi) & (kx >= 1) & (kx < 64)
+    s = spec[:, mask]
+    num = np.real(np.sum(s[lag:] * np.conj(s[:-lag])))
+    den = 0.5 * float(np.sum(np.abs(s[lag:]) ** 2) + np.sum(np.abs(s[:-lag]) ** 2))
+    k_mean = float(np.mean(kr[mask]))
+    return num / den, k_mean
+
+c1 = fits.getdata("ar1/outarraypha.fits")
+c2 = fits.getdata("ar2/outarraypha.fits")
+
+rho_lo, k_lo = shell_acf(c1, 3.5, 4.5, 10)
+rho_hi, k_hi = shell_acf(c1, 11.5, 12.5, 5)
+gam_lo = -np.log(max(rho_lo, 1e-6)) / (10 * dt)
+gam_hi = -np.log(max(rho_hi, 1e-6)) / (5 * dt)
+gam_lo_th = 2.0 * np.pi * sigma_b * (k_lo / L)
+gam_hi_th = 2.0 * np.pi * sigma_b * (k_hi / L)
+scale_ratio = gam_hi / gam_lo
+theo_ratio = k_hi / k_lo
+
+# Short-lag (lag=2, dt=0.02s) decorrelation 1 - rho on k ~ 16: AR(2) quadratic << AR(1) linear
+r1_s, _ = shell_acf(c1, 14.5, 17.5, 2)
+r2_s, _ = shell_acf(c2, 14.5, 17.5, 2)
+drop1 = 1.0 - r1_s
+drop2 = 1.0 - r2_s
+
+ok = (abs(gam_lo - gam_lo_th) / gam_lo_th < 0.25 and
+      abs(gam_hi - gam_hi_th) / gam_hi_th < 0.25 and
+      abs(scale_ratio - theo_ratio) / theo_ratio < 0.25 and
+      drop2 < 0.45 * drop1)
+msg = (f": gam_lo={gam_lo:.2f} (th {gam_lo_th:.2f}), gam_hi={gam_hi:.2f} (th {gam_hi_th:.2f}), "
+       f"ratio={scale_ratio:.2f} (th {theo_ratio:.2f}), drop2={drop2:.3f} < drop1={drop1:.3f}")
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
+# T17c: 9-col turbul.prof, subharmonic boiling, Fresnel/Rytov scintillation, and 2D SHM streaming
+scenario_T17c_boiling_stream_and_modes() {
+    cat > turbul.prof << 'EOF'
+# alt cn2 speed dir L0 l0 sigma_w L_wind sigma_boil
+4200  0.5 0.0 0.0 40.0 0.005 0.0 50.0 1.2
+10000 0.5 0.0 0.0 40.0 0.005 0.0 50.0 2.5
+EOF
+    mkdir -p f1 f2
+    (cd f1 && cp ../turbul.prof . && \
+        write_conf WFsim.conf WFsize=128 WF_RAW_SIZE=128 MASTER_SIZE=256 MASTER_OVERSAMPLE=1 \
+            PUPIL_SCALE=0.02 SITE_ALT=0.0 WFTIME_STEP=0.02 TIME_SPAN=0.20 BOIL_MODE=2 \
+            LOWFREQ=1 WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=1 MAKE_SWAVEFRONT=0 SEED=55 && \
+        run_mkwfs t17c_f1 1.65 0) || return 1
+
+    (cd f2 && cp ../turbul.prof . && \
+        write_conf WFsim.conf WFsize=128 WF_RAW_SIZE=128 MASTER_SIZE=256 MASTER_OVERSAMPLE=1 \
+            PUPIL_SCALE=0.02 SITE_ALT=0.0 WFTIME_STEP=0.02 TIME_SPAN=0.20 BOIL_MODE=2 \
+            LOWFREQ=1 WAVEFRONT_AMPLITUDE=1 FRESNEL_PROPAGATION=2 MAKE_SWAVEFRONT=0 SEED=55 && \
+        run_mkwfs t17c_f2 1.65 0) || return 1
+
+    local fps_s="${FPS_PREFIX}_t17c_str"
+    local spha="t17c_pha_$$"
+    local samp="t17c_amp_$$"
+    export PATH="$MILK_INSTALL_DIR/bin:$PATH"
+    rm -f WFsim.conf "$MILK_SHM_DIR/${spha}.im.shm" "$MILK_SHM_DIR/${samp}.im.shm"
+    "$MKWFS" -n "$fps_s" fpsinit > stream.log 2>&1 || return 1
+    milk-fps-set "$fps_s.wfsize" 64 >> stream.log 2>&1
+    milk-fps-set "$fps_s.master_size" 256 >> stream.log 2>&1
+    milk-fps-set "$fps_s.stream_mode" 2 >> stream.log 2>&1
+    milk-fps-set "$fps_s.time_step" 0.005 >> stream.log 2>&1
+    milk-fps-set "$fps_s.time_span" 0.04 >> stream.log 2>&1
+    milk-fps-set "$fps_s.boil_mode" 2 >> stream.log 2>&1
+    milk-fps-set "$fps_s.boil_sigma" 1.8 >> stream.log 2>&1
+    milk-fps-set "$fps_s.fresnel" 2 >> stream.log 2>&1
+    milk-fps-set "$fps_s.amplitude" 1 >> stream.log 2>&1
+    milk-fps-set "$fps_s.save_fits" 0 >> stream.log 2>&1
+    milk-fps-set "$fps_s.out_phase" "$spha" >> stream.log 2>&1
+    milk-fps-set "$fps_s.out_ampl" "$samp" >> stream.log 2>&1
+    "$MKWFS" -n "$fps_s" run >> stream.log 2>&1
+    local rc=$?
+    local cnt0
+    cnt0=$(milk-stream-info "$spha" 2>/dev/null | sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' \
+           | awk '/cnt0/ {print $3}')
+    milk-fps-rm -f -x "$fps_s" >> stream.log 2>&1 || true
+    milk-stream-rm "$spha" >> stream.log 2>&1 || true
+    milk-stream-rm "$samp" >> stream.log 2>&1 || true
+    rm -f "$MILK_SHM_DIR/${spha}.im.shm" "$MILK_SHM_DIR/${samp}.im.shm"
+    [[ $rc -eq 0 && "${cnt0:-0}" -eq 8 ]] || {
+        echo "FAIL: 2D boiling SHM stream cnt0=${cnt0:-none} (expected 8)"
+        return 1
+    }
+
+    python3 -c '
+import sys
+import numpy as np
+from astropy.io import fits
+
+p1 = fits.getdata("f1/outarraypha.fits")
+a1 = fits.getdata("f1/outarrayamp.fits")
+p2 = fits.getdata("f2/outarraypha.fits")
+a2 = fits.getdata("f2/outarrayamp.fits")
+
+dp1 = float(np.std(p1[-1] - p1[0]))
+da1 = float(np.std(a1[-1] - a1[0]))
+si1 = float(np.var(a1[:, 16:-16, 16:-16] ** 2))
+si2 = float(np.var(a2[:, 16:-16, 16:-16] ** 2))
+rel_si = abs(si1 - si2) / max(si2, 1e-8)
+
+ok = (dp1 > 0.1 and da1 > 0.005 and si1 > 1e-4 and rel_si < 0.30 and
+      np.all(np.isfinite(p1)) and np.all(np.isfinite(p2)))
+msg = f": dp={dp1:.3f}, da={da1:.4f}, si1={si1:.5f}, si2={si2:.5f} (rel={rel_si:.3f}), shm=ok"
+print(("PASS" if ok else "FAIL") + msg)
+sys.exit(0 if ok else 1)
+'
+}
+
 # ----------------------------------------------------------------------------------------------
 # Runner
 # ----------------------------------------------------------------------------------------------
@@ -1296,6 +1612,7 @@ SCENARIOS=(
     "T9q_refracted_path_length:pass"
     "T9r_scintillation_centroid:pass"
     "T9s_edge_normalization_stability:pass"
+    "T9t_mode1_guard_band:pass"
     "T10_breathing:pass"
     "T10b_simd_parity:pass"
     "T10c_cuda_rytov_parity:pass"
@@ -1307,6 +1624,10 @@ SCENARIOS=(
     "T16a_zero_turb_strehl:pass"
     "T16b_open_loop_seeing:pass"
     "T16c_closed_loop_strehl:pass"
+    "T16d_aoloop_scint_and_chromatic:pass"
+    "T17a_boiling_spatial_stationarity:pass"
+    "T17b_boiling_scale_dependent_tau:pass"
+    "T17c_boiling_stream_and_modes:pass"
 )
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

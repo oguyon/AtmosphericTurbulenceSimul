@@ -59,7 +59,10 @@ void atmturb_extrude_accumulate_bilinear_scalar(
     float w11 = fx * fy * weight;
 
 #ifdef _OPENMP
-    #pragma omp parallel for if(!omp_in_parallel() && pup_size >= 128) schedule(static)
+    int max_t = omp_get_max_threads();
+    int nth   = (max_t > 8) ? 8 : max_t;
+    #pragma omp parallel for if (!omp_in_parallel() && pup_size >= 512) \
+        num_threads(nth) schedule(static)
 #endif
     for (long jj = 0; jj < pup_size; jj++)
     {
@@ -122,7 +125,10 @@ void atmturb_extrude_accumulate_bicubic_scalar(
     }
 
 #ifdef _OPENMP
-    #pragma omp parallel for if(!omp_in_parallel() && pup_size >= 128) schedule(static)
+    int max_t = omp_get_max_threads();
+    int nth   = (max_t > 8) ? 8 : max_t;
+    #pragma omp parallel for if (!omp_in_parallel() && pup_size >= 512) \
+        num_threads(nth) schedule(static)
 #endif
     for (long jj = 0; jj < pup_size; jj++)
     {
@@ -187,6 +193,23 @@ void atmturb_extrude_accumulate_scalar(
     else
     {
         atmturb_extrude_accumulate_bilinear_scalar(params);
+    }
+
+    if (params->master_b != NULL && params->weight_b != 0.0f)
+    {
+        atmturb_extrude_params_t pb = *params;
+        pb.master                   = params->master_b;
+        pb.weight                   = params->weight_b;
+        pb.master_b                 = NULL;
+        pb.weight_b                 = 0.0f;
+        if (pb.interp == ATMTURB_INTERP_BICUBIC)
+        {
+            atmturb_extrude_accumulate_bicubic_scalar(&pb);
+        }
+        else
+        {
+            atmturb_extrude_accumulate_bilinear_scalar(&pb);
+        }
     }
 }
 
@@ -270,7 +293,10 @@ static void atmturb_lowfreq_mode_accumulate_scalar(
         }
 
 #ifdef _OPENMP
-        #pragma omp parallel for if(!omp_in_parallel() && params->pup_size >= 128) schedule(static)
+        int max_t = omp_get_max_threads();
+        int nth   = (max_t > 8) ? 8 : max_t;
+        #pragma omp parallel for if (!omp_in_parallel() && params->pup_size >= 512) \
+            num_threads(nth) schedule(static)
 #endif
         for (long j = 0; j < params->pup_size; j++)
         {
@@ -362,9 +388,9 @@ void atmturb_complex_mul_array_scalar(
  * @npix: Total number of pixels.
  */
 void atmturb_remove_piston_stream_scalar(
-    float       *restrict dst,
-    const float *restrict src,
-    long                  npix)
+    float       *dst,
+    const float *src,
+    long         npix)
 {
     if (dst == NULL || src == NULL || npix <= 0)
     {

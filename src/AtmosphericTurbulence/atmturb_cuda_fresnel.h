@@ -19,9 +19,45 @@
 extern "C" {
 #endif
 
+/**
+ * struct atmturb_cuda_fresnel_batch_req - Multi-frame batched GPU Fresnel cube request
+ * @r: Initialized rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @prof: Active multi-layer turbulence profile.
+ * @params: Observation parameters container.
+ * @master_size: Master screen linear dimension in pixels.
+ * @pup_size: Output pupil dimension in pixels.
+ * @nbframes: Total number of frames to synthesize.
+ * @pha: Destination primary phase 3D cube (`nbframes * pup_size * pup_size` floats).
+ * @amp: Destination primary amplitude 3D cube (or NULL).
+ * @spha: Destination secondary phase 3D cube (or NULL).
+ * @samp: Destination secondary amplitude 3D cube (or NULL).
+ */
+typedef struct
+{
+    const atmturb_rolling_t    *r;
+    const atmturb_geom_t       *geom;
+    const atmturb_profile_t    *prof;
+    const atmturb_obs_params_t *params;
+    long                        master_size;
+    long                        pup_size;
+    long                        nbframes;
+    float                      *pha;
+    float                      *amp;
+    float                      *spha;
+    float                      *samp;
+} atmturb_cuda_fresnel_batch_req_t;
+
 #ifndef HAVE_CUDA
 
 typedef void atmturb_cuda_fresnel_stream_t;
+
+static inline int atmturb_cuda_fresnel_render_batch(
+    const atmturb_cuda_fresnel_batch_req_t *req)
+{
+    (void) req;
+    return -1;
+}
 
 static inline atmturb_cuda_fresnel_stream_t *atmturb_cuda_fresnel_stream_init(
     const atmturb_rolling_t    *r,
@@ -95,6 +131,14 @@ static inline int atmturb_cuda_fresnel_stream_render_wait(
     (void) ctx;
     (void) slot;
     return -1;
+}
+
+static inline void atmturb_cuda_fresnel_set_remove_piston(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    int                            remove_piston)
+{
+    (void) ctx;
+    (void) remove_piston;
 }
 
 static inline void atmturb_cuda_fresnel_stream_free(
@@ -190,11 +234,34 @@ int atmturb_cuda_fresnel_stream_render_wait(
     int                            slot);
 
 /**
+ * atmturb_cuda_fresnel_set_remove_piston - Enable or disable per-frame mean piston subtraction
+ * @ctx: Persistent stream context.
+ * @remove_piston: Non-zero to subtract mean piston per frame (default 1), 0 to preserve full phase.
+ */
+void atmturb_cuda_fresnel_set_remove_piston(
+    atmturb_cuda_fresnel_stream_t *ctx,
+    int                            remove_piston);
+
+/**
  * atmturb_cuda_fresnel_stream_free - Free persistent GPU Fresnel streaming context
  * @ctx: Stream context to release.
  */
 void atmturb_cuda_fresnel_stream_free(
     atmturb_cuda_fresnel_stream_t *ctx);
+
+/**
+ * atmturb_cuda_fresnel_render_batch - Render 3D Fresnel wavefront cubes via batched cuFFT
+ * @req: Batch request descriptor with profile, geometry, and output cube pointers.
+ *
+ * Return: 0 on success, -1 on CUDA/cuFFT failure.
+ */
+int atmturb_cuda_fresnel_render_batch(
+    const atmturb_cuda_fresnel_batch_req_t *req);
+
+/**
+ * atmturb_cuda_fresnel_batch_cleanup - Release cached batched Fresnel cuFFT plans and buffers
+ */
+void atmturb_cuda_fresnel_batch_cleanup(void);
 
 #endif /* HAVE_CUDA */
 

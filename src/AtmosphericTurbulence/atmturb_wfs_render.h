@@ -10,10 +10,11 @@
 #ifndef ATMTURB_WFS_RENDER_H
 #define ATMTURB_WFS_RENDER_H
 
-#include "CLIcore.h"
+#include "milk_runnable.h"
 #include "atmturb_geometry.h"
 #include "atmturb_profile.h"
 #include "atmturb_rolling.h"
+#include "atmturb_superlayer.h"
 #include "ImageStreamIO/ImageStreamIO.h"
 
 #ifdef __cplusplus
@@ -93,6 +94,40 @@ void atmturb_wfs_render_layer(
     long                     pup_size,
     float                   *pha_slice,
     float                   *spha_slice);
+
+/**
+ * atmturb_wfs_render_all_layers - Render all geometric layers with fused epochs & subharmonics
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @master_size: Master screen dimension.
+ * @target: Render target specifications and buffers.
+ */
+void atmturb_wfs_render_all_layers(
+    const atmturb_rolling_t           *r,
+    const atmturb_geom_t              *geom,
+    long                               t,
+    double                             time_step_s,
+    long                               master_size,
+    const atmturb_wfs_render_target_t *target);
+
+/**
+ * atmturb_wfs_render_superlayer - Render all layers in a superlayer with fused subharmonics
+ * @r: Rolling simulation context.
+ * @geom: Computed observing geometry.
+ * @sl: Superlayer descriptor (layer indices and fractional weights).
+ * @t: Frame index.
+ * @time_step_s: Time step in seconds.
+ * @target: Render target specifications and buffers.
+ */
+void atmturb_wfs_render_superlayer(
+    const atmturb_rolling_t           *r,
+    const atmturb_geom_t              *geom,
+    const atmturb_superlayer_t        *sl,
+    long                               t,
+    double                             time_step_s,
+    const atmturb_wfs_render_target_t *target);
 
 /**
  * atmturb_wfs_render_frames - Dispatch rendering to diffractive or geometric engine
